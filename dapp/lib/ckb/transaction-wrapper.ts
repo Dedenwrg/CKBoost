@@ -67,20 +67,18 @@ async function calculateFeeRate(
  *
  * @param signer The signer to use
  * @param tx The transaction to send
- * @param buildTx Optional function to rebuild the transaction from scratch
  * @returns The transaction hash
  */
 export async function sendTransactionWithFeeRetry(
   signer: ccc.Signer,
-  tx: ccc.Transaction,
-  buildTx?: () => Promise<ccc.Transaction>
+  tx: ccc.Transaction
 ): Promise<ccc.Hex> {
   let attempts = 0;
   const maxAttempts = 3;
 
   while (attempts < maxAttempts) {
     attempts++;
-
+    // TODO: Provide cell deps for known scripts that are often missing
     await tx.addCellDepsOfKnownScripts(
       signer.client,
       KnownScript.Secp256k1Blake160
@@ -130,14 +128,6 @@ export async function sendTransactionWithFeeRetry(
         }
 
         console.log(`Required fee: ${requiredFee} shannons`);
-
-        // If we have a buildTx function, rebuild from scratch
-        if (buildTx) {
-          console.log(
-            "Rebuilding transaction from scratch with correct fee..."
-          );
-          tx = await buildTx();
-        }
 
         // Query fee rate from node and ensure it covers requiredFee
         const feeRate = await calculateFeeRate(signer, tx, requiredFee);
@@ -200,58 +190,4 @@ Please sign the transaction again with the corrected fee.
   }
 
   throw new Error(`Failed to send transaction after ${maxAttempts} attempts`);
-}
-
-/**
- * Wrapper for protocol deployment with automatic fee retry
- */
-export async function deployProtocolWithFeeRetry(
-  signer: ccc.Signer,
-  protocolDeployFn: () => Promise<ccc.Transaction>
-): Promise<ccc.Hex> {
-  // Build the initial transaction
-  const tx = await protocolDeployFn();
-
-  // Send with automatic retry
-  return sendTransactionWithFeeRetry(signer, tx, protocolDeployFn);
-}
-
-/**
- * Wrapper for any transaction operation with automatic fee retry
- *
- * Usage:
- * ```typescript
- * const txHash = await executeTransactionWithFeeRetry(
- *   signer,
- *   async () => {
- *     // Build your transaction here
- *     const tx = new ccc.Transaction();
- *     // ... add inputs, outputs, etc ...
- *     await tx.completeInputsByCapacity(signer);
- *     await tx.completeFeeBy(signer);
- *     return tx;
- *   }
- * );
- * ```
- */
-export async function executeTransactionWithFeeRetry(
-  signer: ccc.Signer,
-  buildTx: () => Promise<ccc.Transaction>
-): Promise<ccc.Hex> {
-  // Build the initial transaction
-  const tx = await buildTx();
-
-  // Send with automatic retry
-  return sendTransactionWithFeeRetry(signer, tx, buildTx);
-}
-
-/**
- * Simple wrapper for existing transactions
- * Just replaces signer.sendTransaction with automatic retry
- */
-export async function sendTransaction(
-  signer: ccc.Signer,
-  tx: ccc.Transaction
-): Promise<ccc.Hex> {
-  return sendTransactionWithFeeRetry(signer, tx);
 }
