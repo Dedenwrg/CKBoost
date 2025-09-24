@@ -12,7 +12,9 @@ import { ccc, KnownScript } from "@ckb-ccc/connector-react";
  */
 function parseRequiredFee(errorMessage: string): bigint | null {
   // Pattern: "requiring a transaction fee of at least XXXX shannons"
-  const match = errorMessage.match(/requiring a transaction fee of at least (\d+) shannons/);
+  const match = errorMessage.match(
+    /requiring a transaction fee of at least (\d+) shannons/
+  );
   if (match && match[1]) {
     return BigInt(match[1]);
   }
@@ -33,7 +35,8 @@ async function calculateFeeRate(
   try {
     const nodeRate = await signer.client.getFeeRate();
     // getFeeRate may return bigint or number depending on client version
-    recommended = typeof nodeRate === 'bigint' ? Number(nodeRate) : Number(nodeRate);
+    recommended =
+      typeof nodeRate === "bigint" ? Number(nodeRate) : Number(nodeRate);
   } catch (_) {
     // ignore and use fallback
   }
@@ -55,13 +58,13 @@ async function calculateFeeRate(
 
 /**
  * Send a transaction with automatic fee retry
- * 
+ *
  * This wrapper will:
  * 1. Try to send the transaction
  * 2. If it fails due to low fee, parse the required fee
  * 3. Rebuild the transaction with the correct fee
  * 4. Ask the user to sign again
- * 
+ *
  * @param signer The signer to use
  * @param tx The transaction to send
  * @param buildTx Optional function to rebuild the transaction from scratch
@@ -74,74 +77,102 @@ export async function sendTransactionWithFeeRetry(
 ): Promise<ccc.Hex> {
   let attempts = 0;
   const maxAttempts = 3;
-  
+
   while (attempts < maxAttempts) {
     attempts++;
-    
-    await tx.addCellDepsOfKnownScripts(signer.client, KnownScript.Secp256k1Blake160 );
+
+    await tx.addCellDepsOfKnownScripts(
+      signer.client,
+      KnownScript.Secp256k1Blake160
+    );
 
     try {
+      // Reinitialize outputs for auto capacity calculation
+      for (let i = 0; i < tx.outputs.length; i++) {
+        const out = tx.outputs[i];
+        if (out.type) {
+          tx.outputs[i] = ccc.CellOutput.from(
+            { lock: out.lock, type: out.type },
+            tx.outputsData[i] as ccc.HexLike
+          );
+        }
+      }
+
+      await tx.completeInputsByCapacity(signer);
+      await tx.completeFeeBy(signer);
+
       console.log(`Transaction send attempt ${attempts}/${maxAttempts}`);
-      
+
       // Try to send the transaction
       console.log("JSON.stringify(tx)", ccc.stringify(tx));
       const txHash = await signer.sendTransaction(tx);
       console.log("Transaction sent successfully! TxHash:", txHash);
       return txHash;
-      
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Transaction send attempt ${attempts} failed:`, errorMessage);  
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(
+        `Transaction send attempt ${attempts} failed:`,
+        errorMessage
+      );
+
       // Check if it's a minimum fee error
       if (errorMessage.includes("PoolRejectedTransactionByMinFeeRate")) {
-        console.log("Transaction rejected due to insufficient fee. Attempting to fix...");
-        
+        console.log(
+          "Transaction rejected due to insufficient fee. Attempting to fix..."
+        );
+
         // Parse the required fee from the error message
         const requiredFee = parseRequiredFee(errorMessage);
         if (!requiredFee) {
           console.error("Could not parse required fee from error message");
           throw error;
         }
-        
+
         console.log(`Required fee: ${requiredFee} shannons`);
-        
+
         // If we have a buildTx function, rebuild from scratch
         if (buildTx) {
-          console.log("Rebuilding transaction from scratch with correct fee...");
+          console.log(
+            "Rebuilding transaction from scratch with correct fee..."
+          );
           tx = await buildTx();
         }
-        
+
         // Query fee rate from node and ensure it covers requiredFee
         const feeRate = await calculateFeeRate(signer, tx, requiredFee);
         console.log(`Calculated fee rate: ${feeRate} shannons/KW`);
-        
+
         // Clear existing fee outputs and rebuild with new fee rate
         // Remove any existing change outputs (usually the last output if it goes back to sender)
         const senderAddress = await signer.getRecommendedAddressObj();
         const senderLockScript = senderAddress.script;
-        
+
         // Filter out change outputs (lock-only, back to sender)
         tx.outputs = tx.outputs.filter((output, index) => {
           // Keep all outputs except potential change outputs
           // Change outputs typically go back to the sender and have no type script
-          const isChange = !output.type &&
+          const isChange =
+            !output.type &&
             output.lock.codeHash === senderLockScript.codeHash &&
             output.lock.hashType === senderLockScript.hashType &&
-            ccc.hexFrom(output.lock.args) === ccc.hexFrom(senderLockScript.args);
-          
+            ccc.hexFrom(output.lock.args) ===
+              ccc.hexFrom(senderLockScript.args);
+
           if (isChange) {
             console.log(`Removing change output at index ${index}`);
           }
           return !isChange;
         });
-        
+
         // Ensure inputs satisfy capacity at new fee stage, then recalc fees
         await tx.completeInputsByCapacity(signer);
         await tx.completeFeeBy(signer, feeRate);
-        
-        console.log("Transaction rebuilt with new fee. Requesting signature again...");
-        
+
+        console.log(
+          "Transaction rebuilt with new fee. Requesting signature again..."
+        );
+
         // Show user-friendly message
         if (attempts === 1) {
           console.log(`
@@ -158,16 +189,16 @@ Please sign the transaction again with the corrected fee.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           `);
         }
-        
+
         // Continue to next attempt
         continue;
       }
-      
+
       // If it's not a fee error, throw it
       throw error;
     }
   }
-  
+
   throw new Error(`Failed to send transaction after ${maxAttempts} attempts`);
 }
 
@@ -180,14 +211,14 @@ export async function deployProtocolWithFeeRetry(
 ): Promise<ccc.Hex> {
   // Build the initial transaction
   const tx = await protocolDeployFn();
-  
+
   // Send with automatic retry
   return sendTransactionWithFeeRetry(signer, tx, protocolDeployFn);
 }
 
 /**
  * Wrapper for any transaction operation with automatic fee retry
- * 
+ *
  * Usage:
  * ```typescript
  * const txHash = await executeTransactionWithFeeRetry(
@@ -209,7 +240,7 @@ export async function executeTransactionWithFeeRetry(
 ): Promise<ccc.Hex> {
   // Build the initial transaction
   const tx = await buildTx();
-  
+
   // Send with automatic retry
   return sendTransactionWithFeeRetry(signer, tx, buildTx);
 }
