@@ -35,7 +35,9 @@ import {
   loadCreateDraft,
   saveCreateDraft,
   clearCreateDraft,
+  getCreateDraftHistory,
   type DraftFundingEntry,
+  type CampaignCreateDraftPayload,
 } from "@/lib/utils/campaign-draft-storage"
 import { FundingTab } from "@/components/campaign-admin/tabs/funding-tab"
 
@@ -44,6 +46,7 @@ import { QuestDialog, QuestList } from "@/components/campaign-admin/quest"
 import { CampaignForm, CampaignStats } from "@/components/campaign-admin/campaign"
 import { InitialFunding } from "@/components/campaign-admin/funding/initial-funding"
 import { udtRegistry } from "@/lib/services/udt-registry"
+import DraftHistory from "@/components/draft-history"
 
 // Type for simplified campaign form data
 interface CampaignFormData {
@@ -86,6 +89,24 @@ export default function CampaignAdminPage() {
   const [initialFunding, setInitialFunding] = useState<Map<string, bigint>>(new Map())
   const [ckbInitialFunding, setCkbInitialFunding] = useState<bigint>(0n)
   
+  // Runtime type guard for draft quests payload -> QuestDataLike
+  const isQuestDataLike = (val: unknown): val is QuestDataLike => {
+    if (!val || typeof val !== 'object') return false
+    const q = val as Record<string, unknown>
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(q, k)
+    return (
+      has('quest_id') &&
+      has('metadata') &&
+      has('points') &&
+      has('rewards_on_completion') &&
+      has('accepted_submission_user_type_ids') &&
+      has('completion_deadline') &&
+      has('status') &&
+      has('sub_tasks') &&
+      has('completion_count')
+    )
+  }
+
   // Autosave draft (create mode only)
   // Load any saved draft for create mode on mount
   useEffect(() => {
@@ -106,8 +127,11 @@ export default function CampaignAdminPage() {
           verificationLevel: typeof cd["verificationLevel"] === "string" ? (cd["verificationLevel"] as string) : prev.verificationLevel,
           rules: Array.isArray(cd["rules"]) ? (cd["rules"] as string[]) : prev.rules,
         }));
-        // Restore quests
-        setLocalQuests((saved.quests || []) as QuestDataLike[]);
+        // Restore quests with type guard
+        const savedQuests: QuestDataLike[] = Array.isArray(saved.quests)
+          ? (saved.quests as unknown[]).filter(isQuestDataLike)
+          : []
+        setLocalQuests(savedQuests);
         // Restore funding
         const entries = (saved.initialFunding || []) as DraftFundingEntry[];
         const map = new Map<string, bigint>();
@@ -166,6 +190,99 @@ export default function CampaignAdminPage() {
     }, 60_000);
     return () => clearInterval(id);
   }, [isCreateMode]);
+
+  // Draft UI helpers
+  const draftStorage = {
+    load: loadCreateDraft,
+    save: (data: CampaignCreateDraftPayload) => saveCreateDraft(data),
+    history: getCreateDraftHistory,
+    clear: clearCreateDraft,
+  }
+
+  const buildCurrentDraftPayload = (): CampaignCreateDraftPayload => {
+    const entries: DraftFundingEntry[] = Array.from(initialFunding.entries()).map(([scriptHash, amount]) => ({
+      scriptHash,
+      amount: amount.toString(),
+    }))
+    return {
+      campaignData: campaignData as unknown as Record<string, unknown>,
+      quests: localQuests as unknown as Array<Record<string, unknown>>,
+      initialFunding: entries,
+      ckbInitialFunding: ckbInitialFunding.toString(),
+    }
+  }
+
+  const isDraftEmpty = (payload: CampaignCreateDraftPayload): boolean => {
+    const cd = (payload.campaignData || {}) as Record<string, unknown>
+
+    const getString = (key: string): string | undefined => {
+      const v = cd[key]
+      return typeof v === 'string' ? v : undefined
+    }
+
+    const getNumber = (key: string): number | undefined => {
+      const v = cd[key]
+      return typeof v === 'number' ? v : undefined
+    }
+
+    const getArray = (key: string): unknown[] | undefined => {
+      const v = cd[key]
+      return Array.isArray(v) ? (v as unknown[]) : undefined
+    }
+
+    const getStringArray = (key: string): string[] => {
+      const arr = getArray(key) || []
+      return arr.filter((x): x is string => typeof x === 'string')
+    }
+
+    const rules = getStringArray('rules')
+    const isRulesEmpty = rules.length === 0 || rules.every((r) => !r || r.trim() === '')
+
+    const baseEmpty =
+      !getString('title') &&
+      !getString('shortDescription') &&
+      !getString('longDescription') &&
+      !(getArray('categories') && (getArray('categories') as unknown[]).length > 0) &&
+      !getString('startDate') &&
+      !getString('endDate') &&
+      ((getNumber('difficulty') ?? 0) === 0) &&
+      (!getString('verificationLevel') || getString('verificationLevel') === 'none') &&
+      isRulesEmpty
+
+    const questsEmpty = !payload.quests || payload.quests.length === 0
+    const fundingEmpty = !payload.initialFunding || payload.initialFunding.length === 0
+    const ckbEmpty = !payload.ckbInitialFunding || payload.ckbInitialFunding === '0'
+    return baseEmpty && questsEmpty && fundingEmpty && ckbEmpty
+  }
+
+  const handleRestoreDraft = (payload: CampaignCreateDraftPayload) => {
+    try {
+      const cd = payload.campaignData
+      setCampaignData((prev) => ({
+        title: typeof cd["title"] === "string" ? (cd["title"] as string) : prev.title,
+        shortDescription: typeof cd["shortDescription"] === "string" ? (cd["shortDescription"] as string) : prev.shortDescription,
+        longDescription: typeof cd["longDescription"] === "string" ? (cd["longDescription"] as string) : prev.longDescription,
+        categories: Array.isArray(cd["categories"]) ? (cd["categories"] as string[]) : prev.categories,
+        startDate: typeof cd["startDate"] === "string" ? (cd["startDate"] as string) : prev.startDate,
+        endDate: typeof cd["endDate"] === "string" ? (cd["endDate"] as string) : prev.endDate,
+        difficulty: typeof cd["difficulty"] === "number" ? (cd["difficulty"] as number) : prev.difficulty,
+        verificationLevel: typeof cd["verificationLevel"] === "string" ? (cd["verificationLevel"] as string) : prev.verificationLevel,
+        rules: Array.isArray(cd["rules"]) ? (cd["rules"] as string[]) : prev.rules,
+      }))
+      const restoredQuests: QuestDataLike[] = Array.isArray(payload.quests)
+        ? (payload.quests as unknown[]).filter(isQuestDataLike)
+        : []
+      setLocalQuests(restoredQuests)
+      const map = new Map<string, bigint>()
+      for (const e of payload.initialFunding || []) map.set(e.scriptHash, BigInt(e.amount))
+      setInitialFunding(map)
+      setCkbInitialFunding(BigInt(payload.ckbInitialFunding || '0'))
+      setActiveTab('details')
+    } catch (e) {
+      console.error('Failed to restore draft payload:', e)
+      alert('Failed to restore draft')
+    }
+  }
 
   // Quest form management
   const [isAddingQuest, setIsAddingQuest] = useState(false)
@@ -847,6 +964,18 @@ export default function CampaignAdminPage() {
             participantCount={campaign?.participants_count ? Number(campaign.participants_count) : 0}
             completionCount={campaign?.total_completions ? Number(campaign.total_completions) : 0}
           />
+          {isCreateMode && (
+            <div className="mt-4">
+              <DraftHistory
+                title="Campaign Draft"
+                storage={draftStorage}
+                data={buildCurrentDraftPayload()}
+                isEmpty={(d) => isDraftEmpty(d)}
+                onRestore={handleRestoreDraft}
+                getVersionLabel={(d, ts) => new Date(ts).toLocaleString()}
+              />
+            </div>
+          )}
         </div>
 
         {/* Main Content */}
