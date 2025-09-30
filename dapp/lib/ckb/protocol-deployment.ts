@@ -3,10 +3,7 @@
 
 import { ccc, ssri } from "@ckb-ccc/connector-react";
 import { Protocol } from "ssri-ckboost";
-import {
-  deploymentManager,
-  DeploymentRecord,
-} from "./deployment-manager";
+import { deploymentManager, DeploymentRecord } from "./deployment-manager";
 import { ProtocolDataLike } from "ssri-ckboost/types";
 import { sendTransactionWithFeeRetry } from "./transaction-wrapper";
 
@@ -108,20 +105,38 @@ export function getContractDeploymentStatus(): {
   missingContracts: string[];
 } {
   const network = deploymentManager.getCurrentNetwork();
-  
+
   const status = {
-    protocolType: !!deploymentManager.getContractCodeHash(network, "ckboostProtocolType"),
-    protocolLock: !!deploymentManager.getContractCodeHash(network, "ckboostProtocolLock"),
-    campaignType: !!deploymentManager.getContractCodeHash(network, "ckboostCampaignType"),
-    campaignLock: !!deploymentManager.getContractCodeHash(network, "ckboostCampaignLock"),
-    userType: !!deploymentManager.getContractCodeHash(network, "ckboostUserType"),
-    pointsUdt: !!deploymentManager.getContractCodeHash(network, "ckboostPointsUdt"),
+    protocolType: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostProtocolType"
+    ),
+    protocolLock: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostProtocolLock"
+    ),
+    campaignType: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostCampaignType"
+    ),
+    campaignLock: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostCampaignLock"
+    ),
+    userType: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostUserType"
+    ),
+    pointsUdt: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostPointsUdt"
+    ),
     allDeployed: false,
     missingContracts: [] as string[],
   };
 
   // Check if all are deployed
-  status.allDeployed = 
+  status.allDeployed =
     status.protocolType &&
     status.protocolLock &&
     status.campaignType &&
@@ -145,14 +160,32 @@ export function getContractDeploymentStatus(): {
  */
 export function getProtocolDeploymentTemplate(): ProtocolDataLike {
   const network = deploymentManager.getCurrentNetwork();
-  
+
   // Fetch all deployed contract code hashes from deployment manager
-  const protocolTypeHash = deploymentManager.getContractCodeHash(network, "ckboostProtocolType");
-  const protocolLockHash = deploymentManager.getContractCodeHash(network, "ckboostProtocolLock");
-  const campaignTypeHash = deploymentManager.getContractCodeHash(network, "ckboostCampaignType");
-  const campaignLockHash = deploymentManager.getContractCodeHash(network, "ckboostCampaignLock");
-  const userTypeHash = deploymentManager.getContractCodeHash(network, "ckboostUserType");
-  const pointsUdtHash = deploymentManager.getContractCodeHash(network, "ckboostPointsUdt");
+  const protocolTypeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostProtocolType"
+  );
+  const protocolLockHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostProtocolLock"
+  );
+  const campaignTypeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostCampaignType"
+  );
+  const campaignLockHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostCampaignLock"
+  );
+  const userTypeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostUserType"
+  );
+  const pointsUdtHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostPointsUdt"
+  );
 
   return {
     protocol_config: {
@@ -430,9 +463,6 @@ export async function deployProtocolCell(
       console.log("Requesting wallet to sign transaction...");
 
       try {
-        // Complete the fee right before sending to ensure proper fee calculation
-        await tx.completeFeeBy(signer);
-        
         // Convert transaction to hex for debugging (after fee completion)
         const finalTxHex = ccc.hexFrom(tx.toBytes());
         console.log("=== Final Transaction (with fee) ===");
@@ -441,7 +471,7 @@ export async function deployProtocolCell(
         console.log("\nTo debug this transaction offline, run:");
         console.log(`cd contracts/utils && cargo run -- "${finalTxHex}"`);
         console.log("=============================\n");
-        
+
         // Use our wrapper that handles fee errors automatically
         const txHash = await sendTransactionWithFeeRetry(signer, tx);
         console.log("Transaction sent successfully! TxHash:", txHash);
@@ -485,7 +515,8 @@ export async function deployProtocolCell(
         console.error("Transaction send failed:", sendError);
 
         // Check if it's a ScriptNotFound error
-        const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
+        const errorMessage =
+          sendError instanceof Error ? sendError.message : String(sendError);
         if (errorMessage.includes("ScriptNotFound")) {
           const match = errorMessage.match(
             /code_hash: Byte32\((0x[a-fA-F0-9]+)\)/

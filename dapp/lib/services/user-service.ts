@@ -584,30 +584,30 @@ export class UserService {
           lockHash: o.lock.hash(),
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
-        outputsDataLengths: updateTx.outputsData.map((d: any) => (typeof d === 'string' ? d.length : String(d).length)),
+        outputsDataLengths: updateTx.outputsData.map((d: ccc.Hex) =>
+          typeof d === "string" ? d.length : String(d).length
+        ),
       };
       const s = JSON.stringify(payload);
       debug.log(`[UserService.update] after-ssri-return ${s}`);
     } catch (e) {
       debug.log("[UserService.update] log error after-ssri-return", String(e));
     }
-    
+
     // Ensure output capacity is auto-calculated by CCC for updated user cell
     // Mutate the existing CellOutput instances to keep class methods intact
     for (let i = 0; i < updateTx.outputs.length; i++) {
       const output = updateTx.outputs[i];
       if (output.type && output.type.codeHash === this.userTypeCodeHash) {
         // Reconstruct CellOutput via CCC factory with outputData to trigger auto capacity calc
-        updateTx.outputs[i] = ccc.CellOutput.from(
-          {
-            lock: output.lock,
-            type: output.type,
-          },
-          updateTx.outputsData[i] as any,
-        );
+        updateTx.outputs[i] = ccc.CellOutput.from({
+          capacity: output.capacity,
+          lock: output.lock,
+          type: output.type,
+        });
       }
     }
-    
+
     try {
       const sender = await this.signer.getRecommendedAddressObj();
       const senderHash = sender.script.hash();
@@ -620,7 +620,9 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(`[UserService.update] after-set-capacity-0 ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.update] after-set-capacity-0 ${JSON.stringify(payload)}`
+      );
     } catch {}
 
     // Add the protocol cell as a dependency (required for validation)
@@ -645,7 +647,9 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(`[UserService.update] after-complete-inputs ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.update] after-complete-inputs ${JSON.stringify(payload)}`
+      );
     } catch {}
     await updateTx.completeFeeBy(this.signer);
     try {
@@ -660,9 +664,11 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(`[UserService.update] after-complete-fee ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.update] after-complete-fee ${JSON.stringify(payload)}`
+      );
     } catch {}
-    
+
     debug.log("Updating user cell with submission", {
       userTypeId: userTypeId.slice(0, 10) + "...",
       totalSubmissions: updatedSubmissions.length,
@@ -672,7 +678,7 @@ export class UserService {
     });
 
     console.log("updateTx before sending", updateTx);
-    
+
     const txHash = await this.signer.sendTransaction(updateTx);
 
     debug.log("User cell updated", {
@@ -795,13 +801,17 @@ export class UserService {
           lockHash: o.lock.hash(),
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
-        outputsDataLengths: createTx.outputsData.map((d: any) => (typeof d === 'string' ? d.length : String(d).length)),
+        outputsDataLengths: createTx.outputsData.map((d: ccc.Hex) =>
+          typeof d === "string" ? d.length : String(d).length
+        ),
       };
-      debug.log(`[UserService.create] after-ssri-return ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.create] after-ssri-return ${JSON.stringify(payload)}`
+      );
     } catch (e) {
       debug.log("[UserService.create] log error after-ssri-return", String(e));
     }
-    
+
     // Find the user cell output (should be the first output with the user type script)
     const userCellOutputIndex = createTx.outputs.findIndex(
       (output) => output.type?.codeHash === this.userTypeCodeHash
@@ -835,15 +845,13 @@ export class UserService {
       createTx.outputs[userCellOutputIndex].type.args =
         updatedConnectedTypeIdArgs;
     }
-    
+
     // Ensure output capacity is auto-calculated by CCC for new user cell by reconstructing via factory
-    createTx.outputs[userCellOutputIndex] = ccc.CellOutput.from(
-      {
-        lock: createTx.outputs[userCellOutputIndex].lock,
-        type: createTx.outputs[userCellOutputIndex].type,
-      },
-      createTx.outputsData[userCellOutputIndex] as any,
-    );
+    createTx.outputs[userCellOutputIndex] = ccc.CellOutput.from({
+      capacity: createTx.outputs[userCellOutputIndex].capacity,
+      lock: createTx.outputs[userCellOutputIndex].lock,
+      type: createTx.outputs[userCellOutputIndex].type,
+    });
     try {
       const sender = await this.signer.getRecommendedAddressObj();
       const senderHash = sender.script.hash();
@@ -856,9 +864,11 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(`[UserService.create] after-set-capacity-0 ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.create] after-set-capacity-0 ${JSON.stringify(payload)}`
+      );
     } catch {}
-    
+
     // Add the protocol cell as a dependency (required for validation)
     createTx.addCellDeps({
       outPoint: protocolCell.outPoint,
@@ -881,7 +891,9 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(`[UserService.create] after-complete-inputs ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.create] after-complete-inputs ${JSON.stringify(payload)}`
+      );
     } catch {}
     await createTx.completeFeeBy(this.signer);
     try {
@@ -896,9 +908,11 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(`[UserService.create] after-complete-fee ${JSON.stringify(payload)}`);
+      debug.log(
+        `[UserService.create] after-complete-fee ${JSON.stringify(payload)}`
+      );
     } catch {}
-    
+
     debug.log("Creating user cell with submission", {
       userTypeHash: this.userTypeCodeHash.slice(0, 10) + "...",
       protocolTypeHash: this.protocolTypeHash.slice(0, 10) + "...",
@@ -1153,13 +1167,13 @@ export class UserService {
     currentIdentityVerificationDataArray.push(telegramVerificationData);
 
     // Create updated identity verification JSON
-    const updatedIdentityVerificationDataBytes = ccc.bytesFrom(
+    const updatedIdentityVerificationDataArrayBytes = ccc.bytesFrom(
       JSON.stringify(currentIdentityVerificationDataArray),
       "utf8"
     );
     const updatedIdentityVerificationDataLike = {
       telegram_personal_chat_id: telegramVerificationData.id,
-      identity_verification_data: updatedIdentityVerificationDataBytes,
+      identity_verification_data: updatedIdentityVerificationDataArrayBytes,
     };
 
     const authenticatorAddress =
