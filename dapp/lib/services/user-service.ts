@@ -16,6 +16,7 @@ import { UserData, UserVerificationData } from "ssri-ckboost/types";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
 import { TelegramVerificationData } from "../types/verify";
 import { ClientPublicTestnet } from "@ckb-ccc/connector-react";
+import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 
 /**
  * User service that provides high-level user operations
@@ -50,6 +51,74 @@ export class UserService {
       protocolTypeHash: protocolTypeHash.slice(0, 10) + "...",
       useNostrStorage,
     });
+  }
+
+  private async injectProxyAuthenticationCell(
+    baseDraftTx: ccc.Transaction
+  ): Promise<void> {
+    const authenticatorAddress =
+      process.env.NEXT_PUBLIC_TELEGRAM_AUTHENTICATOR_ADDRESS;
+
+    const authenticatorLock = await ccc.Address.fromString(
+      authenticatorAddress as string,
+      this.signer.client
+    );
+    const authenticatorLockScript = authenticatorLock.script;
+    let proxyAuthenticationCell: ccc.Cell | undefined;
+    for await (const cell of this.signer.client.findCellsByLock(
+      authenticatorLockScript,
+      null,
+      false
+    )) {
+      // Setting type to null won't filter out the cell, so we need to check manually
+      if (!cell.cellOutput.type) {
+        proxyAuthenticationCell = cell;
+        break;
+      }
+    }
+
+    if (!proxyAuthenticationCell) {
+      throw new Error("Proxy authentication cell not found");
+    }
+
+    console.log("proxyAuthenticationCell", proxyAuthenticationCell);
+
+    await baseDraftTx.addInput(proxyAuthenticationCell);
+    const proxyAuthenticationCellOutput = ccc.CellOutput.from({
+      capacity: proxyAuthenticationCell.cellOutput.capacity,
+      lock: proxyAuthenticationCell.cellOutput.lock,
+    });
+    await baseDraftTx.addOutput(proxyAuthenticationCellOutput);
+
+    console.log("baseDraftTx", baseDraftTx);
+    console.log("baseDraftTx in Hex", ccc.hexFrom(baseDraftTx.toBytes()));
+  }
+  /**
+   * Send a transaction with signature for proxy authentication. Use this here instead of sendTransactionWithFeeRetry.
+   * At the moment we only support telegram.
+   * @param baseDraftTx - The base transaction to request signature for
+   * @returns The authenticated transaction hash
+   */
+  private async sendTransactionWithSignatureForProxyAuthentication(
+    signer: ccc.Signer,
+    baseDraftTx: ccc.Transaction
+  ): Promise<ccc.Hex> {
+    await this.injectProxyAuthenticationCell(baseDraftTx);
+    await baseDraftTx.completeInputsByCapacity(signer);
+    await baseDraftTx.completeFeeBy(signer);
+
+    const resp = await fetch("/api/telegram-authenticate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: ccc.hexFrom(baseDraftTx.toBytes()),
+    });
+    if (!resp.ok) {
+      console.error("Telegram validation failed at server");
+      throw new Error("Telegram validation failed at server");
+    }
+    const responseJson = await resp.json();
+    const authenticatedTx = ccc.Transaction.from(responseJson.tx);
+    return await signer.sendTransaction(authenticatedTx);
   }
 
   /**
@@ -932,6 +1001,96 @@ export class UserService {
   }
 
   /**
+   * Create a new user populated only with verification data
+   */
+  private async createUserWithVerification(
+    userVerificationData: ckboost.types.UserVerificationDataLike
+  ): Promise<ccc.Hex> {
+    await this.ensureDeploymentInfo();
+
+    if (!this.userTypeCodeCell) {
+      throw new Error(
+        "User type contract not found. Please deploy the contracts first."
+      );
+    }
+
+    const protocolCell = await fetchProtocolCell(this.signer.client);
+    if (!protocolCell) {
+      throw new Error(
+        "Protocol cell not found on blockchain. Please deploy protocol cell first."
+      );
+    }
+
+    const executorUrl =
+      process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+    const executor = new ssri.ExecutorJsonRpc(executorUrl);
+
+    const creatorInstance = new ckboost.User(
+      this.userTypeCodeCell,
+      ccc.Script.from({
+        codeHash: this.userTypeCodeHash,
+        hashType: "type",
+        args: "0x",
+      }),
+      { executor }
+    );
+
+    const baseTx = ccc.Transaction.from({});
+    await baseTx.completeInputsAtLeastOne(this.signer);
+
+    const { res: createTx } = await creatorInstance.updateVerificationData(
+      this.signer,
+      userVerificationData,
+      baseTx
+    );
+
+    const userCellOutputIndex = createTx.outputs.findIndex(
+      (output) => output.type?.codeHash === this.userTypeCodeHash
+    );
+
+    if (userCellOutputIndex === -1) {
+      throw new Error("User cell output not found in transaction");
+    }
+
+    const userCellTypeArgs = createTx.outputs[userCellOutputIndex].type?.args;
+    if (!userCellTypeArgs) {
+      throw new Error("User cell type args is empty");
+    }
+
+    const connectedTypeId =
+      ckboost.types.ConnectedTypeID.decode(userCellTypeArgs);
+    connectedTypeId.connected_key = this.protocolTypeHash as ccc.Hex;
+
+    const updatedConnectedTypeIdBytes =
+      ckboost.types.ConnectedTypeID.encode(connectedTypeId);
+    const updatedConnectedTypeIdArgs = ccc.hexFrom(updatedConnectedTypeIdBytes);
+
+    if (createTx.outputs[userCellOutputIndex].type) {
+      createTx.outputs[userCellOutputIndex].type.args =
+        updatedConnectedTypeIdArgs;
+    }
+
+    createTx.outputs[userCellOutputIndex] = ccc.CellOutput.from({
+      capacity: createTx.outputs[userCellOutputIndex].capacity,
+      lock: createTx.outputs[userCellOutputIndex].lock,
+      type: createTx.outputs[userCellOutputIndex].type,
+    });
+
+    createTx.addCellDeps({
+      outPoint: protocolCell.outPoint,
+      depType: "code",
+    });
+
+    const txHash =
+      await this.sendTransactionWithSignatureForProxyAuthentication(
+        this.signer,
+        createTx
+      );
+
+    return txHash;
+  }
+
+  /**
    * Helper method to get user by lock hash
    */
   private async getUserByLockHash(lockHash: ccc.Hex): Promise<{
@@ -1054,9 +1213,8 @@ export class UserService {
     const existingUser = await this.getUserByLockHash(lockHash);
 
     if (!existingUser || !existingUser.typeId) {
-      throw new Error(
-        "User must exist before updating verification. Please create user first."
-      );
+      debug.log("No user found, creating before verification update");
+      return this.createUserWithVerification(userVerificationData);
     }
 
     // Fetch the live user cell for script args
@@ -1070,10 +1228,24 @@ export class UserService {
       throw new Error("User cell not found");
     }
 
-    // Create User instance bound to the existing user type script
-    if (!this.userInstance) {
-      throw new Error("User instance not found");
+    if (!userCell.cellOutput.type) {
+      throw new Error("User cell type script is missing");
     }
+
+    // Refresh user instance bound to the existing user type script
+    const executorUrl =
+      process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+    const executor = new ssri.ExecutorJsonRpc(executorUrl);
+    this.userInstance = new ckboost.User(
+      this.userTypeCodeCell!,
+      ccc.Script.from({
+        codeHash: this.userTypeCodeHash,
+        hashType: "type",
+        args: userCell.cellOutput.type.args,
+      }),
+      { executor }
+    );
+
     const { res: updateTx } = await this.userInstance.updateVerificationData(
       this.signer,
       userVerificationData,
@@ -1091,11 +1263,12 @@ export class UserService {
     }
     updateTx.addCellDeps({ outPoint: protocolCell.outPoint, depType: "code" });
 
-    // Complete fees and send
-    await updateTx.completeInputsByCapacity(this.signer);
-    await updateTx.completeFeeBy(this.signer);
+    const txHash =
+      await this.sendTransactionWithSignatureForProxyAuthentication(
+        this.signer,
+        updateTx
+      );
 
-    const txHash = await this.signer.sendTransaction(updateTx);
     debug.log("User verification data updated", {
       txHash: txHash.slice(0, 10) + "...",
       userTypeId: existingUser.typeId.slice(0, 10) + "...",
@@ -1119,9 +1292,15 @@ export class UserService {
     const existingUserData = await this.getUserByLockHash(lockHash);
 
     if (!existingUserData || !existingUserData.typeId) {
-      throw new Error(
-        "User must exist before updating verification. Please create user first."
+      const identityVerificationBytes = ccc.bytesFrom(
+        JSON.stringify([telegramVerificationData]),
+        "utf8"
       );
+      debug.log("No user found for Telegram verification, creating one");
+      return this.createUserWithVerification({
+        telegram_personal_chat_id: telegramVerificationData.id,
+        identity_verification_data: identityVerificationBytes,
+      });
     }
 
     // Fetch current user cell
@@ -1176,26 +1355,6 @@ export class UserService {
       identity_verification_data: updatedIdentityVerificationDataArrayBytes,
     };
 
-    const authenticatorAddress =
-      process.env.NEXT_PUBLIC_TELEGRAM_AUTHENTICATOR_ADDRESS;
-
-    const authenticatorLock = await ccc.Address.fromString(
-      authenticatorAddress as string,
-      this.signer.client
-    );
-    const authenticatorLockScript = authenticatorLock.script;
-    const proxyAuthenticationCellCollector =
-      await this.signer.client.findCellsByLock(authenticatorLockScript, null);
-
-    const proxyAuthenticationCellResult =
-      await proxyAuthenticationCellCollector.next();
-
-    if (!proxyAuthenticationCellResult) {
-      throw new Error("Proxy authentication cell not found");
-    }
-    const proxyAuthenticationCell =
-      proxyAuthenticationCellResult.value as ccc.Cell;
-
     // Get the base for draftTx from SSRI
     if (!this.userInstance) {
       const executorUrl =
@@ -1212,31 +1371,11 @@ export class UserService {
       );
       this.userInstance = userInstanceWithScript;
     }
-    const { res: baseDraftTx } = await this.userInstance.updateVerificationData(
-      this.signer,
+    const txHash = await this.updateVerificationData(
       updatedIdentityVerificationDataLike
     );
 
-    await baseDraftTx.addInput(proxyAuthenticationCell);
-    const proxyAuthenticationCellOutput = ccc.CellOutput.from({
-      capacity: proxyAuthenticationCell.cellOutput.capacity,
-      lock: proxyAuthenticationCell.cellOutput.lock,
-    });
-    await baseDraftTx.addOutput(proxyAuthenticationCellOutput);
-
-    await baseDraftTx.completeInputsByCapacity(this.signer);
-    await baseDraftTx.completeFeeBy(this.signer);
-
-    console.log("baseDraftTx", baseDraftTx);
-    console.log("baseDraftTx in Hex", ccc.hexFrom(baseDraftTx.toBytes()));
-    // Call netlify function with draftTx
-
-    // const txHash = await this.updateVerificationData(
-    //   updatedIdentityVerificationData,
-    //   baseDraftTx
-    // );
-
-    return "0x";
+    return txHash;
   }
 
   /**

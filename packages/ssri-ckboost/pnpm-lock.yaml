@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@ckb-ccc/core':
-        specifier: ^1.11.5
-        version: 1.11.5(typescript@5.8.3)
+        specifier: ^1.12.2
+        version: 1.12.2(typescript@5.8.3)
       '@ckb-ccc/ssri':
-        specifier: ^0.2.16
-        version: 0.2.16(typescript@5.8.3)
+        specifier: ^0.2.19
+        version: 0.2.19(typescript@5.8.3)
       '@ckb-ccc/udt':
-        specifier: ^0.1.18
-        version: 0.1.18(typescript@5.8.3)
+        specifier: ^0.1.21
+        version: 0.1.21(typescript@5.8.3)
     devDependencies:
       '@ckb-ccc/eip6963':
         specifier: ^1.0.26
@@ -232,14 +232,17 @@ packages:
   '@ckb-ccc/core@1.11.5':
     resolution: {integrity: sha512-nB83k6qcXgj1hXUVVtZrDuJrELLXg0S146JEw1kbJ5ZcjSvwgcu7q27lKARwVfN28gFepsHfCZcVq/rqMWPD8Q==}
 
+  '@ckb-ccc/core@1.12.2':
+    resolution: {integrity: sha512-fiDn2ox4CWUF5hxTYxPDITnstbyZaPGK93OlO+Jlz7w0/zw64b9Y8tz+A0G29Q5s50nr9zT+aapEE4AbV01tuA==}
+
   '@ckb-ccc/eip6963@1.0.26':
     resolution: {integrity: sha512-xwmCTPKezRkLBPZKpAGQVqXaE7BFto0gvw3b2eTmMmG25N1+7EOKcL/UdWhpzbDdA393ZQbr7Ovsvvwt2Eqcfg==}
 
-  '@ckb-ccc/ssri@0.2.16':
-    resolution: {integrity: sha512-38r+TNPeMRUZL35f0ODqGvQ/uKD7OKh921Nvv8QIGa934uXw2h8rrvPAFfEltcoMeRDoAyyWSpim+kXbFBdR2g==}
+  '@ckb-ccc/ssri@0.2.19':
+    resolution: {integrity: sha512-qvV0zkT81xLHMdKqc8OJzcxfFmhU32tpoa1bAhlzzekj06bt+5KuQ8fyekK7QOByAsnR6doY6sFO8SlDP1M24w==}
 
-  '@ckb-ccc/udt@0.1.18':
-    resolution: {integrity: sha512-QMlFPsrwS9udxLjMbJpOd/eqDnfuTr7xSh3649MPD5v7ssfMxdwD+huI4huAE7tWsMvlg1NxaohTh7QkNvHDAA==}
+  '@ckb-ccc/udt@0.1.21':
+    resolution: {integrity: sha512-raecL1cgxrSkiVmv/XAUTFOr7vBGytKQ9+QlJBmiNDkXviVUHL7FXRVE1xA2nd33ZyolypTv/wk5Hwhfc8+6Sg==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -2155,6 +2158,25 @@ snapshots:
       - utf-8-validate
       - zod
 
+  '@ckb-ccc/core@1.12.2(typescript@5.8.3)':
+    dependencies:
+      '@joyid/ckb': 1.1.2(typescript@5.8.3)
+      '@noble/ciphers': 0.5.3
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      bech32: 2.0.0
+      bs58check: 4.0.0
+      buffer: 6.0.3
+      ethers: 6.15.0
+      isomorphic-ws: 5.0.0(ws@8.18.3)
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - typescript
+      - utf-8-validate
+      - zod
+
   '@ckb-ccc/eip6963@1.0.26(typescript@5.8.3)':
     dependencies:
       '@ckb-ccc/core': 1.11.5(typescript@5.8.3)
@@ -2165,9 +2187,9 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@ckb-ccc/ssri@0.2.16(typescript@5.8.3)':
+  '@ckb-ccc/ssri@0.2.19(typescript@5.8.3)':
     dependencies:
-      '@ckb-ccc/core': 1.11.5(typescript@5.8.3)
+      '@ckb-ccc/core': 1.12.2(typescript@5.8.3)
     transitivePeerDependencies:
       - bufferutil
       - encoding
@@ -2175,10 +2197,10 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@ckb-ccc/udt@0.1.18(typescript@5.8.3)':
+  '@ckb-ccc/udt@0.1.21(typescript@5.8.3)':
     dependencies:
-      '@ckb-ccc/core': 1.11.5(typescript@5.8.3)
-      '@ckb-ccc/ssri': 0.2.16(typescript@5.8.3)
+      '@ckb-ccc/core': 1.12.2(typescript@5.8.3)
+      '@ckb-ccc/ssri': 0.2.19(typescript@5.8.3)
     transitivePeerDependencies:
       - bufferutil
       - encoding

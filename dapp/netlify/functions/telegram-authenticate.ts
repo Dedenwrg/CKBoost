@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { AuthDataValidator } from "@telegram-auth/server";
 import type { AuthDataMap, TelegramUserData } from "@telegram-auth/server";
-import { ccc } from "@ckb-ccc/connector-react";
+import { ccc } from "@ckb-ccc/shell";
 
 // Types for safer payload handling
 type Hex = string;
@@ -21,8 +21,10 @@ interface TelegramAuthCellData {
 
 export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
-  const isDev = process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV !== 'production';
-  const log = (...args: any[]) => console.log(`[telegram-authenticate][${reqId}]`, ...args);
+  const isDev =
+    process.env.NETLIFY_DEV === "true" || process.env.NODE_ENV !== "production";
+  const log = (...args: unknown[]) =>
+    console.log(`[telegram-authenticate][${reqId}]`, ...args);
   const mask = (val?: string | number | null) => {
     if (val === undefined || val === null) return val;
     const s = String(val);
@@ -32,20 +34,28 @@ export const handler: Handler = async (event) => {
 
   log("request", {
     method: event.httpMethod,
-    path: (event as any).path,
-    query: (event as any).rawQuery || event.queryStringParameters,
+    path: event.path,
+    query: event.rawQuery || event.queryStringParameters,
   });
+
+  log("JSON Body", event.body);
   // Support GET to expose authenticator lock script (public info)
   if (event.httpMethod === "GET") {
     try {
-      const serverKey = process.env.TELEGRAM_AUTH_PRIVATE_KEY as Hex | undefined;
-      const rpcUrl = process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
+      const serverKey = process.env.TELEGRAM_AUTH_PRIVATE_KEY as
+        | Hex
+        | undefined;
+      const rpcUrl =
+        process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
       if (!serverKey) {
         log("config_error_get", { hasServerKey: !!serverKey });
         return {
           statusCode: 500,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ success: false, error: "missing_private_key" }),
+          body: JSON.stringify({
+            success: false,
+            error: "missing_private_key",
+          }),
         };
       }
       const client = new ccc.ClientPublicTestnet({ url: rpcUrl });
@@ -53,7 +63,9 @@ export const handler: Handler = async (event) => {
       const addrObj = await signer.getRecommendedAddressObj();
       const script = addrObj.script;
       const address = await signer.getRecommendedAddress();
-      log("authenticator_info", { addressPreview: address.slice(0, 10) + "..." });
+      log("authenticator_info", {
+        addressPreview: address.slice(0, 10) + "...",
+      });
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
@@ -64,12 +76,15 @@ export const handler: Handler = async (event) => {
             codeHash: script.codeHash,
             hashType: script.hashType,
             args: script.args,
-          } as ScriptJson,
+          } as ccc.ScriptLike,
         }),
       };
     } catch (e) {
       log("get_error", { message: (e as Error)?.message });
-      return { statusCode: 500, body: JSON.stringify({ success: false, error: "internal_error" }) };
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ success: false, error: "internal_error" }),
+      };
     }
   }
 
@@ -85,7 +100,7 @@ export const handler: Handler = async (event) => {
       return { statusCode: 500, body: "Missing TELEGRAM_BOT_TOKEN" };
     }
 
-    let body: any = {};
+    let body;
     try {
       body = event.body ? JSON.parse(event.body) : {};
     } catch (e) {
@@ -96,39 +111,61 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({ success: false, error: "invalid_json" }),
       };
     }
-    const txLike = body.tx as TransactionLikeJson | undefined;
+    const txLike = body.tx as ccc.TransactionLike | undefined;
 
     if (!txLike) {
       log("missing_tx_like");
-      return { statusCode: 400, body: JSON.stringify({ success: false, error: "missing_tx" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ success: false, error: "missing_tx" }),
+      };
     }
 
     // Derive authenticator lock to locate the data cell
     const serverKey = process.env.TELEGRAM_AUTH_PRIVATE_KEY as Hex | undefined;
-    const rpcUrl = process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
+    const rpcUrl =
+      process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
     if (!serverKey) {
       log("config_error_post", { hasServerKey: !!serverKey });
-      return { statusCode: 500, body: JSON.stringify({ success: false, error: "missing_private_key" }) };
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ success: false, error: "missing_private_key" }),
+      };
     }
     const client = new ccc.ClientPublicTestnet({ url: rpcUrl });
-    const serverSigner = new ccc.SignerCkbPrivateKey(client, serverKey as ccc.Hex);
+    const serverSigner = new ccc.SignerCkbPrivateKey(
+      client,
+      serverKey as ccc.Hex
+    );
     const addrObj = await serverSigner.getRecommendedAddressObj();
     const authScript = addrObj.script;
 
     // Find the output locked by authenticator and parse its data
-    const outputIndex = txLike.outputs.findIndex((o) =>
-      o.lock.codeHash === authScript.codeHash &&
-      o.lock.hashType === authScript.hashType &&
-      o.lock.args.toLowerCase() === authScript.args.toLowerCase()
+    const outputIndex = txLike.outputs?.findIndex(
+      (o) =>
+        o.lock.codeHash === authScript.codeHash &&
+        o.lock.hashType === authScript.hashType &&
+        o.lock.args === authScript.args
     );
     if (outputIndex === -1) {
       log("auth_output_not_found");
-      return { statusCode: 400, body: JSON.stringify({ success: false, error: "auth_output_missing" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ success: false, error: "auth_output_missing" }),
+      };
     }
-    const rawData = txLike.outputsData[outputIndex] as Hex | undefined;
+    const rawData = txLike.outputsData?.[outputIndex ?? 0] as
+      | ccc.Hex
+      | undefined;
     if (!rawData || rawData === "0x") {
       log("auth_output_empty_data", { outputIndex });
-      return { statusCode: 400, body: JSON.stringify({ success: false, error: "auth_output_empty_data" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          success: false,
+          error: "auth_output_empty_data",
+        }),
+      };
     }
 
     // Decode JSON from hex
@@ -139,23 +176,39 @@ export const handler: Handler = async (event) => {
       cellData = JSON.parse(s) as TelegramAuthCellData;
     } catch (e) {
       log("auth_output_data_parse_error", { message: (e as Error)?.message });
-      return { statusCode: 400, body: JSON.stringify({ success: false, error: "invalid_auth_output_data" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          success: false,
+          error: "invalid_auth_output_data",
+        }),
+      };
     }
 
     if (cellData.kind !== "ckboost/telegram_auth" || !cellData.auth) {
       log("auth_output_data_invalid_kind", { kind: cellData.kind });
-      return { statusCode: 400, body: JSON.stringify({ success: false, error: "invalid_auth_output_kind" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          success: false,
+          error: "invalid_auth_output_kind",
+        }),
+      };
     }
 
     // Build AuthDataMap for validator from embedded data
     const telegram = cellData.auth;
     const keys = Object.keys(telegram || {});
     const auth_date_raw = telegram["auth_date"] as string | number | undefined;
-    const auth_date_num = auth_date_raw !== undefined ? Number(auth_date_raw) : undefined;
+    const auth_date_num =
+      auth_date_raw !== undefined ? Number(auth_date_raw) : undefined;
     const now = Math.floor(Date.now() / 1000);
-    const disableTtl = process.env.TELEGRAM_AUTH_DISABLE_TTL === 'true';
-    const ttl = disableTtl ? Number.MAX_SAFE_INTEGER : Number(process.env.TELEGRAM_AUTH_TTL_SEC || 600);
-    const dataAge = auth_date_num !== undefined ? now - auth_date_num : undefined;
+    const disableTtl = process.env.TELEGRAM_AUTH_DISABLE_TTL === "true";
+    const ttl = disableTtl
+      ? Number.MAX_SAFE_INTEGER
+      : Number(process.env.TELEGRAM_AUTH_TTL_SEC || 600);
+    const dataAge =
+      auth_date_num !== undefined ? now - auth_date_num : undefined;
     log("incoming_tx_payload", {
       has_auth_output: true,
       outputIndex,
@@ -177,12 +230,25 @@ export const handler: Handler = async (event) => {
       const v = telegram[k];
       if (typeof v === "string" || typeof v === "number") dataMap.set(k, v);
     };
-    ["id", "first_name", "last_name", "username", "photo_url", "auth_date", "hash"].forEach(fill);
+    [
+      "id",
+      "first_name",
+      "last_name",
+      "username",
+      "photo_url",
+      "auth_date",
+      "hash",
+    ].forEach(fill);
 
-    const validator = new AuthDataValidator({ botToken, inValidateDataAfter: ttl });
+    const validator = new AuthDataValidator({
+      botToken,
+      inValidateDataAfter: ttl,
+    });
     let user: TelegramUserData & { auth_date?: number | string };
     try {
-      user = await validator.validate<TelegramUserData & { auth_date?: number | string }>(dataMap);
+      user = await validator.validate<
+        TelegramUserData & { auth_date?: number | string }
+      >(dataMap);
     } catch (e) {
       const err = e as Error;
       log("validator_error", {
@@ -231,7 +297,10 @@ export const handler: Handler = async (event) => {
     };
   } catch (err) {
     const e = err as Error;
-    log("unhandled_error", { message: e?.message, stack: e?.stack?.split('\n').slice(0, 3).join(' | ') });
+    log("unhandled_error", {
+      message: e?.message,
+      stack: e?.stack?.split("\n").slice(0, 3).join(" | "),
+    });
     return {
       statusCode: 400,
       headers: { "Content-Type": "application/json" },

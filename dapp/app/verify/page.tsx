@@ -152,11 +152,8 @@ export default function VerifyIdentity() {
   }, [signer]);
 
   // Use the verification hook for real verification management
-  const {
-    verificationStatus,
-    isLoading,
-    loadVerificationStatus,
-  } = useVerification();
+  const { verificationStatus, isLoading, loadVerificationStatus } =
+    useVerification();
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -319,24 +316,9 @@ export default function VerifyIdentity() {
       }
 
       // Server-side validate Telegram payload before binding
-      const txHash = await userService.updateTelegramVerification(telegramRedirectData);
-      // const resp = await fetch("/api/telegram/authenticate", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     telegram: telegramRedirectData.authData,
-      //     tx: txLike || undefined,
-      //   }),
-      // });
-      // if (!resp.ok) {
-      //   console.error("Telegram validation failed at server");
-      //   return;
-      // }
-      // const json = await resp.json();
-      // if (!json.success) {
-      //   console.error("Telegram validation rejected:", json.error);
-      //   return;
-      // }
+      const txHash = await userService.updateTelegramVerification(
+        telegramRedirectData
+      );
       setJustCompleted("telegram");
       setSelectedMethod("telegram");
       setTelegramRedirectData(null);

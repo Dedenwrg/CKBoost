@@ -1,32 +1,32 @@
 [functions]
-  # Functions at root level, not in dapp
-  directory = "netlify/functions"
+# Functions at root level, not in dapp
+directory = "netlify/functions"
 
 [dev]
-  # Development server configuration
-  command = "next dev --port 3100"
-  targetPort = 3100
-  port = 8000
-  publish = "dapp"
-  functionsPort = 9999
-  autoLaunch = false
+# Development server configuration
+command = "next dev --port 3100"
+targetPort = 3100
+port = 8000
+publish = "dapp"
+functionsPort = 9999
+autoLaunch = false
 
 [[plugins]]
-  # Essential plugin for deploying Next.js sites on Netlify.
-  # It automatically configures redirects, serverless functions, and more.
-  package = "@netlify/plugin-nextjs" 
+# Essential plugin for deploying Next.js sites on Netlify.
+# It automatically configures redirects, serverless functions, and more.
+package = "@netlify/plugin-nextjs"
 
 
 # API redirects for cleaner URLs
 [[redirects]]
-  from = "/api/telegram/authenticate"
-  to = "/.netlify/functions/telegram-authenticate"
-  status = 200
+from = "/api/telegram-authenticate"
+to = "/.netlify/functions/telegram-authenticate"
+status = 200
 
 [[redirects]]
-  from = "/api/verification/*"
-  to = "/.netlify/functions/verification-api/:splat"
-  status = 200
+from = "/api/verification/*"
+to = "/.netlify/functions/verification-api/:splat"
+status = 200
 
 # Environment variables (set in Netlify dashboard)
 # TELEGRAM_BOT_TOKEN=your_bot_token
