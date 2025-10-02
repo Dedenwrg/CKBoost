@@ -1,12 +1,15 @@
 import type { Handler } from "@netlify/functions";
 import { AuthDataValidator } from "@telegram-auth/server";
-import type { AuthDataMap, TelegramUserData } from "@telegram-auth/server";
+import type { TelegramUserData } from "@telegram-auth/server";
+import { urlStrToAuthDataMap } from "@telegram-auth/server/utils";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { UserData } from "ssri-ckboost/types";
 import { VerificationDataEntries } from "@/lib/types/verify";
 import { TelegramVerificationData } from "../../lib/types/verify";
 import { log } from "console";
+import { bytesFrom } from "../../../../ccc/packages/core/src/bytes/index";
+import { stringify } from "../../../../ccc/packages/core/src/utils/index";
 
 // Types for safer payload handling
 type Hex = string;
@@ -207,9 +210,10 @@ export const handler: Handler = async (event) => {
         });
         switch (verificationData.source) {
           case "telegram":
-            await validateTelegramAuth(
-              verificationData.data as TelegramVerificationData
-            );
+            const telegramVerificationData =
+              verificationData.data as TelegramVerificationData;
+            const url = `https://feature-identity-verification--ckboost.netlify.app/verify?id=${telegramVerificationData.id}&first_name=${telegramVerificationData.first_name}&username=${telegramVerificationData.username}&photo_url=${telegramVerificationData.photo_url}&auth_date=${telegramVerificationData.auth_date}&hash=${telegramVerificationData.hash}`;
+            await validateTelegramAuth(url);
             break;
           default:
             throw new Error(
@@ -219,7 +223,7 @@ export const handler: Handler = async (event) => {
       }
     } catch (e) {
       const err = e as Error;
-      log("validator_error", {
+      log("validator_router_error", {
         message: err?.message,
         type: err?.name,
       });
@@ -228,13 +232,14 @@ export const handler: Handler = async (event) => {
         statusCode: 400,
         body: JSON.stringify({
           success: false,
-          error: "invalid_telegram_auth",
+          error: "validator_router_error",
+          message: err?.message,
         }),
       };
     }
     log("invalidated", invalidated);
-    if (!invalidated) {
-      throw new Error("invalid_telegram_auth");
+    if (invalidated) {
+      throw new Error("invalidated_error");
     } else {
       log("validated_success");
       let proxyAuthenticatedTx: ccc.Transaction | undefined;
@@ -242,7 +247,7 @@ export const handler: Handler = async (event) => {
       // Compute tx hash and sign with authenticator key (attestation)
       try {
         proxyAuthenticatedTx = await serverSigner.signTransaction(tx);
-        log("proxy_authenticated_tx");
+        log("proxy_authenticated_tx", ccc.stringify(proxyAuthenticatedTx));
       } catch (e) {
         log("signing_error", { message: (e as Error)?.message });
         // Still return validation success if signing fails
@@ -251,7 +256,10 @@ export const handler: Handler = async (event) => {
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ success: true, proxyAuthenticatedTx }),
+        body: JSON.stringify({
+          success: true,
+          tx: ccc.stringify(proxyAuthenticatedTx),
+        }),
       };
     }
   } catch (err) {
@@ -263,66 +271,33 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 400,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ success: false, error: "invalid_telegram_auth" }),
+      body: JSON.stringify({ success: false, error: "authentication_error" }),
     };
   }
 };
 
-async function validateTelegramAuth(
-  telegramVerificationData: TelegramVerificationData
-) {
-  // Build AuthDataMap for validator from embedded data
-  const auth_date_raw = telegramVerificationData.auth_date as
-    | string
-    | number
-    | undefined;
-  const auth_date_num =
-    auth_date_raw !== undefined ? Number(auth_date_raw) : undefined;
-  const now = Math.floor(Date.now() / 1000);
-  const disableTtl = process.env.TELEGRAM_AUTH_DISABLE_TTL === "true";
-  const ttl = disableTtl
-    ? Number.MAX_SAFE_INTEGER
-    : Number(process.env.TELEGRAM_AUTH_TTL_SEC || 600);
-  const dataAge = auth_date_num !== undefined ? now - auth_date_num : undefined;
-
-  const dataMap: AuthDataMap = new Map<string, string | number>();
-  try {
-    dataMap.set("id", telegramVerificationData.id);
-    dataMap.set("username", telegramVerificationData.username || "");
-    dataMap.set("first_name", telegramVerificationData.first_name || "");
-    dataMap.set("last_name", telegramVerificationData.last_name || "");
-    dataMap.set("photo_url", telegramVerificationData.photo_url || "");
-    dataMap.set("auth_date", auth_date_num || 0);
-    dataMap.set("hash", telegramVerificationData.hash);
-  } catch (e) {
-    const err = e as Error;
-    log("validator_error", {
-      message: err?.message,
-      type: err?.name,
-    });
-    throw err;
-  }
-
+async function validateTelegramAuth(url: string) {
   const validator = new AuthDataValidator({
     botToken: process.env.TELEGRAM_BOT_TOKEN as string,
     // inValidateDataAfter: ttl,
   });
   let user: TelegramUserData & { auth_date?: number | string };
+  log("url", url);
+  const data = urlStrToAuthDataMap(url);
   try {
-    user = await validator.validate<
-      TelegramUserData & { auth_date?: number | string }
-    >(dataMap);
+    user = await validator.validate(data);
+    console.log("validated user", user);
   } catch (e) {
     const err = e as Error;
-    log("validator_error", {
+    log("validateTelegramAuth", {
       message: err?.message,
       type: err?.name,
-      dataMapKeys: Array.from(dataMap.keys()),
-      hasHash: dataMap.has("hash"),
-      hasAuthDate: dataMap.has("auth_date"),
-      authDate: auth_date_num,
-      dataAge,
-      ttl,
+      dataMapKeys: Array.from(data.keys()),
+      hasHash: data.has("hash"),
+      hasAuthDate: data.has("auth_date"),
+      authDate: data.get("auth_date"),
+      dataAge: data.get("data_age"),
+      ttl: data.get("ttl"),
     });
     throw err;
   }

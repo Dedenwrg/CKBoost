@@ -279,8 +279,8 @@ export default function VerifyIdentity() {
     if (source === "telegram") {
       const id = searchParams.get("id");
       const username = searchParams.get("username") || "";
-      const firstName = searchParams.get("first_name") || "";
-      const lastName = searchParams.get("last_name") || undefined;
+      const first_name = searchParams.get("first_name") || "";
+      const last_name = searchParams.get("last_name") || undefined;
       const photo_url = searchParams.get("photo_url") || undefined;
       const auth_date = searchParams.get("auth_date") || undefined;
       const hash = searchParams.get("hash") || undefined;
@@ -288,8 +288,8 @@ export default function VerifyIdentity() {
         const redirectData = {
           id,
           username,
-          firstName,
-          lastName,
+          first_name,
+          last_name,
           photo_url,
           auth_date,
           hash,
