@@ -7,11 +7,9 @@ pub mod helper {
     use ckb_std::high_level::{load_cell_data, load_cell_type_hash};
     use ckboost_shared::types::CampaignData;
     use molecule::prelude::Entity;
-    
+
     /// Find campaign cell in inputs and validate it exists
-    pub fn find_campaign_cell_in_inputs(
-        campaign_type_id: &[u8],
-    ) -> Result<(), DeterministicError> {
+    pub fn find_campaign_cell_in_inputs(campaign_type_id: &[u8]) -> Result<(), DeterministicError> {
         let mut index = 0;
         loop {
             match load_cell_type_hash(index, Source::Input) {
@@ -29,7 +27,7 @@ pub mod helper {
         debug_trace!("Campaign cell not found in inputs");
         Err(DeterministicError::CellRelationshipRuleViolation)
     }
-    
+
     /// Validate user is in the approved list for a quest
     pub fn validate_user_in_approved_list(
         campaign_data: &CampaignData,
@@ -58,52 +56,65 @@ pub mod helper {
 }
 
 pub mod approve_completion {
+    use ckb_deterministic::assertions::expect;
+    use ckb_deterministic::cell_classifier::RuleBasedClassifier;
     use ckb_deterministic::debug_trace;
     use ckb_deterministic::errors::Error as DeterministicError;
-    use ckb_deterministic::cell_classifier::RuleBasedClassifier;
+    use ckb_std::high_level::load_script;
     use ckboost_shared::transaction_context::TransactionContext;
-    
+
     /// Validate that the campaign admin is unlocking funds
     /// This is valid when the campaign cell itself is being spent
     pub fn validate_approve_completion(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), DeterministicError> {
         debug_trace!("Validating admin unlock");
-        
+
         // Check that a campaign cell exists in inputs
         // This means the campaign admin (who owns the campaign cell) is signing the transaction
         let input_campaign_cells = context.input_cells.get_custom("campaign");
-        
-        if input_campaign_cells.is_some() {
-            debug_trace!("Campaign cell found in inputs - admin unlock is valid");
-            Ok(())
-        } else {
-            debug_trace!("No campaign cell in inputs - admin unlock is invalid");
-            Err(DeterministicError::CellRelationshipRuleViolation)
+        let script = load_script()?;
+        let args = script.args().raw_data();
+        let mut args_u832 = [0u8; 32];
+        args_u832.copy_from_slice(args.as_ref());
+
+        match input_campaign_cells {
+            Some(cells) => {
+                debug_trace!("Campaign cell found in inputs - admin unlock is valid");
+                debug_trace!("Campaign cell count: {}", cells.len());
+                let campaign_cell = &cells[0];
+                let campaign_cell_type_hash = campaign_cell.type_hash.as_ref().unwrap();
+                expect(campaign_cell_type_hash).to_equal(&args_u832)?;
+                Ok(())
+            }
+            None => {
+                debug_trace!("No campaign cell in inputs - admin unlock is invalid");
+                Err(DeterministicError::CellRelationshipRuleViolation)
+            }
         }
     }
 }
 
 pub mod user_claim {
+    use ckb_deterministic::cell_classifier::RuleBasedClassifier;
     use ckb_deterministic::debug_trace;
     use ckb_deterministic::errors::Error as DeterministicError;
     use ckb_deterministic::transaction_recipe::TransactionRecipeExt;
-    use ckb_deterministic::cell_classifier::RuleBasedClassifier;
-    use ckboost_shared::transaction_context::TransactionContext;
     use ckb_std::ckb_constants::Source;
     use ckb_std::high_level::load_witness_args;
-    
+    use ckboost_shared::transaction_context::TransactionContext;
+
     /// Validate that an approved user is claiming rewards
     /// This checks for approval proof in the transaction witnesses
     pub fn validate_user_claim(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), DeterministicError> {
         debug_trace!("Validating user claim");
-        
+
         // Check for approval proof in witnesses
         let mut index = 0;
         let mut found_proof = false;
-        
+
         loop {
             match load_witness_args(index, Source::Input) {
                 Ok(witness_args) => {
@@ -125,7 +136,7 @@ pub mod user_claim {
             }
             index += 1;
         }
-        
+
         if found_proof {
             // TODO: Further validate the proof contains valid quest_id and user_type_id
             // For now, presence of proof is sufficient
@@ -139,23 +150,26 @@ pub mod user_claim {
 }
 
 pub mod common {
+    use ckb_deterministic::cell_classifier::RuleBasedClassifier;
     use ckb_deterministic::debug_trace;
     use ckb_deterministic::errors::Error as DeterministicError;
     use ckb_deterministic::transaction_recipe::TransactionRecipeExt;
-    use ckb_deterministic::cell_classifier::RuleBasedClassifier;
     use ckboost_shared::transaction_context::TransactionContext;
-    
+
     /// Common validation that applies to all lock operations
     /// Currently just ensures basic transaction structure is valid
     pub fn validate_common(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), DeterministicError> {
         debug_trace!("Performing common lock validation");
-        
+
         // Get the recipe method path to understand what operation is being performed
         let method_path = context.recipe.method_path_bytes();
-        debug_trace!("Lock operation method: {:?}", core::str::from_utf8(&method_path).unwrap_or("<invalid UTF-8>"));
-        
+        debug_trace!(
+            "Lock operation method: {:?}",
+            core::str::from_utf8(&method_path).unwrap_or("<invalid UTF-8>")
+        );
+
         // All lock operations are valid as long as they pass specific validation
         Ok(())
     }

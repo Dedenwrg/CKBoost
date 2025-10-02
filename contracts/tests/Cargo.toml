@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-native-simulator = [ "ckb-testtool/native-simulator" ]
 
 [dependencies]
 ckb-testtool = "0.15.0"
