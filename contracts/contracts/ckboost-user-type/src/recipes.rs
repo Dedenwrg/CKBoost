@@ -2,8 +2,7 @@ extern crate alloc;
 
 use alloc::{vec, vec::Vec};
 use ckb_deterministic::{
-    cell_classifier::RuleBasedClassifier,
-    validation::TransactionValidationRules,
+    cell_classifier::RuleBasedClassifier, validation::TransactionValidationRules,
 };
 
 pub mod common {
@@ -25,8 +24,11 @@ pub mod common {
                 let method_path = method_path_bytes.as_slice();
                 if method_path == b"CKBoostUser.submit_quest" {
                     return Ok(());
+                }
+                if method_path == b"CKBoostUser.update_verification_data" {
+                    return Ok(());
                 } else {
-                    return Err(DeterministicError::CellCountViolation);
+                    return Err(DeterministicError::CellRelationshipRuleViolation);
                 }
             }
         };
@@ -68,7 +70,6 @@ pub mod common {
     }
 }
 
-
 pub mod update_verification_data {
     use super::common;
     use alloc::{string::ToString, vec};
@@ -78,9 +79,8 @@ pub mod update_verification_data {
     };
 
     pub fn get_rules() -> TransactionValidationRules<RuleBasedClassifier> {
-        TransactionValidationRules::new(b"updateUserVerification".to_vec())
+        TransactionValidationRules::new(b"CKBoostUser.update_verification_data".to_vec())
             .with_arguments(1)
-            // Protocol cells: at most 1 in (for checking endorser whitelist), 0 out
             .with_custom_cell(
                 "user",
                 CellCountConstraint::at_least(0),
@@ -166,8 +166,8 @@ pub mod submit_quest {
             // User cells: 0 or 1 in (creation or update), exactly 1 out
             .with_custom_cell(
                 "user",
-                CellCountConstraint::at_most(1),  // 0 for creation, 1 for update
-                CellCountConstraint::exactly(1),   // Always 1 output
+                CellCountConstraint::at_most(1), // 0 for creation, 1 for update
+                CellCountConstraint::exactly(1), // Always 1 output
             )
             .with_cell_relationship(
                 "script_immutability".to_string(),
