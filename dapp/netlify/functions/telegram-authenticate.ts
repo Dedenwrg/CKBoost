@@ -246,6 +246,7 @@ export const handler: Handler = async (event) => {
 
       // Compute tx hash and sign with authenticator key (attestation)
       try {
+        log("Before signing for proxy authentication", ccc.stringify(tx));
         proxyAuthenticatedTx = await serverSigner.signTransaction(tx);
         log("proxy_authenticated_tx", ccc.stringify(proxyAuthenticatedTx));
       } catch (e) {
@@ -253,12 +254,16 @@ export const handler: Handler = async (event) => {
         // Still return validation success if signing fails
       }
 
+      if (!proxyAuthenticatedTx) {
+        throw new Error("signing_error_no_tx");
+      }
+
       return {
         statusCode: 200,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           success: true,
-          tx: ccc.stringify(proxyAuthenticatedTx),
+          txHex: ccc.hexFrom(proxyAuthenticatedTx?.toBytes()),
         }),
       };
     }

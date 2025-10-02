@@ -105,7 +105,12 @@ export class UserService {
   ): Promise<ccc.Hex> {
     await this.injectProxyAuthenticationCell(baseDraftTx);
     await baseDraftTx.completeInputsByCapacity(signer);
-    await baseDraftTx.completeFeeBy(signer);
+    console.log(
+      "baseDraftTx after completeInputsByCapacity",
+      ccc.stringify(baseDraftTx)
+    );
+    await baseDraftTx.completeFeeBy(signer, 1200);
+    console.log("baseDraftTx after completeFeeBy", ccc.stringify(baseDraftTx));
 
     const resp = await fetch("/api/telegram-authenticate", {
       method: "POST",
@@ -117,7 +122,40 @@ export class UserService {
       throw new Error("Telegram validation failed at server");
     }
     const responseJson = await resp.json();
-    const authenticatedTx = ccc.Transaction.from(responseJson.tx);
+    console.log("response from telegram-authenticate", responseJson);
+    const authenticatedTx = ccc.Transaction.fromBytes(responseJson.txHex);
+    console.log("authenticatedTx from bytes", ccc.stringify(authenticatedTx));
+    for (let i = 0; i < authenticatedTx.inputs.length; i++) {
+      const inputCell = await signer.client.getCell(
+        authenticatedTx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found");
+      }
+      authenticatedTx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell?.outPoint,
+        since: "0x0",
+        cellOutput: inputCell?.cellOutput,
+      });
+    }
+
+    for (let i = 0; i < authenticatedTx.outputs.length; i++) {
+      const out = authenticatedTx.outputs[i];
+      if (out.type) {
+        authenticatedTx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          authenticatedTx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+    console.log(
+      "authenticatedTx after modifying inputs and outputs",
+      ccc.stringify(authenticatedTx)
+    );
+    console.log(
+      "authenticatedTx after signing",
+      ccc.stringify(authenticatedTx)
+    );
     return await signer.sendTransaction(authenticatedTx);
   }
 
@@ -1070,11 +1108,13 @@ export class UserService {
         updatedConnectedTypeIdArgs;
     }
 
-    createTx.outputs[userCellOutputIndex] = ccc.CellOutput.from({
-      capacity: createTx.outputs[userCellOutputIndex].capacity,
-      lock: createTx.outputs[userCellOutputIndex].lock,
-      type: createTx.outputs[userCellOutputIndex].type,
-    });
+    createTx.outputs[userCellOutputIndex] = ccc.CellOutput.from(
+      {
+        lock: createTx.outputs[userCellOutputIndex].lock,
+        type: createTx.outputs[userCellOutputIndex].type,
+      },
+      createTx.outputsData[userCellOutputIndex] as ccc.HexLike
+    );
 
     createTx.addCellDeps({
       outPoint: protocolCell.outPoint,
