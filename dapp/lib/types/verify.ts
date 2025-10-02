@@ -10,20 +10,20 @@ export type VerificationSource =
   | "did"
   | "manual";
 
-interface VerificationDataEntries {
+export interface VerificationDataEntries {
   source: VerificationSource;
   data: VerificationData;
 }
 
 // Telegram
-export interface TelegramVerificationData{
+export interface TelegramVerificationData {
   // Canonical fields
   id: string | number;
   username?: string;
-  firstName?: string;
-  lastName?: string;
-  photoUrl?: string;
-  authDate?: string | number;
+  first_name?: string;
+  last_name?: string;
+  photo_url?: string;
+  auth_date?: string | number;
   hash: string;
 }
 
@@ -79,4 +79,3 @@ export type VerificationData =
   | KycVerificationData
   | DidVerificationData
   | ManualVerificationData;
-

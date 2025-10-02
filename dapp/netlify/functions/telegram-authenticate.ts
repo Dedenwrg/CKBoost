@@ -2,6 +2,11 @@ import type { Handler } from "@netlify/functions";
 import { AuthDataValidator } from "@telegram-auth/server";
 import type { AuthDataMap, TelegramUserData } from "@telegram-auth/server";
 import { ccc } from "@ckb-ccc/shell";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { UserData } from "ssri-ckboost/types";
+import { VerificationDataEntries } from "@/lib/types/verify";
+import { TelegramVerificationData } from "../../lib/types/verify";
+import { log } from "console";
 
 // Types for safer payload handling
 type Hex = string;
@@ -40,53 +45,53 @@ export const handler: Handler = async (event) => {
 
   log("JSON Body", event.body);
   // Support GET to expose authenticator lock script (public info)
-  if (event.httpMethod === "GET") {
-    try {
-      const serverKey = process.env.TELEGRAM_AUTH_PRIVATE_KEY as
-        | Hex
-        | undefined;
-      const rpcUrl =
-        process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
-      if (!serverKey) {
-        log("config_error_get", { hasServerKey: !!serverKey });
-        return {
-          statusCode: 500,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            success: false,
-            error: "missing_private_key",
-          }),
-        };
-      }
-      const client = new ccc.ClientPublicTestnet({ url: rpcUrl });
-      const signer = new ccc.SignerCkbPrivateKey(client, serverKey as ccc.Hex);
-      const addrObj = await signer.getRecommendedAddressObj();
-      const script = addrObj.script;
-      const address = await signer.getRecommendedAddress();
-      log("authenticator_info", {
-        addressPreview: address.slice(0, 10) + "...",
-      });
-      return {
-        statusCode: 200,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          success: true,
-          address,
-          script: {
-            codeHash: script.codeHash,
-            hashType: script.hashType,
-            args: script.args,
-          } as ccc.ScriptLike,
-        }),
-      };
-    } catch (e) {
-      log("get_error", { message: (e as Error)?.message });
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ success: false, error: "internal_error" }),
-      };
-    }
-  }
+  // if (event.httpMethod === "GET") {
+  //   try {
+  //     const serverKey = process.env.TELEGRAM_AUTH_PRIVATE_KEY as
+  //       | Hex
+  //       | undefined;
+  //     const rpcUrl =
+  //       process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
+  //     if (!serverKey) {
+  //       log("config_error_get", { hasServerKey: !!serverKey });
+  //       return {
+  //         statusCode: 500,
+  //         headers: { "Content-Type": "application/json" },
+  //         body: JSON.stringify({
+  //           success: false,
+  //           error: "missing_private_key",
+  //         }),
+  //       };
+  //     }
+  //     const client = new ccc.ClientPublicTestnet({ url: rpcUrl });
+  //     const signer = new ccc.SignerCkbPrivateKey(client, serverKey as ccc.Hex);
+  //     const addrObj = await signer.getRecommendedAddressObj();
+  //     const script = addrObj.script;
+  //     const address = await signer.getRecommendedAddress();
+  //     log("authenticator_info", {
+  //       addressPreview: address.slice(0, 10) + "...",
+  //     });
+  //     return {
+  //       statusCode: 200,
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({
+  //         success: true,
+  //         address,
+  //         script: {
+  //           codeHash: script.codeHash,
+  //           hashType: script.hashType,
+  //           args: script.args,
+  //         } as ccc.ScriptLike,
+  //       }),
+  //     };
+  //   } catch (e) {
+  //     log("get_error", { message: (e as Error)?.message });
+  //     return {
+  //       statusCode: 500,
+  //       body: JSON.stringify({ success: false, error: "internal_error" }),
+  //     };
+  //   }
+  // }
 
   if (event.httpMethod !== "POST") {
     log("method_not_allowed");
@@ -100,9 +105,9 @@ export const handler: Handler = async (event) => {
       return { statusCode: 500, body: "Missing TELEGRAM_BOT_TOKEN" };
     }
 
-    let body;
+    let tx;
     try {
-      body = event.body ? JSON.parse(event.body) : {};
+      tx = ccc.Transaction.fromBytes(event.body as ccc.Hex);
     } catch (e) {
       log("body_parse_error", { message: (e as Error)?.message });
       return {
@@ -111,10 +116,9 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({ success: false, error: "invalid_json" }),
       };
     }
-    const txLike = body.tx as ccc.TransactionLike | undefined;
 
-    if (!txLike) {
-      log("missing_tx_like");
+    if (!tx) {
+      log("missing_tx");
       return {
         statusCode: 400,
         body: JSON.stringify({ success: false, error: "missing_tx" }),
@@ -137,28 +141,29 @@ export const handler: Handler = async (event) => {
       client,
       serverKey as ccc.Hex
     );
-    const addrObj = await serverSigner.getRecommendedAddressObj();
-    const authScript = addrObj.script;
 
-    // Find the output locked by authenticator and parse its data
-    const outputIndex = txLike.outputs?.findIndex(
-      (o) =>
-        o.lock.codeHash === authScript.codeHash &&
-        o.lock.hashType === authScript.hashType &&
-        o.lock.args === authScript.args
+    const network = deploymentManager.getCurrentNetwork();
+    const userCellCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostUserType"
     );
-    if (outputIndex === -1) {
+    // Find the user cell and parse its data
+    const userCellOutputIndex = tx.outputs?.findIndex(
+      (o) =>
+        o.type?.codeHash === userCellCodeHash && o.type?.hashType === "type"
+    );
+    if (userCellOutputIndex === -1) {
       log("auth_output_not_found");
       return {
         statusCode: 400,
         body: JSON.stringify({ success: false, error: "auth_output_missing" }),
       };
     }
-    const rawData = txLike.outputsData?.[outputIndex ?? 0] as
+    const rawData = tx.outputsData?.[userCellOutputIndex] as
       | ccc.Hex
       | undefined;
     if (!rawData || rawData === "0x") {
-      log("auth_output_empty_data", { outputIndex });
+      log("auth_output_empty_data", { userCellOutputIndex });
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -169,11 +174,20 @@ export const handler: Handler = async (event) => {
     }
 
     // Decode JSON from hex
-    let cellData: TelegramAuthCellData;
+    let userData;
+    let userVerificationDataArray: VerificationDataEntries[];
     try {
-      const bytes = ccc.bytesFrom(rawData);
+      userData = UserData.decode(rawData);
+      const userVerificationDataArrayHex =
+        userData.verification_data.identity_verification_data;
+      const bytes = ccc.bytesFrom(userVerificationDataArrayHex);
       const s = Buffer.from(bytes).toString("utf8");
-      cellData = JSON.parse(s) as TelegramAuthCellData;
+      log("user_verification_data_array_string", s);
+      userVerificationDataArray = JSON.parse(s) as VerificationDataEntries[];
+      log(
+        "user_verification_data_array",
+        JSON.stringify(userVerificationDataArray)
+      );
     } catch (e) {
       log("auth_output_data_parse_error", { message: (e as Error)?.message });
       return {
@@ -184,117 +198,62 @@ export const handler: Handler = async (event) => {
         }),
       };
     }
-
-    if (cellData.kind !== "ckboost/telegram_auth" || !cellData.auth) {
-      log("auth_output_data_invalid_kind", { kind: cellData.kind });
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          success: false,
-          error: "invalid_auth_output_kind",
-        }),
-      };
-    }
-
-    // Build AuthDataMap for validator from embedded data
-    const telegram = cellData.auth;
-    const keys = Object.keys(telegram || {});
-    const auth_date_raw = telegram["auth_date"] as string | number | undefined;
-    const auth_date_num =
-      auth_date_raw !== undefined ? Number(auth_date_raw) : undefined;
-    const now = Math.floor(Date.now() / 1000);
-    const disableTtl = process.env.TELEGRAM_AUTH_DISABLE_TTL === "true";
-    const ttl = disableTtl
-      ? Number.MAX_SAFE_INTEGER
-      : Number(process.env.TELEGRAM_AUTH_TTL_SEC || 600);
-    const dataAge =
-      auth_date_num !== undefined ? now - auth_date_num : undefined;
-    log("incoming_tx_payload", {
-      has_auth_output: true,
-      outputIndex,
-      fields: keys,
-      has_id: keys.includes("id"),
-      has_username: keys.includes("username"),
-      has_first_name: keys.includes("first_name"),
-      has_hash: keys.includes("hash"),
-      hash_preview: mask(telegram["hash"] as string | undefined),
-      auth_date: auth_date_num,
-      now,
-      dataAge,
-      ttl,
-      disableTtl,
-    });
-
-    const dataMap: AuthDataMap = new Map<string, string | number>();
-    const fill = (k: string) => {
-      const v = telegram[k];
-      if (typeof v === "string" || typeof v === "number") dataMap.set(k, v);
-    };
-    [
-      "id",
-      "first_name",
-      "last_name",
-      "username",
-      "photo_url",
-      "auth_date",
-      "hash",
-    ].forEach(fill);
-
-    const validator = new AuthDataValidator({
-      botToken,
-      inValidateDataAfter: ttl,
-    });
-    let user: TelegramUserData & { auth_date?: number | string };
+    let invalidated = false;
     try {
-      user = await validator.validate<
-        TelegramUserData & { auth_date?: number | string }
-      >(dataMap);
+      for (const verificationData of userVerificationDataArray) {
+        log("validating verification data", {
+          source: verificationData.source,
+          data: verificationData.data,
+        });
+        switch (verificationData.source) {
+          case "telegram":
+            await validateTelegramAuth(
+              verificationData.data as TelegramVerificationData
+            );
+            break;
+          default:
+            throw new Error(
+              `Unsupported verification source: ${verificationData.source}`
+            );
+        }
+      }
     } catch (e) {
       const err = e as Error;
       log("validator_error", {
         message: err?.message,
         type: err?.name,
-        dataMapKeys: Array.from(dataMap.keys()),
-        hasHash: dataMap.has("hash"),
-        hasAuthDate: dataMap.has("auth_date"),
-        authDate: auth_date_num,
-        dataAge,
-        ttl,
       });
+      invalidated = true;
       return {
         statusCode: 400,
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           success: false,
           error: "invalid_telegram_auth",
-          ...(isDev ? { message: err?.message } : {}),
         }),
       };
     }
+    log("invalidated", invalidated);
+    if (!invalidated) {
+      throw new Error("invalid_telegram_auth");
+    } else {
+      log("validated_success");
+      let proxyAuthenticatedTx: ccc.Transaction | undefined;
 
-    // Compute tx hash and sign with authenticator key (attestation)
-    let txHash: string | undefined;
-    let serverSignature: string | undefined;
-    try {
-      const tx = ccc.Transaction.from(txLike as ccc.TransactionLike);
-      txHash = tx.hashFull();
-      serverSignature = await serverSigner.signMessageRaw(txHash);
-    } catch (e) {
-      log("signing_error", { message: (e as Error)?.message });
-      // Still return validation success if signing fails
+      // Compute tx hash and sign with authenticator key (attestation)
+      try {
+        proxyAuthenticatedTx = await serverSigner.signTransaction(tx);
+        log("proxy_authenticated_tx");
+      } catch (e) {
+        log("signing_error", { message: (e as Error)?.message });
+        // Still return validation success if signing fails
+      }
+
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ success: true, proxyAuthenticatedTx }),
+      };
     }
-
-    log("validated_success", {
-      user_id: (user as unknown as { id?: number | string })?.id,
-      username: (user as unknown as { username?: string })?.username,
-      has_photo_url: !!(user as unknown as { photo_url?: string })?.photo_url,
-    });
-
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ success: true, txHash, serverSignature }),
-    };
   } catch (err) {
     const e = err as Error;
     log("unhandled_error", {
@@ -308,5 +267,65 @@ export const handler: Handler = async (event) => {
     };
   }
 };
+
+async function validateTelegramAuth(
+  telegramVerificationData: TelegramVerificationData
+) {
+  // Build AuthDataMap for validator from embedded data
+  const auth_date_raw = telegramVerificationData.auth_date as
+    | string
+    | number
+    | undefined;
+  const auth_date_num =
+    auth_date_raw !== undefined ? Number(auth_date_raw) : undefined;
+  const now = Math.floor(Date.now() / 1000);
+  const disableTtl = process.env.TELEGRAM_AUTH_DISABLE_TTL === "true";
+  const ttl = disableTtl
+    ? Number.MAX_SAFE_INTEGER
+    : Number(process.env.TELEGRAM_AUTH_TTL_SEC || 600);
+  const dataAge = auth_date_num !== undefined ? now - auth_date_num : undefined;
+
+  const dataMap: AuthDataMap = new Map<string, string | number>();
+  try {
+    dataMap.set("id", telegramVerificationData.id);
+    dataMap.set("username", telegramVerificationData.username || "");
+    dataMap.set("first_name", telegramVerificationData.first_name || "");
+    dataMap.set("last_name", telegramVerificationData.last_name || "");
+    dataMap.set("photo_url", telegramVerificationData.photo_url || "");
+    dataMap.set("auth_date", auth_date_num || 0);
+    dataMap.set("hash", telegramVerificationData.hash);
+  } catch (e) {
+    const err = e as Error;
+    log("validator_error", {
+      message: err?.message,
+      type: err?.name,
+    });
+    throw err;
+  }
+
+  const validator = new AuthDataValidator({
+    botToken: process.env.TELEGRAM_BOT_TOKEN as string,
+    // inValidateDataAfter: ttl,
+  });
+  let user: TelegramUserData & { auth_date?: number | string };
+  try {
+    user = await validator.validate<
+      TelegramUserData & { auth_date?: number | string }
+    >(dataMap);
+  } catch (e) {
+    const err = e as Error;
+    log("validator_error", {
+      message: err?.message,
+      type: err?.name,
+      dataMapKeys: Array.from(dataMap.keys()),
+      hasHash: dataMap.has("hash"),
+      hasAuthDate: dataMap.has("auth_date"),
+      authDate: auth_date_num,
+      dataAge,
+      ttl,
+    });
+    throw err;
+  }
+}
 
 export default handler;

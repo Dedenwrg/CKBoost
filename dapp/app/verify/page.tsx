@@ -297,9 +297,6 @@ export default function VerifyIdentity() {
         setTelegramRedirectData(redirectData);
         // Do not keep sensitive params in URL longer than needed
         // Replace URL without query once we've captured data
-        const url = new URL(window.location.href);
-        url.search = "";
-        router.replace(url.pathname);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,7 +356,7 @@ export default function VerifyIdentity() {
                     Telegram login received for{" "}
                     {telegramRedirectData.username
                       ? `@${telegramRedirectData.username}`
-                      : telegramRedirectData.firstName}
+                      : telegramRedirectData.first_name}
                     . Click below to bind it to your connected wallet.
                     <div className="mt-3">
                       <Button

@@ -1292,14 +1292,19 @@ export class UserService {
     const existingUserData = await this.getUserByLockHash(lockHash);
 
     if (!existingUserData || !existingUserData.typeId) {
-      const identityVerificationBytes = ccc.bytesFrom(
-        JSON.stringify([telegramVerificationData]),
-        "utf8"
-      );
+      const identity_verification_data = [
+        {
+          source: "telegram",
+          data: telegramVerificationData,
+        },
+      ];
       debug.log("No user found for Telegram verification, creating one");
       return this.createUserWithVerification({
         telegram_personal_chat_id: telegramVerificationData.id,
-        identity_verification_data: identityVerificationBytes,
+        identity_verification_data: ccc.bytesFrom(
+          JSON.stringify(identity_verification_data),
+          "utf8"
+        ),
       });
     }
 
@@ -1332,10 +1337,9 @@ export class UserService {
     let currentIdentityVerificationDataArray;
     try {
       // Try to parse existing identity data as JSON
-      // currentIdentityVerificationDataArray = JSON.parse(
-      //   currentIdentityVerificationDataString
-      // );
-      currentIdentityVerificationDataArray = [];
+      currentIdentityVerificationDataArray = JSON.parse(
+        currentIdentityVerificationDataString
+      );
     } catch {
       // If parsing fails, start with empty object
       debug.log("No existing identity data found, creating new");
@@ -1343,7 +1347,10 @@ export class UserService {
     }
 
     // Add the new verification data
-    currentIdentityVerificationDataArray.push(telegramVerificationData);
+    currentIdentityVerificationDataArray.push({
+      source: "telegram",
+      data: telegramVerificationData,
+    });
 
     // Create updated identity verification JSON
     const updatedIdentityVerificationDataArrayBytes = ccc.bytesFrom(
