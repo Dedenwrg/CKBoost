@@ -19,3 +19,11 @@ export * from './ckb/campaign-cells'
 
 // Re-export commonly used SSRI types for convenience
 export type { CampaignDataLike, QuestDataLike } from 'ssri-ckboost/types'
+export { LeaderboardService, InMemoryLeaderboardCache } from './services/leaderboard-service'
+export type {
+  LeaderboardStats,
+  LeaderboardEntry,
+  PointsMintRecord,
+  PointsMintRecipient,
+  LeaderboardCacheSnapshot,
+} from './types/leaderboard'

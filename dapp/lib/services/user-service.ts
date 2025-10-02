@@ -786,7 +786,7 @@ export class UserService {
 
     console.log("updateTx before sending", updateTx);
 
-    const txHash = await this.signer.sendTransaction(updateTx);
+    const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx);
 
     debug.log("User cell updated", {
       txHash: txHash.slice(0, 10) + "...",
@@ -1028,7 +1028,7 @@ export class UserService {
     });
     console.log("createTx after complete fees", createTx);
     // Send transaction
-    const txHash = await this.signer.sendTransaction(createTx);
+    const txHash = await sendTransactionWithFeeRetry(this.signer, createTx);
 
     debug.log("User cell created", {
       txHash: txHash.slice(0, 10) + "...",
