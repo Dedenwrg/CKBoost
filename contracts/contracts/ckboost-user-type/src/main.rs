@@ -6,14 +6,14 @@ extern crate alloc;
 
 use alloc::borrow::Cow;
 use ckb_deterministic::debug_trace;
-use ckb_std::high_level::load_script;
-use ckboost_shared::type_id::validate_type_id;
-use ckboost_shared::types::ConnectedTypeID;
-use ckboost_shared::Error;
 use ckb_ssri_std::utils::should_fallback;
 use ckb_ssri_std_proc_macro::ssri_methods;
 use ckb_std::debug;
+use ckb_std::high_level::load_script;
 use ckb_std::syscalls::{pipe, write};
+use ckboost_shared::type_id::validate_type_id;
+use ckboost_shared::types::ConnectedTypeID;
+use ckboost_shared::Error;
 use molecule::prelude::Entity;
 
 #[cfg(not(any(feature = "library", test)))]
@@ -21,10 +21,10 @@ ckb_std::entry!(program_entry);
 #[cfg(not(any(feature = "library", test)))]
 ckb_std::default_alloc!(16384, 1258306, 64);
 
-pub mod modules;
-pub mod ssri;
 pub mod fallback;
+pub mod modules;
 pub mod recipes;
+pub mod ssri;
 
 use crate::{fallback::fallback, ssri::CKBoostUser};
 
@@ -32,12 +32,13 @@ fn program_entry_wrap() -> Result<(), Error> {
     let argv = ckb_std::env::argv();
 
     if should_fallback()? {
-                // # Validation Rules
-        // 
+        // # Validation Rules
+        //
         // 1. **Type ID mechanism**: Ensures the campaign cell uses the correct type ID
         let args = load_script()?.args();
         debug_trace!("args: {:?}", args);
-        let connected_type_id = ConnectedTypeID::from_slice(&args.raw_data()).map_err(|_| Error::InvalidConnectedTypeId)?;
+        let connected_type_id = ConnectedTypeID::from_slice(&args.raw_data())
+            .map_err(|_| Error::InvalidConnectedTypeId)?;
         debug_trace!("connected_type_id: {:?}", connected_type_id);
         match validate_type_id(connected_type_id.type_id().into()) {
             Ok(_) => fallback()?,
@@ -50,15 +51,15 @@ fn program_entry_wrap() -> Result<(), Error> {
     }
 
     debug_trace!("Entering SSRI methods for CKBoost User");
-    
+
     let res: Cow<'static, [u8]> = ssri_methods!(
         argv: &argv,
         invalid_method: Error::SSRIMethodsNotFound,
         invalid_args: Error::SSRIMethodsArgsInvalid,
-        
+
         "CKBoostUser.submit_quest" => {
             debug_trace!("Entered CKBoostUser.submit_quest");
-            
+
             // Parse optional transaction (argv[1])
             let tx: Option<ckb_std::ckb_types::packed::Transaction> = if argv[1].is_empty() || argv[1].as_ref().to_str().map_err(|_| Error::Utf8Error)? == "" {
                 None
@@ -67,19 +68,19 @@ fn program_entry_wrap() -> Result<(), Error> {
                     .map_err(|_| Error::InvalidBaseTransactionForSSRI)?;
                 Some(parsed_tx)
             };
-            
+
             // Parse user_data from molecule serialized bytes (argv[2])
             let user_data_bytes = ckb_std::high_level::decode_hex(argv[2].as_ref())?;
             let user_data = ckboost_shared::types::UserData::from_slice(&user_data_bytes)
                 .map_err(|_| Error::InvalidUserData)?;
-            
+
             // Call the submit_quest method and return the transaction
             let result_tx = crate::modules::CKBoostUserType::submit_quest(tx, user_data)?;
             Ok(Cow::from(result_tx.as_bytes().to_vec()))
         },
         "CKBoostUser.update_verification_data" => {
             debug_trace!("Entered CKBoostUser.update_verification_data");
-            
+
             // Parse optional transaction (argv[1])
             let tx: Option<ckb_std::ckb_types::packed::Transaction> = if argv[1].is_empty() || argv[1].as_ref().to_str().map_err(|_| Error::Utf8Error)? == "" {
                 None
@@ -88,18 +89,18 @@ fn program_entry_wrap() -> Result<(), Error> {
                     .map_err(|_| Error::InvalidBaseTransactionForSSRI)?;
                 Some(parsed_tx)
             };
-            
+
             // Parse user_data from molecule serialized bytes (argv[2])
-            let user_verification_data_bytes = ckb_std::high_level::decode_hex(argv[2].as_ref())?;
-            let user_verification_data = ckboost_shared::types::UserVerificationData::from_slice(&user_verification_data_bytes)
+            let user_data_bytes = ckb_std::high_level::decode_hex(argv[2].as_ref())?;
+            let user_data = ckboost_shared::types::UserData::from_slice(&user_data_bytes)
                 .map_err(|_| Error::InvalidUserData)?;
-            
+
             // Call the update_verification_data method and return the transaction
-            let result_tx = crate::modules::CKBoostUserType::update_verification_data(tx, user_verification_data)?;
+            let result_tx = crate::modules::CKBoostUserType::update_verification_data(tx, user_data)?;
             Ok(Cow::from(result_tx.as_bytes().to_vec()))
         },
     )?;
-    
+
     let pipe = pipe()?;
     write(pipe.1, &res)?;
     Ok(())

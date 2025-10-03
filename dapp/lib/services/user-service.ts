@@ -12,7 +12,11 @@ import {
 import { NostrStorageService } from "./nostr-storage-service";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { debug } from "../utils/debug";
-import { UserData, UserVerificationData } from "ssri-ckboost/types";
+import {
+  UserData,
+  UserDataLike,
+  UserVerificationData,
+} from "ssri-ckboost/types";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
 import { TelegramVerificationData } from "../types/verify";
 import { ClientPublicTestnet } from "@ckb-ccc/connector-react";
@@ -830,7 +834,7 @@ export class UserService {
     // Create user verification data
     const userVerificationDataStruct = {
       telegram_personal_chat_id: 0n,
-      identity_verification_data: ccc.bytesFrom(identityData, "utf8"),
+      identity_verification_data: [],
     };
 
     // Create new submission record
@@ -1076,9 +1080,16 @@ export class UserService {
     const baseTx = ccc.Transaction.from({});
     await baseTx.completeInputsAtLeastOne(this.signer);
 
+    const userData = {
+      verification_data: userVerificationData,
+      total_points_earned: 0,
+      last_activity_timestamp: BigInt(Date.now()),
+      submission_records: [],
+    } as UserDataLike;
+
     const { res: createTx } = await creatorInstance.updateVerificationData(
       this.signer,
-      userVerificationData,
+      userData,
       baseTx
     );
 
@@ -1286,9 +1297,15 @@ export class UserService {
       { executor }
     );
 
+    const userData = UserData.decode(userCell.outputData);
+    const newUserData = {
+      ...userData,
+      verification_data: userVerificationData,
+    };
+
     const { res: updateTx } = await this.userInstance.updateVerificationData(
       this.signer,
-      userVerificationData,
+      newUserData,
       tx
     );
 
@@ -1373,6 +1390,9 @@ export class UserService {
       currentIdentityVerificationData,
       "utf8"
     );
+    debug.log("Current identity verification data string", {
+      currentIdentityVerificationDataString,
+    });
 
     let currentIdentityVerificationDataArray;
     try {
@@ -1380,6 +1400,13 @@ export class UserService {
       currentIdentityVerificationDataArray = JSON.parse(
         currentIdentityVerificationDataString
       );
+      debug.log("Existing identity data parsed", {
+        currentIdentityVerificationDataArray,
+      });
+      if (!Array.isArray(currentIdentityVerificationDataArray)) {
+        debug.log("Existing identity data is not an array, creating new");
+        currentIdentityVerificationDataArray = [];
+      }
     } catch {
       // If parsing fails, start with empty object
       debug.log("No existing identity data found, creating new");

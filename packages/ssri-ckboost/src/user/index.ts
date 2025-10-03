@@ -1,19 +1,17 @@
 import { ccc } from "@ckb-ccc/core";
 import { ssri } from "@ckb-ccc/ssri";
-import { 
-  UserData, 
+import {
+  UserData,
   type UserDataLike,
   UserSubmissionRecord,
-  UserVerificationData,
-  UserVerificationDataLike
 } from "../generated";
 
 /**
  * Represents a CKBoost User contract for managing user operations.
- * 
+ *
  * This class provides methods for user verification, quest completion,
  * and reward claiming.
- * 
+ *
  * @public
  * @category User
  */
@@ -22,7 +20,7 @@ export class User extends ssri.Trait {
 
   /**
    * Constructs a new User instance.
-   * 
+   *
    * @param code - The script code cell of the User contract.
    * @param script - The type script of the User contract.
    * @param config - Optional configuration with executor.
@@ -32,7 +30,7 @@ export class User extends ssri.Trait {
     script: ccc.ScriptLike,
     config?: {
       executor?: ssri.Executor | null;
-    } | null,
+    } | null
   ) {
     super(code, config?.executor);
     this.script = ccc.Script.from(script);
@@ -40,7 +38,7 @@ export class User extends ssri.Trait {
 
   /**
    * Submit a quest completion
-   * 
+   *
    * @param signer - The signer for the transaction
    * @param userData - The complete user data including new submission
    * @param tx - Optional existing transaction to build upon
@@ -111,7 +109,7 @@ export class User extends ssri.Trait {
 
   async updateVerificationData(
     signer: ccc.Signer,
-    userVerificationData: UserVerificationDataLike,
+    userData: UserDataLike,
     tx?: ccc.Transaction
   ): Promise<ssri.ExecutorResponse<ccc.Transaction>> {
     if (!this.executor) {
@@ -127,9 +125,9 @@ export class User extends ssri.Trait {
       await txReq.completeInputsByCapacity(signer);
     }
 
-    // Serialize verification data
-    const verificationDataBytes = UserVerificationData.encode(userVerificationData);
-    const verificationDataHex = ccc.hexFrom(verificationDataBytes);
+    // Serialize user data
+    const userDataBytes = UserData.encode(userData);
+    const userDataHex = ccc.hexFrom(userDataBytes);
     const txHex = ccc.hexFrom(txReq.toBytes());
 
     console.log("Calling SSRI executor with:", {
@@ -141,14 +139,14 @@ export class User extends ssri.Trait {
     });
 
     console.log("txHex", txHex);
-    console.log("verificationDataHex", verificationDataHex);
+    console.log("userDataHex", userDataHex);
 
     try {
       const methodPath = "CKBoostUser.update_verification_data";
       const res = await this.executor.runScript(
         this.code,
         methodPath,
-        [txHex, verificationDataHex],
+        [txHex, userDataHex],
         { script: this.script }
       );
 
@@ -172,7 +170,7 @@ export class User extends ssri.Trait {
 
   /**
    * Get user data from a cell
-   * 
+   *
    * @param cell - The user cell to parse
    * @returns The parsed user data
    */
@@ -183,7 +181,7 @@ export class User extends ssri.Trait {
 
   /**
    * Create a new submission record
-   * 
+   *
    * @param campaignTypeId - The campaign type ID
    * @param questId - The quest ID
    * @param submissionContent - The submission content (URL to Neon storage)
@@ -195,13 +193,13 @@ export class User extends ssri.Trait {
     submissionContent: string
   ): ReturnType<typeof UserSubmissionRecord.encode> {
     const timestamp = BigInt(Date.now());
-    
+
     // mol.String expects the string directly, it handles the encoding internally
     return UserSubmissionRecord.encode({
       campaign_type_id: ccc.hexFrom(campaignTypeId),
       quest_id: questId,
       submission_timestamp: timestamp,
-      submission_content: submissionContent
+      submission_content: submissionContent,
     });
   }
 }

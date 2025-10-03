@@ -35,7 +35,7 @@ use crate::{recipes, ssri::CKBoostUser};
 impl CKBoostUser for CKBoostUserType {
     fn update_verification_data(
         tx: Option<Transaction>,
-        user_verification_data: UserVerificationData,
+        user_data: UserData,
     ) -> Result<Transaction, Error> {
         debug_trace!(
             "CKBoostUserType::update_verification_data - Starting verification data update"
@@ -87,7 +87,10 @@ impl CKBoostUser for CKBoostUserType {
 
                 // Try to find existing user cell with this type ID
                 let user_outpoint = match find_out_point_by_type(current_script.clone()) {
-                    Ok(outpoint) => outpoint,
+                    Ok(outpoint) => {
+                        debug_trace!("Found user outpoint: {:?}", outpoint);
+                        outpoint
+                    }
                     Err(e) => {
                         debug_trace!("ERROR finding user cell: {:?}", e);
                         return Err(e.into());
@@ -103,20 +106,7 @@ impl CKBoostUser for CKBoostUserType {
                 // Get the current user cell to preserve lock script and existing data
                 let current_user_cell = find_cell_by_out_point(user_outpoint.clone())
                     .map_err(|_| Error::UserCellNotFound)?;
-                let current_user_cell_data = find_cell_data_by_out_point(user_outpoint)
-                    .map_err(|_| Error::UserCellNotFound)?;
-
-                // Parse existing user data to preserve non-verification fields
-                let existing_user_data = UserData::from_slice(current_user_cell_data.as_slice())
-                    .map_err(|_| Error::InvalidUserCell)?;
-
-                // Create updated user data with new verification data but preserving other fields
-                let updated_user_data = UserData::new_builder()
-                    .verification_data(user_verification_data)
-                    .total_points_earned(existing_user_data.total_points_earned())
-                    .last_activity_timestamp(existing_user_data.last_activity_timestamp())
-                    .submission_records(existing_user_data.submission_records())
-                    .build();
+                debug_trace!("Found user cell: {:?}", current_user_cell);
 
                 // Create output user cell with updated data
                 let new_user_output = CellOutputBuilder::default()
@@ -131,15 +121,11 @@ impl CKBoostUser for CKBoostUserType {
                 cell_output_vec_builder = cell_output_vec_builder.push(new_user_output);
 
                 // Serialize and add updated user data
-                let user_data_bytes = updated_user_data.as_bytes();
+                let user_data_bytes = user_data.as_bytes();
                 outputs_data_builder = outputs_data_builder.push(user_data_bytes.pack());
             }
             Err(_) => {
                 debug_trace!("No user cell found. Creating a new user cell.");
-
-                // In creation case, user cell doesn't exist as input
-                // But we still need a witness for the first input (used for type ID calculation)
-                let user_input_index = 0;
 
                 // User creation case - need type ID
                 // For type ID calculation, we need at least one input
@@ -202,7 +188,7 @@ impl CKBoostUser for CKBoostUserType {
                     .build();
                 cell_output_vec_builder = cell_output_vec_builder.push(new_user_output);
                 let new_user_data = UserData::new_builder()
-                    .verification_data(user_verification_data)
+                    .verification_data(user_data.verification_data())
                     .total_points_earned(Uint128::from_slice(&[0u8; 16]).unwrap())
                     .last_activity_timestamp(Uint64::from_slice(&[0u8; 8]).unwrap())
                     .submission_records(UserSubmissionRecordVec::new_builder().build())
