@@ -1031,6 +1031,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ckboost-tipping-type"
+version = "0.1.0"
+dependencies = [
+ "blake2b-ref",
+ "ckb-ssri-std",
+ "ckb-ssri-std-proc-macro",
+ "ckb-std",
+ "ckb_deterministic",
+ "ckboost-shared",
+ "molecule 0.8.0",
+]
+
+[[package]]
 name = "ckboost-user-type"
 version = "0.1.0"
 dependencies = [

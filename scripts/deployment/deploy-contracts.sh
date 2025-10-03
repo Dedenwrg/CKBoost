@@ -66,7 +66,7 @@ show_usage() {
     echo "       $0 --all [options]"
     echo ""
     echo "Contract names:"
-    echo "  protocol-type, protocol-lock, campaign-type, campaign-lock, user-type, points-udt"
+    echo "  protocol-type, protocol-lock, campaign-type, campaign-lock, user-type, points-udt, tipping"
     echo ""
     echo "Options:"
     echo "  --network <network>     Network to deploy to (testnet|mainnet|devnet) [default: testnet]"
@@ -115,7 +115,7 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             show_usage
             ;;
-        protocol-type|protocol-lock|campaign-type|campaign-lock|user-type|points-udt)
+        protocol-type|protocol-lock|campaign-type|campaign-lock|user-type|points-udt|tipping-type)
             if [ -z "$CONTRACT_NAME" ]; then
                 CONTRACT_NAME="$1"
             else
@@ -280,7 +280,7 @@ check_contract_binaries() {
     local BINARIES_MISSING=false
     local MISSING_BINARIES=""
     
-    for contract in "protocol-type" "protocol-lock" "campaign-type" "campaign-lock" "user-type" "points-udt"; do
+    for contract in "protocol-type" "protocol-lock" "campaign-type" "campaign-lock" "user-type" "points-udt" "tipping-type"; do
         local binary_path="contracts/build/release/ckboost-${contract}"
         if [ ! -f "$binary_path" ]; then
             BINARIES_MISSING=true
@@ -349,6 +349,7 @@ get_contract_name() {
         "campaign-lock") echo "campaign-lock" ;;
         "user-type") echo "user-type" ;;
         "points-udt") echo "points-udt" ;;
+        "tipping-type") echo "tipping-type" ;;
         *) echo "" ;;
     esac
 }
@@ -361,6 +362,7 @@ get_contract_path() {
         "campaign-lock") echo "./contracts/build/release/ckboost-campaign-lock" ;;
         "user-type") echo "./contracts/build/release/ckboost-user-type" ;;
         "points-udt") echo "./contracts/build/release/ckboost-points-udt" ;;
+        "tipping-type") echo "./contracts/build/release/ckboost-tipping-type" ;;
         *) echo "" ;;
     esac
 }
@@ -373,6 +375,7 @@ get_contract_type_id() {
         "campaign-lock") echo "true" ;;
         "user-type") echo "true" ;;
         "points-udt") echo "true" ;;
+        "tipping-type") echo "true" ;;
         *) echo "true" ;;
     esac
 }
@@ -386,7 +389,7 @@ if [ "$DEPLOY_ALL" = true ]; then
     
     echo -e "${YELLOW}Deploying all contracts...${NC}\n"
     
-    for contract in "protocol-type" "protocol-lock" "campaign-type" "campaign-lock" "user-type" "points-udt"; do
+    for contract in "protocol-type" "protocol-lock" "campaign-type" "campaign-lock" "user-type" "points-udt" "tipping-type"; do
         deploy_contract "$(get_contract_name "$contract")" "$(get_contract_path "$contract")" "$(get_contract_type_id "$contract")"
     done
     

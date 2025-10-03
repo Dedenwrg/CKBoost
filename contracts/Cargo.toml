@@ -12,19 +12,20 @@ members = [
   "contracts/ckboost-campaign-lock",
   "contracts/ckboost-campaign-type",
   "contracts/ckboost-points-udt",
+  "contracts/ckboost-tipping-type",
   "tests",
 ]
 
 [profile.release]
-opt-level = "s"          # Optimize for size (use "s" instead of "z" to avoid LLVM bug)
-lto = true              # Enable Link Time Optimization (this helps a lot with size)
-codegen-units = 1       # Single codegen unit for better optimization
-strip = false           # Keep symbols for debugging
-panic = "abort"         # Smaller panic handler
-overflow-checks = true  # Keep overflow checks for safety during debugging
-debug = true            # Keep debug info for debugging
+opt-level = "s"        # Optimize for size (use "s" instead of "z" to avoid LLVM bug)
+lto = true             # Enable Link Time Optimization (this helps a lot with size)
+codegen-units = 1      # Single codegen unit for better optimization
+strip = false          # Keep symbols for debugging
+panic = "abort"        # Smaller panic handler
+overflow-checks = true # Keep overflow checks for safety during debugging
+debug = true           # Keep debug info for debugging
 
 # Apply size optimizations to all dependencies
 [profile.release.package."*"]
-opt-level = "s"         # Optimize dependencies for size
-codegen-units = 1       # Better optimization for dependencies too
+opt-level = "s"   # Optimize dependencies for size
+codegen-units = 1 # Better optimization for dependencies too

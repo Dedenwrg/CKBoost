@@ -1,12 +1,7 @@
 use crate::{modules::CKBoostProtocolType, ssri::CKBoostProtocol};
-use ckb_deterministic::{
-    debug_trace, transaction_recipe::TransactionRecipeExt
-};
+use ckb_deterministic::{debug_trace, transaction_recipe::TransactionRecipeExt};
 use ckb_std::debug;
-use ckboost_shared::{
-    transaction_context::create_transaction_context,
-    Error,
-};
+use ckboost_shared::{transaction_context::create_transaction_context, Error};
 
 pub fn fallback() -> Result<(), Error> {
     debug_trace!("Entered fallback with ckb_deterministic integration");
@@ -16,13 +11,7 @@ pub fn fallback() -> Result<(), Error> {
     debug_trace!("Transaction context created successfully in fallback");
 
     match context.recipe.method_path_bytes().as_slice() {
-        b"CKBoostProtocol.update_protocol" => {
-            CKBoostProtocolType::verify_update_protocol(&context)
-        }
-        b"CKBoostProtocol.update_tipping_proposal" => {
-            CKBoostProtocolType::verify_update_tipping_proposal(&context)
-        }
-        _ => Err(Error::SSRIMethodsNotImplemented)
+        b"CKBoostProtocol.update_protocol" => CKBoostProtocolType::verify_update_protocol(&context),
+        _ => Err(Error::SSRIMethodsNotImplemented),
     }
-
 }

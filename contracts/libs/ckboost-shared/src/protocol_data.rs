@@ -2,7 +2,7 @@
 pub use crate::generated::ckboost::{
     Byte32, Byte32Vec, ProtocolData, Script, ScriptCodeHashes, ScriptVec,
 };
-use crate::Error;
+use crate::{types::ConnectedTypeID, Error};
 use alloc::vec::Vec;
 use ckb_deterministic::debug_trace;
 use ckb_ssri_std::utils::high_level::{find_cell_data_by_out_point, find_out_point_by_type};
@@ -38,281 +38,144 @@ pub trait ProtocolDataExt {
                 let args = current_script.args();
                 debug_trace!("Current script args length: {}", args.len());
 
-                // Parse the args as ConnectedTypeID to get the connected_key
                 use crate::generated::ckboost::ConnectedTypeID;
-                let args_data = args.raw_data();
-                debug_trace!(
-                    "Attempting to parse ConnectedTypeID from {} bytes",
-                    args_data.len()
-                );
-                debug_trace!(
-                    "First 32 bytes of args: {:02x?}",
-                    &args_data[..core::cmp::min(32, args_data.len())]
-                );
+                let args_raw_data = args.raw_data();
+                debug_trace!("Script args length: {} bytes", args_raw_data.len());
 
-                match ConnectedTypeID::from_slice(&args_data) {
-                    Ok(connected_type_id) => {
-                        debug_trace!("Successfully parsed ConnectedTypeID");
-                        let connected_hash = connected_type_id.connected_key();
-                        debug_trace!(
-                            "Looking for protocol cell with type hash: {:?}",
-                            connected_hash
-                        );
+                debug_trace!("Script args: {:?}", args);
 
-                        // Now search CellDeps for a cell with matching type script hash
-                        // Check only first 3 CellDeps to avoid issues
-                        for index in 0..3 {
-                            debug_trace!("Checking CellDep at index {}", index);
-                            match load_cell_type_hash(index, Source::CellDep) {
-                                Ok(Some(type_hash)) => {
-                                    debug_trace!(
-                                        "CellDep {} type script hash: {:?}",
-                                        index,
-                                        type_hash
-                                    );
+                match &args_raw_data.len() {
+                    76 => match ConnectedTypeID::from_slice(&args_raw_data) {
+                        Ok(connected_type_id) => {
+                            debug_trace!("Successfully parsed args as ConnectedTypeID");
+                            let connected_hash = connected_type_id.connected_key();
+                            let mut connected_hash_u832 = [0u8; 32];
+                            connected_hash_u832.copy_from_slice(&connected_hash.raw_data());
+                            debug_trace!(
+                                "Connected hash: {:?}. This could either be the protocol cell or the campaign/tipping cell",
+                                connected_hash_u832
+                            );
 
-                                    // Check if this matches our connected_key
-                                    if type_hash.as_slice() == connected_hash.as_slice() {
-                                        debug_trace!(
-                                            "Found matching protocol cell at CellDep index {}",
-                                            index
-                                        );
-
-                                        // Load and parse the protocol data
-                                        match load_cell_data(index, Source::CellDep) {
-                                            Ok(data) => {
-                                                match ProtocolData::from_slice(&data) {
-                                                    Ok(protocol_data) => {
-                                                        debug_trace!("Successfully loaded protocol data from CellDep at index {}", index);
-                                                        return Ok(protocol_data);
-                                                    }
-                                                    Err(e) => {
-                                                        debug_trace!(
-                                                            "Failed to parse protocol data: {:?}",
-                                                            e
-                                                        );
-                                                        return Err(crate::error::Error::ProtocolDataInvalid);
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                debug_trace!("Failed to load cell data: {:?}", e);
-                                                return Err(
-                                                    crate::error::Error::ProtocolDataNotLoaded,
-                                                );
-                                            }
+                            match find_bounded_protocol_cell_for_data(
+                                connected_hash_u832,
+                                Source::CellDep,
+                            ) {
+                                Ok(protocol_data) => {
+                                    debug_trace!("Successfully loaded protocol data starting from Protocol cell in CellDep");
+                                    return Ok(protocol_data);
+                                }
+                                Err(e) => {
+                                    debug_trace!("Failed to load protocol data starting from bounded cell in Output: {:?}. Try to find the protocol cell in Outputs for recipe update_protocol", e);
+                                    match find_bounded_protocol_cell_for_data(
+                                        connected_hash_u832,
+                                        Source::Output,
+                                    ) {
+                                        Ok(protocol_data) => {
+                                            debug_trace!(
+                                                "Successfully loaded protocol data from Output"
+                                            );
+                                            return Ok(protocol_data);
+                                        }
+                                        Err(e) => {
+                                            debug_trace!(
+                                                "Failed to load protocol data from Output: {:?}",
+                                                e
+                                            );
+                                            return Err(crate::error::Error::ProtocolDataInvalid);
                                         }
                                     }
                                 }
-                                Ok(None) => {
-                                    debug_trace!("CellDep {} has no type script", index);
-                                }
-                                Err(_) => {
-                                    debug_trace!("No more CellDeps at index {}", index);
-                                    break;
-                                }
                             }
                         }
-
-                        debug_trace!("Protocol cell not found in CellDeps");
-                        return Err(crate::error::Error::ProtocolCellNotFound);
-                    }
-                    Err(e) => {
-                        debug_trace!("Failed to parse args as ConnectedTypeID: {:?}", e);
+                        Err(e) => {
+                            debug_trace!("Failed to parse args as ConnectedTypeID: {:?}", e);
+                        }
+                    },
+                    32 => {
+                        debug_trace!("Successfully parsed args as Byte32");
+                        let mut args_u832 = [0u8; 32];
+                        args_u832.copy_from_slice(&args_raw_data);
                         debug_trace!(
-                            "This might be a protocol cell or invalid ConnectedTypeID format"
+                            "Check if the current script is protocol type or funding lock"
                         );
-
-                        // Fallback: Check outputs for protocol creation scenario
-                        debug_trace!("Checking outputs for protocol creation scenario");
-
-                        // Check outputs for cells with the same code hash as current script
-                        let current_code_hash: [u8; 32] = current_script.code_hash().unpack();
-                        debug_trace!(
-                            "Current script code hash: {:02x?}",
-                            &current_code_hash[..32]
-                        );
-
-                        // Using manual index control to avoid QueryIter issues
-                        let mut index = 0;
-                        debug_trace!("Checking inputs for campaign-lock script");
-                        loop {
-                            debug_trace!(
-                                "Checking input lock for campaign-lock script at group input index {}",
-                                index
-                            );
-                            match load_cell_lock(index, Source::GroupInput) {
-                                Ok(lock) => {
-                                    let output_lock_code_hash: [u8; 32] = lock.code_hash().unpack();
-                                    if output_lock_code_hash == current_code_hash {
-                                        debug_trace!(
-                                            "Found lock script in Input at group input index {}",
-                                            index
-                                        );
-                                        let mut campaign_type_hash_for_lock = [0u8; 32];
-                                        campaign_type_hash_for_lock
-                                            .copy_from_slice(&lock.args().raw_data());
-                                        // Find the campaign cell from outputs with the same type hash
-                                        debug_trace!("Checking group outputs for campaign cell with type hash: {:?}", campaign_type_hash_for_lock);
-                                        let mut campaign_cell_index = 0;
-                                        loop {
-                                            match load_cell_type_hash(
-                                                campaign_cell_index,
+                        match load_cell_lock(0, Source::GroupInput) {
+                            Ok(_lock) => {
+                                debug_trace!(
+                                    "Current script is protocol type or funding lock in Input."
+                                );
+                                match load_cell_data(0, Source::GroupInput) {
+                                    Ok(data) => match ProtocolData::from_slice(&data) {
+                                        Ok(protocol_data) => {
+                                            debug_trace!(
+                                                "Successfully loaded protocol data from Input"
+                                            );
+                                            return Ok(protocol_data);
+                                        }
+                                        Err(e) => {
+                                            debug_trace!("Failed to parse data as protocol data. This should be funding lock: {:?}. Try to find the bounded tipping/campaign cell in Outputs", e);
+                                            match find_bounded_protocol_cell_for_data(
+                                                args_u832,
                                                 Source::Output,
                                             ) {
-                                                Ok(type_script_hash_opt) => {
-                                                    match type_script_hash_opt {
-                                                        Some(type_script_hash) => {
-                                                            if type_script_hash
-                                                                == campaign_type_hash_for_lock
-                                                            {
-                                                                debug_trace!("Found campaign cell in Output at index {}", campaign_cell_index);
-                                                                let campaign_type_opt =
-                                                                    load_cell_type(
-                                                                        campaign_cell_index,
-                                                                        Source::Output,
-                                                                    )
-                                                                    .unwrap();
-                                                                if campaign_type_opt.is_none() {
-                                                                    campaign_cell_index += 1;
-                                                                    continue;
-                                                                }
-                                                                let campaign_connected_type_id =
-                                                                    ConnectedTypeID::from_slice(
-                                                                        &campaign_type_opt
-                                                                            .unwrap()
-                                                                            .args()
-                                                                            .raw_data(),
-                                                                    )
-                                                                    .unwrap();
-                                                                let connected_protocol_type_hash =
-                                                                    campaign_connected_type_id
-                                                                        .connected_key();
-                                                                let mut
-                                                                connected_protocol_type_hash_u832 =
-                                                                    [0u8; 32];
-                                                                connected_protocol_type_hash_u832
-                                                                    .copy_from_slice(
-                                                                    &connected_protocol_type_hash
-                                                                        .raw_data(),
-                                                                );
-                                                                debug_trace!("Checking cell deps for protocol cell with type hash: {:?}", connected_protocol_type_hash_u832);
-                                                                let mut protocol_cell_index = 0;
-                                                                loop {
-                                                                    debug_trace!("Checking cell dep for protocol cell at index {}", protocol_cell_index);
-                                                                    match load_cell_type_hash(
-                                                                                protocol_cell_index,
-                                                                                Source::CellDep,
-                                                                            ) {
-                                                                                Ok(type_script_hash_opt) => {
-                                                                                    match type_script_hash_opt {
-                                                                                        Some(type_script_hash) => {
-                                                                                            if type_script_hash == connected_protocol_type_hash_u832 {
-                                                                                                debug_trace!("Found protocol cell in Output at index {}", protocol_cell_index);
-                                                                                                let protocol_data = ProtocolData::from_slice(&load_cell_data(protocol_cell_index, Source::CellDep).unwrap()).unwrap();
-                                                                                                return Ok(protocol_data);
-                                                                                            } else {
-                                                                                                protocol_cell_index += 1;
-                                                                                                continue;
-                                                                                            }
-                                                                                        }
-                                                                                        None => {
-                                                                                            protocol_cell_index += 1;
-                                                                                            continue;
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                                Err(_) => {
-                                                                                    debug_trace!("No protocol cell found in CellDep at index {}", protocol_cell_index);
-                                                                                    break;
-                                                                                }
-                                                                            }
-                                                                }
-                                                            }
-                                                        }
-                                                        None => {
-                                                            campaign_cell_index += 1;
-                                                            continue;
-                                                        }
-                                                    }
-                                                }
-                                                Ok(None) => {
-                                                    campaign_cell_index += 1;
-                                                    continue;
-                                                }
-                                                Err(_) => {
+                                                Ok(protocol_data) => {
                                                     debug_trace!(
-                                                        "No campaign cell found in Output"
-                                                    );
-                                                    break;
+                                                            "Successfully loaded protocol data from Output"
+                                                        );
+                                                    return Ok(protocol_data);
                                                 }
-                                            }
-                                        }
-                                    } else {
-                                        index += 1;
-                                        continue;
-                                    }
-                                }
-                                Err(_) => {
-                                    debug_trace!("No campaign-lock script found");
-                                    break;
-                                }
-                            }
-                        }
-                        index = 0;
-                        debug_trace!("Checking outputs for protocol cell");
-                        loop {
-                            debug_trace!(
-                                "Checking output type for protocol cell at index {}",
-                                index
-                            );
-                            match load_cell_type(index, Source::Output) {
-                                Ok(type_script_opt) => match type_script_opt {
-                                    Some(type_script) => {
-                                        let output_code_hash: [u8; 32] =
-                                            type_script.code_hash().unpack();
-                                        if output_code_hash == current_code_hash {
-                                            debug_trace!("Found cell with same type script in Output at index {}", index);
-
-                                            // Try to parse this cell as ProtocolData
-                                            match load_cell_data(index, Source::Output) {
-                                                Ok(data) => match ProtocolData::from_slice(&data) {
-                                                    Ok(protocol_data) => {
-                                                        debug_trace!("Successfully loaded protocol data from Output");
-                                                        return Ok(protocol_data);
-                                                    }
-                                                    Err(_) => {
-                                                        debug_trace!("Found a protocol cell but the data is invalid. Should not happen.");
-                                                        return Err(crate::error::Error::ProtocolDataInvalid);
-                                                    }
-                                                },
                                                 Err(e) => {
                                                     debug_trace!(
-                                                        "Failed to load cell data: {:?}",
-                                                        e
-                                                    );
+                                                            "Failed to load protocol data from Output: {:?}",
+                                                            e
+                                                        );
                                                     return Err(
-                                                        crate::error::Error::ProtocolDataNotLoaded,
+                                                        crate::error::Error::ProtocolDataInvalid,
                                                     );
                                                 }
                                             }
-                                        } else {
-                                            index += 1;
-                                            continue;
                                         }
+                                    },
+                                    Err(e) => {
+                                        debug_trace!(
+                                            "Failed to load protocol data from Input: {:?}",
+                                            e
+                                        );
+                                        return Err(crate::error::Error::ProtocolDataInvalid);
                                     }
-                                    None => {
-                                        index += 1;
-                                        continue;
+                                }
+                            }
+                            Err(e) => {
+                                debug_trace!("Current script is not funding lock: {:?}. It should be the protocol cell in Outputs", e);
+                                match load_cell_data(0, Source::GroupOutput) {
+                                    Ok(data) => match ProtocolData::from_slice(&data) {
+                                        Ok(protocol_data) => {
+                                            debug_trace!(
+                                                "Successfully loaded protocol data from Output"
+                                            );
+                                            return Ok(protocol_data);
+                                        }
+                                        Err(e) => {
+                                            debug_trace!(
+                                                "Failed to parse data as protocol data: {:?}",
+                                                e
+                                            );
+                                            return Err(crate::error::Error::ProtocolDataInvalid);
+                                        }
+                                    },
+                                    Err(e) => {
+                                        debug_trace!(
+                                            "Failed to load protocol data from Output: {:?}",
+                                            e
+                                        );
+                                        return Err(crate::error::Error::ProtocolDataInvalid);
                                     }
-                                },
-                                Err(_) => {
-                                    debug_trace!("No protocol cell found in Outputs");
-                                    break;
                                 }
                             }
                         }
-                        debug_trace!("Finished checking {} Outputs", index);
+                    }
+                    _ => {
+                        debug_trace!("Args is invalid");
+                        return Err(crate::error::Error::ProtocolDataInvalid);
                     }
                 }
             }
@@ -320,9 +183,9 @@ pub trait ProtocolDataExt {
                 debug_trace!(
                     "Not in script context or unable to load script, cannot check outputs"
                 );
+                return Err(crate::error::Error::ProtocolCellNotFound);
             }
         }
-
         // No protocol cell found anywhere
         Err(crate::error::Error::ProtocolCellNotFound)
     }
@@ -338,6 +201,9 @@ pub trait ProtocolDataExt {
 
     /// Get points type code hash
     fn points_udt_type_code_hash(&self) -> [u8; 32];
+
+    /// Get tipping type code hash
+    fn tipping_type_code_hash(&self) -> [u8; 32];
 
     /// Get accepted UDT type scripts
     fn accepted_udt_type_scripts(&self) -> Vec<Script>;
@@ -389,6 +255,17 @@ impl ProtocolDataExt for ProtocolData {
             .protocol_config()
             .script_code_hashes()
             .ckb_boost_points_udt_type_code_hash();
+        let mut result = [0u8; 32];
+        result.copy_from_slice(hash.as_slice());
+        result
+    }
+
+    /// Get tipping type code hash
+    fn tipping_type_code_hash(&self) -> [u8; 32] {
+        let hash = self
+            .protocol_config()
+            .script_code_hashes()
+            .ckb_boost_tipping_type_code_hash();
         let mut result = [0u8; 32];
         result.copy_from_slice(hash.as_slice());
         result
@@ -507,6 +384,126 @@ pub fn get_protocol_data_ssri(
         Err(e) => {
             debug_trace!("Failed to find protocol cell by type: {:?}", e);
             Err(crate::error::Error::ProtocolCellNotFound)
+        }
+    }
+}
+
+fn find_bounded_protocol_cell_for_data(
+    args_u832: [u8; 32],
+    starting_source: Source,
+) -> Result<ProtocolData, crate::error::Error> {
+    let mut index = 0;
+    loop {
+        match load_cell_type_hash(index, starting_source) {
+            Ok(type_hash_opt) => {
+                match type_hash_opt {
+                    Some(type_hash) => {
+                        if type_hash == args_u832 {
+                            debug_trace!(
+                                "Found bounded cell in {:?} at index {}",
+                                starting_source,
+                                index
+                            );
+                            debug_trace!("Check args of the bounded cell and check length");
+                            let bounded_cell_script = load_cell_type(index, starting_source)?;
+                            if bounded_cell_script.is_none() {
+                                debug_trace!("Bounded cell has no type script args");
+                                return Err(crate::error::Error::ProtocolCellNotFound);
+                            }
+                            let args = bounded_cell_script.unwrap().args();
+                            match args.len() {
+                                32 => {
+                                    debug_trace!("Args is Byte32. Should be the protocol cell");
+                                    let data = load_cell_data(index, starting_source).unwrap();
+                                    // Try to parse the data as ProtocolData
+                                    match ProtocolData::from_slice(&data) {
+                                        Ok(protocol_data) => {
+                                            debug_trace!(
+                                                "Successfully loaded protocol data from {:?}",
+                                                starting_source
+                                            );
+                                            return Ok(protocol_data);
+                                        }
+                                        Err(e) => {
+                                            debug_trace!(
+                                                "Failed to parse data as protocol data: {:?}",
+                                                e
+                                            );
+                                            return Err(crate::error::Error::ProtocolDataInvalid);
+                                        }
+                                    }
+                                }
+                                76 => {
+                                    debug_trace!("Args could be ConnectedTypeID");
+                                    match ConnectedTypeID::from_slice(&args.raw_data()) {
+                                        Ok(connected_type_id) => {
+                                            debug_trace!(
+                                                "Successfully parsed args as ConnectedTypeID"
+                                            );
+                                            let connected_type_hash =
+                                                connected_type_id.connected_key();
+                                            let mut connected_type_hash_u832 = [0u8; 32];
+                                            connected_type_hash_u832
+                                                .copy_from_slice(&connected_type_hash.raw_data());
+                                            debug_trace!("Connected type hash: {:?}. This should be the type hash of the protocol cell. Try to find the protocol cell in CellDeps", connected_type_hash);
+                                            match find_bounded_protocol_cell_for_data(
+                                                connected_type_hash_u832,
+                                                Source::CellDep,
+                                            ) {
+                                                Ok(protocol_data) => {
+                                                    debug_trace!("Successfully loaded protocol data from CellDep");
+                                                    return Ok(protocol_data);
+                                                }
+                                                Err(e) => {
+                                                    debug_trace!("Failed to load protocol data from CellDep: {:?}. Try to find the protocol cell in Outputs for recipe update_protocol", e);
+                                                    match find_bounded_protocol_cell_for_data(
+                                                        connected_type_hash_u832,
+                                                        Source::Output,
+                                                    ) {
+                                                        Ok(protocol_data) => {
+                                                            debug_trace!("Successfully loaded protocol data from Output");
+                                                            return Ok(protocol_data);
+                                                        }
+                                                        Err(e) => {
+                                                            debug_trace!("Failed to load protocol data from Output either: {:?}", e);
+                                                            return Err(crate::error::Error::ProtocolDataInvalid);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            debug_trace!(
+                                                "Failed to parse args as ConnectedTypeID: {:?}",
+                                                e
+                                            );
+                                            return Err(crate::error::Error::ProtocolCellNotFound);
+                                        }
+                                    };
+                                }
+                                _ => {
+                                    debug_trace!("Unexpected args length. Should be 32 or 76");
+                                    return Err(crate::error::Error::ProtocolCellNotFound);
+                                }
+                            }
+                        } else {
+                            debug_trace!("Bounded cell type hash is not the same as args at index {}. Continue to find the next cell", index);
+                            debug_trace!("Bounded cell type hash: {:?}", type_hash);
+                            debug_trace!("Args at index {}: {:?}", index, args_u832);
+                            index += 1;
+                            continue;
+                        }
+                    }
+                    None => {
+                        index += 1;
+                        continue;
+                    }
+                }
+            }
+            Err(_) => {
+                debug_trace!("Bounded cell not found in {:?}", starting_source);
+                return Err(crate::error::Error::ProtocolCellNotFound);
+            }
         }
     }
 }

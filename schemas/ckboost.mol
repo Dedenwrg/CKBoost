@@ -279,6 +279,7 @@ table ScriptCodeHashes {
     ckb_boost_campaign_lock_code_hash: Byte32,
     ckb_boost_user_type_code_hash: Byte32,
     ckb_boost_points_udt_type_code_hash: Byte32,
+    ckb_boost_tipping_type_code_hash: Byte32,
     accepted_udt_type_scripts: ScriptVec,
     accepted_dob_type_scripts: ScriptVec,
 }
@@ -290,7 +291,7 @@ table ProtocolConfig {
 
 table ProtocolData {
     campaigns_approved: Byte32Vec,
-    tipping_proposals: TippingProposalDataVec,
+    tipping_proposals_approved: Byte32Vec,
     tipping_config: TippingConfig,
     endorsers_whitelist: EndorserInfoVec,
     last_updated: Uint64,

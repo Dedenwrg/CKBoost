@@ -2,18 +2,23 @@ use alloc::vec;
 use alloc::vec::Vec;
 use blake2b_ref::Blake2bBuilder;
 use ckb_deterministic::{
-    cell_classifier::RuleBasedClassifier, create_inline_argument, create_recipe_with_args, create_recipe_with_reference, debug_info, debug_trace,  serialize_transaction_recipe, transaction_context::TransactionContext, transaction_recipe::TransactionRecipeExt
+    cell_classifier::RuleBasedClassifier, create_inline_argument, create_recipe_with_args,
+    create_recipe_with_reference, debug_info, debug_trace, serialize_transaction_recipe,
+    transaction_context::TransactionContext, transaction_recipe::TransactionRecipeExt,
 };
 use ckb_ssri_std::utils::high_level::{find_cell_by_out_point, find_out_point_by_type};
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::{
         packed::{
-            Byte32, Byte32Vec, Byte32VecBuilder, BytesOpt, BytesVecBuilder, CellDepVecBuilder, CellInput, CellInputVecBuilder, CellOutputBuilder, CellOutputVecBuilder, RawTransactionBuilder, ScriptBuilder, ScriptOptBuilder, Transaction, TransactionBuilder, WitnessArgsBuilder
+            Byte32, Byte32Vec, Byte32VecBuilder, BytesOpt, BytesVecBuilder, CellDepVecBuilder,
+            CellInput, CellInputVecBuilder, CellOutputBuilder, CellOutputVecBuilder,
+            RawTransactionBuilder, ScriptBuilder, ScriptOptBuilder, Transaction,
+            TransactionBuilder, WitnessArgsBuilder,
         },
         prelude::*,
     },
-    high_level::load_script
+    high_level::load_script,
 };
 use ckboost_shared::{
     types::{Byte32 as SharedByte32, CampaignData, ConnectedTypeID, QuestData},
@@ -31,16 +36,6 @@ impl CKBoostCampaign for CKBoostCampaignType {
     ) -> Result<Transaction, Error> {
         debug_trace!("CKBoostCampaignType::update_campaign - Starting campaign update");
         debug_info!("Input transaction present: {}", tx.is_some());
-        
-        // Log transaction details if present
-        if let Some(ref transaction) = tx {
-            debug_info!("Transaction inputs count: {}", transaction.raw().inputs().len());
-            debug_info!("Transaction outputs count: {}", transaction.raw().outputs().len());
-            debug_info!("Transaction witnesses count: {}", transaction.witnesses().len());
-        }
-        
-        debug_info!("Campaign data size: {} bytes", campaign_data.as_bytes().len());
-        debug_info!("Campaign quests count: {}", campaign_data.quests().len());
 
         // Initialize transaction builders
         debug_trace!("Initializing transaction builders");
@@ -48,11 +43,11 @@ impl CKBoostCampaign for CKBoostCampaignType {
             Some(ref tx) => {
                 debug_info!("Using existing transaction as base");
                 tx.clone().as_builder()
-            },
+            }
             None => {
                 debug_info!("Creating new transaction builder");
                 TransactionBuilder::default()
-            },
+            }
         };
         let raw_tx_builder = match tx {
             Some(ref tx) => tx.clone().raw().as_builder(),
@@ -82,14 +77,13 @@ impl CKBoostCampaign for CKBoostCampaignType {
 
         // Get context script and parse ConnectedTypeID from args
         debug_trace!("Loading current script");
-        debug_info!("About to call load_script()");
         let current_script = match load_script() {
             Ok(script) => {
                 debug_trace!("Script loaded successfully");
                 debug_info!("Script code_hash: {}", &script.code_hash());
                 debug_info!("Script args: {}", script.args());
                 script
-            },
+            }
             Err(e) => {
                 debug_info!("ERROR loading script: error code = {:?}", e);
                 debug_info!("This typically means the SSRI VM context is not properly set");
@@ -100,11 +94,10 @@ impl CKBoostCampaign for CKBoostCampaignType {
         let args = current_script.args();
         let args_data = args.raw_data();
         debug_info!("Parsing ConnectedTypeID from {} bytes", args_data.len());
-        let connected_type_id = ConnectedTypeID::from_slice(&args_data)
-            .map_err(|e| {
-                debug_info!("ERROR parsing ConnectedTypeID: {:?}", e);
-                Error::InvalidConnectedTypeId
-            });
+        let connected_type_id = ConnectedTypeID::from_slice(&args_data).map_err(|e| {
+            debug_info!("ERROR parsing ConnectedTypeID: {:?}", e);
+            Error::InvalidConnectedTypeId
+        });
 
         // Track the index where the campaign cell will be in the inputs
         let campaign_input_index: usize;
@@ -118,17 +111,11 @@ impl CKBoostCampaign for CKBoostCampaignType {
         match connected_type_id {
             Ok(connected_type_id) => {
                 debug_trace!("Found existing campaign cell, updating it");
-
-                // The type_id in ConnectedTypeID is the actual campaign type ID
-                let _campaign_type_id = connected_type_id.type_id();
-                let _connected_key = connected_type_id.connected_key();
-
-                // Try to find existing campaign cell with this type ID
-                debug_trace!("Finding campaign cell by type");
-                let campaign_outpoint = find_out_point_by_type(current_script.clone()).map_err(|e| {
-                    debug_info!("ERROR finding campaign cell: {:?}", e);
-                    e
-                })?;
+                let campaign_outpoint =
+                    find_out_point_by_type(current_script.clone()).map_err(|e| {
+                        debug_info!("ERROR finding campaign cell: {:?}", e);
+                        e
+                    })?;
                 debug_info!("Found campaign at index: {}", campaign_outpoint.index());
 
                 // The campaign cell will be added at the current end of inputs
@@ -141,13 +128,11 @@ impl CKBoostCampaign for CKBoostCampaignType {
                 cell_input_vec_builder = cell_input_vec_builder.push(campaign_input);
 
                 // Get the current campaign cell to preserve lock script
-                debug_trace!("Loading campaign cell data");
-                let current_campaign_cell = find_cell_by_out_point(campaign_outpoint)
-                    .map_err(|e| {
+                let current_campaign_cell =
+                    find_cell_by_out_point(campaign_outpoint).map_err(|e| {
                         debug_info!("ERROR loading campaign cell: {:?}", e);
                         Error::CampaignCellNotFound
                     })?;
-                debug_info!("Campaign cell loaded, capacity: {}", current_campaign_cell.capacity().unpack());
 
                 // Track that we're adding a campaign output at the current output count
                 campaign_output_index =
@@ -186,7 +171,6 @@ impl CKBoostCampaign for CKBoostCampaignType {
                     }
                     None => {
                         // No transaction provided - we cannot create a campaign cell without inputs
-                        debug_trace!("No transaction provided. Create a transaction with at least one input using ccc.Transaction.completeInputsAtLeastOne(signer).");
                         return Err(Error::MissingTransactionInput);
                     }
                 };
@@ -209,10 +193,10 @@ impl CKBoostCampaign for CKBoostCampaignType {
 
                 // Create the type script with ConnectedTypeID as args
                 let new_type_script = ScriptBuilder::default()
-            .code_hash(current_script.code_hash())
-            .hash_type(current_script.hash_type())
+                    .code_hash(current_script.code_hash())
+                    .hash_type(current_script.hash_type())
                     .args(new_connected_type_id.as_bytes().pack())
-            .build();
+                    .build();
 
                 // Get first input cell to use its lock for the new campaign cell
                 let first_input_outpoint = first_input.previous_output();
@@ -224,14 +208,14 @@ impl CKBoostCampaign for CKBoostCampaignType {
 
                 // Create new campaign cell
                 let new_campaign_output = CellOutputBuilder::default()
-            .type_(
-                ScriptOptBuilder::default()
+                    .type_(
+                        ScriptOptBuilder::default()
                             .set(Some(new_type_script))
-                    .build(),
-            )
+                            .build(),
+                    )
                     .lock(first_input_cell.lock())
                     .capacity(0u64.pack())
-            .build();
+                    .build();
                 cell_output_vec_builder = cell_output_vec_builder.push(new_campaign_output);
             }
         }
@@ -350,20 +334,20 @@ impl CKBoostCampaign for CKBoostCampaignType {
 
         // Build the complete transaction
         debug_trace!("Building final transaction");
-        
+
         let cell_deps = cell_dep_vec_builder.build();
         let inputs = cell_input_vec_builder.build();
         let outputs = cell_output_vec_builder.build();
         let outputs_data = outputs_data_builder.build();
         let witnesses = witnesses_builder.build();
-        
+
         debug_info!("Final transaction structure:");
         debug_info!("  inputs: {}", inputs.len());
         debug_info!("  outputs: {}", outputs.len());
         debug_info!("  outputs_data: {}", outputs_data.len());
         debug_info!("  cell_deps: {}", cell_deps.len());
         debug_info!("  witnesses: {}", witnesses.len());
-        
+
         let total_data_size: usize = (0..outputs_data.len())
             .map(|i| outputs_data.get(i).unwrap().len())
             .sum();
@@ -371,7 +355,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
         if total_data_size > 500000 {
             debug_info!("WARNING: Very large total data size!");
         }
-        
+
         let result = tx_builder
             .raw(
                 raw_tx_builder
@@ -389,7 +373,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
             )
             .witnesses(witnesses)
             .build();
-            
+
         debug_info!("Transaction built successfully");
         debug_trace!("update_campaign completed");
         Ok(result)
@@ -403,15 +387,15 @@ impl CKBoostCampaign for CKBoostCampaignType {
         // Use the recipe validation rules
         let validation_rules = recipes::update_campaign::get_rules();
         debug_trace!("Got validation rules, starting validation");
-        
+
         let validation_result = validation_rules.validate(&context);
         debug_trace!("Validation result: {:?}", validation_result);
-        
+
         match validation_result {
             Ok(()) => {
                 debug_trace!("Campaign update transaction validation completed successfully");
                 Ok(())
-            },
+            }
             Err(e) => {
                 debug_trace!("Validation failed with error: {:?}", e);
                 Err(e.into())
@@ -423,10 +407,16 @@ impl CKBoostCampaign for CKBoostCampaignType {
         tx: Option<Transaction>,
         campaign_data: CampaignData,
         quest_id: u32,
-        user_type_ids: Byte32Vec
+        user_type_ids: Byte32Vec,
     ) -> Result<Transaction, Error> {
-        debug_trace!("CKBoostCampaignType::approve_completion - Starting quest completion approval");
-        debug_trace!("Quest ID: {}, User Type IDs count: {}", quest_id, user_type_ids.len());
+        debug_trace!(
+            "CKBoostCampaignType::approve_completion - Starting quest completion approval"
+        );
+        debug_trace!(
+            "Quest ID: {}, User Type IDs count: {}",
+            quest_id,
+            user_type_ids.len()
+        );
 
         // Initialize transaction builders
         let tx_builder = match tx {
@@ -476,8 +466,8 @@ impl CKBoostCampaign for CKBoostCampaignType {
         cell_input_vec_builder = cell_input_vec_builder.push(campaign_input);
 
         // Get the current campaign cell to preserve lock script
-        let current_campaign_cell = find_cell_by_out_point(campaign_outpoint)
-            .map_err(|_| Error::CampaignCellNotFound)?;
+        let current_campaign_cell =
+            find_cell_by_out_point(campaign_outpoint).map_err(|_| Error::CampaignCellNotFound)?;
 
         // TODO: Not handling this for now
         // // Verify campaign is active (status = 4)
@@ -490,13 +480,13 @@ impl CKBoostCampaign for CKBoostCampaignType {
         let mut updated_quests = vec![];
         let mut quest_found = false;
         let mut _points_to_mint = 0u64;
-        let mut total_new_approvals = 0u32;  // Track total new approvals for updating campaign total_completions
+        let mut total_new_approvals = 0u32; // Track total new approvals for updating campaign total_completions
 
         for i in 0..quests.len() {
             let quest = quests.get(i).unwrap();
             if quest.quest_id().as_slice() == &quest_id.to_le_bytes() {
                 quest_found = true;
-                
+
                 // Get points amount from quest rewards
                 let rewards = quest.rewards_on_completion();
                 if rewards.len() > 0 {
@@ -505,8 +495,14 @@ impl CKBoostCampaign for CKBoostCampaignType {
                     let points_bytes = points_amount.as_slice();
                     if points_bytes.len() >= 8 {
                         _points_to_mint = u64::from_le_bytes([
-                            points_bytes[0], points_bytes[1], points_bytes[2], points_bytes[3],
-                            points_bytes[4], points_bytes[5], points_bytes[6], points_bytes[7],
+                            points_bytes[0],
+                            points_bytes[1],
+                            points_bytes[2],
+                            points_bytes[3],
+                            points_bytes[4],
+                            points_bytes[5],
+                            points_bytes[6],
+                            points_bytes[7],
                         ]);
                     }
                 }
@@ -514,17 +510,17 @@ impl CKBoostCampaign for CKBoostCampaignType {
                 // Update accepted_submission_user_type_ids
                 let current_accepted = quest.accepted_submission_user_type_ids();
                 let mut accepted_ids = vec![];
-                
+
                 // Copy existing accepted IDs
                 for j in 0..current_accepted.len() {
                     accepted_ids.push(current_accepted.get(j).unwrap());
                 }
-                
+
                 // Add new user type IDs and count new approvals
                 let mut new_approval_count = 0u32;
                 for i in 0..user_type_ids.len() {
                     let user_type_id = user_type_ids.get(i).unwrap();
-                    
+
                     // Check if already approved
                     let mut already_approved = false;
                     for accepted_id in &accepted_ids {
@@ -533,10 +529,11 @@ impl CKBoostCampaign for CKBoostCampaignType {
                             break;
                         }
                     }
-                    
+
                     if !already_approved {
                         // Convert from ckb_std::Byte32 to ckboost_shared::Byte32
-                        let shared_byte32 = SharedByte32::from_slice(user_type_id.as_slice()).unwrap();
+                        let shared_byte32 =
+                            SharedByte32::from_slice(user_type_id.as_slice()).unwrap();
                         accepted_ids.push(shared_byte32);
                         new_approval_count += 1;
                     }
@@ -555,11 +552,11 @@ impl CKBoostCampaign for CKBoostCampaignType {
                 } else {
                     0u32
                 };
-                
+
                 // Use the actual count of new approvals (not already approved)
                 let updated_count = current_count + new_approval_count;
-                total_new_approvals = new_approval_count;  // Store for campaign total_completions update
-                
+                total_new_approvals = new_approval_count; // Store for campaign total_completions update
+
                 // Create updated quest with incremented completion_count
                 let updated_quest = QuestData::new_builder()
                     .quest_id(quest.quest_id())
@@ -568,7 +565,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
                     .accepted_submission_user_type_ids(
                         ckboost_shared::generated::ckboost::Byte32Vec::new_builder()
                             .extend(accepted_ids)
-                            .build()
+                            .build(),
                     )
                     .completion_deadline(quest.completion_deadline())
                     .status(quest.status())
@@ -578,10 +575,10 @@ impl CKBoostCampaign for CKBoostCampaignType {
                         ckboost_shared::generated::ckboost::Uint32::from_slice(
                             &updated_count.to_le_bytes(),
                         )
-                        .unwrap()
+                        .unwrap(),
                     )
                     .build();
-                
+
                 updated_quests.push(updated_quest);
             } else {
                 updated_quests.push(quest.clone());
@@ -614,8 +611,8 @@ impl CKBoostCampaign for CKBoostCampaignType {
             .status(campaign_data.status())
             .quests(
                 ckboost_shared::generated::ckboost::QuestDataVec::new_builder()
-                    .extend(updated_quests)  
-                    .build()
+                    .extend(updated_quests)
+                    .build(),
             )
             .participants_count(campaign_data.participants_count())
             .total_completions(
@@ -627,8 +624,9 @@ impl CKBoostCampaign for CKBoostCampaignType {
             .build();
 
         // Create output campaign cell with updated data
-        let campaign_output_index = tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0) as u32;
-        
+        let campaign_output_index =
+            tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0) as u32;
+
         // Create output campaign cell with proper type script and lock script
         let campaign_output = CellOutputBuilder::default()
             .type_(
@@ -649,19 +647,23 @@ impl CKBoostCampaign for CKBoostCampaignType {
         // The campaign contract only updates the accepted_submission_user_type_ids
         // The actual Points cells creation happens in the transaction builder
         // UDT distribution and validation would be done in the campaign-lock
-      
-      
 
         // Encode user_type_ids as a Byte32Vec for the recipe
         let mut user_type_ids_builder = Byte32VecBuilder::default();
         for i in 0..user_type_ids.len() {
             let user_type_id = user_type_ids.get(i).unwrap();
-            user_type_ids_builder = user_type_ids_builder.push(Byte32::from_slice(user_type_id.as_slice()).unwrap());
+            user_type_ids_builder =
+                user_type_ids_builder.push(Byte32::from_slice(user_type_id.as_slice()).unwrap());
         }
         let user_type_ids_vec = user_type_ids_builder.build();
 
         let quest_id_bytes = quest_id.to_le_bytes();
-        debug_trace!("Encoding quest_id {} as {} bytes: {:?}", quest_id, quest_id_bytes.len(), quest_id_bytes);
+        debug_trace!(
+            "Encoding quest_id {} as {} bytes: {:?}",
+            quest_id,
+            quest_id_bytes.len(),
+            quest_id_bytes
+        );
 
         let recipe = create_recipe_with_args(
             "CKBoostCampaign.approve_completion",
@@ -772,5 +774,4 @@ impl CKBoostCampaign for CKBoostCampaignType {
         debug_trace!("verify_approve_completion completed successfully");
         Ok(())
     }
-    
 }
