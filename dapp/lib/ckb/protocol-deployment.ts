@@ -187,6 +187,11 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
     "ckboostPointsUdt"
   );
 
+  const tippingTypeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostTippingType"
+  );
+
   return {
     protocol_config: {
       admin_lock_hash_vec: [], // To be filled by user's lock hash
@@ -210,12 +215,15 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
         ckb_boost_points_udt_type_code_hash:
           pointsUdtHash ||
           "0x0000000000000000000000000000000000000000000000000000000000000000",
+        ckb_boost_tipping_type_code_hash:
+          tippingTypeHash ||
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
         accepted_udt_type_scripts: [],
         accepted_dob_type_scripts: [],
       },
     },
     campaigns_approved: [],
-    tipping_proposals: [],
+    tipping_proposals_approved: [],
     tipping_config: {
       // Default thresholds: 1000 CKB, 5000 CKB, 10000 CKB (in shannon, 1 CKB = 10^8 shannon)
       approval_requirement_thresholds: [
@@ -624,6 +632,7 @@ export function validateDeploymentParams(
     "ckb_boost_campaign_lock_code_hash",
     "ckb_boost_user_type_code_hash",
     "ckb_boost_points_udt_type_code_hash",
+    "ckb_boost_tipping_type_code_hash",
   ] as const;
 
   scriptFields.forEach((field) => {

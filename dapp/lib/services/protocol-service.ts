@@ -8,10 +8,7 @@ import {
   ProtocolData,
   TippingProposalDataLike,
 } from "ssri-ckboost/types";
-import {
-  ProtocolMetrics,
-  ProtocolTransaction,
-} from "../types/protocol";
+import { ProtocolMetrics, ProtocolTransaction } from "../types/protocol";
 import {
   fetchProtocolCell,
   fetchProtocolCellByOutPoint,
@@ -31,7 +28,7 @@ export class ProtocolService {
 
   constructor(clientOrSigner: ccc.Client | ccc.Signer) {
     // Check if it's a signer (has getRecommendedAddress method)
-    if ('getRecommendedAddress' in clientOrSigner) {
+    if ("getRecommendedAddress" in clientOrSigner) {
       this.signer = clientOrSigner as ccc.Signer;
       this.client = this.signer.client;
     } else {
@@ -40,7 +37,7 @@ export class ProtocolService {
 
     // Get the protocol type code outpoint and deployment info
     const network = deploymentManager.getCurrentNetwork();
-    const deployment = deploymentManager.getCurrentDeployment(  
+    const deployment = deploymentManager.getCurrentDeployment(
       network,
       "ckboostProtocolType"
     );
@@ -102,10 +99,13 @@ export class ProtocolService {
       if (protocolTypeCodeHash) {
         for (let i = 0; i < tx.outputs.length; i++) {
           const out = tx.outputs[i];
-          if (out.type && out.type.codeHash.slice(0, 32) === protocolTypeCodeHash.slice(0, 32)) {
+          if (
+            out.type &&
+            out.type.codeHash.slice(0, 32) === protocolTypeCodeHash.slice(0, 32)
+          ) {
             tx.outputs[i] = ccc.CellOutput.from(
               { lock: out.lock, type: out.type },
-              tx.outputsData[i] as ccc.HexLike,
+              tx.outputsData[i] as ccc.HexLike
             );
           }
         }
@@ -123,7 +123,9 @@ export class ProtocolService {
     return txHash;
   }
 
-  async getProtocolData(protocolCell: ccc.Cell): Promise<ReturnType<typeof ProtocolData.decode>> {
+  async getProtocolData(
+    protocolCell: ccc.Cell
+  ): Promise<ReturnType<typeof ProtocolData.decode>> {
     if (!protocolCell) {
       throw new Error(
         "Protocol cell not found on blockchain. Please deploy a new protocol cell using the Protocol Management interface."
@@ -135,7 +137,9 @@ export class ProtocolService {
   async getProtocolCell(): Promise<ccc.Cell> {
     const protocolCell = await fetchProtocolCell(this.client);
     if (!protocolCell) {
-      throw new Error("Protocol cell not found on blockchain. Please deploy a new protocol cell using the Protocol Management interface.");
+      throw new Error(
+        "Protocol cell not found on blockchain. Please deploy a new protocol cell using the Protocol Management interface."
+      );
     }
     return protocolCell;
   }
@@ -180,7 +184,7 @@ export class ProtocolService {
         // Return a default ProtocolData structure that matches the SDK type
         const defaultProtocolData: ProtocolDataLike = {
           campaigns_approved: [],
-          tipping_proposals: [],
+          tipping_proposals_approved: [],
           tipping_config: {
             approval_requirement_thresholds: [], // Empty Uint128Vec
             expiration_duration: defaultTimestamp, // Uint64 as bigint
@@ -196,6 +200,7 @@ export class ProtocolService {
               ckb_boost_campaign_lock_code_hash: defaultByte32,
               ckb_boost_user_type_code_hash: defaultByte32,
               ckb_boost_points_udt_type_code_hash: defaultByte32,
+              ckb_boost_tipping_type_code_hash: defaultByte32,
               accepted_udt_type_scripts: [],
               accepted_dob_type_scripts: [],
             },
@@ -271,9 +276,10 @@ export class ProtocolService {
    * @param outPoint - Specific outpoint to fetch
    * @returns ProtocolData from the specified cell
    */
-  async fetchProtocolDataByOutPoint(
-    outPoint: { txHash: ccc.Hex; index: ccc.Num }
-  ): Promise<ProtocolDataLike> {
+  async fetchProtocolDataByOutPoint(outPoint: {
+    txHash: ccc.Hex;
+    index: ccc.Num;
+  }): Promise<ProtocolDataLike> {
     const cell = await fetchProtocolCellByOutPoint(this.client, outPoint);
     if (!cell) {
       throw new Error(
@@ -336,10 +342,12 @@ export class ProtocolService {
       return {
         totalCampaigns: BigInt(data.campaigns_approved.length),
         activeCampaigns: BigInt(0), // Active campaigns need to be fetched separately by querying each campaign cell
-        totalTippingProposals: BigInt(data.tipping_proposals.length),
+        totalTippingProposals: BigInt(data.tipping_proposals_approved.length),
         pendingTippingProposals: BigInt(
-          data.tipping_proposals.filter((p: TippingProposalDataLike) => !p.tipping_transaction_hash)
-            .length
+          0
+          // data.tipping_proposals_approved.filter(
+          //   (p: TippingProposalDataLike) => !p.tipping_transaction_hash
+          // ).length
         ),
         totalEndorsers: BigInt(data.endorsers_whitelist.length),
         lastUpdated: new Date(timestamp * 1000).toISOString(),

@@ -1,16 +1,33 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, CheckCircle, FileSearch, RotateCcw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertTriangle,
+  CheckCircle,
+  FileSearch,
+  RotateCcw,
+} from "lucide-react";
 import { ccc } from "@ckb-ccc/connector-react";
 import { ProtocolData } from "ssri-ckboost/types";
-import { CellLike } from "@ckb-ccc/core";
 
 type DecodedProtocolData = ReturnType<typeof ProtocolData.decode>;
 import {
@@ -22,7 +39,7 @@ import {
 
 interface ProtocolDeploymentProps {
   protocolData: DecodedProtocolData | null;
-  protocolCell: CellLike | null;
+  protocolCell: ccc.CellLike | null;
   isLoading: boolean;
   error: string | null;
   signer: ccc.Signer | undefined;
@@ -45,7 +62,10 @@ export function ProtocolDeployment({
   const [deploymentError, setDeploymentError] = useState<string | null>(null);
 
   const deploymentTemplate = useMemo(() => getProtocolDeploymentTemplate(), []);
-  const contractDeploymentStatus = useMemo(() => getContractDeploymentStatus(), []);
+  const contractDeploymentStatus = useMemo(
+    () => getContractDeploymentStatus(),
+    []
+  );
   // const protocolStatus = useMemo(() => getProtocolConfigStatus(protocolData), [protocolData]);
 
   const handleManualCellLoad = async () => {
@@ -59,8 +79,14 @@ export function ProtocolDeployment({
       setDeploymentError(null);
 
       // Validate the outpoint format
-      if (!outpointTxHash || outpointTxHash === "0x" || outpointTxHash.length !== 66) {
-        throw new Error("Invalid transaction hash format. Must be 66 characters starting with 0x");
+      if (
+        !outpointTxHash ||
+        outpointTxHash === "0x" ||
+        outpointTxHash.length !== 66
+      ) {
+        throw new Error(
+          "Invalid transaction hash format. Must be 66 characters starting with 0x"
+        );
       }
 
       const indexNum = Number(outpointIndex);
@@ -73,18 +99,22 @@ export function ProtocolDeployment({
       const cell = await signer.client.getCellLive(outPoint);
 
       if (!cell) {
-        throw new Error("Cell not found at the specified outpoint. Please verify the transaction hash and index.");
+        throw new Error(
+          "Cell not found at the specified outpoint. Please verify the transaction hash and index."
+        );
       }
 
       console.log("Successfully loaded protocol cell from outpoint:", outPoint);
-      
+
       // Refresh the protocol data with the new cell
       await refreshProtocolData();
-      
+
       setShowOutpointDialog(false);
     } catch (err) {
       console.error("Failed to load protocol cell:", err);
-      setDeploymentError(err instanceof Error ? err.message : "Failed to load protocol cell");
+      setDeploymentError(
+        err instanceof Error ? err.message : "Failed to load protocol cell"
+      );
     } finally {
       setManualCellLoading(false);
     }
@@ -114,31 +144,43 @@ export function ProtocolDeployment({
       // Validate deployment parameters
       const validation = validateDeploymentParams(deploymentTemplate);
       if (validation.length > 0) {
-        throw new Error(`Invalid deployment parameters: ${validation.join(", ")}`);
+        throw new Error(
+          `Invalid deployment parameters: ${validation.join(", ")}`
+        );
       }
 
       // Deploy the protocol cell
       const result = await deployProtocolCell(signer, deploymentTemplate);
-      
+
       console.log("Protocol deployed successfully:", result);
-      alert(`Protocol deployed successfully! Transaction hash: ${result.txHash}`);
-      
+      alert(
+        `Protocol deployed successfully! Transaction hash: ${result.txHash}`
+      );
+
       // Refresh the protocol data
       await refreshProtocolData();
     } catch (err) {
       console.error("Failed to deploy protocol:", err);
-      setDeploymentError(err instanceof Error ? err.message : "Failed to deploy protocol");
+      setDeploymentError(
+        err instanceof Error ? err.message : "Failed to deploy protocol"
+      );
     } finally {
       setDeploying(false);
     }
   };
 
   // Check if all contracts are deployed
-  const allContractsDeployed = Object.values(contractDeploymentStatus).every(status => 
-    typeof status === 'object' && 'deployed' in status ? status.deployed : Boolean(status)
+  const allContractsDeployed = Object.values(contractDeploymentStatus).every(
+    (status) =>
+      typeof status === "object" && "deployed" in status
+        ? status.deployed
+        : Boolean(status)
   );
 
-  if (error?.includes("Protocol cell not found on blockchain") && !protocolData) {
+  if (
+    error?.includes("Protocol cell not found on blockchain") &&
+    !protocolData
+  ) {
     return (
       <div className="space-y-6">
         {!allContractsDeployed && (
@@ -149,24 +191,37 @@ export function ProtocolDeployment({
                 Contracts Not Deployed
               </CardTitle>
               <CardDescription className="text-red-600 dark:text-red-400">
-                Some required contracts are not deployed. Please deploy them first.
+                Some required contracts are not deployed. Please deploy them
+                first.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {Object.entries(contractDeploymentStatus).map(([name, status]) => (
-                  <div key={name} className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{name}</span>
-                    {(typeof status === 'object' && 'deployed' in status ? status.deployed : Boolean(status)) ? (
-                      <Badge variant="default" className="flex items-center bg-green-600 text-white">
-                        <CheckCircle className="mr-1 h-3 w-3" />
-                        Deployed
-                      </Badge>
-                    ) : (
-                      <Badge variant="destructive">Not Deployed</Badge>
-                    )}
-                  </div>
-                ))}
+                {Object.entries(contractDeploymentStatus).map(
+                  ([name, status]) => (
+                    <div
+                      key={name}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="text-sm font-medium">{name}</span>
+                      {(
+                        typeof status === "object" && "deployed" in status
+                          ? status.deployed
+                          : Boolean(status)
+                      ) ? (
+                        <Badge
+                          variant="default"
+                          className="flex items-center bg-green-600 text-white"
+                        >
+                          <CheckCircle className="mr-1 h-3 w-3" />
+                          Deployed
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive">Not Deployed</Badge>
+                      )}
+                    </div>
+                  )
+                )}
               </div>
             </CardContent>
           </Card>
@@ -191,7 +246,7 @@ export function ProtocolDeployment({
                     <AlertDescription>{deploymentError}</AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="flex flex-col gap-3">
                   <Button
                     onClick={handleDeployProtocol}
@@ -200,13 +255,13 @@ export function ProtocolDeployment({
                   >
                     {deploying ? "Deploying..." : "Deploy New Protocol"}
                   </Button>
-                  
+
                   <div className="flex items-center gap-2">
                     <div className="flex-1 border-t border-gray-300" />
                     <span className="text-sm text-gray-500">or</span>
                     <div className="flex-1 border-t border-gray-300" />
                   </div>
-                  
+
                   <Button
                     variant="outline"
                     onClick={() => setShowOutpointDialog(true)}
@@ -228,10 +283,11 @@ export function ProtocolDeployment({
             <DialogHeader>
               <DialogTitle>Load Protocol Cell from Outpoint</DialogTitle>
               <DialogDescription>
-                Enter the transaction hash and output index of an existing protocol cell.
+                Enter the transaction hash and output index of an existing
+                protocol cell.
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Transaction Hash</label>
@@ -241,29 +297,37 @@ export function ProtocolDeployment({
                   onChange={(e) => setOutpointTxHash(e.target.value as ccc.Hex)}
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Output Index</label>
                 <Input
                   type="number"
                   placeholder="0"
                   value={outpointIndex.toString()}
-                  onChange={(e) => setOutpointIndex(ccc.numFrom(parseInt(e.target.value) || 0))}
+                  onChange={(e) =>
+                    setOutpointIndex(ccc.numFrom(parseInt(e.target.value) || 0))
+                  }
                 />
               </div>
-              
+
               {deploymentError && (
                 <Alert variant="destructive">
                   <AlertDescription>{deploymentError}</AlertDescription>
                 </Alert>
               )}
             </div>
-            
+
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowOutpointDialog(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowOutpointDialog(false)}
+              >
                 Cancel
               </Button>
-              <Button onClick={handleManualCellLoad} disabled={manualCellLoading}>
+              <Button
+                onClick={handleManualCellLoad}
+                disabled={manualCellLoading}
+              >
                 {manualCellLoading ? "Loading..." : "Load Cell"}
               </Button>
             </DialogFooter>

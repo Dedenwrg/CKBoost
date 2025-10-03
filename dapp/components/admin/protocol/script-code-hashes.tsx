@@ -2,8 +2,22 @@
 
 import React from "react";
 import { UseFormReturn } from "react-hook-form";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { ScriptCodeHashesLike } from "ssri-ckboost/types";
 import { UDTScriptManager } from "./udt-script-manager";
@@ -15,10 +29,10 @@ interface ScriptCodeHashesProps {
   ChangeIndicator?: React.FC<{ hasChanged: boolean }>;
 }
 
-export function ScriptCodeHashes({ 
-  form, 
+export function ScriptCodeHashes({
+  form,
   pendingChanges,
-  ChangeIndicator 
+  ChangeIndicator,
 }: ScriptCodeHashesProps) {
   return (
     <Card className={pendingChanges ? "border-orange-500" : ""}>
@@ -41,8 +55,8 @@ export function ScriptCodeHashes({
                 <FormItem>
                   <FormLabel>Protocol Type Code Hash</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="0x..." 
+                    <Input
+                      placeholder="0x..."
                       {...field}
                       value={field.value ? String(field.value) : ""}
                     />
@@ -61,8 +75,8 @@ export function ScriptCodeHashes({
                 <FormItem>
                   <FormLabel>Protocol Lock Code Hash</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="0x..." 
+                    <Input
+                      placeholder="0x..."
                       {...field}
                       value={field.value ? String(field.value) : ""}
                     />
@@ -81,8 +95,8 @@ export function ScriptCodeHashes({
                 <FormItem>
                   <FormLabel>Campaign Type Code Hash</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="0x..." 
+                    <Input
+                      placeholder="0x..."
                       {...field}
                       value={field.value ? String(field.value) : ""}
                     />
@@ -101,8 +115,8 @@ export function ScriptCodeHashes({
                 <FormItem>
                   <FormLabel>Campaign Lock Code Hash</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="0x..." 
+                    <Input
+                      placeholder="0x..."
                       {...field}
                       value={field.value ? String(field.value) : ""}
                     />
@@ -121,8 +135,8 @@ export function ScriptCodeHashes({
                 <FormItem>
                   <FormLabel>User Type Code Hash</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="0x..." 
+                    <Input
+                      placeholder="0x..."
                       {...field}
                       value={field.value ? String(field.value) : ""}
                     />
@@ -141,14 +155,34 @@ export function ScriptCodeHashes({
                 <FormItem>
                   <FormLabel>Points UDT Type Code Hash</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="0x..." 
+                    <Input
+                      placeholder="0x..."
                       {...field}
                       value={field.value ? String(field.value) : ""}
                     />
                   </FormControl>
                   <FormDescription>
                     The code hash of the Points UDT type script
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="ckb_boost_tipping_type_code_hash"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipping Type Code Hash</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="0x..."
+                      {...field}
+                      value={field.value ? String(field.value) : ""}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    The code hash of the Tipping type script
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

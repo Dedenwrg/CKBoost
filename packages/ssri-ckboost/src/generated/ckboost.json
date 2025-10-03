@@ -850,6 +850,10 @@
           "type": "Byte32"
         },
         {
+          "name": "ckb_boost_tipping_type_code_hash",
+          "type": "Byte32"
+        },
+        {
           "name": "accepted_udt_type_scripts",
           "type": "ScriptVec"
         },
@@ -882,8 +886,8 @@
           "type": "Byte32Vec"
         },
         {
-          "name": "tipping_proposals",
-          "type": "TippingProposalDataVec"
+          "name": "tipping_proposals_approved",
+          "type": "Byte32Vec"
         },
         {
           "name": "tipping_config",

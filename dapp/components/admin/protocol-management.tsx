@@ -49,15 +49,15 @@ import {
   ScriptCodeHashesLike,
   TippingConfigLike,
 } from "ssri-ckboost/types";
-import { 
-  ProtocolStats, 
-  AdminManagement, 
+import {
+  ProtocolStats,
+  AdminManagement,
   TippingConfig,
   ScriptCodeHashes,
   EndorserManagement,
   ProtocolDeploymentSection,
   ProtocolSummarySection,
-  ProtocolChangesDialog
+  ProtocolChangesDialog,
 } from "./protocol";
 // Note: Byte32, Uint128, Uint64 are now represented as ccc.Hex, bigint, bigint respectively
 
@@ -69,25 +69,27 @@ type AddAdminForm = {
 };
 
 // Form schemas
-const addAdminSchema = z.object({
-  inputMode: z.enum(["address", "script"]),
-  adminAddress: z.string().optional(),
-  adminLockHash: z
-    .string()
-    .optional(),
-}).refine(
-  (data) => {
-    if (data.inputMode === "address") {
-      return data.adminAddress && data.adminAddress.length > 0;
-    } else {
-      return data.adminLockHash && data.adminLockHash.match(/^0x[a-fA-F0-9]{64}$/);
+const addAdminSchema = z
+  .object({
+    inputMode: z.enum(["address", "script"]),
+    adminAddress: z.string().optional(),
+    adminLockHash: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.inputMode === "address") {
+        return data.adminAddress && data.adminAddress.length > 0;
+      } else {
+        return (
+          data.adminLockHash && data.adminLockHash.match(/^0x[a-fA-F0-9]{64}$/)
+        );
+      }
+    },
+    {
+      message: "Please provide either an address or a valid lock hash",
+      path: ["adminAddress"],
     }
-  },
-  {
-    message: "Please provide either an address or a valid lock hash",
-    path: ["adminAddress"],
-  }
-);
+  );
 
 const updateScriptCodeHashesSchema = z.object({
   ckb_boost_protocol_type_code_hash: z
@@ -106,6 +108,9 @@ const updateScriptCodeHashesSchema = z.object({
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
   ckb_boost_points_udt_type_code_hash: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
+  ckb_boost_tipping_type_code_hash: z
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
   accepted_udt_type_code_hashes: z
@@ -197,9 +202,12 @@ export function ProtocolManagement() {
 
   // Get initial values from deployment template for forms
   const deploymentTemplate = useMemo(() => getProtocolDeploymentTemplate(), []);
-  
+
   // Check deployment status for all contracts
-  const contractDeploymentStatus = useMemo(() => getContractDeploymentStatus(), []);
+  const contractDeploymentStatus = useMemo(
+    () => getContractDeploymentStatus(),
+    []
+  );
 
   const scriptCodeHashesForm = useForm<ScriptCodeHashesLike>({
     resolver: zodResolver(updateScriptCodeHashesSchema),
@@ -222,6 +230,9 @@ export function ProtocolManagement() {
       ckb_boost_points_udt_type_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
           .ckb_boost_points_udt_type_code_hash,
+      ckb_boost_tipping_type_code_hash:
+        deploymentTemplate.protocol_config.script_code_hashes
+          .ckb_boost_tipping_type_code_hash,
       accepted_udt_type_scripts: [],
       accepted_dob_type_scripts: [],
     },
@@ -231,17 +242,23 @@ export function ProtocolManagement() {
     resolver: zodResolver(updateTippingConfigSchema),
     defaultValues: {
       approval_requirement_thresholds:
-        deploymentTemplate.tipping_config.approval_requirement_thresholds.length > 0
+        deploymentTemplate.tipping_config.approval_requirement_thresholds
+          .length > 0
           ? deploymentTemplate.tipping_config.approval_requirement_thresholds.map(
               (t) => t.toString()
             )
           : ["100000000000", "500000000000", "1000000000000"], // Default: 1000, 5000, 10000 CKB in shannon
-      expiration_duration: deploymentTemplate.tipping_config.expiration_duration || 2592000n, // Default: 30 days
+      expiration_duration:
+        deploymentTemplate.tipping_config.expiration_duration || 2592000n, // Default: 30 days
     },
   });
 
   const endorserForm = useForm<
-    EndorserInfoLike & { inputMode: "address" | "script"; address: string, script: ccc.Script }
+    EndorserInfoLike & {
+      inputMode: "address" | "script";
+      address: string;
+      script: ccc.Script;
+    }
   >({
     resolver: zodResolver(addEndorserSchema),
     defaultValues: {
@@ -365,8 +382,15 @@ export function ProtocolManagement() {
               ckb_boost_points_udt_type_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .ckb_boost_points_udt_type_code_hash,
-              accepted_udt_type_scripts: deploymentTemplate.protocol_config.script_code_hashes.accepted_udt_type_scripts || [],
-              accepted_dob_type_scripts: deploymentTemplate.protocol_config.script_code_hashes.accepted_dob_type_scripts || [],
+              ckb_boost_tipping_type_code_hash:
+                deploymentTemplate.protocol_config.script_code_hashes
+                  .ckb_boost_tipping_type_code_hash,
+              accepted_udt_type_scripts:
+                deploymentTemplate.protocol_config.script_code_hashes
+                  .accepted_udt_type_scripts || [],
+              accepted_dob_type_scripts:
+                deploymentTemplate.protocol_config.script_code_hashes
+                  .accepted_dob_type_scripts || [],
             },
             tippingConfig: {
               approval_requirement_thresholds:
@@ -413,6 +437,9 @@ export function ProtocolManagement() {
         ckb_boost_points_udt_type_code_hash:
           protocolData.protocol_config.script_code_hashes
             .ckb_boost_points_udt_type_code_hash,
+        ckb_boost_tipping_type_code_hash:
+          protocolData.protocol_config.script_code_hashes
+            .ckb_boost_tipping_type_code_hash,
         accepted_udt_type_scripts: [],
         accepted_dob_type_scripts: [],
       };
@@ -425,8 +452,12 @@ export function ProtocolManagement() {
 
       scriptCodeHashesForm.reset({
         ...scriptHashesValues,
-        accepted_udt_type_scripts: protocolData.protocol_config.script_code_hashes.accepted_udt_type_scripts || [],
-        accepted_dob_type_scripts: protocolData.protocol_config.script_code_hashes.accepted_dob_type_scripts || [],
+        accepted_udt_type_scripts:
+          protocolData.protocol_config.script_code_hashes
+            .accepted_udt_type_scripts || [],
+        accepted_dob_type_scripts:
+          protocolData.protocol_config.script_code_hashes
+            .accepted_dob_type_scripts || [],
       });
       tippingConfigForm.reset(tippingValues);
 
@@ -434,8 +465,12 @@ export function ProtocolManagement() {
       setBaselineValues({
         scriptCodeHashes: {
           ...scriptHashesValues,
-          accepted_udt_type_scripts: protocolData.protocol_config.script_code_hashes.accepted_udt_type_scripts || [],
-          accepted_dob_type_scripts: protocolData.protocol_config.script_code_hashes.accepted_dob_type_scripts || [],
+          accepted_udt_type_scripts:
+            protocolData.protocol_config.script_code_hashes
+              .accepted_udt_type_scripts || [],
+          accepted_dob_type_scripts:
+            protocolData.protocol_config.script_code_hashes
+              .accepted_dob_type_scripts || [],
         },
         tippingConfig: tippingValues,
       });
@@ -490,46 +525,57 @@ export function ProtocolManagement() {
   // Calculate changes with proper dependency management
   useEffect(() => {
     // Helper function to compare Script arrays - defined inside useEffect to avoid dependency issues
-    const compareScriptArrays = (arr1: ccc.ScriptLike[], arr2: ccc.ScriptLike[], fieldName?: string): boolean => {
+    const compareScriptArrays = (
+      arr1: ccc.ScriptLike[],
+      arr2: ccc.ScriptLike[],
+      fieldName?: string
+    ): boolean => {
       // Handle null/undefined arrays
       if (!arr1 && !arr2) return true;
       if (!arr1 || !arr2) return false;
-      
+
       // Handle empty arrays
       if (arr1.length === 0 && arr2.length === 0) return true;
-      
+
       if (arr1.length !== arr2.length) {
-        console.log(`Script array length mismatch for ${fieldName}:`, arr1.length, 'vs', arr2.length);
+        console.log(
+          `Script array length mismatch for ${fieldName}:`,
+          arr1.length,
+          "vs",
+          arr2.length
+        );
         return false;
       }
-      
+
       return arr1.every((script1, index) => {
         const script2 = arr2[index];
-        
+
         // Handle the codeHash comparison - treat empty string as a special case
-        const codeHash1 = script1.codeHash === "" ? "" : ccc.hexFrom(script1.codeHash || "");
-        const codeHash2 = script2.codeHash === "" ? "" : ccc.hexFrom(script2.codeHash || "");
+        const codeHash1 =
+          script1.codeHash === "" ? "" : ccc.hexFrom(script1.codeHash || "");
+        const codeHash2 =
+          script2.codeHash === "" ? "" : ccc.hexFrom(script2.codeHash || "");
         const codeHashMatch = codeHash1 === codeHash2;
-        
+
         const hashTypeMatch = script1.hashType === script2.hashType;
-        
+
         // Handle args comparison
         const args1 = ccc.hexFrom(script1.args || "0x");
         const args2 = ccc.hexFrom(script2.args || "0x");
         const argsMatch = args1 === args2;
-        
+
         if (!codeHashMatch || !hashTypeMatch || !argsMatch) {
           console.log(`Script mismatch at index ${index} for ${fieldName}:`, {
             codeHash: [codeHash1, codeHash2],
             hashType: [script1.hashType, script2.hashType],
-            args: [args1, args2]
+            args: [args1, args2],
           });
         }
-        
+
         return codeHashMatch && hashTypeMatch && argsMatch;
       });
     };
-    
+
     if (
       !protocolData ||
       !baselineValues.scriptCodeHashes ||
@@ -538,7 +584,7 @@ export function ProtocolManagement() {
       return;
 
     // Debug logging
-    console.log('Comparing script values:', {
+    console.log("Comparing script values:", {
       current_udt: scriptCodeHashesValues.accepted_udt_type_scripts,
       baseline_udt: baselineValues.scriptCodeHashes.accepted_udt_type_scripts,
       current_dob: scriptCodeHashesValues.accepted_dob_type_scripts,
@@ -547,15 +593,31 @@ export function ProtocolManagement() {
 
     // Check if current values match baseline values (no changes)
     const scriptHashesEqual =
-      scriptCodeHashesValues.ckb_boost_protocol_type_code_hash === baselineValues.scriptCodeHashes.ckb_boost_protocol_type_code_hash &&
-      scriptCodeHashesValues.ckb_boost_protocol_lock_code_hash === baselineValues.scriptCodeHashes.ckb_boost_protocol_lock_code_hash &&
-      scriptCodeHashesValues.ckb_boost_campaign_type_code_hash === baselineValues.scriptCodeHashes.ckb_boost_campaign_type_code_hash &&
-      scriptCodeHashesValues.ckb_boost_campaign_lock_code_hash === baselineValues.scriptCodeHashes.ckb_boost_campaign_lock_code_hash &&
-      scriptCodeHashesValues.ckb_boost_user_type_code_hash === baselineValues.scriptCodeHashes.ckb_boost_user_type_code_hash &&
-      scriptCodeHashesValues.ckb_boost_points_udt_type_code_hash === baselineValues.scriptCodeHashes.ckb_boost_points_udt_type_code_hash &&
-      compareScriptArrays(scriptCodeHashesValues.accepted_udt_type_scripts, baselineValues.scriptCodeHashes.accepted_udt_type_scripts, 'accepted_udt_type_scripts') &&
-      compareScriptArrays(scriptCodeHashesValues.accepted_dob_type_scripts, baselineValues.scriptCodeHashes.accepted_dob_type_scripts, 'accepted_dob_type_scripts');
-    
+      scriptCodeHashesValues.ckb_boost_protocol_type_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_protocol_type_code_hash &&
+      scriptCodeHashesValues.ckb_boost_protocol_lock_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_protocol_lock_code_hash &&
+      scriptCodeHashesValues.ckb_boost_campaign_type_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_campaign_type_code_hash &&
+      scriptCodeHashesValues.ckb_boost_campaign_lock_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_campaign_lock_code_hash &&
+      scriptCodeHashesValues.ckb_boost_user_type_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_user_type_code_hash &&
+      scriptCodeHashesValues.ckb_boost_points_udt_type_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_points_udt_type_code_hash &&
+      scriptCodeHashesValues.ckb_boost_tipping_type_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_tipping_type_code_hash &&
+      compareScriptArrays(
+        scriptCodeHashesValues.accepted_udt_type_scripts,
+        baselineValues.scriptCodeHashes.accepted_udt_type_scripts,
+        "accepted_udt_type_scripts"
+      ) &&
+      compareScriptArrays(
+        scriptCodeHashesValues.accepted_dob_type_scripts,
+        baselineValues.scriptCodeHashes.accepted_dob_type_scripts,
+        "accepted_dob_type_scripts"
+      );
+
     const tippingEqual =
       JSON.stringify(tippingConfigValues, (_, value) =>
         typeof value === "bigint" ? value.toString() : value
@@ -565,10 +627,12 @@ export function ProtocolManagement() {
       );
 
     // Check if admins have changed
-    const currentAdmins = protocolData?.protocol_config.admin_lock_hash_vec.map((hash) =>
-      ccc.hexFrom(hash as ccc.BytesLike)
-    ) || [];
-    const adminsEqual = JSON.stringify(currentAdmins) === JSON.stringify(finalAdminLockHashes);
+    const currentAdmins =
+      protocolData?.protocol_config.admin_lock_hash_vec.map((hash) =>
+        ccc.hexFrom(hash as ccc.BytesLike)
+      ) || [];
+    const adminsEqual =
+      JSON.stringify(currentAdmins) === JSON.stringify(finalAdminLockHashes);
 
     if (scriptHashesEqual && tippingEqual && adminsEqual) {
       // No changes detected, clear pending changes
@@ -777,7 +841,7 @@ export function ProtocolManagement() {
         social_links: data.social_links || [],
         verified: data.verified || 0,
       };
-      
+
       setPendingEndorserChanges((prev) => {
         const updated = {
           ...prev,
@@ -876,7 +940,8 @@ export function ProtocolManagement() {
 
       // Handle script code hashes changes
       if (pendingChanges.scriptCodeHashes && formData.scriptCodeHashes) {
-        updatedData.protocol_config.script_code_hashes = formData.scriptCodeHashes;
+        updatedData.protocol_config.script_code_hashes =
+          formData.scriptCodeHashes;
       }
 
       // Handle tipping config changes
@@ -887,18 +952,23 @@ export function ProtocolManagement() {
       // Handle endorser changes
       if (pendingChanges.endorsers) {
         // Start with current endorsers
-        let updatedEndorsers = [...(protocolData.endorsers_whitelist || [])] as unknown as EndorserInfoLike[];
-        
+        let updatedEndorsers = [
+          ...(protocolData.endorsers_whitelist || []),
+        ] as unknown as EndorserInfoLike[];
+
         // Remove endorsers
         if (pendingEndorserChanges.toRemove.length > 0) {
           pendingEndorserChanges.toRemove.forEach((index) => {
             updatedEndorsers.splice(Number(index), 1);
           });
         }
-        
+
         // Add new endorsers
         if (pendingEndorserChanges.toAdd.length > 0) {
-          updatedEndorsers = [...updatedEndorsers, ...pendingEndorserChanges.toAdd];
+          updatedEndorsers = [
+            ...updatedEndorsers,
+            ...pendingEndorserChanges.toAdd,
+          ];
         }
         updatedData.endorsers_whitelist = updatedEndorsers;
       }
@@ -994,6 +1064,9 @@ export function ProtocolManagement() {
           ckb_boost_points_udt_type_code_hash:
             protocolData.protocol_config.script_code_hashes
               .ckb_boost_points_udt_type_code_hash,
+          ckb_boost_tipping_type_code_hash:
+            protocolData.protocol_config.script_code_hashes
+              .ckb_boost_tipping_type_code_hash,
           accepted_udt_type_scripts:
             protocolData.protocol_config.script_code_hashes
               .accepted_udt_type_scripts || [],
@@ -1011,17 +1084,26 @@ export function ProtocolManagement() {
         // For deployment mode, reset to template defaults but don't mark as changed
         scriptCodeHashesForm.reset({
           ckb_boost_protocol_type_code_hash:
-            deploymentTemplate.protocol_config.script_code_hashes.ckb_boost_protocol_type_code_hash,
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_protocol_type_code_hash,
           ckb_boost_protocol_lock_code_hash:
-            deploymentTemplate.protocol_config.script_code_hashes.ckb_boost_protocol_lock_code_hash,
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_protocol_lock_code_hash,
           ckb_boost_campaign_type_code_hash:
-            deploymentTemplate.protocol_config.script_code_hashes.ckb_boost_campaign_type_code_hash,
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_campaign_type_code_hash,
           ckb_boost_campaign_lock_code_hash:
-            deploymentTemplate.protocol_config.script_code_hashes.ckb_boost_campaign_lock_code_hash,
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_campaign_lock_code_hash,
           ckb_boost_user_type_code_hash:
-            deploymentTemplate.protocol_config.script_code_hashes.ckb_boost_user_type_code_hash,
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_user_type_code_hash,
           ckb_boost_points_udt_type_code_hash:
-            deploymentTemplate.protocol_config.script_code_hashes.ckb_boost_points_udt_type_code_hash,
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_points_udt_type_code_hash,
+          ckb_boost_tipping_type_code_hash:
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_tipping_type_code_hash,
           accepted_udt_type_scripts: [],
           accepted_dob_type_scripts: [],
         });
@@ -1094,7 +1176,9 @@ export function ProtocolManagement() {
   };
 
   // Helper function to compute lock hash from script using CCC
-  const computeLockHashFromScript = (script: ccc.Script | undefined): string => {
+  const computeLockHashFromScript = (
+    script: ccc.Script | undefined
+  ): string => {
     if (!script || !script.codeHash || !script.args) {
       return "Invalid script - missing required fields";
     }
@@ -1167,7 +1251,7 @@ export function ProtocolManagement() {
       // Collect form data
       const deploymentParams: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tipping_proposals_approved: [],
         last_updated: ccc.numFrom(Date.now()),
         tipping_config: tippingConfigValues,
         endorsers_whitelist: pendingEndorserChanges.toAdd.map((endorser) => ({
@@ -1342,15 +1426,16 @@ export function ProtocolManagement() {
               The following contracts are missing from the deployment records:
             </p>
             <ul className="list-disc list-inside space-y-1">
-              {contractDeploymentStatus.missingContracts.map(contract => (
+              {contractDeploymentStatus.missingContracts.map((contract) => (
                 <li key={contract} className="text-sm">
                   {contract}
                 </li>
               ))}
             </ul>
             <p className="mt-3 text-sm">
-              The protocol cell will be created with placeholder (zero) hashes for missing contracts. 
-              You'll need to redeploy the protocol cell after all contracts are deployed.
+              The protocol cell will be created with placeholder (zero) hashes
+              for missing contracts. You'll need to redeploy the protocol cell
+              after all contracts are deployed.
             </p>
           </AlertDescription>
         </Alert>
@@ -1573,10 +1658,7 @@ export function ProtocolManagement() {
 
       {/* Metrics Overview */}
       {metrics && (
-        <ProtocolStats 
-          metrics={metrics} 
-          protocolData={protocolData}
-        />
+        <ProtocolStats metrics={metrics} protocolData={protocolData} />
       )}
 
       {/* Protocol Configuration */}

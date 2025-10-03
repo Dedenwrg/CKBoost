@@ -1,128 +1,150 @@
 // Deployment Manager - Manages deployment records for CKB contracts
 // This module handles reading and updating deployment information
 
-import deploymentsData from '../../../deployments.json'
-import { ccc } from '@ckb-ccc/connector-react'
+import deploymentsData from "../../../deployments.json";
+import { ccc } from "@ckb-ccc/connector-react";
 
-export type Network = 'testnet' | 'mainnet'
+export type Network = "testnet" | "mainnet";
 
-export type ContractType = 'ckboostProtocolType' | 'ckboostCampaignType' | 'ckboostUserType' | 'ckboostProtocolLock' | 'ckboostCampaignLock' | 'ckboostUserLock' | 'ckboostPointsUdt'
+export type ContractType =
+  | "ckboostProtocolType"
+  | "ckboostCampaignType"
+  | "ckboostUserType"
+  | "ckboostProtocolLock"
+  | "ckboostCampaignLock"
+  | "ckboostUserLock"
+  | "ckboostPointsUdt"
+  | "ckboostTippingType";
 
 export interface DeploymentRecord {
-  transactionHash: ccc.Hex
-  index: ccc.Num,
-  deployedAt: ccc.Num,
-  contractName: string
-  deployerAddress?: ccc.Hex
-  dataHash?: ccc.Hex
-  contractSize?: ccc.Num
-  tag?: string
-  isUpgrade?: boolean
+  transactionHash: ccc.Hex;
+  index: ccc.Num;
+  deployedAt: ccc.Num;
+  contractName: string;
+  deployerAddress?: ccc.Hex;
+  dataHash?: ccc.Hex;
+  contractSize?: ccc.Num;
+  tag?: string;
+  isUpgrade?: boolean;
   previousDeployment?: {
-    transactionHash: ccc.Hex
-    index: ccc.Num
-    deployedAt: ccc.Num
-    tag?: string
-  }
-  typeScript?: ccc.ScriptLike
-  isTypeId?: boolean
-  typeHash?: ccc.Hex
+    transactionHash: ccc.Hex;
+    index: ccc.Num;
+    deployedAt: ccc.Num;
+    tag?: string;
+  };
+  typeScript?: ccc.ScriptLike;
+  isTypeId?: boolean;
+  typeHash?: ccc.Hex;
 }
 
 export interface DeploymentHistory {
   current: {
     testnet: {
-      ckboostProtocolType: DeploymentRecord | null
-      ckboostCampaignType: DeploymentRecord | null
-      ckboostUserType: DeploymentRecord | null
-      ckboostProtocolLock: DeploymentRecord | null
-      ckboostCampaignLock: DeploymentRecord | null
-      ckboostUserLock: DeploymentRecord | null
-      ckboostPointsUdt: DeploymentRecord | null
+      ckboostProtocolType: DeploymentRecord | null;
+      ckboostCampaignType: DeploymentRecord | null;
+      ckboostUserType: DeploymentRecord | null;
+      ckboostProtocolLock: DeploymentRecord | null;
+      ckboostCampaignLock: DeploymentRecord | null;
+      ckboostUserLock: DeploymentRecord | null;
+      ckboostPointsUdt: DeploymentRecord | null;
+      ckboostTippingType: DeploymentRecord | null;
       // Add other contract types as needed
-    }
+    };
     mainnet: {
-      ckboostProtocolType?: DeploymentRecord | null
-      ckboostCampaignType?: DeploymentRecord | null
-      ckboostUserType?: DeploymentRecord | null
-      ckboostProtocolLock?: DeploymentRecord | null
-      ckboostCampaignLock?: DeploymentRecord | null
-      ckboostUserLock?: DeploymentRecord | null
-      ckboostPointsUdt?: DeploymentRecord | null
+      ckboostProtocolType?: DeploymentRecord | null;
+      ckboostCampaignType?: DeploymentRecord | null;
+      ckboostUserType?: DeploymentRecord | null;
+      ckboostProtocolLock?: DeploymentRecord | null;
+      ckboostCampaignLock?: DeploymentRecord | null;
+      ckboostUserLock?: DeploymentRecord | null;
+      ckboostPointsUdt?: DeploymentRecord | null;
+      ckboostTippingType?: DeploymentRecord | null;
       // Add other contract types as needed
-    }
-  }
+    };
+  };
   history: {
-    testnet: DeploymentRecord[]
-    mainnet: DeploymentRecord[]
-  }
+    testnet: DeploymentRecord[];
+    mainnet: DeploymentRecord[];
+  };
 }
 
 export class DeploymentManager {
-  private data: DeploymentHistory
+  private data: DeploymentHistory;
 
   constructor() {
     // Load deployment data from JSON file
-    this.data = deploymentsData as unknown as DeploymentHistory
+    this.data = deploymentsData as unknown as DeploymentHistory;
   }
 
   /**
    * Get the current deployment for a specific contract on a network
    */
-  getCurrentDeployment(network: Network, contractType: ContractType): DeploymentRecord | null {
-    const networkData = this.data.current[network]
-    return networkData[contractType] || null
+  getCurrentDeployment(
+    network: Network,
+    contractType: ContractType
+  ): DeploymentRecord | null {
+    const networkData = this.data.current[network];
+    return networkData[contractType] || null;
   }
 
   /**
    * Get the outpoint for a deployed contract
    */
-  getContractOutPoint(network: Network, contractType: ContractType): { txHash: ccc.Hex; index: ccc.Num } | null {
-    const deployment = this.getCurrentDeployment(network, contractType)
-    if (!deployment) return null
-    
+  getContractOutPoint(
+    network: Network,
+    contractType: ContractType
+  ): { txHash: ccc.Hex; index: ccc.Num } | null {
+    const deployment = this.getCurrentDeployment(network, contractType);
+    if (!deployment) return null;
+
     return {
       txHash: deployment.transactionHash,
-      index: deployment.index
-    }
+      index: deployment.index,
+    };
   }
 
   /**
    * Get the type script for a deployed contract
    */
-  getContractTypeScript(network: Network, contractType: ContractType): ccc.ScriptLike | null {
-    const deployment = this.getCurrentDeployment(network, contractType)
-    if (!deployment) return null
-    
+  getContractTypeScript(
+    network: Network,
+    contractType: ContractType
+  ): ccc.ScriptLike | null {
+    const deployment = this.getCurrentDeployment(network, contractType);
+    if (!deployment) return null;
+
     // Use the typeScript field if available (new format)
     if (deployment.typeScript) {
-      return deployment.typeScript
+      return deployment.typeScript;
     }
-    
-    return null
+
+    return null;
   }
 
   /**
    * Get the code hash for a deployed contract
    * This returns the actual code hash that should be stored in the protocol cell
    */
-  getContractCodeHash(network: Network, contractType: ContractType): ccc.Hex | null {
-    const deployment = this.getCurrentDeployment(network, contractType)
-    if (!deployment) return null
-    
+  getContractCodeHash(
+    network: Network,
+    contractType: ContractType
+  ): ccc.Hex | null {
+    const deployment = this.getCurrentDeployment(network, contractType);
+    if (!deployment) return null;
+
     // Use typeHash if available (this is the actual code hash for type-id contracts)
     if (deployment.typeHash) {
-      return deployment.typeHash
+      return deployment.typeHash;
     }
-    
-    return null
+
+    return null;
   }
 
   /**
    * Get deployment history for a network
    */
   getHistory(network: Network): DeploymentRecord[] {
-    return this.data.history[network] || []
+    return this.data.history[network] || [];
   }
 
   /**
@@ -130,20 +152,27 @@ export class DeploymentManager {
    * Note: In a browser environment, this would need to be handled differently
    * as we can't write to files directly
    */
-  addDeployment(network: Network, contractType: 'ckboostProtocolType', deployment: DeploymentRecord): void {
+  addDeployment(
+    network: Network,
+    contractType: "ckboostProtocolType",
+    deployment: DeploymentRecord
+  ): void {
     // Update current deployment
-    this.data.current[network][contractType] = deployment
-    
+    this.data.current[network][contractType] = deployment;
+
     // Add to history
     if (!this.data.history[network]) {
-      this.data.history[network] = []
+      this.data.history[network] = [];
     }
-    this.data.history[network].push(deployment)
-    
+    this.data.history[network].push(deployment);
+
     // In a real implementation, you'd want to persist this
     // For now, we'll just log it
-    console.log('New deployment added:', deployment)
-    console.log('To persist, update deployments.json with:', JSON.stringify(this.data, null, 2))
+    console.log("New deployment added:", deployment);
+    console.log(
+      "To persist, update deployments.json with:",
+      JSON.stringify(this.data, null, 2)
+    );
   }
 
   /**
@@ -151,10 +180,10 @@ export class DeploymentManager {
    */
   getCurrentNetwork(): Network {
     // You can determine this from environment variables or CKB client
-    const isMainnet = process.env.NEXT_PUBLIC_CKB_NETWORK === 'mainnet'
-    return isMainnet ? 'mainnet' : 'testnet'
+    const isMainnet = process.env.NEXT_PUBLIC_CKB_NETWORK === "mainnet";
+    return isMainnet ? "mainnet" : "testnet";
   }
 }
 
 // Export singleton instance
-export const deploymentManager = new DeploymentManager()
+export const deploymentManager = new DeploymentManager();

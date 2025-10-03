@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -12,49 +12,49 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { TipProposalCard } from "./tip-proposal-card"
-import { Plus, Search } from "lucide-react"
-import Link from "next/link"
+} from "@/components/ui/dialog";
+import { TipProposalCard } from "./tip-proposal-card";
+import { Plus, Search } from "lucide-react";
+import Link from "next/link";
 
 interface TipProposal {
-  id: string
-  contributionTitle: string
-  contributionDescription: string
-  contributionType: "comment" | "proposal" | "tutorial" | "analysis"
-  contributionUrl?: string
-  recipientName: string
-  recipientAddress: string
-  proposedBy: string
-  justification: string
-  communityTipAmount: number
-  status: "pending" | "approved" | "completed" | "rejected"
+  id: string;
+  contributionTitle: string;
+  contributionDescription: string;
+  contributionType: "comment" | "proposal" | "tutorial" | "analysis";
+  contributionUrl?: string;
+  recipientName: string;
+  recipientAddress: string;
+  proposedBy: string;
+  justification: string;
+  communityTipAmount: number;
+  status: "pending" | "approved" | "completed" | "rejected";
   approvals: Array<{
-    username: string
-    timestamp: string
-    avatar?: string
-  }>
-  requiredApprovals: number
-  createdAt: string
-  completedAt?: string
-  likes: number
-  isLiked: boolean
+    username: string;
+    timestamp: string;
+    avatar?: string;
+  }>;
+  requiredApprovals: number;
+  createdAt: string;
+  completedAt?: string;
+  likes: number;
+  isLiked: boolean;
   comments: Array<{
-    id: string
-    author: string
-    content: string
-    timestamp: string
-    likes: number
-    isLiked: boolean
-  }>
+    id: string;
+    author: string;
+    content: string;
+    timestamp: string;
+    likes: number;
+    isLiked: boolean;
+  }>;
   additionalTips: Array<{
-    id: string
-    from: string
-    amount: number
-    message?: string
-    timestamp: string
-    status: "completed" | "pending"
-  }>
+    id: string;
+    from: string;
+    amount: number;
+    message?: string;
+    timestamp: string;
+    status: "completed" | "pending";
+  }>;
 }
 
 const MOCK_PROPOSALS: TipProposal[] = [
@@ -66,7 +66,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
     contributionType: "analysis",
     contributionUrl: "https://forum.nervos.org/t/ckb-consensus-analysis/123",
     recipientName: "CKBExpert",
-    recipientAddress: "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqds6ed78yze6eyfyvd537z66ur620n96rtsfrf67g",
+    recipientAddress:
+      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqds6ed78yze6eyfyvd537z66ur620n96rtsfrf67g",
     proposedBy: "DevMaster",
     justification:
       "This analysis provides exceptional value to our community by making complex technical concepts accessible to both developers and users. The detailed explanations and visual aids help everyone understand the upgrade's impact on the ecosystem.",
@@ -85,7 +86,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
       {
         id: "comment-1",
         author: "BlockchainDev",
-        content: "Absolutely agree with this proposal. The analysis really helped me understand the upgrade.",
+        content:
+          "Absolutely agree with this proposal. The analysis really helped me understand the upgrade.",
         timestamp: "30m ago",
         likes: 3,
         isLiked: false,
@@ -93,7 +95,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
       {
         id: "comment-2",
         author: "CommunityMod",
-        content: "High-quality content like this deserves recognition. Supporting this proposal!",
+        content:
+          "High-quality content like this deserves recognition. Supporting this proposal!",
         timestamp: "20m ago",
         likes: 5,
         isLiked: true,
@@ -104,7 +107,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
         id: "tip-1",
         from: "TechEnthusiast",
         amount: 15,
-        message: "Thanks for the clear explanation! This saved me hours of research.",
+        message:
+          "Thanks for the clear explanation! This saved me hours of research.",
         timestamp: "25m ago",
         status: "completed",
       },
@@ -147,7 +151,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
       {
         id: "comment-3",
         author: "JuniorDev",
-        content: "This tutorial series is incredible! Best CKB learning resource I've found.",
+        content:
+          "This tutorial series is incredible! Best CKB learning resource I've found.",
         timestamp: "1h ago",
         likes: 8,
         isLiked: false,
@@ -158,7 +163,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
         id: "tip-3",
         from: "StartupFounder",
         amount: 100,
-        message: "This tutorial helped our team build our first CKB dApp. Huge thanks! 🚀",
+        message:
+          "This tutorial helped our team build our first CKB dApp. Huge thanks! 🚀",
         timestamp: "1h 30m ago",
         status: "completed",
       },
@@ -209,7 +215,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
       {
         id: "comment-4",
         author: "SecurityResearcher",
-        content: "Excellent proposal! These security measures are essential for bridge safety.",
+        content:
+          "Excellent proposal! These security measures are essential for bridge safety.",
         timestamp: "20h ago",
         likes: 12,
         isLiked: true,
@@ -217,7 +224,8 @@ const MOCK_PROPOSALS: TipProposal[] = [
       {
         id: "comment-5",
         author: "BridgeUser",
-        content: "As someone who uses bridges daily, I really appreciate this focus on security.",
+        content:
+          "As someone who uses bridges daily, I really appreciate this focus on security.",
         timestamp: "18h ago",
         likes: 6,
         isLiked: false,
@@ -228,24 +236,27 @@ const MOCK_PROPOSALS: TipProposal[] = [
         id: "tip-6",
         from: "DeFiProtocol",
         amount: 200,
-        message: "Critical work for ecosystem security. Thank you for this thorough analysis!",
+        message:
+          "Critical work for ecosystem security. Thank you for this thorough analysis!",
         timestamp: "19h ago",
         status: "completed",
       },
     ],
   },
-]
+];
 
 export function TipProposals() {
-  const [proposals, setProposals] = useState(MOCK_PROPOSALS)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [proposals, setProposals] = useState(MOCK_PROPOSALS);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const filteredProposals = proposals.filter(
     (proposal) =>
-      proposal.contributionTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      proposal.contributionTitle
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       proposal.recipientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      proposal.proposedBy.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      proposal.proposedBy.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleApprove = (proposalId: string) => {
     setProposals((prev) =>
@@ -253,12 +264,15 @@ export function TipProposals() {
         proposal.id === proposalId
           ? {
               ...proposal,
-              approvals: [...proposal.approvals, { username: "CurrentUser", timestamp: "now" }],
+              approvals: [
+                ...proposal.approvals,
+                { username: "CurrentUser", timestamp: "now" },
+              ],
             }
-          : proposal,
-      ),
-    )
-  }
+          : proposal
+      )
+    );
+  };
 
   const handleLike = (proposalId: string) => {
     setProposals((prev) =>
@@ -269,10 +283,10 @@ export function TipProposals() {
               isLiked: !proposal.isLiked,
               likes: proposal.isLiked ? proposal.likes - 1 : proposal.likes + 1,
             }
-          : proposal,
-      ),
-    )
-  }
+          : proposal
+      )
+    );
+  };
 
   const handleComment = (proposalId: string, comment: string) => {
     const newComment = {
@@ -282,7 +296,7 @@ export function TipProposals() {
       timestamp: "now",
       likes: 0,
       isLiked: false,
-    }
+    };
 
     setProposals((prev) =>
       prev.map((proposal) =>
@@ -291,12 +305,15 @@ export function TipProposals() {
               ...proposal,
               comments: [newComment, ...proposal.comments],
             }
-          : proposal,
-      ),
-    )
-  }
+          : proposal
+      )
+    );
+  };
 
-  const handleAdditionalTip = (proposalId: string, tipData: { amount: number; message?: string }) => {
+  const handleAdditionalTip = (
+    proposalId: string,
+    tipData: { amount: number; message?: string }
+  ) => {
     const newTip = {
       id: `tip-${Date.now()}`,
       from: "CurrentUser",
@@ -304,7 +321,7 @@ export function TipProposals() {
       message: tipData.message,
       timestamp: "now",
       status: "completed" as const,
-    }
+    };
 
     setProposals((prev) =>
       prev.map((proposal) =>
@@ -313,10 +330,10 @@ export function TipProposals() {
               ...proposal,
               additionalTips: [newTip, ...proposal.additionalTips],
             }
-          : proposal,
-      ),
-    )
-  }
+          : proposal
+      )
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -331,7 +348,7 @@ export function TipProposals() {
             className="pl-10"
           />
         </div>
-        <Link href="/create-tip-proposal">
+        <Link href="/platform-admin/create-tip-proposal">
           <Button className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Create Proposal
@@ -346,7 +363,9 @@ export function TipProposals() {
             key={proposal.id}
             proposal={{
               ...proposal,
-              currentUserApproved: proposal.approvals.some((a) => a.username === "CurrentUser"),
+              currentUserApproved: proposal.approvals.some(
+                (a) => a.username === "CurrentUser"
+              ),
               onApprove: handleApprove,
               onLike: handleLike,
               onComment: handleComment,
@@ -361,10 +380,12 @@ export function TipProposals() {
           <div className="text-6xl mb-4">💰</div>
           <h3 className="text-xl font-semibold mb-2">No proposals found</h3>
           <p className="text-muted-foreground">
-            {searchTerm ? "Try adjusting your search terms" : "Be the first to create a tip proposal!"}
+            {searchTerm
+              ? "Try adjusting your search terms"
+              : "Be the first to create a tip proposal!"}
           </p>
         </div>
       )}
     </div>
-  )
+  );
 }

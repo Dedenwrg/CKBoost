@@ -1,7 +1,13 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { formatTimestamp } from "@/lib/services/protocol-service";
 import { ccc } from "@ckb-ccc/connector-react";
 import { ProtocolData } from "ssri-ckboost/types";
@@ -34,9 +40,7 @@ export function ProtocolSummarySection({
               <div className="text-muted-foreground">
                 {protocolData
                   ? (() => {
-                      const timestamp = Number(
-                        protocolData.last_updated
-                      );
+                      const timestamp = Number(protocolData.last_updated);
                       // If timestamp looks like it's already in seconds, use it directly
                       // If it's too small (like default fallback), show "Not set"
                       if (timestamp < 1000000000) return "Not set";
@@ -53,8 +57,7 @@ export function ProtocolSummarySection({
             <div>
               <div className="font-medium">Admin Addresses</div>
               <div className="text-muted-foreground">
-                {protocolData?.protocol_config.admin_lock_hash_vec
-                  .length || 0}
+                {protocolData?.protocol_config.admin_lock_hash_vec.length || 0}
               </div>
             </div>
             <div>
@@ -117,8 +120,7 @@ export function ProtocolSummarySection({
                   Approved Campaigns
                 </div>
                 <div className="mt-1">
-                  {protocolData?.campaigns_approved.length || 0}{" "}
-                  campaigns
+                  {protocolData?.campaigns_approved.length || 0} campaigns
                 </div>
               </div>
               <div>
@@ -126,7 +128,7 @@ export function ProtocolSummarySection({
                   Tipping Proposals
                 </div>
                 <div className="mt-1">
-                  {protocolData?.tipping_proposals.length || 0}{" "}
+                  {protocolData?.tipping_proposals_approved.length || 0}{" "}
                   proposals
                 </div>
               </div>

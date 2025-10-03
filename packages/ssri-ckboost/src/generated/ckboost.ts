@@ -137,6 +137,7 @@ export const ScriptCodeHashes = mol.table({
   ckb_boost_campaign_lock_code_hash: mol.Byte32,
   ckb_boost_user_type_code_hash: mol.Byte32,
   ckb_boost_points_udt_type_code_hash: mol.Byte32,
+  ckb_boost_tipping_type_code_hash: mol.Byte32,
   accepted_udt_type_scripts: mol.vector(ccc.Script),
   accepted_dob_type_scripts: mol.vector(ccc.Script)
 });
@@ -146,7 +147,7 @@ export const ProtocolConfig = mol.table({
 });
 export const ProtocolData = mol.table({
   campaigns_approved: mol.Byte32Vec,
-  tipping_proposals: TippingProposalDataVec,
+  tipping_proposals_approved: mol.Byte32Vec,
   tipping_config: TippingConfig,
   endorsers_whitelist: EndorserInfoVec,
   last_updated: mol.Uint64,
@@ -318,6 +319,7 @@ export interface ScriptCodeHashesLike {
   ckb_boost_campaign_lock_code_hash: ccc.HexLike;
   ckb_boost_user_type_code_hash: ccc.HexLike;
   ckb_boost_points_udt_type_code_hash: ccc.HexLike;
+  ckb_boost_tipping_type_code_hash: ccc.HexLike;
   accepted_udt_type_scripts: ccc.ScriptLike[];
   accepted_dob_type_scripts: ccc.ScriptLike[];
 }
@@ -329,7 +331,7 @@ export interface ProtocolConfigLike {
 
 export interface ProtocolDataLike {
   campaigns_approved: ccc.HexLike[];
-  tipping_proposals: TippingProposalDataLike[];
+  tipping_proposals_approved: ccc.HexLike[];
   tipping_config: TippingConfigLike;
   endorsers_whitelist: EndorserInfoLike[];
   last_updated: ccc.NumLike;
