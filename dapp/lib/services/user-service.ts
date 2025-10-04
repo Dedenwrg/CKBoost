@@ -113,7 +113,36 @@ export class UserService {
       "baseDraftTx after completeInputsByCapacity",
       ccc.stringify(baseDraftTx)
     );
-    await baseDraftTx.completeFeeBy(signer, 1200);
+
+    for (let i = 0; i < baseDraftTx.inputs.length; i++) {
+      const inputCell = await signer.client.getCell(
+        baseDraftTx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found");
+      }
+      baseDraftTx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell?.outPoint,
+        since: "0x0",
+        cellOutput: inputCell?.cellOutput,
+      });
+    }
+
+    for (let i = 0; i < baseDraftTx.outputs.length; i++) {
+      const out = baseDraftTx.outputs[i];
+      if (out.type) {
+        baseDraftTx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          baseDraftTx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+    // TODO: Add cell deps contingently for corresponding signer.
+    await baseDraftTx.addCellDepsOfKnownScripts(
+      signer.client,
+      ccc.KnownScript.JoyId
+    );
+    await baseDraftTx.completeFeeBy(signer);
     console.log("baseDraftTx after completeFeeBy", ccc.stringify(baseDraftTx));
 
     const resp = await fetch("/api/telegram-authenticate", {
