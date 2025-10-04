@@ -3,7 +3,7 @@ import { debug } from "../utils/debug";
 import { ConnectedTypeID } from "ssri-ckboost/types";
 
 /**
- * Fetch UDT cells locked with campaign-lock for a specific campaign
+ * Fetch UDT cells locked with funding-lock for a specific campaign
  */
 export async function fetchUDTCellsByFundingLock(
   campaignTypeId: ccc.Hex,
@@ -32,7 +32,7 @@ export async function fetchUDTCellsByFundingLock(
     // Get the type hash of the campaign cell's type script
     const campaignTypeHash = campaignTypeScript.hash();
 
-    // Create the campaign-lock script using the campaign type hash as args
+    // Create the funding-lock script using the campaign type hash as args
     const fundingLockScript = ccc.Script.from({
       codeHash: fundingLockCodeHash,
       hashType: "type" as ccc.HashType,
