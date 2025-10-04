@@ -10,7 +10,7 @@ mod test_udt_funding {
         // TODO: Test that any user can fund a campaign with UDTs
         // 1. Create a campaign
         // 2. Have a random user (not admin) fund it with UDTs
-        // 3. Verify UDT cells are locked with campaign-lock
+        // 3. Verify UDT cells are locked with funding lock
         // 4. Verify campaign funding info is updated
         unimplemented!("Test anyone can fund campaign")
     }
@@ -27,12 +27,12 @@ mod test_udt_funding {
     
     #[test]
     fn test_campaign_lock_applied_to_funded_udts() {
-        // TODO: Test that funded UDT cells use campaign-lock
+        // TODO: Test that funded UDT cells use funding lock
         // 1. Fund a campaign with UDTs
-        // 2. Verify the UDT cells have campaign-lock script
+        // 2. Verify the UDT cells have funding lock script
         // 3. Verify lock args contain campaign type ID
         // 4. Verify lock can only be unlocked by admin or approved user
-        unimplemented!("Test campaign lock applied to funded UDTs")
+        unimplemented!("Test funding lock applied to funded UDTs")
     }
     
     #[test]

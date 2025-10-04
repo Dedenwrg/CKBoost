@@ -714,7 +714,8 @@ pub mod approve_completion {
                 })?;
 
                 // Get input UDT cells to validate change cell locks match input locks
-                let input_udt_cells_for_type: Vec<_> = udt_identifiers.iter()
+                let input_udt_cells_for_type: Vec<_> = udt_identifiers
+                    .iter()
                     .filter_map(|udt_id| context.input_cells.get_custom(udt_id))
                     .flatten()
                     .collect();
@@ -726,7 +727,8 @@ pub mod approve_completion {
                     let reward_lock_hash = &reward_cell.lock_hash;
 
                     // Check if this is a change cell by finding matching input UDT cell lock
-                    let is_change_cell = input_udt_cells_for_type.iter()
+                    let is_change_cell = input_udt_cells_for_type
+                        .iter()
                         .any(|input_cell| &input_cell.lock_hash == reward_lock_hash);
 
                     if is_change_cell {
@@ -734,14 +736,14 @@ pub mod approve_completion {
                             "Found change cell for {} - validating lock script consistency",
                             reward_type
                         );
-                        
+
                         // Validate that change cell uses the same lock as the input UDT cell
-                        // This ensures change goes back with the correct lock (likely campaign lock)
+                        // This ensures change goes back with the correct lock (likely funding lock)
                         debug_info!(
                             "Change cell lock hash: {:?} matches input UDT cell lock",
                             reward_lock_hash
                         );
-                        
+
                         // Change cell validation passed - it maintains input UDT lock
                         continue;
                     }
@@ -907,7 +909,7 @@ pub mod approve_completion {
                 debug_trace!("No rewards distributed - deferred distribution");
                 // This is acceptable - admin might approve without immediate reward distribution
             }
-            // Distribution amount validation is done in campaign-lock
+            // Distribution amount validation is done in funding-lock
 
             Ok(())
         }

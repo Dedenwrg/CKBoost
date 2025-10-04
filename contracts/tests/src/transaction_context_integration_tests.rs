@@ -4,28 +4,25 @@
 /// - Cell classification  
 /// - Transaction recipe parsing (used by fallback validation)
 /// - Business logic validation through fallback methods
-/// 
+///
 /// NOTE: The contract uses two validation approaches:
 /// 1. SSRI validation - Not implemented yet
 /// 2. Fallback validation - Uses TransactionRecipe from ckb_deterministic
-/// 
+///
 /// These tests focus on the fallback validation which is currently active.
-
 use crate::Loader;
 use ckb_testtool::{
     builtin::ALWAYS_SUCCESS,
-    ckb_types::{
-        bytes::Bytes,
-        core::TransactionBuilder,
-        packed::*,
-        prelude::*,
-    },
+    ckb_types::{bytes::Bytes, core::TransactionBuilder, packed::*, prelude::*},
     context::Context,
 };
 use ckboost_shared::{
     generated::ckboost::{
-        Byte32, Byte32Vec, CampaignDataVec, EndorserInfoVec, ProtocolConfigBuilder, ProtocolDataBuilder, ScriptCodeHashesBuilder, TippingConfigBuilder, TippingProposalDataVec, Uint128Vec, Uint64
-    }, types::ScriptVec,
+        Byte32, Byte32Vec, CampaignDataVec, EndorserInfoVec, ProtocolConfigBuilder,
+        ProtocolDataBuilder, ScriptCodeHashesBuilder, TippingConfigBuilder, TippingProposalDataVec,
+        Uint128Vec, Uint64,
+    },
+    types::ScriptVec,
 };
 
 /// Helper to create protocol data with admin lock and optional tipping proposal  
@@ -34,28 +31,28 @@ fn create_protocol_data(admin_lock_hash: [u8; 32], _tipping_proposal: Option<Vec
     let admin_lock_hash_vec = Byte32Vec::new_builder()
         .push(Byte32::from(admin_lock_hash))
         .build();
-    
+
     let script_code_hashes = ScriptCodeHashesBuilder::default()
         .ckb_boost_protocol_type_code_hash(Byte32::from([0u8; 32]))
         .ckb_boost_protocol_lock_code_hash(Byte32::from([0u8; 32]))
         .ckb_boost_campaign_type_code_hash(Byte32::from([0u8; 32]))
-        .ckb_boost_campaign_lock_code_hash(Byte32::from([0u8; 32]))
+        .ckb_boost_funding_lock_code_hash(Byte32::from([0u8; 32]))
         .ckb_boost_user_type_code_hash(Byte32::from([0u8; 32]))
         .accepted_udt_type_scripts(ScriptVec::default())
         .accepted_dob_type_scripts(ScriptVec::default())
         .build();
-    
+
     let protocol_config = ProtocolConfigBuilder::default()
         .admin_lock_hash_vec(admin_lock_hash_vec)
         .script_code_hashes(script_code_hashes)
         .build();
-    
+
     // Create TippingConfig
     let tipping_config = TippingConfigBuilder::default()
         .approval_requirement_thresholds(Uint128Vec::default())
         .expiration_duration(Uint64::from_slice(&0u64.to_le_bytes()).unwrap())
         .build();
-    
+
     // Build ProtocolData
     let protocol_data = ProtocolDataBuilder::default()
         .campaigns_approved(Byte32Vec::new_builder().build())
@@ -65,17 +62,19 @@ fn create_protocol_data(admin_lock_hash: [u8; 32], _tipping_proposal: Option<Vec
         .last_updated(Uint64::from_slice(&0u64.to_le_bytes()).unwrap())
         .protocol_config(protocol_config)
         .build();
-    
+
     protocol_data.as_bytes()
 }
 
 /// Helper to create transaction recipe witness format with inline data
 fn create_recipe_witness(method_path: &str, args: Vec<&[u8]>) -> Bytes {
-    use ckb_deterministic::generated::{TransactionRecipe, Bytes as DeterministicBytes, RecipeArgument, RecipeArgumentVec};
-    
+    use ckb_deterministic::generated::{
+        Bytes as DeterministicBytes, RecipeArgument, RecipeArgumentVec, TransactionRecipe,
+    };
+
     // Build method_path as Bytes
     let method_path_bytes = DeterministicBytes::from(method_path.as_bytes().to_vec());
-    
+
     // Build arguments as RecipeArgumentVec with inline data
     let mut arguments = Vec::new();
     for arg in args {
@@ -87,23 +86,25 @@ fn create_recipe_witness(method_path: &str, args: Vec<&[u8]>) -> Bytes {
         arguments.push(recipe_arg);
     }
     let arguments_vec = RecipeArgumentVec::from(arguments);
-    
+
     // Build TransactionRecipe with the proper builder API
     let recipe = TransactionRecipe::new_builder()
         .method_path(method_path_bytes)
         .arguments(arguments_vec)
         .build();
-    
+
     Bytes::from(recipe.as_bytes())
 }
 
 /// Helper to create transaction recipe witness format with output reference
 fn create_recipe_witness_with_output_ref(method_path: &str, output_index: u32) -> Bytes {
-    use ckb_deterministic::generated::{TransactionRecipe, Bytes as DeterministicBytes, RecipeArgument, RecipeArgumentVec};
-    
+    use ckb_deterministic::generated::{
+        Bytes as DeterministicBytes, RecipeArgument, RecipeArgumentVec, TransactionRecipe,
+    };
+
     // Build method_path as Bytes
     let method_path_bytes = DeterministicBytes::from(method_path.as_bytes().to_vec());
-    
+
     // Build arguments as RecipeArgumentVec with output reference
     let index_bytes = output_index.to_le_bytes();
     let arg_data = DeterministicBytes::from(index_bytes.to_vec());
@@ -112,13 +113,13 @@ fn create_recipe_witness_with_output_ref(method_path: &str, output_index: u32) -
         .data(arg_data)
         .build();
     let arguments_vec = RecipeArgumentVec::from(vec![recipe_arg]);
-    
+
     // Build TransactionRecipe with the proper builder API
     let recipe = TransactionRecipe::new_builder()
         .method_path(method_path_bytes)
         .arguments(arguments_vec)
         .build();
-    
+
     Bytes::from(recipe.as_bytes())
 }
 
@@ -129,18 +130,18 @@ fn test_update_protocol_with_transaction_context() {
     let mut context = Context::default();
     let protocol_bin: Bytes = Loader::default().load_binary("ckboost-protocol-type");
     let protocol_out_point = context.deploy_cell(protocol_bin);
-    
+
     // Deploy always-success lock script for testing
     let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
     let always_success_lock_script = context
         .build_script(&always_success_out_point, Default::default())
         .expect("build always-success lock script");
-    
+
     // Create admin lock (using always-success for simplicity)
     let admin_lock = always_success_lock_script.clone();
     let admin_lock_hash = admin_lock.calc_script_hash().raw_data().to_vec();
     let admin_lock_hash_array: [u8; 32] = admin_lock_hash.try_into().unwrap();
-    
+
     // Step 1: Create initial protocol cell
     let initial_input_out_point = context.create_cell(
         CellOutput::new_builder()
@@ -149,85 +150,82 @@ fn test_update_protocol_with_transaction_context() {
             .build(),
         Bytes::new(),
     );
-    
+
     let initial_input = CellInput::new_builder()
         .previous_output(initial_input_out_point)
         .build();
-    
+
     // Calculate type ID for protocol cell
-    let type_id = ckboost_shared::type_id::calculate_type_id(
-        initial_input.as_bytes().as_ref(), 
-        0
-    );
-    
+    let type_id = ckboost_shared::type_id::calculate_type_id(initial_input.as_bytes().as_ref(), 0);
+
     let protocol_type_script = context
         .build_script(&protocol_out_point, Bytes::from(type_id.to_vec()))
         .expect("build protocol type script");
-    
+
     // Create initial protocol data
     let initial_protocol_data = create_protocol_data(admin_lock_hash_array, None);
-    
+
     let protocol_cell_output = CellOutput::new_builder()
         .capacity(1000u64.pack())
         .lock(admin_lock.clone())
         .type_(Some(protocol_type_script.clone()).pack())
         .build();
-    
+
     // Create transaction recipe witness for initial creation with output reference
     // The protocol data is at output index 0
-    let creation_witness = create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
-    
+    let creation_witness =
+        create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
+
     let creation_tx = TransactionBuilder::default()
         .input(initial_input)
         .output(protocol_cell_output.clone())
         .output_data(initial_protocol_data.pack())
         .witness(creation_witness.pack())
         .build();
-    
+
     let creation_tx = context.complete_tx(creation_tx);
-    
+
     // Verify initial creation
     let cycles = context
         .verify_tx(&creation_tx, 10_000_000)
         .expect("protocol creation should pass");
     println!("Protocol creation cycles: {}", cycles);
-    
+
     // Step 2: Update protocol cell
     // Create the protocol cell in context (simulating it was created by the previous transaction)
-    let protocol_cell_out_point = context.create_cell(
-        protocol_cell_output.clone(),
-        initial_protocol_data.clone(),
-    );
-    
+    let protocol_cell_out_point =
+        context.create_cell(protocol_cell_output.clone(), initial_protocol_data.clone());
+
     let update_input = CellInput::new_builder()
         .previous_output(protocol_cell_out_point)
         .build();
-    
+
     // Create updated protocol data with tipping proposal
     let updated_protocol_data = create_protocol_data(
         admin_lock_hash_array,
-        Some(b"new_tipping_proposal".to_vec())
+        Some(b"new_tipping_proposal".to_vec()),
     );
-    
+
     let updated_protocol_output = CellOutput::new_builder()
         .capacity(1000u64.pack())
         .lock(admin_lock.clone()) // Keep same admin lock
         .type_(Some(protocol_type_script.clone()).pack()) // Keep same type script
         .build();
-    
+
     // Create transaction recipe witness for update with output reference
     // The updated protocol data is at output index 0
-    let update_witness = create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
-    
+    let update_witness =
+        create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
+
     let update_tx = TransactionBuilder::default()
         .input(update_input)
         .output(updated_protocol_output)
         .output_data(updated_protocol_data.pack())
         .witness(update_witness.pack())
         .build();
-    
+
     let update_tx = context.complete_tx(update_tx);
-    
+
     // Verify update transaction
     let cycles = context
         .verify_tx(&update_tx, 10_000_000)
@@ -244,31 +242,31 @@ fn test_update_protocol_invalid_admin_lock_change() {
     let mut context = Context::default();
     let protocol_bin: Bytes = Loader::default().load_binary("ckboost-protocol-type");
     let protocol_out_point = context.deploy_cell(protocol_bin);
-    
+
     // Deploy always-success lock script
     let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
     let always_success_lock_script = context
         .build_script(&always_success_out_point, Default::default())
         .expect("build always-success lock script");
-    
+
     // Create admin lock
     let admin_lock = always_success_lock_script.clone();
     let admin_lock_hash = admin_lock.calc_script_hash().raw_data().to_vec();
     let admin_lock_hash_array: [u8; 32] = admin_lock_hash.try_into().unwrap();
-    
+
     // Create a different lock for the attack
     let different_lock = context
         .build_script(&always_success_out_point, Bytes::from(vec![1, 2, 3]))
         .expect("build different lock script");
-    
+
     // Create protocol cell with admin lock
     let protocol_data = create_protocol_data(admin_lock_hash_array, None);
     let type_id = [42u8; 32]; // Fixed type ID for testing
-    
+
     let protocol_type_script = context
         .build_script(&protocol_out_point, Bytes::from(type_id.to_vec()))
         .expect("build protocol type script");
-    
+
     let protocol_cell_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(1000u64.pack())
@@ -277,30 +275,31 @@ fn test_update_protocol_invalid_admin_lock_change() {
             .build(),
         protocol_data.clone(),
     );
-    
+
     let input = CellInput::new_builder()
         .previous_output(protocol_cell_out_point)
         .build();
-    
+
     // Try to update with different admin lock (should fail)
     let malicious_output = CellOutput::new_builder()
         .capacity(1000u64.pack())
         .lock(different_lock) // Different lock!
         .type_(Some(protocol_type_script).pack())
         .build();
-    
+
     // The protocol data is at output index 0
-    let update_witness = create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
-    
+    let update_witness =
+        create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
+
     let tx = TransactionBuilder::default()
         .input(input)
         .output(malicious_output)
         .output_data(protocol_data.pack())
         .witness(update_witness.pack())
         .build();
-    
+
     let tx = context.complete_tx(tx);
-    
+
     // Should fail validation
     let result = context.verify_tx(&tx, 10_000_000);
     assert!(result.is_err());
@@ -314,25 +313,25 @@ fn test_update_protocol_invalid_type_script_change() {
     let mut context = Context::default();
     let protocol_bin: Bytes = Loader::default().load_binary("ckboost-protocol-type");
     let protocol_out_point = context.deploy_cell(protocol_bin.clone());
-    
+
     // Deploy always-success lock script
     let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
     let always_success_lock_script = context
         .build_script(&always_success_out_point, Default::default())
         .expect("build always-success lock script");
-    
+
     let admin_lock = always_success_lock_script.clone();
     let admin_lock_hash = admin_lock.calc_script_hash().raw_data().to_vec();
     let admin_lock_hash_array: [u8; 32] = admin_lock_hash.try_into().unwrap();
-    
+
     // Create protocol cell
     let protocol_data = create_protocol_data(admin_lock_hash_array, None);
     let type_id = [42u8; 32];
-    
+
     let protocol_type_script = context
         .build_script(&protocol_out_point, Bytes::from(type_id.to_vec()))
         .expect("build protocol type script");
-    
+
     let protocol_cell_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(1000u64.pack())
@@ -341,35 +340,36 @@ fn test_update_protocol_invalid_type_script_change() {
             .build(),
         protocol_data.clone(),
     );
-    
+
     let input = CellInput::new_builder()
         .previous_output(protocol_cell_out_point)
         .build();
-    
+
     // Try to change type script (should fail)
     let different_type_id = [99u8; 32];
     let different_type_script = context
         .build_script(&protocol_out_point, Bytes::from(different_type_id.to_vec()))
         .expect("build different type script");
-    
+
     let malicious_output = CellOutput::new_builder()
         .capacity(1000u64.pack())
         .lock(admin_lock)
         .type_(Some(different_type_script).pack()) // Different type script!
         .build();
-    
+
     // The protocol data is at output index 0
-    let update_witness = create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
-    
+    let update_witness =
+        create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 0);
+
     let tx = TransactionBuilder::default()
         .input(input)
         .output(malicious_output)
         .output_data(protocol_data.pack())
         .witness(update_witness.pack())
         .build();
-    
+
     let tx = context.complete_tx(tx);
-    
+
     // Should fail validation
     let result = context.verify_tx(&tx, 10_000_000);
     assert!(result.is_err());
@@ -383,25 +383,25 @@ fn test_update_protocol_with_complex_transaction() {
     let mut context = Context::default();
     let protocol_bin: Bytes = Loader::default().load_binary("ckboost-protocol-type");
     let protocol_out_point = context.deploy_cell(protocol_bin);
-    
+
     // Deploy always-success lock script
     let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
     let always_success_lock_script = context
         .build_script(&always_success_out_point, Default::default())
         .expect("build always-success lock script");
-    
+
     let admin_lock = always_success_lock_script.clone();
     let admin_lock_hash = admin_lock.calc_script_hash().raw_data().to_vec();
     let admin_lock_hash_array: [u8; 32] = admin_lock_hash.try_into().unwrap();
-    
+
     // Create protocol cell
     let protocol_data = create_protocol_data(admin_lock_hash_array, None);
     let type_id = [42u8; 32];
-    
+
     let protocol_type_script = context
         .build_script(&protocol_out_point, Bytes::from(type_id.to_vec()))
         .expect("build protocol type script");
-    
+
     let protocol_cell_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(1000u64.pack())
@@ -410,7 +410,7 @@ fn test_update_protocol_with_complex_transaction() {
             .build(),
         protocol_data.clone(),
     );
-    
+
     // Create additional cells (simple CKB cells for fees)
     let fee_cell_1 = context.create_cell(
         CellOutput::new_builder()
@@ -419,7 +419,7 @@ fn test_update_protocol_with_complex_transaction() {
             .build(),
         Bytes::new(),
     );
-    
+
     let fee_cell_2 = context.create_cell(
         CellOutput::new_builder()
             .capacity(300u64.pack())
@@ -427,20 +427,22 @@ fn test_update_protocol_with_complex_transaction() {
             .build(),
         Bytes::new(),
     );
-    
+
     // Build complex transaction with multiple inputs
     let inputs = vec![
-        CellInput::new_builder().previous_output(protocol_cell_out_point).build(),
+        CellInput::new_builder()
+            .previous_output(protocol_cell_out_point)
+            .build(),
         CellInput::new_builder().previous_output(fee_cell_1).build(),
         CellInput::new_builder().previous_output(fee_cell_2).build(),
     ];
-    
+
     // Create updated protocol data
     let updated_protocol_data = create_protocol_data(
         admin_lock_hash_array,
-        Some(b"complex_update_proposal".to_vec())
+        Some(b"complex_update_proposal".to_vec()),
     );
-    
+
     // Outputs: updated protocol cell + change cell
     let outputs = vec![
         CellOutput::new_builder()
@@ -453,30 +455,27 @@ fn test_update_protocol_with_complex_transaction() {
             .lock(admin_lock.clone())
             .build(),
     ];
-    
-    let outputs_data = vec![
-        updated_protocol_data.pack(),
-        Bytes::new().pack(),
-    ];
-    
+
+    let outputs_data = vec![updated_protocol_data.pack(), Bytes::new().pack()];
+
     // Create transaction recipe witness
     // The protocol data is at output index 1 (after the normal cell)
-    let update_witness = create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 1);
-    
-    let mut tx_builder = TransactionBuilder::default()
-        .witness(update_witness.pack());
-    
+    let update_witness =
+        create_recipe_witness_with_output_ref("CKBoostProtocol.update_protocol", 1);
+
+    let mut tx_builder = TransactionBuilder::default().witness(update_witness.pack());
+
     for input in inputs {
         tx_builder = tx_builder.input(input);
     }
-    
+
     for (output, data) in outputs.into_iter().zip(outputs_data.into_iter()) {
         tx_builder = tx_builder.output(output).output_data(data);
     }
-    
+
     let tx = tx_builder.build();
     let tx = context.complete_tx(tx);
-    
+
     // Verify complex transaction
     let cycles = context
         .verify_tx(&tx, 10_000_000)
@@ -491,25 +490,25 @@ fn test_invalid_recipe_method_path() {
     let mut context = Context::default();
     let protocol_bin: Bytes = Loader::default().load_binary("ckboost-protocol-type");
     let protocol_out_point = context.deploy_cell(protocol_bin);
-    
+
     // Deploy always-success lock script
     let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
     let always_success_lock_script = context
         .build_script(&always_success_out_point, Default::default())
         .expect("build always-success lock script");
-    
+
     let admin_lock = always_success_lock_script.clone();
     let admin_lock_hash = admin_lock.calc_script_hash().raw_data().to_vec();
     let admin_lock_hash_array: [u8; 32] = admin_lock_hash.try_into().unwrap();
-    
+
     // Create protocol cell
     let protocol_data = create_protocol_data(admin_lock_hash_array, None);
     let type_id = [42u8; 32];
-    
+
     let protocol_type_script = context
         .build_script(&protocol_out_point, Bytes::from(type_id.to_vec()))
         .expect("build protocol type script");
-    
+
     let protocol_cell_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(1000u64.pack())
@@ -518,31 +517,29 @@ fn test_invalid_recipe_method_path() {
             .build(),
         protocol_data.clone(),
     );
-    
+
     let input = CellInput::new_builder()
         .previous_output(protocol_cell_out_point)
         .build();
-    
+
     let output = CellOutput::new_builder()
         .capacity(1000u64.pack())
         .lock(admin_lock)
         .type_(Some(protocol_type_script).pack())
         .build();
-    
+
     // Use invalid method path
-    let invalid_witness = create_recipe_witness("invalid.method.path", vec![
-        b"should_fail"
-    ]);
-    
+    let invalid_witness = create_recipe_witness("invalid.method.path", vec![b"should_fail"]);
+
     let tx = TransactionBuilder::default()
         .input(input)
         .output(output)
         .output_data(protocol_data.pack())
         .witness(invalid_witness.pack())
         .build();
-    
+
     let tx = context.complete_tx(tx);
-    
+
     // Should fail with SSRIMethodsNotImplemented error (error name still references SSRI)
     let result = context.verify_tx(&tx, 10_000_000);
     assert!(result.is_err());
@@ -556,25 +553,25 @@ fn test_update_protocol_missing_arguments() {
     let mut context = Context::default();
     let protocol_bin: Bytes = Loader::default().load_binary("ckboost-protocol-type");
     let protocol_out_point = context.deploy_cell(protocol_bin);
-    
+
     // Deploy always-success lock script
     let always_success_out_point = context.deploy_cell(ALWAYS_SUCCESS.clone());
     let always_success_lock_script = context
         .build_script(&always_success_out_point, Default::default())
         .expect("build always-success lock script");
-    
+
     let admin_lock = always_success_lock_script.clone();
     let admin_lock_hash = admin_lock.calc_script_hash().raw_data().to_vec();
     let admin_lock_hash_array: [u8; 32] = admin_lock_hash.try_into().unwrap();
-    
+
     // Create protocol cell
     let protocol_data = create_protocol_data(admin_lock_hash_array, None);
     let type_id = [42u8; 32];
-    
+
     let protocol_type_script = context
         .build_script(&protocol_out_point, Bytes::from(type_id.to_vec()))
         .expect("build protocol type script");
-    
+
     let protocol_cell_out_point = context.create_cell(
         CellOutput::new_builder()
             .capacity(1000u64.pack())
@@ -583,29 +580,29 @@ fn test_update_protocol_missing_arguments() {
             .build(),
         protocol_data.clone(),
     );
-    
+
     let input = CellInput::new_builder()
         .previous_output(protocol_cell_out_point)
         .build();
-    
+
     let output = CellOutput::new_builder()
         .capacity(1000u64.pack())
         .lock(admin_lock)
         .type_(Some(protocol_type_script).pack())
         .build();
-    
+
     // Create transaction recipe witness with no arguments (should have at least 1)
     let no_witness = create_recipe_witness("CKBoostProtocol.update_protocol", vec![]);
-    
+
     let tx = TransactionBuilder::default()
         .input(input)
         .output(output)
         .output_data(protocol_data.pack())
         .witness(no_witness.pack())
         .build();
-    
+
     let tx = context.complete_tx(tx);
-    
+
     // Should fail validation
     let result = context.verify_tx(&tx, 10_000_000);
     assert!(result.is_err());

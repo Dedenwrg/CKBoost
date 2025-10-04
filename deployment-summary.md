@@ -19,8 +19,8 @@ If you want to deploy the other contracts now:
 # Campaign Type Contract
 ccc-deploy deploy generic_contract ./contracts/build/release/ckboost-campaign-type --network=testnet --privateKey=$WALLET_PRIVATE_KEY --outputFile=./deployment-campaign-type.json
 
-# Campaign Lock Contract  
-ccc-deploy deploy generic_contract ./contracts/build/release/ckboost-campaign-lock --network=testnet --privateKey=$WALLET_PRIVATE_KEY --outputFile=./deployment-campaign-lock.json
+# Funding Lock Contract  
+ccc-deploy deploy generic_contract ./contracts/build/release/ckboost-funding-lock --network=testnet --privateKey=$WALLET_PRIVATE_KEY --outputFile=./deployment-funding-lock.json
 
 # Protocol Lock Contract
 ccc-deploy deploy generic_contract ./contracts/build/release/ckboost-protocol-lock --network=testnet --privateKey=$WALLET_PRIVATE_KEY --outputFile=./deployment-protocol-lock.json

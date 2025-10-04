@@ -61,11 +61,11 @@
         "isTypeId": true,
         "typeHash": "0xfcb4b762e3222b603771811b8abe6b054a480a0f5d8011fd9fff266d72189a5e"
       },
-      "ckboostCampaignLock": {
+      "ckboostFundingLock": {
         "transactionHash": "0x609107ab68235849fd29e1c6aa29fc590df5d9123661acecf253bc1cafa65483",
         "index": 0,
         "deployedAt": "2025-10-03T17:17:26.677Z",
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "tag": "v20251003-1817",
         "dataHash": "0x8cce35f2ba442e3dff1dd92a1959733bcfcbe4a601e29317acacd91faa41c11a",
         "typeScript": {
@@ -2777,7 +2777,7 @@
         "typeHash": "0x13705606186b868f80c8f0af5b05a1e9a43d3ea08dcd9d51d60cc7c70faf4f67"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x941614cb18390f4b25ab083b5698ead13279c6bd2092347921f5a40b41d1944a",
         "index": 0,
         "deployedAt": "2025-08-23T11:15:06.691Z",
@@ -3347,7 +3347,7 @@
         "typeHash": "0x13705606186b868f80c8f0af5b05a1e9a43d3ea08dcd9d51d60cc7c70faf4f67"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x3fe0e2f80d254d6fd5ecbecc8e1db053b14a930980acfc6a02988aa63b7295b1",
         "index": 0,
         "deployedAt": "2025-08-29T20:59:14.643Z",
@@ -3371,7 +3371,7 @@
         "typeHash": "0x82fe0732aba0da25121d0f76539d9781cfe82b3986965c7193e4f4ce0cd21e29"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x5a6275e81a30c648e6974d4c16704b5d6c300efd15d0c91d9b7f69b3a39a245d",
         "index": 0,
         "deployedAt": "2025-08-29T21:05:07.839Z",
@@ -3557,7 +3557,7 @@
         "typeHash": "0xfcb4b762e3222b603771811b8abe6b054a480a0f5d8011fd9fff266d72189a5e"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0xa9655fc1a424d31ceb030d7cb529727074afde4b49048471e0003644fb0f5ea7",
         "index": 0,
         "deployedAt": "2025-09-30T14:25:19.172Z",
@@ -3647,7 +3647,7 @@
         "typeHash": "0xe78893f4703d27e6dc9a8a6495ab86f2e14d51f83c0eb21de0ae5e4437027fe6"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0xba56b226ca8390067f2a87c9d0a8d7429aaa65b11b9e10afdc9b82b7eb45962b",
         "index": 0,
         "deployedAt": "2025-10-02T16:43:28.189Z",
@@ -3671,7 +3671,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x49ae7f535bb268502ebe1521fccd4bd80b0b90cf902d41e19d092502cb4998bf",
         "index": 0,
         "deployedAt": "2025-10-02T16:51:36.044Z",
@@ -3695,7 +3695,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x680fcbfc3999d836e8743d61eaf1f912e91cfa843243e920a4600e1a38e50eef",
         "index": 0,
         "deployedAt": "2025-10-02T17:08:27.238Z",
@@ -3719,7 +3719,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x82cdce4f2e1c3b68141e6cc23f09977a4c9aa46b3f5ab162fe2619ce151ec9dc",
         "index": 0,
         "deployedAt": "2025-10-02T17:23:50.165Z",
@@ -3743,7 +3743,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0xd158d4ba327935e00e81c1d40ef2ceb1cace3ccabddd4c201737e9c78dda715b",
         "index": 0,
         "deployedAt": "2025-10-02T17:28:06.295Z",
@@ -3767,7 +3767,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x1cd51a556330bd9724c5733f1d0d660efbeed8f07156fbfb3e69930a0234c2c9",
         "index": 0,
         "deployedAt": "2025-10-02T17:34:43.588Z",
@@ -3791,7 +3791,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x86683b8d8fb6133042e25953649979d4e7d60c80e800f3cae7af2c1cd674f45a",
         "index": 0,
         "deployedAt": "2025-10-02T17:40:25.594Z",
@@ -3815,7 +3815,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0xc22834550e1cc093ccfbf6db47007f288af24dac27620146b2377c487208a29b",
         "index": 0,
         "deployedAt": "2025-10-02T17:45:40.871Z",
@@ -3839,7 +3839,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x23e845b3348fe80af08cd936c2b08ed1cbe136df338c7e8663880bb65dcf717e",
         "index": 0,
         "deployedAt": "2025-10-02T17:54:54.743Z",
@@ -3863,7 +3863,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x252d17c09553c8585341a3b170c8e02b2750dd8a1f6a992479ababb6f03f04b2",
         "index": 0,
         "deployedAt": "2025-10-02T17:57:55.896Z",
@@ -3887,7 +3887,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x1a3c9f82583176221d31c79163eb8096b31e1f7c0f960f850db2442345ac5200",
         "index": 0,
         "deployedAt": "2025-10-02T18:22:49.621Z",
@@ -3911,7 +3911,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x7ec27e1358b5c128eeae60a2cbbdb2599b58972db3ad1208b5f0464ad35a12d3",
         "index": 0,
         "deployedAt": "2025-10-02T18:31:01.618Z",
@@ -3935,7 +3935,7 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x61b389d15e8a45def3996c4314f7a04a4a520e0f059b47aaa38881c9038b3f9f",
         "index": 0,
         "deployedAt": "2025-10-03T12:24:45.476Z",
@@ -4193,7 +4193,7 @@
         "typeHash": "0xe78893f4703d27e6dc9a8a6495ab86f2e14d51f83c0eb21de0ae5e4437027fe6"
       },
       {
-        "contractName": "ckboost-campaign-lock",
+        "contractName": "ckboost-funding-lock",
         "transactionHash": "0x609107ab68235849fd29e1c6aa29fc590df5d9123661acecf253bc1cafa65483",
         "index": 0,
         "deployedAt": "2025-10-03T17:17:26.677Z",

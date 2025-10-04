@@ -1,4 +1,4 @@
-# ckboost-campaign-lock
+# ckboost-funding-lock
 
 TODO: Write this readme
 

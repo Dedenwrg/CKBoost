@@ -62,12 +62,12 @@
 //     println!("consume cycles: {}", cycles);
 // }
 
-// // generated unit test for contract ckboost-campaign-lock
+// // generated unit test for contract ckboost-funding-lock
 // #[test]
-// fn test_ckboost_campaign_lock() {
+// fn test_ckboost_funding_lock() {
 //     // deploy contract
 //     let mut context = Context::default();
-//     let contract_bin: Bytes = Loader::default().load_binary("ckboost-campaign-lock");
+//     let contract_bin: Bytes = Loader::default().load_binary("ckboost-funding-lock");
 //     let out_point = context.deploy_cell(contract_bin);
 
 //     // prepare scripts
@@ -166,12 +166,12 @@
 //     println!("consume cycles: {}", cycles);
 // }
 
-// // generated unit test for contract ckboost-campaign-lock
+// // generated unit test for contract ckboost-funding-lock
 // #[test]
-// fn test_ckboost_campaign_lock() {
+// fn test_ckboost_funding_lock() {
 //     // deploy contract
 //     let mut context = Context::default();
-//     let contract_bin: Bytes = Loader::default().load_binary("ckboost-campaign-lock");
+//     let contract_bin: Bytes = Loader::default().load_binary("ckboost-funding-lock");
 //     let out_point = context.deploy_cell(contract_bin);
 
 //     // prepare scripts

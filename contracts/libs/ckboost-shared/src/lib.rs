@@ -3,15 +3,15 @@
 
 extern crate alloc;
 
-pub mod generated;
-pub mod error;
-pub mod types;
-pub mod type_id;
-pub mod ssri;
 pub mod cell_collector;
-pub mod protocol_data;
-pub mod transaction_context;
+pub mod error;
+pub mod generated;
 pub mod known_script;
+pub mod protocol_data;
+pub mod ssri;
+pub mod transaction_context;
+pub mod type_id;
+pub mod types;
 
 // Re-export error types at crate root
 pub use error::*;

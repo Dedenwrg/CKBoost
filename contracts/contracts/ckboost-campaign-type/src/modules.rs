@@ -646,7 +646,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
         // Note: Points minting will be handled by the Points UDT contract
         // The campaign contract only updates the accepted_submission_user_type_ids
         // The actual Points cells creation happens in the transaction builder
-        // UDT distribution and validation would be done in the campaign-lock
+        // UDT distribution and validation would be done in the funding-lock
 
         // Encode user_type_ids as a Byte32Vec for the recipe
         let mut user_type_ids_builder = Byte32VecBuilder::default();

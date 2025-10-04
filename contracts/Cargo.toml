@@ -9,7 +9,7 @@ members = [
   "contracts/ckboost-user-type",
   "contracts/ckboost-protocol-lock",
   "contracts/ckboost-protocol-type",
-  "contracts/ckboost-campaign-lock",
+  "contracts/ckboost-funding-lock",
   "contracts/ckboost-campaign-type",
   "contracts/ckboost-points-udt",
   "contracts/ckboost-tipping-type",

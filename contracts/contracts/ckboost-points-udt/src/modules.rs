@@ -1,13 +1,13 @@
-use ckboost_shared::Error;
 use alloc::vec::Vec;
 use ckb_ssri_std::public_module_traits::udt::UDT;
 use ckb_std::ckb_types::packed::{
-    CellOutputBuilder, CellOutputVecBuilder, Script, ScriptOptBuilder, 
-    Transaction, TransactionBuilder, Uint64, BytesVecBuilder
+    BytesVecBuilder, CellOutputBuilder, CellOutputVecBuilder, Script, ScriptOptBuilder,
+    Transaction, TransactionBuilder, Uint64,
 };
 use ckb_std::ckb_types::{bytes::Bytes, prelude::*};
 use ckb_std::debug;
 use ckb_std::high_level::load_script;
+use ckboost_shared::Error;
 
 pub struct PointsUDT;
 
@@ -42,7 +42,7 @@ impl UDT for PointsUDT {
         to_amount_vec: Vec<u128>,
     ) -> Result<Transaction, Error> {
         debug!("PointsUDT::transfer called");
-        
+
         if to_amount_vec.len() != to_lock_vec.len() {
             return Err(Error::InvalidArgument);
         }
@@ -96,9 +96,7 @@ impl UDT for PointsUDT {
             .outputs_data(outputs_data_builder.build())
             .build();
 
-        let final_tx = tx_builder
-            .raw(raw_tx)
-            .build();
+        let final_tx = tx_builder.raw(raw_tx).build();
 
         Ok(final_tx)
     }
@@ -111,14 +109,14 @@ impl UDT for PointsUDT {
         to_amount_vec: Vec<u128>,
     ) -> Result<Transaction, Error> {
         debug!("PointsUDT::mint called");
-        
+
         if to_amount_vec.len() != to_lock_vec.len() {
             return Err(Error::InvalidArgument);
         }
 
         // Note: The actual validation happens in the type script's entry point
         // This method just builds the transaction with the new minted tokens
-        
+
         // Build transaction similar to transfer
         let tx_builder = match tx {
             Some(ref tx) => tx.clone().as_builder(),
@@ -168,9 +166,7 @@ impl UDT for PointsUDT {
             .outputs_data(outputs_data_builder.build())
             .build();
 
-        let final_tx = tx_builder
-            .raw(raw_tx)
-            .build();
+        let final_tx = tx_builder.raw(raw_tx).build();
 
         Ok(final_tx)
     }
@@ -178,31 +174,31 @@ impl UDT for PointsUDT {
     /// Verify transfer operation
     fn verify_transfer() -> Result<(), Error> {
         debug!("PointsUDT::verify_transfer called");
-        
+
         // Standard UDT validation for transfers
         // This is called from the type script fallback
         crate::utils::validate_udt_rules()?;
-        
+
         Ok(())
     }
 
     /// Verify mint operation
     fn verify_mint() -> Result<(), Error> {
         debug!("PointsUDT::verify_mint called");
-        
+
         // Get protocol type hash from script args
         let script = load_script()?;
         let args: Bytes = script.args().unpack();
-        
+
         if args.len() != 32 {
             return Err(Error::InvalidArgument);
         }
-        
+
         let protocol_type_hash = args.as_ref();
-        
+
         // Validate protocol owner mode for minting
         crate::utils::validate_protocol_owner_mode(protocol_type_hash)?;
-        
+
         Ok(())
     }
 }

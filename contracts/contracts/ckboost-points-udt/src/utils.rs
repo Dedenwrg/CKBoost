@@ -2,11 +2,9 @@ use ckb_std::{
     ckb_constants::Source,
     ckb_types::{bytes::Bytes, prelude::*},
     debug,
-    high_level::{
-        load_cell_data, load_cell_type_hash, load_script, load_input, QueryIter,
-    },
+    high_level::{load_cell_data, load_cell_type_hash, load_input, load_script, QueryIter},
 };
-use ckboost_shared::{Error, types::ConnectedTypeID};
+use ckboost_shared::{types::ConnectedTypeID, Error};
 use core::result::Result;
 
 /// Check if this is a minting operation by comparing input and output amounts
@@ -15,7 +13,7 @@ pub fn is_minting_operation() -> Result<bool, Error> {
     let mut input_amount: u128 = 0;
     let udt_script = load_script().map_err(|_| Error::ItemMissing)?;
     let script_hash = udt_script.calc_script_hash();
-    
+
     // Iterate through all inputs to find UDT cells
     let input_udt_cells = QueryIter::new(load_cell_type_hash, Source::Input)
         .enumerate()
@@ -28,7 +26,7 @@ pub fn is_minting_operation() -> Result<bool, Error> {
                 }
             })
         });
-    
+
     for data in input_udt_cells {
         if data.len() >= 16 {
             let mut amount_bytes = [0u8; 16];
@@ -36,7 +34,7 @@ pub fn is_minting_operation() -> Result<bool, Error> {
             input_amount = input_amount.saturating_add(u128::from_le_bytes(amount_bytes));
         }
     }
-    
+
     // Calculate total output UDT amount
     let mut output_amount: u128 = 0;
     let output_udt_cells = QueryIter::new(load_cell_type_hash, Source::Output)
@@ -50,7 +48,7 @@ pub fn is_minting_operation() -> Result<bool, Error> {
                 }
             })
         });
-    
+
     for data in output_udt_cells {
         if data.len() >= 16 {
             let mut amount_bytes = [0u8; 16];
@@ -58,9 +56,12 @@ pub fn is_minting_operation() -> Result<bool, Error> {
             output_amount = output_amount.saturating_add(u128::from_le_bytes(amount_bytes));
         }
     }
-    
-    debug!("UDT amounts - Input: {}, Output: {}", input_amount, output_amount);
-    
+
+    debug!(
+        "UDT amounts - Input: {}, Output: {}",
+        input_amount, output_amount
+    );
+
     // If output > input, it's a minting operation
     Ok(output_amount > input_amount)
 }
@@ -73,30 +74,30 @@ pub fn is_minting_operation() -> Result<bool, Error> {
 /// 4. Campaign admin signature (validated by lock script)
 pub fn validate_protocol_owner_mode(protocol_type_hash: &[u8]) -> Result<(), Error> {
     debug!("Validating protocol owner mode");
-    
+
     // 1. Verify protocol cell exists in CellDeps
     if !find_protocol_cell_in_deps(protocol_type_hash)? {
         debug!("Protocol cell not found in CellDeps");
         return Err(Error::InvalidProtocolReference);
     }
-    
+
     // 2. Find campaign cell in inputs and validate its ConnectedTypeID
     let campaign_found = find_and_validate_campaign_cell(protocol_type_hash)?;
     if !campaign_found {
         debug!("No valid campaign cell found in inputs");
         return Err(Error::InvalidCampaignCell);
     }
-    
+
     // 3. Find user cells in inputs and validate their ConnectedTypeIDs
     let users_found = find_and_validate_user_cells(protocol_type_hash)?;
     if !users_found {
         debug!("No valid user cells found in inputs");
         return Err(Error::InvalidUserCell);
     }
-    
+
     // 4. Campaign admin signature is validated by the campaign cell's lock script
     // The fact that the campaign cell is spent means the admin has signed
-    
+
     debug!("Protocol owner mode validation successful");
     Ok(())
 }
@@ -115,7 +116,7 @@ fn find_protocol_cell_in_deps(protocol_type_hash: &[u8]) -> Result<bool, Error> 
         }
         index += 1;
     }
-    
+
     Ok(false)
 }
 
@@ -132,7 +133,8 @@ fn find_and_validate_campaign_cell(protocol_type_hash: &[u8]) -> Result<bool, Er
                         // Campaign cells have substantial data (at least a few hundred bytes)
                         if data.len() > 100 {
                             // Check the ConnectedTypeID in the type script args
-                            if validate_connected_type_id(index, Source::Input, protocol_type_hash)? {
+                            if validate_connected_type_id(index, Source::Input, protocol_type_hash)?
+                            {
                                 debug!("Found valid campaign cell at index {}", index);
                                 return Ok(true);
                             }
@@ -145,7 +147,7 @@ fn find_and_validate_campaign_cell(protocol_type_hash: &[u8]) -> Result<bool, Er
         }
         index += 1;
     }
-    
+
     Ok(false)
 }
 
@@ -153,7 +155,7 @@ fn find_and_validate_campaign_cell(protocol_type_hash: &[u8]) -> Result<bool, Er
 fn find_and_validate_user_cells(protocol_type_hash: &[u8]) -> Result<bool, Error> {
     let mut found_any = false;
     let mut index = 0;
-    
+
     loop {
         match load_input(index, Source::Input) {
             Ok(_) => {
@@ -163,7 +165,8 @@ fn find_and_validate_user_cells(protocol_type_hash: &[u8]) -> Result<bool, Error
                     if let Ok(data) = load_cell_data(index, Source::Input) {
                         // User cells have moderate data size (UserData structure)
                         if data.len() > 50 && data.len() < 10000 {
-                            if validate_connected_type_id(index, Source::Input, protocol_type_hash)? {
+                            if validate_connected_type_id(index, Source::Input, protocol_type_hash)?
+                            {
                                 debug!("Found valid user cell at index {}", index);
                                 found_any = true;
                             }
@@ -176,25 +179,30 @@ fn find_and_validate_user_cells(protocol_type_hash: &[u8]) -> Result<bool, Error
         }
         index += 1;
     }
-    
+
     Ok(found_any)
 }
 
 /// Validate ConnectedTypeID in a cell's type script args
-fn validate_connected_type_id(index: usize, source: Source, protocol_type_hash: &[u8]) -> Result<bool, Error> {
+fn validate_connected_type_id(
+    index: usize,
+    source: Source,
+    protocol_type_hash: &[u8],
+) -> Result<bool, Error> {
     // Load the cell's type script
-    let type_script = match ckb_std::high_level::load_cell_type(index, source).map_err(|_| Error::ItemMissing)? {
-        Some(script) => script,
-        None => return Ok(false),
-    };
-    
+    let type_script =
+        match ckb_std::high_level::load_cell_type(index, source).map_err(|_| Error::ItemMissing)? {
+            Some(script) => script,
+            None => return Ok(false),
+        };
+
     let args: Bytes = type_script.args().unpack();
-    
+
     // ConnectedTypeID is 76 bytes (32 bytes type_id + 32 bytes connected_key + padding)
     if args.len() != 76 {
         return Ok(false);
     }
-    
+
     // Parse ConnectedTypeID
     match ConnectedTypeID::from_slice(&args) {
         Ok(connected_type_id) => {
@@ -209,7 +217,7 @@ fn validate_connected_type_id(index: usize, source: Source, protocol_type_hash: 
             debug!("Failed to parse ConnectedTypeID");
         }
     }
-    
+
     Ok(false)
 }
 
@@ -219,7 +227,7 @@ pub fn validate_udt_rules() -> Result<(), Error> {
     let mut input_amount: u128 = 0;
     let mut output_amount: u128 = 0;
     let udt_script = load_script().map_err(|_| Error::ItemMissing)?;
-    
+
     // Calculate input amount
     let mut index = 0;
     loop {
@@ -227,11 +235,13 @@ pub fn validate_udt_rules() -> Result<(), Error> {
             Ok(Some(type_hash)) => {
                 let script_hash = udt_script.calc_script_hash();
                 if type_hash.as_slice() == script_hash.as_slice() {
-                    let data = load_cell_data(index, Source::Input).map_err(|_| Error::ItemMissing)?;
+                    let data =
+                        load_cell_data(index, Source::Input).map_err(|_| Error::ItemMissing)?;
                     if data.len() >= 16 {
                         let mut amount_bytes = [0u8; 16];
                         amount_bytes.copy_from_slice(&data[0..16]);
-                        input_amount = input_amount.saturating_add(u128::from_le_bytes(amount_bytes));
+                        input_amount =
+                            input_amount.saturating_add(u128::from_le_bytes(amount_bytes));
                     }
                 }
             }
@@ -240,7 +250,7 @@ pub fn validate_udt_rules() -> Result<(), Error> {
         }
         index += 1;
     }
-    
+
     // Calculate output amount
     index = 0;
     loop {
@@ -248,11 +258,13 @@ pub fn validate_udt_rules() -> Result<(), Error> {
             Ok(Some(type_hash)) => {
                 let script_hash = udt_script.calc_script_hash();
                 if type_hash.as_slice() == script_hash.as_slice() {
-                    let data = load_cell_data(index, Source::Output).map_err(|_| Error::ItemMissing)?;
+                    let data =
+                        load_cell_data(index, Source::Output).map_err(|_| Error::ItemMissing)?;
                     if data.len() >= 16 {
                         let mut amount_bytes = [0u8; 16];
                         amount_bytes.copy_from_slice(&data[0..16]);
-                        output_amount = output_amount.saturating_add(u128::from_le_bytes(amount_bytes));
+                        output_amount =
+                            output_amount.saturating_add(u128::from_le_bytes(amount_bytes));
                     }
                 }
             }
@@ -261,13 +273,16 @@ pub fn validate_udt_rules() -> Result<(), Error> {
         }
         index += 1;
     }
-    
+
     // For minting, the check is already done in validate_protocol_owner_mode
     // For transfers, input must be >= output
     if !is_minting_operation()? && input_amount < output_amount {
-        debug!("UDT rule violation: input {} < output {}", input_amount, output_amount);
+        debug!(
+            "UDT rule violation: input {} < output {}",
+            input_amount, output_amount
+        );
         return Err(Error::InvalidUDTAmount);
     }
-    
+
     Ok(())
 }

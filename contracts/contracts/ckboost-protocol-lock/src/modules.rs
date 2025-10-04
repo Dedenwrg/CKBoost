@@ -4,10 +4,10 @@ pub struct CKBoostProtocolLock;
 
 impl CKBoostProtocolLock {
     /// Validates protocol update transaction in Lock Script
-    /// 
+    ///
     /// # Validation Rules
     /// 1. Only protocol admin can update protocol
-    /// 
+    ///
     /// # Returns
     /// - `Ok(())`: Validation passed
     /// - `Err(Error)`: Validation failed with specific error details
@@ -17,10 +17,10 @@ impl CKBoostProtocolLock {
     }
 
     /// Validates tipping proposal update transaction in Lock Script
-    /// 
+    ///
     /// # Validation Rules
     /// 1. Only lock hashes in endorsers_whitelist can update tipping proposal
-    /// 
+    ///
     /// # Returns
     /// - `Ok(())`: Validation passed
     /// - `Err(Error)`: Validation failed with specific error details

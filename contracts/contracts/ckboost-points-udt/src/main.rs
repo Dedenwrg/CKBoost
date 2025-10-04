@@ -34,38 +34,38 @@ fn program_entry_wrap() -> Result<(), Error> {
     }
 
     debug!("Entering SSRI methods for Points UDT");
-    
+
     // SSRI method dispatcher
     let res: Cow<'static, [u8]> = ssri_methods!(
         argv: &argv,
         invalid_method: Error::SSRIMethodsNotFound,
         invalid_args: Error::SSRIMethodsArgsInvalid,
-        
+
         // UDT metadata methods
         "UDT.name" => Ok(Cow::from(modules::PointsUDT::name()?.to_vec())),
         "UDT.symbol" => Ok(Cow::from(modules::PointsUDT::symbol()?.to_vec())),
         "UDT.decimals" => Ok(Cow::from(modules::PointsUDT::decimals()?.to_le_bytes().to_vec())),
         "UDT.icon" => Ok(Cow::from(modules::PointsUDT::icon()?.to_vec())),
-        
+
         // UDT transfer method
         "UDT.transfer" => {
             debug!("Processing UDT.transfer");
-            
+
             // For now, just return an error since we're not fully implementing the SSRI parsing
             // This would need proper Molecule parsing in production
             Err(Error::SSRIMethodsNotImplemented)?
         },
-        
+
         // UDT mint method
         "UDT.mint" => {
             debug!("Processing UDT.mint");
-            
+
             // For now, just return an error since we're not fully implementing the SSRI parsing
             // This would need proper Molecule parsing in production
             Err(Error::SSRIMethodsNotImplemented)?
         },
     )?;
-    
+
     // Write response to pipe
     let pipe = pipe()?;
     write(pipe.1, &res)?;

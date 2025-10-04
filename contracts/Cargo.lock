@@ -960,7 +960,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ckboost-campaign-lock"
+name = "ckboost-campaign-type"
 version = "0.1.0"
 dependencies = [
  "blake2b-ref",
@@ -973,7 +973,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ckboost-campaign-type"
+name = "ckboost-funding-lock"
 version = "0.1.0"
 dependencies = [
  "blake2b-ref",

@@ -49,10 +49,12 @@ CKBoost/
 ├── contracts/               # Smart contracts (Rust)
 │   ├── contracts/           # Individual contract implementations
 │   │   ├── ckboost-campaign-type/    # Campaign management logic
-│   │   ├── ckboost-campaign-lock/    # Secure fund vaults
+│   │   ├── ckboost-funding-lock/    # Secure fund vaults
 │   │   ├── ckboost-protocol-type/    # Governance & minting
 │   │   ├── ckboost-protocol-lock/    # Protocol governance
 │   │   ├── ckboost-user-type/        # Verification & bindings
+│   │   ├── ckboost-points-udt/       # Points UDT for rewards
+│   │   ├── ckboost-tipping-type/       # tipping management
 │   │   └── ckboost-shared/           # Common utilities
 │   └── tests/               # Integration tests
 ├── docs/                    # Documentation and specifications
@@ -72,12 +74,14 @@ CKBoost/
 ### Quick Start
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/Alive24/CKBoost.git
    cd CKBoost
    ```
 
 2. **Start the frontend application**
+
    ```bash
    cd dapp
    pnpm install
@@ -118,8 +122,10 @@ CKBoost implements a new pattern of decentralization for dApps:
 - **ckboost-protocol-type**: Governance & Points UDT minting
 - **ckboost-protocol-lock**: Protocol governance and treasury management
 - **ckboost-campaign-type**: Campaign logic and quest management
-- **ckboost-campaign-lock**: Secure vaults for campaign funds
+- **ckboost-funding-lock**: Secure vaults for campaign funds
 - **ckboost-user-type**: Submission, verification, and social bindings
+- **ckboost-points-udt**: Points UDT for rewards
+- **ckboost-tipping-type**: Tipping management
 
 #### Decentralized API Services
 
@@ -136,15 +142,19 @@ CKBoost implements a new pattern of decentralization for dApps:
 ## 📋 Core User Flows
 
 ### Campaign Creation Flow
+
 Define quests → Fund campaign → Set proof requirements → Get admin approval → Launch → Monitor submissions → Distribute rewards
 
 ### Contributor Flow
+
 Connect wallet → Browse campaigns → Complete tasks → Submit proof → Pass verification → Claim rewards → Earn badges & ranking
 
 ### Tipping Flow
+
 Propose tip → Receive 5 peer approvals → Automated treasury payout → Permanent profile record
 
 ### Admin Flow
+
 Identity verification → Campaign sponsor verification → Campaign approval → Base campaign creation
 
 ## 🎮 Example Campaign Types
@@ -158,7 +168,7 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 
 ### Security Measures
 
-- **Escrow Protection**: Campaign lock scripts protect all escrowed assets
+- **Escrow Protection**: Funding lock scripts protect all escrowed assets
 - **Multi-Signature**: Support for high-value campaign management
 - **Time Locks**: Campaign duration enforcement and deadline management
 - **Gradual Rollout**: Small initial contract funds with progressive scaling
@@ -172,6 +182,7 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 ## 📈 Development Roadmap
 
 ### Milestone 1: Foundation & Core MVP (~Month 1)
+
 - ✅ Next.js scaffold with CCC wallet integration
 - ✅ Visual and interaction prototyping
 - 🔄 Smart contract development for core scripts
@@ -179,6 +190,7 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 - 🔄 Points UDT and reward distribution
 
 ### Milestone 2: Advanced Features (~Month 2)
+
 - 📅 Expanded verification methods
 - 📅 Leaderboards and user profiles
 - 📅 Gamification features (streaks, multipliers, badges)
@@ -186,6 +198,7 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 - 📅 Admin dashboard and analytics
 
 ### Milestone 3: Launch Preparation (~Month 3)
+
 - 📅 Deploy test campaigns with real users
 - 📅 Automated on-chain verification
 - 📅 Documentation and onboarding guides
@@ -195,6 +208,7 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 ## 💰 Funding
 
 This project is funded by the CKB Community Fund DAO:
+
 - **Total Grant**: $20,000 USD
 - **Payment Structure**: 10% upfront, 90% across 3 milestones
 - **Timeline**: 3 months from commencement
@@ -220,18 +234,21 @@ We welcome contributions from the community! Here's how you can help:
 ## 📚 Documentation
 
 ### For Users
+
 - **Campaign Creation Guide**: How to launch engaging campaigns
 - **Quest Participation**: How to complete quests and earn rewards
 - **Verification Guide**: Understanding identity requirements
 - **Tipping System**: How to recognize exceptional contributions
 
 ### For Developers
+
 - **Architecture Overview**: Understanding the decentralized design
 - **Contract Interface**: Smart contract specifications
 - **API Documentation**: Decentralized service APIs
 - **Integration Guide**: Adding CKBoost to your project
 
 ### Key Resources
+
 - [Grant Proposal](https://talk.nervos.org/t/dis-ckboost-gamified-community-engagement-platform-proposal)
 - [UI/UX Demo](https://ckboost.netlify.app/)
 - [Technical Specifications](docs/ckboost-platform.prd.txt)
@@ -246,12 +263,14 @@ cargo bloat --release --target riscv64imac-unknown-none-elf --crates --package c
 ## 🌐 Deployment
 
 ### Netlify Frontend
+
 ```bash
 # Automatic deployment on push to main branch
 git push origin main
 ```
 
 ### Decentralized Services
+
 ```bash
 # Deploy your own Cloudflare Worker instance
 cd services
@@ -259,6 +278,7 @@ wrangler deploy
 ```
 
 ### Smart Contracts
+
 ```bash
 cd contracts
 make deploy-testnet    # Deploy to CKB testnet

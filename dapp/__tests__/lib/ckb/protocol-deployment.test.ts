@@ -64,7 +64,7 @@ describe('protocol-deployment utilities', () => {
       expect(scriptHashes.ckbBoostProtocolTypeCodeHash).toMatch(/^0x[0-9a-f]{64}$/i)
       expect(scriptHashes.ckbBoostProtocolLockCodeHash).toMatch(/^0x[0-9a-f]{64}$/i)
       expect(scriptHashes.ckbBoostCampaignTypeCodeHash).toMatch(/^0x[0-9a-f]{64}$/i)
-      expect(scriptHashes.ckbBoostCampaignLockCodeHash).toMatch(/^0x[0-9a-f]{64}$/i)
+      expect(scriptHashes.ckbBoostFundingLockCodeHash).toMatch(/^0x[0-9a-f]{64}$/i)
       expect(scriptHashes.ckbBoostUserTypeCodeHash).toMatch(/^0x[0-9a-f]{64}$/i)
     })
 
@@ -82,7 +82,7 @@ describe('protocol-deployment utilities', () => {
         ckbBoostProtocolTypeCodeHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         ckbBoostProtocolLockCodeHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         ckbBoostCampaignTypeCodeHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-        ckbBoostCampaignLockCodeHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+        ckbBoostFundingLockCodeHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
         ckbBoostUserTypeCodeHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
       },
       tippingConfig: {

@@ -27,12 +27,12 @@ mod test_udt_distribution {
     
     #[test]
     fn test_campaign_lock_unlock_for_distribution() {
-        // TODO: Test campaign-lock unlocking during distribution
-        // 1. Fund campaign (UDTs locked with campaign-lock)
+        // TODO: Test funding lock unlocking during distribution
+        // 1. Fund campaign (UDTs locked with funding lock)
         // 2. Admin approves quest completions
-        // 3. Verify campaign-lock is properly unlocked
+        // 3. Verify funding lock is properly unlocked
         // 4. Verify UDTs transfer to user addresses
-        unimplemented!("Test campaign lock unlock for distribution")
+        unimplemented!("Test funding lock unlock for distribution")
     }
     
     #[test]
@@ -40,7 +40,7 @@ mod test_udt_distribution {
         // TODO: Test partial distribution leaves remaining balance locked
         // 1. Fund campaign with 1000 USDC
         // 2. Distribute 300 USDC to approved users
-        // 3. Verify 700 USDC remains locked with campaign-lock
+        // 3. Verify 700 USDC remains locked with funding lock
         // 4. Verify remaining can be distributed later
         unimplemented!("Test partial distribution with remaining balance")
     }

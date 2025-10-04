@@ -1,5 +1,5 @@
-use std::process::Command;
 use std::fs;
+use std::process::Command;
 
 fn main() {
     let output = Command::new("sh")
@@ -9,7 +9,10 @@ fn main() {
         .expect("failed to execute process");
 
     if !output.status.success() {
-        panic!("moleculec failed: {}", String::from_utf8_lossy(&output.stderr));
+        panic!(
+            "moleculec failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     fs::write("src/generated/ckboost.rs", &output.stdout).expect("Unable to write file");

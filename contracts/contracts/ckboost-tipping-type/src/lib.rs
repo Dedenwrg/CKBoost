@@ -8,7 +8,7 @@ pub use main::program_entry;
 
 extern crate alloc;
 
-pub mod ssri;
+pub mod fallback;
 pub mod modules;
 pub mod recipes;
-pub mod fallback;
+pub mod ssri;

@@ -69,21 +69,21 @@ pub enum Error {
     /// Indicates that non-fixed size fields are not allowed in a molecule struct, e.g., `Option`, `Vec`, `DynVec`, `enum`.
     MixTableAndStruct,
     InvalidChar,
-    
+
     // Campaign validation errors
     InvalidCampaignData,
     InvalidCampaignState,
     InvalidCampaignCreator,
     InvalidCampaignFunding,
     InvalidCampaignTimestamp,
-    
+
     // Quest validation errors
     InvalidQuestData,
     InvalidQuestCreator,
     InvalidQuestCampaign,
     InvalidQuestReward,
     InvalidQuestStatus,
-    
+
     // Protocol validation errors
     InvalidProtocolData,
     InvalidProtocolState,
@@ -94,7 +94,7 @@ pub enum Error {
 
     // User Validation errors
     InvalidUserData,
-    
+
     // Operation errors
     CampaignNotFound,
     CampaignCellNotFound,
@@ -105,17 +105,17 @@ pub enum Error {
     UserCellNotFound,
     InvalidTransaction,
     MissingTransactionInput,
-    
+
     // SSRI parsing errors
     ArgumentNotFound,
-    
+
     // Cell collection errors
     DetectedUnidentifiedCells,
-    
+
     // ckb_deterministic compatibility errors
     DataError,
     RecipeError,
-    
+
     // New validation errors from ckb_deterministic
     UnidentifiedCells,
     InvalidCodeHash,
@@ -128,23 +128,23 @@ pub enum Error {
     CellRelationshipRuleViolation,
     CustomRuleFailed,
     BusinessRuleViolation,
-    
+
     // Script argument validation errors
     TransactionStructureError,
-    
+
     // Verification errors
     InvalidVerificationData,
     VerificationMethodNotSupported,
     VerificationAlreadyExists,
     VerificationExpired,
-    
+
     // Points UDT specific errors
     InvalidProtocolReference,
     InvalidCampaignCell,
     InvalidUserCell,
     InvalidUDTAmount,
     InvalidArgument,
-    
+
     // Unknown error
     Unknown,
 }
@@ -193,16 +193,18 @@ impl From<ckb_deterministic::errors::Error> for Error {
             ckb_deterministic::errors::Error::WrongMethodPath => Error::WrongMethodPath,
             ckb_deterministic::errors::Error::InvalidArgumentCount => Error::InvalidArgumentCount,
             ckb_deterministic::errors::Error::CellCountViolation => Error::CellCountViolation,
-            ckb_deterministic::errors::Error::CellRelationshipRuleViolation => Error::CellRelationshipRuleViolation,
+            ckb_deterministic::errors::Error::CellRelationshipRuleViolation => {
+                Error::CellRelationshipRuleViolation
+            }
             ckb_deterministic::errors::Error::MissingCellDep => Error::MissingCellDep,
             ckb_deterministic::errors::Error::MissingHeaderDep => Error::MissingHeaderDep,
             ckb_deterministic::errors::Error::BusinessRuleViolation => Error::BusinessRuleViolation,
             _ => {
                 debug_trace!("Unknown ckb_deterministic error: {:?}", err);
                 Error::Unknown
-            },
+            }
         };
-        
+
         debug_trace!("Converted ckb_deterministic error to: {:?}", mapped_error);
         mapped_error
     }
