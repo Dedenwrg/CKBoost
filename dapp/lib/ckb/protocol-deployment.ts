@@ -98,9 +98,10 @@ export function getContractDeploymentStatus(): {
   protocolType: boolean;
   protocolLock: boolean;
   campaignType: boolean;
-  campaignLock: boolean;
+  fundingLock: boolean;
   userType: boolean;
   pointsUdt: boolean;
+  tippingType: boolean;
   allDeployed: boolean;
   missingContracts: string[];
 } {
@@ -119,9 +120,9 @@ export function getContractDeploymentStatus(): {
       network,
       "ckboostCampaignType"
     ),
-    campaignLock: !!deploymentManager.getContractCodeHash(
+    fundingLock: !!deploymentManager.getContractCodeHash(
       network,
-      "ckboostCampaignLock"
+      "ckboostFundingLock"
     ),
     userType: !!deploymentManager.getContractCodeHash(
       network,
@@ -130,6 +131,10 @@ export function getContractDeploymentStatus(): {
     pointsUdt: !!deploymentManager.getContractCodeHash(
       network,
       "ckboostPointsUdt"
+    ),
+    tippingType: !!deploymentManager.getContractCodeHash(
+      network,
+      "ckboostTippingType"
     ),
     allDeployed: false,
     missingContracts: [] as string[],
@@ -140,18 +145,19 @@ export function getContractDeploymentStatus(): {
     status.protocolType &&
     status.protocolLock &&
     status.campaignType &&
-    status.campaignLock &&
+    status.fundingLock &&
     status.userType &&
-    status.pointsUdt;
+    status.pointsUdt &&
+    status.tippingType;
 
   // List missing contracts
   if (!status.protocolType) status.missingContracts.push("Protocol Type");
   if (!status.protocolLock) status.missingContracts.push("Protocol Lock");
   if (!status.campaignType) status.missingContracts.push("Campaign Type");
-  if (!status.campaignLock) status.missingContracts.push("Campaign Lock");
+  if (!status.fundingLock) status.missingContracts.push("Funding Lock");
   if (!status.userType) status.missingContracts.push("User Type");
   if (!status.pointsUdt) status.missingContracts.push("Points UDT");
-
+  if (!status.tippingType) status.missingContracts.push("Tipping Type");
   return status;
 }
 
@@ -174,9 +180,9 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
     network,
     "ckboostCampaignType"
   );
-  const campaignLockHash = deploymentManager.getContractCodeHash(
+  const fundingLockHash = deploymentManager.getContractCodeHash(
     network,
-    "ckboostCampaignLock"
+    "ckboostFundingLock"
   );
   const userTypeHash = deploymentManager.getContractCodeHash(
     network,
@@ -206,8 +212,8 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
         ckb_boost_campaign_type_code_hash:
           campaignTypeHash ||
           "0x0000000000000000000000000000000000000000000000000000000000000000",
-        ckb_boost_campaign_lock_code_hash:
-          campaignLockHash ||
+        ckb_boost_funding_lock_code_hash:
+          fundingLockHash ||
           "0x0000000000000000000000000000000000000000000000000000000000000000",
         ckb_boost_user_type_code_hash:
           userTypeHash ||
@@ -629,7 +635,7 @@ export function validateDeploymentParams(
     "ckb_boost_protocol_type_code_hash",
     "ckb_boost_protocol_lock_code_hash",
     "ckb_boost_campaign_type_code_hash",
-    "ckb_boost_campaign_lock_code_hash",
+    "ckb_boost_funding_lock_code_hash",
     "ckb_boost_user_type_code_hash",
     "ckb_boost_points_udt_type_code_hash",
     "ckb_boost_tipping_type_code_hash",

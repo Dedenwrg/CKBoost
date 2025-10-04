@@ -236,7 +236,7 @@ export class Campaign extends ssri.Trait {
 
   /**
    * Find campaign-funded UDT cells for reward distribution by searching by lock script
-   * 
+   *
    * @param signer - The signer for querying cells
    * @param campaignTypeScript - The campaign's type script
    * @param udtScript - The UDT script to find
@@ -252,36 +252,39 @@ export class Campaign extends ssri.Trait {
       udtScript: ccc.Script.from(udtScript).codeHash.slice(0, 10) + "...",
     });
 
-    // Parse protocol data to get campaign lock code hash
+    // Parse protocol data to get funding lock code hash
     const { ProtocolData } = await import("../generated");
-    const protocolData = ProtocolData.decode(this.connectedProtocolCell.outputData);
-    const campaignLockCodeHash = ccc.hexFrom(
-      protocolData.protocol_config.script_code_hashes.ckb_boost_campaign_lock_code_hash
+    const protocolData = ProtocolData.decode(
+      this.connectedProtocolCell.outputData
+    );
+    const fundingLockCodeHash = ccc.hexFrom(
+      protocolData.protocol_config.script_code_hashes
+        .ckb_boost_funding_lock_code_hash
     );
     const campaignTypeHash = campaignTypeScript.hash();
 
-    console.log(`🔑 Campaign lock details:`, {
-      campaignLockCodeHash: campaignLockCodeHash.slice(0, 10) + "...",
+    console.log(`🔑 Funding lock details:`, {
+      fundingLockCodeHash: fundingLockCodeHash.slice(0, 10) + "...",
       campaignTypeHash: campaignTypeHash.slice(0, 10) + "...",
     });
 
-    // Search by campaign lock script directly - much more efficient!
-    const campaignLockScript = {
-      codeHash: campaignLockCodeHash,
+    // Search by funding lock script directly - much more efficient!
+    const fundingLockScript = {
+      codeHash: fundingLockCodeHash,
       hashType: "type" as const,
       args: campaignTypeHash,
     };
 
-    const campaignLockedCells = signer.client.findCells({
-      script: campaignLockScript,
+    const fundingLockedCells = signer.client.findCells({
+      script: fundingLockScript,
       scriptType: "lock",
       scriptSearchMode: "exact",
     });
 
     const campaignUdtCells: ccc.Cell[] = [];
     const targetUdtScript = ccc.Script.from(udtScript);
-    
-    for await (const cell of campaignLockedCells) {
+
+    for await (const cell of fundingLockedCells) {
       // Filter only cells that have the specific UDT type script
       if (
         cell.cellOutput.type &&
@@ -298,14 +301,16 @@ export class Campaign extends ssri.Trait {
       }
     }
 
-    console.log(`📊 Campaign UDT search results:`, {
-      totalCampaignCells: "checked all campaign-locked cells",
+    console.log(`📊 Funding lock UDT search results:`, {
+      totalFundingLockCells: "checked all funding-locked cells",
       matchingUdtCells: campaignUdtCells.length,
       targetUdtCodeHash: targetUdtScript.codeHash.slice(0, 10) + "...",
     });
 
     if (campaignUdtCells.length === 0) {
-      console.warn(`❌ No campaign UDT cells found for UDT ${targetUdtScript.codeHash.slice(0, 10)}...`);
+      console.warn(
+        `❌ No funding lock UDT cells found for UDT ${targetUdtScript.codeHash.slice(0, 10)}...`
+      );
     }
 
     return campaignUdtCells;
@@ -313,13 +318,13 @@ export class Campaign extends ssri.Trait {
 
   /**
    * Calculate total available UDT balance from campaign cells
-   * 
+   *
    * @param campaignUdtCells - Array of campaign UDT cells
    * @returns Total balance as bigint
    */
   private calculateTotalUdtBalance(campaignUdtCells: ccc.Cell[]): bigint {
     let totalBalance = 0n;
-    
+
     for (const cell of campaignUdtCells) {
       // UDT amount is stored in the first 16 bytes of output data (Uint128)
       const outputData = cell.outputData;
@@ -329,7 +334,7 @@ export class Campaign extends ssri.Trait {
         totalBalance += amount;
       }
     }
-    
+
     return totalBalance;
   }
 
@@ -652,15 +657,17 @@ export class Campaign extends ssri.Trait {
 
         // Handle UDT reward distribution
         console.log(`\n💰 Processing UDT rewards distribution...`);
-        
+
         // Get UDT rewards from quest
         const udtRewards = quest?.rewards_on_completion?.[0]?.udt_assets || [];
-        console.log(`Found ${udtRewards.length} UDT reward types for quest ${questId}`);
+        console.log(
+          `Found ${udtRewards.length} UDT reward types for quest ${questId}`
+        );
 
         for (const udtAsset of udtRewards) {
           const udtScript = udtAsset.udt_script;
           const amountPerUser = Number(udtAsset.amount) || 0;
-          
+
           if (amountPerUser > 0) {
             console.log(`\n🎯 Processing UDT reward:`, {
               udtCodeHash: ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
@@ -671,20 +678,23 @@ export class Campaign extends ssri.Trait {
 
             // Find campaign-funded UDT cells
             const campaignUdtCells = await this.findCampaignUdtCells(
-              signer, 
-              this.script, 
+              signer,
+              this.script,
               udtScript
             );
 
             if (campaignUdtCells.length === 0) {
-              console.warn(`⚠️ No campaign UDT cells found for reward distribution, skipping UDT ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`);
+              console.warn(
+                `⚠️ No campaign UDT cells found for reward distribution, skipping UDT ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
+              );
               continue;
             }
 
             // Calculate total available balance
-            const totalAvailable = this.calculateTotalUdtBalance(campaignUdtCells);
+            const totalAvailable =
+              this.calculateTotalUdtBalance(campaignUdtCells);
             const totalRequired = BigInt(amountPerUser * userTypeIds.length);
-            
+
             console.log(`💰 UDT balance check:`, {
               totalAvailable: totalAvailable.toString(),
               totalRequired: totalRequired.toString(),
@@ -692,28 +702,34 @@ export class Campaign extends ssri.Trait {
             });
 
             if (totalAvailable < totalRequired) {
-              console.error(`❌ Insufficient UDT balance for rewards. Required: ${totalRequired}, Available: ${totalAvailable}`);
-              throw new Error(`Insufficient UDT balance for ${ccc.hexFrom(udtScript.codeHash)} rewards`);
+              console.error(
+                `❌ Insufficient UDT balance for rewards. Required: ${totalRequired}, Available: ${totalAvailable}`
+              );
+              throw new Error(
+                `Insufficient UDT balance for ${ccc.hexFrom(udtScript.codeHash)} rewards`
+              );
             }
 
             // Add campaign UDT cells as inputs
             let remainingToDistribute = totalRequired;
             const inputCells: ccc.Cell[] = [];
-            
+
             for (const campaignUdtCell of campaignUdtCells) {
               if (remainingToDistribute <= 0) break;
-              
-              const cellBalance = this.calculateTotalUdtBalance([campaignUdtCell]);
+
+              const cellBalance = this.calculateTotalUdtBalance([
+                campaignUdtCell,
+              ]);
               if (cellBalance > 0) {
                 // Add as input
                 resTx.res.addInput({
                   previousOutput: campaignUdtCell.outPoint,
                   since: "0x0",
                 });
-                
+
                 inputCells.push(campaignUdtCell);
                 remainingToDistribute -= cellBalance;
-                
+
                 console.log(`📥 Added UDT input cell:`, {
                   outPoint: campaignUdtCell.outPoint,
                   balance: cellBalance.toString(),
@@ -726,8 +742,10 @@ export class Campaign extends ssri.Trait {
             let rewardIndex = 0;
             for (const userTypeId of userTypeIds) {
               const userTypeIdHex = ccc.hexFrom(userTypeId);
-              
-              console.log(`\n🎁 Creating UDT reward for user ${userTypeIdHex.slice(0, 10)}... (${rewardIndex + 1}/${userTypeIds.length})`);
+
+              console.log(
+                `\n🎁 Creating UDT reward for user ${userTypeIdHex.slice(0, 10)}... (${rewardIndex + 1}/${userTypeIds.length})`
+              );
 
               // Find user cell to get lock script (similar to Points logic)
               const userConnectedTypeId = {
@@ -735,8 +753,11 @@ export class Campaign extends ssri.Trait {
                 connected_key: protocolTypeHash,
               };
 
-              const encodedConnectedTypeId = ConnectedTypeID.encode(userConnectedTypeId);
-              const encodedConnectedTypeIdHex = ccc.hexFrom(encodedConnectedTypeId);
+              const encodedConnectedTypeId =
+                ConnectedTypeID.encode(userConnectedTypeId);
+              const encodedConnectedTypeIdHex = ccc.hexFrom(
+                encodedConnectedTypeId
+              );
 
               const userCells = signer.client.findCells({
                 script: {
@@ -749,8 +770,14 @@ export class Campaign extends ssri.Trait {
               });
 
               const userCellResult = await userCells.next();
-              if (!userCellResult || userCellResult.done || !userCellResult.value) {
-                console.warn(`❌ User cell not found for UDT reward: ${userTypeIdHex}, skipping`);
+              if (
+                !userCellResult ||
+                userCellResult.done ||
+                !userCellResult.value
+              ) {
+                console.warn(
+                  `❌ User cell not found for UDT reward: ${userTypeIdHex}, skipping`
+                );
                 continue;
               }
 
@@ -771,11 +798,15 @@ export class Campaign extends ssri.Trait {
               });
 
               // Add UDT reward output
-              resTx.res.addOutput(udtRewardCell, ccc.numToBytes(amountPerUser, 16));
-              
+              resTx.res.addOutput(
+                udtRewardCell,
+                ccc.numToBytes(amountPerUser, 16)
+              );
+
               console.log(`✅ Created UDT reward cell:`, {
                 userTypeId: userTypeIdHex.slice(0, 10) + "...",
-                udtCodeHash: ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
+                udtCodeHash:
+                  ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
                 amount: amountPerUser,
                 lockCodeHash: userLock.codeHash.slice(0, 10) + "...",
               });
@@ -796,9 +827,13 @@ export class Campaign extends ssri.Trait {
               resTx.res.addOutput(changeCell, ccc.numToBytes(changeAmount, 16));
             }
 
-            console.log(`✅ Completed UDT reward distribution for ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`);
+            console.log(
+              `✅ Completed UDT reward distribution for ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
+            );
           } else {
-            console.log(`⏭️ Skipping UDT reward with zero amount: ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`);
+            console.log(
+              `⏭️ Skipping UDT reward with zero amount: ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
+            );
           }
         }
 

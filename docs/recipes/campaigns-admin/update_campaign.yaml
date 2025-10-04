@@ -53,7 +53,7 @@ Outputs:
     
   # Optional: NFT assets transferred to campaign control
   nft-locked-to-campaign-cells:
-    lock: ckboost-campaign-lock
+    lock: ckboost-funding-lock
       args: <campaign-cell-type-hash>
       rules: NFT assets controlled by campaign (if NFTs provided)
     type: spore
@@ -63,7 +63,7 @@ Outputs:
     
   # Optional: UDT assets transferred to campaign control
   udt-locked-to-campaign-cells:
-    lock: ckboost-campaign-lock
+    lock: ckboost-funding-lock
       args: <campaign-cell-type-hash>
       rules: UDT assets controlled by campaign (if UDTs provided)
     type: xudt
@@ -75,8 +75,8 @@ CellDeps:
   ckboost-campaign-type-dep:
     Required for campaign type script execution and validation
     
-  ckboost-campaign-lock-dep:
-    Required for campaign lock script validation
+  ckboost-funding-lock-dep:
+    Required for funding lock script validation
     
   spore-type-dep:
     Required for NFT type script execution (if NFT assets provided)

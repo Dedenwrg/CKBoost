@@ -52,7 +52,7 @@ interface ProtocolContextType {
   isWalletConnected: boolean;
   isAdmin: boolean;
   isEndorser: boolean;
-  
+
   // Signer for blockchain operations
   signer: ccc.Signer | undefined;
 }
@@ -111,11 +111,13 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         setIsLoading(true);
         setError(null);
 
-        const [metricsData, transactionsData, protocolCell] = await Promise.all([
-          protocolService.getProtocolMetrics(),
-          protocolService.getProtocolTransactions(),
-          protocolService.getProtocolCell(),
-        ]);
+        const [metricsData, transactionsData, protocolCell] = await Promise.all(
+          [
+            protocolService.getProtocolMetrics(),
+            protocolService.getProtocolTransactions(),
+            protocolService.getProtocolCell(),
+          ]
+        );
 
         const data = await protocolService.getProtocolData(protocolCell);
 
@@ -172,15 +174,16 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         if (protocolData && signer) {
           try {
             // Get the user's lock script and calculate its hash
-            const userLockScript = (await signer.getRecommendedAddressObj()).script;
+            const userLockScript = (await signer.getRecommendedAddressObj())
+              .script;
             const userLockHash = userLockScript.hash();
-            
+
             console.log("Admin check:", {
               userAddress: addr,
               userLockHash,
-              adminHashes: protocolData.protocol_config.admin_lock_hash_vec
+              adminHashes: protocolData.protocol_config.admin_lock_hash_vec,
             });
-            
+
             const isUserAdmin =
               protocolData.protocol_config.admin_lock_hash_vec.some(
                 (adminHash: ccc.HexLike) => {
@@ -192,21 +195,28 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
                 }
               );
             setIsAdmin(isUserAdmin);
-            
+
             // Check if user is in endorser whitelist
-            const isUserEndorser = 
+            const isUserEndorser =
               protocolData.endorsers_whitelist?.some(
-                (endorser: any) => {
-                  const endorserHash = 
+                (endorser: EndorserInfoLike) => {
+                  const endorserHash =
                     typeof endorser.endorser_lock_hash === "string"
                       ? endorser.endorser_lock_hash
-                      : ccc.hexFrom(new Uint8Array(endorser.endorser_lock_hash));
-                  return endorserHash.toLowerCase() === userLockHash.toLowerCase();
+                      : ccc.hexFrom(
+                          new Uint8Array(endorser.endorser_lock_hash)
+                        );
+                  return (
+                    endorserHash.toLowerCase() === userLockHash.toLowerCase()
+                  );
                 }
               ) || false;
             setIsEndorser(isUserEndorser);
           } catch (adminCheckErr) {
-            console.error("Failed to check admin/endorser status:", adminCheckErr);
+            console.error(
+              "Failed to check admin/endorser status:",
+              adminCheckErr
+            );
             setIsAdmin(false);
             setIsEndorser(false);
           }
@@ -338,14 +348,14 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
       // Refresh data after successful update
       await refreshProtocolData();
 
-      setProtocolData(newProtocolData as ReturnType<typeof ProtocolData.decode>);
-
+      setProtocolData(
+        newProtocolData as ReturnType<typeof ProtocolData.decode>
+      );
     } catch (err) {
       console.error("Failed to remove endorser:", err);
       throw err;
     }
   };
-
 
   const calculateChanges = (formData: unknown): ProtocolChanges => {
     if (!protocolData) {
@@ -358,7 +368,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         ckb_boost_protocol_type_code_hash: string;
         ckb_boost_protocol_lock_code_hash: string;
         ckb_boost_campaign_type_code_hash: string;
-        ckb_boost_campaign_lock_code_hash: string;
+        ckb_boost_funding_lock_code_hash: string;
         ckb_boost_user_type_code_hash: string;
         ckb_boost_points_udt_type_code_hash: string;
         accepted_udt_type_scripts: ccc.ScriptLike[];
@@ -371,43 +381,59 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     };
 
     // Helper function to compare Script arrays
-    const compareScriptArrays = (arr1: ccc.ScriptLike[], arr2: ccc.ScriptLike[]): boolean => {
+    const compareScriptArrays = (
+      arr1: ccc.ScriptLike[],
+      arr2: ccc.ScriptLike[]
+    ): boolean => {
       if (arr1.length !== arr2.length) return false;
-      
+
       return arr1.every((script1, index) => {
         const script2 = arr2[index];
         return (
-          ccc.hexFrom(script1.codeHash || "") === ccc.hexFrom(script2.codeHash || "") &&
+          ccc.hexFrom(script1.codeHash || "") ===
+            ccc.hexFrom(script2.codeHash || "") &&
           script1.hashType === script2.hashType &&
-          ccc.hexFrom(script1.args || "0x") === ccc.hexFrom(script2.args || "0x")
+          ccc.hexFrom(script1.args || "0x") ===
+            ccc.hexFrom(script2.args || "0x")
         );
       });
     };
 
     // Helper function to create field change
-    const createFieldChange = <T,>(fieldPath: string, oldValue: T, newValue: T): FieldChange<T> => {
+    const createFieldChange = <T,>(
+      fieldPath: string,
+      oldValue: T,
+      newValue: T
+    ): FieldChange<T> => {
       // Special handling for Script arrays
-      if (fieldPath.includes('TypeScripts') && Array.isArray(oldValue) && Array.isArray(newValue)) {
+      if (
+        fieldPath.includes("TypeScripts") &&
+        Array.isArray(oldValue) &&
+        Array.isArray(newValue)
+      ) {
         return {
           fieldPath,
           oldValue,
           newValue,
-          hasChanged: !compareScriptArrays(oldValue as unknown as ccc.ScriptLike[], newValue as unknown as ccc.ScriptLike[])
+          hasChanged: !compareScriptArrays(
+            oldValue as unknown as ccc.ScriptLike[],
+            newValue as unknown as ccc.ScriptLike[]
+          ),
         };
       }
-      
+
       // Custom stringify that handles BigInt
       const stringify = (value: unknown): string => {
-        return JSON.stringify(value, (_, v) => 
-          typeof v === 'bigint' ? v.toString() : v
+        return JSON.stringify(value, (_, v) =>
+          typeof v === "bigint" ? v.toString() : v
         );
       };
-      
+
       return {
         fieldPath,
         oldValue,
         newValue,
-        hasChanged: stringify(oldValue) !== stringify(newValue)
+        hasChanged: stringify(oldValue) !== stringify(newValue),
       };
     };
 
@@ -423,70 +449,72 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     const changes: ProtocolChanges = {
       protocolConfig: {
         adminLockHashes: createFieldChange(
-          'protocolConfig.adminLockHashes',
-          currentAdmins, 
+          "protocolConfig.adminLockHashes",
+          currentAdmins,
           data.adminLockHashes
-        )
+        ),
       },
       scriptCodeHashes: {
         ckbBoostProtocolTypeCodeHash: createFieldChange(
-          'scriptCodeHashes.ckbBoostProtocolTypeCodeHash',
+          "scriptCodeHashes.ckbBoostProtocolTypeCodeHash",
           scriptCodeHashes.ckb_boost_protocol_type_code_hash,
           data.scriptCodeHashes.ckb_boost_protocol_type_code_hash
         ),
         ckbBoostProtocolLockCodeHash: createFieldChange(
-          'scriptCodeHashes.ckbBoostProtocolLockCodeHash',
+          "scriptCodeHashes.ckbBoostProtocolLockCodeHash",
           scriptCodeHashes.ckb_boost_protocol_lock_code_hash,
           data.scriptCodeHashes.ckb_boost_protocol_lock_code_hash
         ),
         ckbBoostCampaignTypeCodeHash: createFieldChange(
-          'scriptCodeHashes.ckbBoostCampaignTypeCodeHash',
+          "scriptCodeHashes.ckbBoostCampaignTypeCodeHash",
           scriptCodeHashes.ckb_boost_campaign_type_code_hash,
           data.scriptCodeHashes.ckb_boost_campaign_type_code_hash
         ),
-        ckbBoostCampaignLockCodeHash: createFieldChange(
-          'scriptCodeHashes.ckbBoostCampaignLockCodeHash',
-          scriptCodeHashes.ckb_boost_campaign_lock_code_hash,
-          data.scriptCodeHashes.ckb_boost_campaign_lock_code_hash
+        ckbBoostFundingLockCodeHash: createFieldChange(
+          "scriptCodeHashes.ckbBoostFundingLockCodeHash",
+          scriptCodeHashes.ckb_boost_funding_lock_code_hash,
+          data.scriptCodeHashes.ckb_boost_funding_lock_code_hash
         ),
         ckbBoostUserTypeCodeHash: createFieldChange(
-          'scriptCodeHashes.ckbBoostUserTypeCodeHash',
+          "scriptCodeHashes.ckbBoostUserTypeCodeHash",
           scriptCodeHashes.ckb_boost_user_type_code_hash,
           data.scriptCodeHashes.ckb_boost_user_type_code_hash
         ),
         ckbBoostPointsUdtTypeCodeHash: createFieldChange(
-          'scriptCodeHashes.ckbBoostPointsUdtTypeCodeHash',
+          "scriptCodeHashes.ckbBoostPointsUdtTypeCodeHash",
           scriptCodeHashes.ckb_boost_points_udt_type_code_hash,
           data.scriptCodeHashes.ckb_boost_points_udt_type_code_hash
         ),
         acceptedUdtTypeScripts: createFieldChange(
-          'scriptCodeHashes.acceptedUdtTypeScripts',
+          "scriptCodeHashes.acceptedUdtTypeScripts",
           scriptCodeHashes.accepted_udt_type_scripts || [],
           data.scriptCodeHashes.accepted_udt_type_scripts || []
         ),
         acceptedDobTypeScripts: createFieldChange(
-          'scriptCodeHashes.acceptedDobTypeScripts',
+          "scriptCodeHashes.acceptedDobTypeScripts",
           scriptCodeHashes.accepted_dob_type_scripts || [],
           data.scriptCodeHashes.accepted_dob_type_scripts || []
-        )
+        ),
       },
       tippingConfig: {
         approvalRequirementThresholds: createFieldChange(
-          'tippingConfig.approvalRequirementThresholds',
-          protocolData.tipping_config.approval_requirement_thresholds.map((t: ccc.NumLike) => t.toString()),
+          "tippingConfig.approvalRequirementThresholds",
+          protocolData.tipping_config.approval_requirement_thresholds.map(
+            (t: ccc.NumLike) => t.toString()
+          ),
           data.tippingConfig.approval_requirement_thresholds
         ),
         expirationDuration: createFieldChange(
-          'tippingConfig.expirationDuration',
+          "tippingConfig.expirationDuration",
           Number(protocolData.tipping_config.expiration_duration),
           Number(data.tippingConfig.expiration_duration)
-        )
+        ),
       },
       endorsers: {
         added: [],
         updated: [],
-        removed: []
-      }
+        removed: [],
+      },
     };
 
     return changes;
@@ -499,13 +527,17 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const getTippingProposal = (index: number): TippingProposalDataLike | undefined => {
-    return protocolData?.tipping_proposals?.[index] as TippingProposalDataLike | undefined;
+  const getTippingProposal = (
+    index: number
+  ): TippingProposalDataLike | undefined => {
+    return protocolData?.tipping_proposals_approved?.[index] as
+      | TippingProposalDataLike
+      | undefined;
   };
 
   const getApprovedCampaign = (id: string): CampaignDataLike | undefined => {
     // TODO: To implement.
-    throw new Error(`To be implemented ${id} `)
+    throw new Error(`To be implemented ${id} `);
     // return protocolData?.campaigns_approved?.find((campaignTypeIdHex: ccc.Hex) => c.status === id);
   };
 
@@ -537,7 +569,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     isWalletConnected,
     isAdmin,
     isEndorser,
-    
+
     // Signer for blockchain operations
     signer,
   };
@@ -603,12 +635,17 @@ export function useEndorser(address?: string) {
 export function useTippingProposals() {
   const { protocolData, isLoading } = useProtocol();
 
-  const proposals = protocolData?.tipping_proposals || [];
+  const proposals = protocolData?.tipping_proposals_approved || [];
   const pendingProposals = proposals.filter(
-    (p) => !p.approval_transaction_hash && p.tipping_transaction_hash !== undefined
+    (p) =>
+      // TODO: Implement new filter
+      // !p.approval_transaction_hash && p.tipping_transaction_hash !== undefined
+      true
   );
   const completedProposals = proposals.filter(
-    (p) => !!p.approval_transaction_hash && p.tipping_transaction_hash !== undefined
+    (p) =>
+      // !!p.approval_transaction_hash && p.tipping_transaction_hash !== undefined
+      true
   );
 
   return {

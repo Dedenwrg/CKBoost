@@ -83,7 +83,7 @@ CKBoost v0 的前端设计草图可在此处查看：
 | 层级 | 详情 |
 | ----- | ----- |
 | **前端** | Next.js React 应用，移动优先，钱包集成（CCC），可重用组件库，实时任务跟踪。 |
-| **智能合约** | 模块化 Type Scripts：`ckboost-protocol-type`（治理和铸造）、`ckboost-campaign-type`（活动逻辑）、`ckboost-campaign-lock`（资金安全金库）、`ckboost-user-type`（提交、验证和绑定逻辑）。 |
+| **智能合约** | 模块化 Type Scripts：`ckboost-protocol-type`（治理和铸造）、`ckboost-campaign-type`（活动逻辑）、`ckboost-funding-lock`（资金安全金库）、`ckboost-user-type`（提交、验证和绑定逻辑）。 |
 | **去中心化 API 服务** | 完全开源的任何人都可以托管的 Cloudflare Workers。优选由活动赞助商和社区托管。 |
 | **数据存储** | 所有关键状态的 CKB Cell 数据，任何人都可以托管的 Neon 存储用于非关键数据（仅用于完成提交，无需永久存储），本地缓存用于性能和费用节省。 |
 | **验证和绑定** | 多方法验证选项，从手动 Telegram 证明开始。计划 DID/KYC 集成。X、Discord、Reddit 绑定以帮助验证。 |
@@ -145,7 +145,7 @@ CKBoost v0 的前端设计草图可在此处查看：
 
 * 部署带有 CCC 钱包集成的 Next.js 脚手架。
 * 视觉和交互原型设计。
-* 核心脚本的智能合约开发（`protocol-type`、`protocol-lock`、`campaign-type`、`campaign-lock`、`user-type`）。
+* 核心脚本的智能合约开发（`protocol-type`、`protocol-lock`、`campaign-type`、`funding-lock`、`user-type`）。
 * 启动协议 Cell 以管理白名单赞助商、管理员角色和积分 UDT 铸造。
 * 构建活动和任务创建流程（仅手动审查证明）。
 * 实现积分 UDT 和锁定奖励分配。

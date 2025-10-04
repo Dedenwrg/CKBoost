@@ -29,15 +29,15 @@ export function FundingProvider({ children }: { children: React.ReactNode }) {
     // Get code hashes from deployment manager
     const network = deploymentManager.getCurrentNetwork()
     const campaignTypeCodeHash = deploymentManager.getContractCodeHash(network, "ckboostCampaignType")
-    const campaignLockCodeHash = deploymentManager.getContractCodeHash(network, "ckboostCampaignLock")
+    const fundingLockCodeHash = deploymentManager.getContractCodeHash(network, "ckboostFundingLock")
     
     if (!campaignTypeCodeHash) {
       debug.warn("Campaign type contract not deployed")
       return null
     }
     
-    // Campaign lock might not be deployed yet, use a placeholder
-    const lockCodeHash = campaignLockCodeHash || "0x" + "00".repeat(32)
+    // Funding lock might not be deployed yet, use a placeholder
+    const lockCodeHash = fundingLockCodeHash || "0x" + "00".repeat(32)
     
     return new FundingService(
       signer,

@@ -12,11 +12,14 @@ CKBoost uses a protocol-centric architecture where all contract addresses are st
 ## Contract Registry Pattern
 
 ### Key Concepts
+
 - **Protocol Type Contract**: The smart contract code deployed on-chain that validates protocol operations
 - **Protocol Cell**: A specific cell instance that stores the protocol data (admin list, contract addresses, etc.)
 
 ### Environment Configuration
+
 The dApp needs to know about the protocol type script to find the protocol cell:
+
 ```env
 # Protocol type contract code hash (from deployment)
 NEXT_PUBLIC_PROTOCOL_TYPE_CODE_HASH=0x...
@@ -27,13 +30,15 @@ NEXT_PUBLIC_PROTOCOL_TYPE_ARGS=0x...
 ```
 
 ### Protocol Cell Data Structure
+
 The protocol cell stores all other contract addresses:
+
 ```rust
 table ScriptCodeHashes {
     ckb_boost_protocol_type_code_hash: Byte32,
     ckb_boost_protocol_lock_code_hash: Byte32,
     ckb_boost_campaign_type_code_hash: Byte32,
-    ckb_boost_campaign_lock_code_hash: Byte32,
+    ckb_boost_funding_lock_code_hash: Byte32,
     ckb_boost_user_type_code_hash: Byte32,
     accepted_udt_type_code_hashes: Byte32Vec,
     accepted_dob_type_code_hashes: Byte32Vec,
@@ -43,21 +48,26 @@ table ScriptCodeHashes {
 ## Deployment Flow
 
 1. **Deploy All Contracts**
+
    ```bash
    ./scripts/deployment/deploy-contracts.sh
    ```
+
    This deploys all contracts and generates a `deployment-summary.json` with all addresses.
 
 2. **Configure dApp with Protocol Type Contract**
    Add the protocol type contract info to `.env.local`:
+
    ```env
    NEXT_PUBLIC_PROTOCOL_TYPE_CODE_HASH=0x... # From protocol-type deployment
    NEXT_PUBLIC_PROTOCOL_TYPE_HASH_TYPE=type
    NEXT_PUBLIC_PROTOCOL_TYPE_ARGS=           # Leave empty for now
    ```
+
    Note: At this stage, you only need the code hash. The args will be filled after deploying the protocol cell.
 
 3. **Deploy Protocol Cell via UI**
+
    - Start the dApp and navigate to `/platform-admin`
    - The UI will detect no protocol cell exists and offer deployment
    - Fill in all contract code hashes from `deployment-summary.json`
@@ -67,11 +77,13 @@ table ScriptCodeHashes {
 
 4. **Update dApp Configuration with Protocol Cell Args**
    After deploying the protocol cell, you need to tell the dApp which specific cell to use:
+
    ```env
    NEXT_PUBLIC_PROTOCOL_TYPE_CODE_HASH=0x... # Same as before (protocol type contract)
    NEXT_PUBLIC_PROTOCOL_TYPE_HASH_TYPE=type  # Same as before
    NEXT_PUBLIC_PROTOCOL_TYPE_ARGS=0x...      # UPDATE with the protocol CELL's args from step 3
    ```
+
    - Copy the protocol cell's args from the deployment result in the UI
    - Update `.env.local` with these args
    - Restart the dApp
@@ -83,19 +95,23 @@ table ScriptCodeHashes {
 
 ```typescript
 // Load protocol cell
-const protocolCell = await findProtocolCell(client)
-const protocolData = parseProtocolCell(protocolCell)
+const protocolCell = await findProtocolCell(client);
+const protocolData = parseProtocolCell(protocolCell);
 
 // Extract contract addresses
-const campaignTypeCodeHash = protocolData.protocol_config.script_code_hashes.ckb_boost_campaign_type_code_hash
-const campaignLockCodeHash = protocolData.protocol_config.script_code_hashes.ckb_boost_campaign_lock_code_hash
+const campaignTypeCodeHash =
+  protocolData.protocol_config.script_code_hashes
+    .ckb_boost_campaign_type_code_hash;
+const fundingLockCodeHash =
+  protocolData.protocol_config.script_code_hashes
+    .ckb_boost_funding_lock_code_hash;
 
 // Use them to query cells
 const campaignCells = await client.findCellsByType({
   codeHash: campaignTypeCodeHash,
   hashType: "data1",
-  args: "0x"
-})
+  args: "0x",
+});
 ```
 
 ## Benefits

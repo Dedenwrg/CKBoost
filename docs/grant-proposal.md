@@ -88,7 +88,7 @@ A summarized version is presented as follows:
 | Layer | Details |
 | ----- | ----- |
 | **Frontend** | Next.js React app, mobile-first, wallet-integrated (CCC), reusable component library, real-time quest tracking. |
-| **Smart Contracts** | Modular Type Scripts: `ckboost-protocol-type` (governance & minting), `ckboost-campaign-type` (campaign logic), `ckboost-campaign-lock` (secure vaults for funds), `ckboost-user-type` (submission, verification, and bindings logic). |
+| **Smart Contracts** | Modular Type Scripts: `ckboost-protocol-type` (governance & minting), `ckboost-campaign-type` (campaign logic), `ckboost-funding-lock` (secure vaults for funds), `ckboost-user-type` (submission, verification, and bindings logic). |
 | **Decentralized API Service** | Fully open source anyone-can-host Cloudflare Workers. Preferably hosted by campaign sponsors and community. |
 | **Data Storage** | CKB Cell data for all critical states, anyone-can-host Neon storage for non-critical data (only for the purpose of completion submission, no need to store permanently), local cache for performance and fee saving. |
 | **Verification and Bindings** | Multi-method verification options, starting with manual Telegram proof. DID/KYC integration planned. X, Discord, Reddit bindings to help validation. |
@@ -159,7 +159,7 @@ The funding covers \~3 months of focused delivery across three clear phases. An 
 * Deploy Next.js scaffold with CCC wallet integration.  
 * Visual and interaction prototyping.
 
-* Smart contract development for core Scripts (`protocol-type`, `campaign-type`, `campaign-lock, user-type`).
+* Smart contract development for core Scripts (`protocol-type`, `campaign-type`, `funding-lock, user-type`).
 
 * Launch Protocol Cell to manage whitelisted sponsors, admin roles, and Points UDT minting.
 

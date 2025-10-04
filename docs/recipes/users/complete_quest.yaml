@@ -42,8 +42,8 @@ CellDeps:
   ckboost-campaign-type-dep:
     Required for campaign type script execution and validation (handles quests, proofs, verification)
     
-  ckboost-campaign-lock-dep:
-    Required for campaign lock script validation
+  ckboost-funding-lock-dep:
+    Required for funding lock script validation
     
   secp256k1-dep:
     Required for user signature verification

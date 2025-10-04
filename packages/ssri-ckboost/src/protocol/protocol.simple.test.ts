@@ -48,7 +48,7 @@ describe('Protocol Simple Tests', () => {
       //       ckb_boost_protocol_type_code_hash: '0x' + '44'.repeat(32),
       //       ckb_boost_protocol_lock_code_hash: '0x' + '55'.repeat(32),
       //       ckb_boost_campaign_type_code_hash: '0x' + '66'.repeat(32),
-      //       ckb_boost_campaign_lock_code_hash: '0x' + '77'.repeat(32),
+      //       ckb_boost_funding_lock_code_hash: '0x' + '77'.repeat(32),
       //       ckb_boost_user_type_code_hash: '0x' + '88'.repeat(32),
       //       accepted_udt_type_code_hashes: [],
       //       accepted_dob_type_code_hashes: []
@@ -80,7 +80,7 @@ describe('Protocol Simple Tests', () => {
       //       ckb_boost_protocol_type_code_hash: '0x' + '00'.repeat(32),
       //       ckb_boost_protocol_lock_code_hash: '0x' + '00'.repeat(32),
       //       ckb_boost_campaign_type_code_hash: '0x' + '00'.repeat(32),
-      //       ckb_boost_campaign_lock_code_hash: '0x' + '00'.repeat(32),
+      //       ckb_boost_funding_lock_code_hash: '0x' + '00'.repeat(32),
       //       ckb_boost_user_type_code_hash: '0x' + '00'.repeat(32),
       //       accepted_udt_type_code_hashes: [],
       //       accepted_dob_type_code_hashes: []

@@ -41,13 +41,13 @@ Treasury Proposal Creation ←────────── Treasury Proposal V
    - Creates new campaigns with initial CKB funding and funding targets
    - Establishes campaign governance and fund management
    - **Dependencies**: Protocol cell for campaign counter management
-   - **Key Contracts**: `ckboost-campaign-type`, `ckboost-campaign-lock`
+   - **Key Contracts**: `ckboost-campaign-type`, `ckboost-funding-lock`
 
 2. **[campaign-funding.yaml](./campaign-funding.yaml)**
    - Adds additional funding to existing campaigns
    - Allows community members to contribute to campaign funding
    - **Dependencies**: Campaign cell in funding status
-   - **Key Contracts**: `ckboost-campaign-type`, `ckboost-campaign-lock`
+   - **Key Contracts**: `ckboost-campaign-type`, `ckboost-funding-lock`
 
 3. **[quest-creation.yaml](./quest-creation.yaml)**  
    - Adds quests to existing campaigns with CKB rewards
@@ -65,7 +65,7 @@ Treasury Proposal Creation ←────────── Treasury Proposal V
    - Batch distribution of CKB rewards to multiple users
    - Efficient handling of campaign reward payouts
    - **Dependencies**: Campaign treasury cell with available funds
-   - **Key Contracts**: `ckboost-campaign-lock`, `ckboost-campaign-type`
+   - **Key Contracts**: `ckboost-funding-lock`, `ckboost-campaign-type`
 
 ### Governance Operations
 
@@ -120,7 +120,7 @@ CKBoost campaigns follow a structured lifecycle with distinct funding phases:
 
 - **`ckboost-campaign-type`**: Manages campaign and quest lifecycle, validation logic for all reward types
 - **`ckboost-protocol-type`**: Handles governance, user verification, treasury management  
-- **`ckboost-campaign-lock`**: Secures campaign funds and controls reward distribution for all asset types
+- **`ckboost-funding-lock`**: Secures campaign funds and controls reward distribution for all asset types
 
 ### External Contract Integration
 
@@ -146,7 +146,7 @@ CKBoost campaigns follow a structured lifecycle with distinct funding phases:
 - **Mixed Rewards**: Multiple output cells of different types per recipient
 
 ### Escrow Mechanism
-- All non-CKB rewards are held in escrow by campaign lock script
+- All non-CKB rewards are held in escrow by funding lock script
 - Escrow ensures rewards are available when quests are completed
 - Escrow cells can be batched for efficient distribution
 - Unused escrow assets can be returned to quest creators

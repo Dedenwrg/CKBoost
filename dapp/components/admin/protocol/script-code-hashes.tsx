@@ -110,10 +110,10 @@ export function ScriptCodeHashes({
             />
             <FormField
               control={form.control}
-              name="ckb_boost_campaign_lock_code_hash"
+              name="ckb_boost_funding_lock_code_hash"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Campaign Lock Code Hash</FormLabel>
+                  <FormLabel>Funding Lock Code Hash</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="0x..."
@@ -122,7 +122,7 @@ export function ScriptCodeHashes({
                     />
                   </FormControl>
                   <FormDescription>
-                    The code hash of the campaign lock script
+                    The code hash of the funding lock script
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

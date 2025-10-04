@@ -101,7 +101,7 @@ const updateScriptCodeHashesSchema = z.object({
   ckb_boost_campaign_type_code_hash: z
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
-  ckb_boost_campaign_lock_code_hash: z
+  ckb_boost_funding_lock_code_hash: z
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
   ckb_boost_user_type_code_hash: z
@@ -221,9 +221,9 @@ export function ProtocolManagement() {
       ckb_boost_campaign_type_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
           .ckb_boost_campaign_type_code_hash,
-      ckb_boost_campaign_lock_code_hash:
+      ckb_boost_funding_lock_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
-          .ckb_boost_campaign_lock_code_hash,
+          .ckb_boost_funding_lock_code_hash,
       ckb_boost_user_type_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
           .ckb_boost_user_type_code_hash,
@@ -373,9 +373,9 @@ export function ProtocolManagement() {
               ckb_boost_campaign_type_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .ckb_boost_campaign_type_code_hash,
-              ckb_boost_campaign_lock_code_hash:
+              ckb_boost_funding_lock_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
-                  .ckb_boost_campaign_lock_code_hash,
+                  .ckb_boost_funding_lock_code_hash,
               ckb_boost_user_type_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .ckb_boost_user_type_code_hash,
@@ -428,9 +428,9 @@ export function ProtocolManagement() {
         ckb_boost_campaign_type_code_hash:
           protocolData.protocol_config.script_code_hashes
             .ckb_boost_campaign_type_code_hash,
-        ckb_boost_campaign_lock_code_hash:
+        ckb_boost_funding_lock_code_hash:
           protocolData.protocol_config.script_code_hashes
-            .ckb_boost_campaign_lock_code_hash,
+            .ckb_boost_funding_lock_code_hash,
         ckb_boost_user_type_code_hash:
           protocolData.protocol_config.script_code_hashes
             .ckb_boost_user_type_code_hash,
@@ -599,8 +599,8 @@ export function ProtocolManagement() {
         baselineValues.scriptCodeHashes.ckb_boost_protocol_lock_code_hash &&
       scriptCodeHashesValues.ckb_boost_campaign_type_code_hash ===
         baselineValues.scriptCodeHashes.ckb_boost_campaign_type_code_hash &&
-      scriptCodeHashesValues.ckb_boost_campaign_lock_code_hash ===
-        baselineValues.scriptCodeHashes.ckb_boost_campaign_lock_code_hash &&
+      scriptCodeHashesValues.ckb_boost_funding_lock_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_funding_lock_code_hash &&
       scriptCodeHashesValues.ckb_boost_user_type_code_hash ===
         baselineValues.scriptCodeHashes.ckb_boost_user_type_code_hash &&
       scriptCodeHashesValues.ckb_boost_points_udt_type_code_hash ===
@@ -1055,9 +1055,9 @@ export function ProtocolManagement() {
           ckb_boost_campaign_type_code_hash:
             protocolData.protocol_config.script_code_hashes
               .ckb_boost_campaign_type_code_hash,
-          ckb_boost_campaign_lock_code_hash:
+          ckb_boost_funding_lock_code_hash:
             protocolData.protocol_config.script_code_hashes
-              .ckb_boost_campaign_lock_code_hash,
+              .ckb_boost_funding_lock_code_hash,
           ckb_boost_user_type_code_hash:
             protocolData.protocol_config.script_code_hashes
               .ckb_boost_user_type_code_hash,
@@ -1092,9 +1092,9 @@ export function ProtocolManagement() {
           ckb_boost_campaign_type_code_hash:
             deploymentTemplate.protocol_config.script_code_hashes
               .ckb_boost_campaign_type_code_hash,
-          ckb_boost_campaign_lock_code_hash:
+          ckb_boost_funding_lock_code_hash:
             deploymentTemplate.protocol_config.script_code_hashes
-              .ckb_boost_campaign_lock_code_hash,
+              .ckb_boost_funding_lock_code_hash,
           ckb_boost_user_type_code_hash:
             deploymentTemplate.protocol_config.script_code_hashes
               .ckb_boost_user_type_code_hash,

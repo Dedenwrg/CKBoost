@@ -134,7 +134,7 @@ export const ScriptCodeHashes = mol.table({
   ckb_boost_protocol_type_code_hash: mol.Byte32,
   ckb_boost_protocol_lock_code_hash: mol.Byte32,
   ckb_boost_campaign_type_code_hash: mol.Byte32,
-  ckb_boost_campaign_lock_code_hash: mol.Byte32,
+  ckb_boost_funding_lock_code_hash: mol.Byte32,
   ckb_boost_user_type_code_hash: mol.Byte32,
   ckb_boost_points_udt_type_code_hash: mol.Byte32,
   ckb_boost_tipping_type_code_hash: mol.Byte32,
@@ -316,7 +316,7 @@ export interface ScriptCodeHashesLike {
   ckb_boost_protocol_type_code_hash: ccc.HexLike;
   ckb_boost_protocol_lock_code_hash: ccc.HexLike;
   ckb_boost_campaign_type_code_hash: ccc.HexLike;
-  ckb_boost_campaign_lock_code_hash: ccc.HexLike;
+  ckb_boost_funding_lock_code_hash: ccc.HexLike;
   ckb_boost_user_type_code_hash: ccc.HexLike;
   ckb_boost_points_udt_type_code_hash: ccc.HexLike;
   ckb_boost_tipping_type_code_hash: ccc.HexLike;

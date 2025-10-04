@@ -838,7 +838,7 @@
           "type": "Byte32"
         },
         {
-          "name": "ckb_boost_campaign_lock_code_hash",
+          "name": "ckb_boost_funding_lock_code_hash",
           "type": "Byte32"
         },
         {

@@ -5,9 +5,9 @@ import { ConnectedTypeID } from "ssri-ckboost/types";
 /**
  * Fetch UDT cells locked with campaign-lock for a specific campaign
  */
-export async function fetchUDTCellsByCampaignLock(
+export async function fetchUDTCellsByFundingLock(
   campaignTypeId: ccc.Hex,
-  campaignLockCodeHash: ccc.Hex,
+  fundingLockCodeHash: ccc.Hex,
   campaignTypeCodeHash: ccc.Hex,
   protocolCellTypeHash: ccc.Hex,
   signer: ccc.Signer
@@ -22,26 +22,26 @@ export async function fetchUDTCellsByCampaignLock(
       type_id: campaignTypeId,
       connected_key: protocolCellTypeHash,
     });
-    
+
     const campaignTypeScript = ccc.Script.from({
       codeHash: campaignTypeCodeHash,
       hashType: "type" as ccc.HashType,
       args: campaignConnectedTypeId, // This is actually the ConnectedTypeID containing the type_id
     });
-    
+
     // Get the type hash of the campaign cell's type script
     const campaignTypeHash = campaignTypeScript.hash();
-    
+
     // Create the campaign-lock script using the campaign type hash as args
-    const campaignLockScript = ccc.Script.from({
-      codeHash: campaignLockCodeHash,
+    const fundingLockScript = ccc.Script.from({
+      codeHash: fundingLockCodeHash,
       hashType: "type" as ccc.HashType,
       args: campaignTypeHash,
     });
 
     // Find all cells with this lock script
     const collector = signer.client.findCells({
-      script: campaignLockScript,
+      script: fundingLockScript,
       scriptType: "lock",
       scriptSearchMode: "exact",
     });
@@ -54,10 +54,15 @@ export async function fetchUDTCellsByCampaignLock(
       }
     }
 
-    debug.log(`Found ${udtCells.length} UDT cells for campaign`);
+    debug.log(
+      `Found ${udtCells.length} UDT cells locked by funding lock for campaign ${campaignTypeId}`
+    );
     return udtCells;
   } catch (error) {
-    debug.error("Failed to fetch UDT cells:", error);
+    debug.error(
+      "Failed to fetch UDT cells locked by funding lock for campaign:",
+      error
+    );
     throw error;
   }
 }
@@ -97,23 +102,25 @@ export async function fetchUDTCellsByType(
  */
 export function calculateUDTBalance(cells: ccc.Cell[]): bigint {
   let total = 0n;
-  
+
   for (const cell of cells) {
     if (cell.outputData && cell.outputData.length >= 16) {
       const amount = ccc.numFromBytes(cell.outputData.slice(0, 16));
       total += amount;
     }
   }
-  
+
   return total;
 }
 
 /**
  * Group UDT cells by their type script hash
  */
-export function groupUDTCellsByType(cells: ccc.Cell[]): Map<string, ccc.Cell[]> {
+export function groupUDTCellsByType(
+  cells: ccc.Cell[]
+): Map<string, ccc.Cell[]> {
   const grouped = new Map<string, ccc.Cell[]>();
-  
+
   for (const cell of cells) {
     const typeHash = cell.cellOutput.type?.hash();
     if (typeHash) {
@@ -122,7 +129,7 @@ export function groupUDTCellsByType(cells: ccc.Cell[]): Map<string, ccc.Cell[]> 
       grouped.set(typeHash, group);
     }
   }
-  
+
   return grouped;
 }
 
@@ -137,7 +144,7 @@ export async function findSufficientUDTCells(
 ): Promise<ccc.Cell[]> {
   const udtScript = ccc.Script.from(udtTypeScript);
   const lockScript = ccc.Script.from(ownerLockScript);
-  
+
   debug.log("Finding sufficient UDT cells", {
     udtType: udtScript.codeHash,
     requiredAmount: requiredAmount.toString(),
@@ -174,7 +181,9 @@ export async function findSufficientUDTCells(
       );
     }
 
-    debug.log(`Selected ${selectedCells.length} cells with total amount ${collectedAmount}`);
+    debug.log(
+      `Selected ${selectedCells.length} cells with total amount ${collectedAmount}`
+    );
     return selectedCells;
   } catch (error) {
     debug.error("Failed to find sufficient UDT cells:", error);
@@ -197,19 +206,22 @@ export async function getUDTMetadata(
     // This would use the UDT SSRI trait to fetch metadata
     // For now, return placeholder data
     // TODO: Integrate with @ckb-ccc/udt package for real metadata
-    
+
     const script = ccc.Script.from(udtTypeScript);
     const typeHash = script.hash();
-    
+
     // Common known tokens (placeholder mapping)
-    const knownUDTs: Record<string, { name: string; symbol: string; decimals: number }> = {
+    const knownUDTs: Record<
+      string,
+      { name: string; symbol: string; decimals: number }
+    > = {
       // Add known token type hashes here
     };
-    
+
     if (knownUDTs[typeHash]) {
       return knownUDTs[typeHash];
     }
-    
+
     // Default unknown token
     return {
       name: "Unknown Token",

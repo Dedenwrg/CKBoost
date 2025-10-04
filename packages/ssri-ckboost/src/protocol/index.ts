@@ -190,10 +190,10 @@ export class Protocol extends ssri.Trait {
               config.script_code_hashes.ckb_boost_campaign_type_code_hash
             )
           : ccc.hexFrom("0x" + "0".repeat(64)),
-        ckb_boost_campaign_lock_code_hash: config.script_code_hashes
-          ?.ckb_boost_campaign_lock_code_hash
+        ckb_boost_funding_lock_code_hash: config.script_code_hashes
+          ?.ckb_boost_funding_lock_code_hash
           ? ccc.hexFrom(
-              config.script_code_hashes.ckb_boost_campaign_lock_code_hash
+              config.script_code_hashes.ckb_boost_funding_lock_code_hash
             )
           : ccc.hexFrom("0x" + "0".repeat(64)),
         ckb_boost_user_type_code_hash: config.script_code_hashes

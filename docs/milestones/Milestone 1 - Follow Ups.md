@@ -29,7 +29,7 @@
 
 ## Contract Improvements
 
-1. [ ] Validate approve_completion UDT amount in campaign-lock.
+1. [ ] Validate approve_completion UDT amount in funding-lock.
 
 ## DevOps
 

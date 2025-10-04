@@ -139,7 +139,7 @@ The system will be built upon three core, specialized `Type Scripts`, ensuring m
         *   Rules for participation and proof submission.
         *   Quest completion and proof submission.
 
-3.  **`ckboost-campaign-lock`**:
+3.  **`ckboost-funding-lock`**:
     *   **Purpose**: A specialized `Lock Script` that acts as a secure vault for campaign assets. It also locks the campaign cell to the campaign creator.
     *   **Logic**: It locks the CKB or UDTs allocated as the reward pool for a specific campaign, or the campaign cell itself to the campaign creator.
     *   **Controls**:
@@ -163,7 +163,7 @@ The platform's state will be stored in the `cell_data` of Cells, each governed b
     *   Each Cell represents a single, unique campaign.
     *   **Data Stored**: All data related to a campaign, including its objectives, total reward pool, quest definitions, list of participants, and submitted proofs (as IPFS hashes or transaction hashes).
 
--   **Campaign Vault Cells (locked by `ckboost-campaign-lock`)**:
+-   **Campaign Vault Cells (locked by `ckboost-funding-lock`)**:
     *   These cells hold the actual CKB/UDT assets for a campaign's reward pool. Their `cell_data` might be minimal, as their primary purpose is to lock assets.
 
 -   **User Cells (governed by `ckboost-user-type`)**:

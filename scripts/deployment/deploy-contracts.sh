@@ -8,7 +8,7 @@
 #   ./deploy-contracts.sh --all [options]
 #
 # Contract names:
-#   protocol-type, protocol-lock, campaign-type, campaign-lock, user-type, points-udt
+#   protocol-type, protocol-lock, campaign-type, funding-lock, user-type, points-udt
 #
 # Options:
 #   --network <network>     Network to deploy to (testnet|mainnet|devnet) [default: testnet]
@@ -66,7 +66,7 @@ show_usage() {
     echo "       $0 --all [options]"
     echo ""
     echo "Contract names:"
-    echo "  protocol-type, protocol-lock, campaign-type, campaign-lock, user-type, points-udt, tipping"
+    echo "  protocol-type, protocol-lock, campaign-type, funding-lock, user-type, points-udt, tipping"
     echo ""
     echo "Options:"
     echo "  --network <network>     Network to deploy to (testnet|mainnet|devnet) [default: testnet]"
@@ -115,7 +115,7 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             show_usage
             ;;
-        protocol-type|protocol-lock|campaign-type|campaign-lock|user-type|points-udt|tipping-type)
+        protocol-type|protocol-lock|campaign-type|funding-lock|user-type|points-udt|tipping-type)
             if [ -z "$CONTRACT_NAME" ]; then
                 CONTRACT_NAME="$1"
             else
@@ -280,7 +280,7 @@ check_contract_binaries() {
     local BINARIES_MISSING=false
     local MISSING_BINARIES=""
     
-    for contract in "protocol-type" "protocol-lock" "campaign-type" "campaign-lock" "user-type" "points-udt" "tipping-type"; do
+    for contract in "protocol-type" "protocol-lock" "campaign-type" "funding-lock" "user-type" "points-udt" "tipping-type"; do
         local binary_path="contracts/build/release/ckboost-${contract}"
         if [ ! -f "$binary_path" ]; then
             BINARIES_MISSING=true
@@ -346,7 +346,7 @@ get_contract_name() {
         "protocol-type") echo "protocol-type" ;;
         "protocol-lock") echo "protocol-lock" ;;
         "campaign-type") echo "campaign-type" ;;
-        "campaign-lock") echo "campaign-lock" ;;
+        "funding-lock") echo "funding-lock" ;;
         "user-type") echo "user-type" ;;
         "points-udt") echo "points-udt" ;;
         "tipping-type") echo "tipping-type" ;;
@@ -359,7 +359,7 @@ get_contract_path() {
         "protocol-type") echo "./contracts/build/release/ckboost-protocol-type" ;;
         "protocol-lock") echo "./contracts/build/release/ckboost-protocol-lock" ;;
         "campaign-type") echo "./contracts/build/release/ckboost-campaign-type" ;;
-        "campaign-lock") echo "./contracts/build/release/ckboost-campaign-lock" ;;
+        "funding-lock") echo "./contracts/build/release/ckboost-funding-lock" ;;
         "user-type") echo "./contracts/build/release/ckboost-user-type" ;;
         "points-udt") echo "./contracts/build/release/ckboost-points-udt" ;;
         "tipping-type") echo "./contracts/build/release/ckboost-tipping-type" ;;
@@ -372,7 +372,7 @@ get_contract_type_id() {
         "protocol-type") echo "true" ;;
         "protocol-lock") echo "true" ;;
         "campaign-type") echo "true" ;;
-        "campaign-lock") echo "true" ;;
+        "funding-lock") echo "true" ;;
         "user-type") echo "true" ;;
         "points-udt") echo "true" ;;
         "tipping-type") echo "true" ;;
@@ -389,7 +389,7 @@ if [ "$DEPLOY_ALL" = true ]; then
     
     echo -e "${YELLOW}Deploying all contracts...${NC}\n"
     
-    for contract in "protocol-type" "protocol-lock" "campaign-type" "campaign-lock" "user-type" "points-udt" "tipping-type"; do
+    for contract in "protocol-type" "protocol-lock" "campaign-type" "funding-lock" "user-type" "points-udt" "tipping-type"; do
         deploy_contract "$(get_contract_name "$contract")" "$(get_contract_path "$contract")" "$(get_contract_type_id "$contract")"
     done
     

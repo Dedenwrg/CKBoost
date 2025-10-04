@@ -139,9 +139,9 @@ Campaign admins create and manage individual campaigns with quests and rewards.
    - **Expected**: Funding reflected in campaign
    - **Report**: Token selection issues, amount calculation errors
 
-**Test Scenario**: Campaign Lock Management
+**Test Scenario**: Funding Lock Management
 
-1. View campaign lock status
+1. View funding lock status
 2. **Test Unlock Scenarios**:
    - Admin unlock attempt
    - Time-based unlock (if applicable)

@@ -222,10 +222,10 @@ export class CampaignAdminService {
           network,
           "ckboostCampaignType"
         );
-        const campaignLockCodeHash =
+        const fundingLockCodeHash =
           deploymentManager.getContractCodeHash(
             network,
-            "ckboostCampaignLock"
+            "ckboostFundingLock"
           ) || "0x" + "00".repeat(32);
 
         if (!campaignTypeCodeHash) {
@@ -239,7 +239,7 @@ export class CampaignAdminService {
         const fundingService = new FundingService(
           this.signer,
           campaignTypeCodeHash,
-          campaignLockCodeHash as ccc.Hex,
+          fundingLockCodeHash as ccc.Hex,
           this.protocolCell!
         );
 
@@ -296,8 +296,8 @@ export class CampaignAdminService {
           );
         }
 
-        const campaignLock = ccc.Script.from({
-          codeHash: campaignLockCodeHash,
+        const fundingLock = ccc.Script.from({
+          codeHash: fundingLockCodeHash,
           hashType: campaignOutput.lock.hashType,
           args: ccc.bytesFrom(campaignTypeHash),
         });
@@ -305,7 +305,7 @@ export class CampaignAdminService {
         // Add UDT funding to the transaction
         updateTx = await fundingService.addUDTFundingToTransaction(
           updateTx,
-          campaignLock,
+          fundingLock,
           udtAssets
         );
 
@@ -326,10 +326,10 @@ export class CampaignAdminService {
           network,
           "ckboostCampaignType"
         );
-        const campaignLockCodeHash =
+        const fundingLockCodeHash =
           deploymentManager.getContractCodeHash(
             network,
-            "ckboostCampaignLock"
+            "ckboostFundingLock"
           ) || "0x" + "00".repeat(32);
         if (!campaignTypeCodeHash)
           throw new Error(`Campaign type contract not deployed on ${network}`);
@@ -337,11 +337,11 @@ export class CampaignAdminService {
         const fundingService = new FundingService(
           this.signer,
           campaignTypeCodeHash as ccc.Hex,
-          campaignLockCodeHash as ccc.Hex,
+          fundingLockCodeHash as ccc.Hex,
           this.protocolCell!
         );
 
-        // Determine campaign lock from the freshly built campaign output
+        // Determine funding lock from the freshly built campaign output
         const campaignOutput = updateTx.outputs.find(
           (output) =>
             output.type?.codeHash.slice(0, 32) ===
@@ -353,15 +353,15 @@ export class CampaignAdminService {
         if (!campaignTypeHash)
           throw new Error("Campaign type hash missing for CKB funding");
 
-        const campaignLock = ccc.Script.from({
-          codeHash: campaignLockCodeHash as ccc.Hex,
+        const fundingLock = ccc.Script.from({
+          codeHash: fundingLockCodeHash as ccc.Hex,
           hashType: campaignOutput.lock.hashType,
           args: ccc.bytesFrom(campaignTypeHash),
         });
 
         updateTx = await fundingService.addCKBFundingToTransaction(
           updateTx,
-          campaignLock,
+          fundingLock,
           ckbFunding
         );
         console.log("CKB funding added to transaction");
@@ -684,7 +684,7 @@ export class CampaignAdminService {
       amount: bigint;
     }>
   ): Promise<string> {
-    // TODO: Implement with simple transfer to campaign-lock
+    // TODO: Implement with simple transfer to funding-lock
     console.log("UDT funding will be available in Stage 2:", {
       campaignTypeId,
       udtAssets,
@@ -780,19 +780,19 @@ export class CampaignAdminService {
         depType: "code",
       });
 
-      const campaignLockOutPoint = deploymentManager.getContractOutPoint(
+      const fundingLockOutPoint = deploymentManager.getContractOutPoint(
         deploymentManager.getCurrentNetwork(),
-        "ckboostCampaignLock"
+        "ckboostFundingLock"
       );
 
-      if (!campaignLockOutPoint) {
-        throw new Error("Campaign Lock contract not found in deployments.json");
+      if (!fundingLockOutPoint) {
+        throw new Error("Funding Lock contract not found in deployments.json");
       }
 
       tx.addCellDeps({
         outPoint: {
-          txHash: campaignLockOutPoint.txHash,
-          index: campaignLockOutPoint.index,
+          txHash: fundingLockOutPoint.txHash,
+          index: fundingLockOutPoint.index,
         },
         depType: "code",
       });

@@ -25,7 +25,7 @@ Notes: In milestone 1, we focus on delivering the bare bone framework of the pro
 
 ### Smart Contract Layer
 
-- ✅ 5 core contracts deployed: `ckboost-protocol-type`, `ckboost-campaign-type`, `ckboost-campaign-lock`, `ckboost-user-type`, `ckboost-points-udt`
+- ✅ 5 core contracts deployed: `ckboost-protocol-type`, `ckboost-campaign-type`, `ckboost-funding-lock`, `ckboost-user-type`, `ckboost-points-udt`
 - ✅ ConnectedTypeID pattern for O(1) cell lookups and binding using type_id
 - ✅ Quest submission/approval/reward workflow with on-chain registry.
 - ✅ Rule-based validation for all contracts

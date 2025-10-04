@@ -11,7 +11,7 @@ export type ContractType =
   | "ckboostCampaignType"
   | "ckboostUserType"
   | "ckboostProtocolLock"
-  | "ckboostCampaignLock"
+  | "ckboostFundingLock"
   | "ckboostUserLock"
   | "ckboostPointsUdt"
   | "ckboostTippingType";
@@ -44,7 +44,7 @@ export interface DeploymentHistory {
       ckboostCampaignType: DeploymentRecord | null;
       ckboostUserType: DeploymentRecord | null;
       ckboostProtocolLock: DeploymentRecord | null;
-      ckboostCampaignLock: DeploymentRecord | null;
+      ckboostFundingLock: DeploymentRecord | null;
       ckboostUserLock: DeploymentRecord | null;
       ckboostPointsUdt: DeploymentRecord | null;
       ckboostTippingType: DeploymentRecord | null;
@@ -55,7 +55,7 @@ export interface DeploymentHistory {
       ckboostCampaignType?: DeploymentRecord | null;
       ckboostUserType?: DeploymentRecord | null;
       ckboostProtocolLock?: DeploymentRecord | null;
-      ckboostCampaignLock?: DeploymentRecord | null;
+      ckboostFundingLock?: DeploymentRecord | null;
       ckboostUserLock?: DeploymentRecord | null;
       ckboostPointsUdt?: DeploymentRecord | null;
       ckboostTippingType?: DeploymentRecord | null;

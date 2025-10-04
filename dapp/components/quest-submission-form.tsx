@@ -738,7 +738,7 @@ Lines        : 93.84% ( 183/195 )
                       try {
                         console.log('CKB claim requested for', ckbPerCompletion, 'CKB');
                         // TODO: Integrate on-chain claim when campaign CKB pool is live.
-                        // This will build a tx spending campaign-locked CKB to the user lock.
+                        // This will build a tx spending funding-locked CKB to the user lock.
                         alert('CKB claim requested. In Milestone 1, CKB payouts are distributed upon approval or from sponsor pool once funded.');
                       } catch (e) {
                         console.error('CKB claim failed', e);
