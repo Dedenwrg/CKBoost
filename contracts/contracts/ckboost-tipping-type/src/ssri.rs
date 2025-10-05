@@ -11,16 +11,16 @@ use ckboost_shared::{
 /// CKBoost Tipping SSRI trait for tipping management operations
 pub trait CKBoostTipping {
     fn update_tipping_proposal(
-        protocol_type_hash: Byte32,
+        tx: Option<Transaction>,
         tipping_proposal_data: TippingProposalData,
-    ) -> Result<(), Error>;
+    ) -> Result<Transaction, Error>;
     fn verify_update_tipping_proposal(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error>;
     fn grant_tipping_reward(
         tx: Option<Transaction>,
         tipping_proposal_data: TippingProposalData,
-    ) -> Result<(), Error>;
+    ) -> Result<Transaction, Error>;
     fn verify_grant_tipping_reward(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error>;

@@ -121,9 +121,8 @@ export const TippingProposalData = mol.table({
   target_address: mol.String,
   proposer_lock_hash: mol.Byte32,
   metadata: TippingProposalMetadata,
-  amount: mol.Uint64,
-  tipping_transaction_hash: mol.Byte32Opt,
-  approval_transaction_hash: mol.Byte32Vec
+  rewards: AssetList,
+  status: mol.String
 });
 export const TippingProposalDataVec = mol.vector(TippingProposalData);
 export const TippingConfig = mol.table({
@@ -302,9 +301,8 @@ export interface TippingProposalDataLike {
   target_address: string;
   proposer_lock_hash: ccc.HexLike;
   metadata: TippingProposalMetadataLike;
-  amount: ccc.NumLike;
-  tipping_transaction_hash: ccc.HexLike | null;
-  approval_transaction_hash: ccc.HexLike[];
+  rewards: AssetListLike;
+  status: string;
 }
 
 export interface TippingConfigLike {

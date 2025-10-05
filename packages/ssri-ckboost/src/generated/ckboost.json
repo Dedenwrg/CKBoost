@@ -789,16 +789,12 @@
           "type": "TippingProposalMetadata"
         },
         {
-          "name": "amount",
-          "type": "Uint64"
+          "name": "rewards",
+          "type": "AssetList"
         },
         {
-          "name": "tipping_transaction_hash",
-          "type": "Byte32Opt"
-        },
-        {
-          "name": "approval_transaction_hash",
-          "type": "Byte32Vec"
+          "name": "status",
+          "type": "String"
         }
       ]
     },

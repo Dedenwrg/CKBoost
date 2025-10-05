@@ -145,6 +145,9 @@ pub enum Error {
     InvalidUDTAmount,
     InvalidArgument,
 
+    // Tipping specific errors
+    TippingCellNotFound,
+
     // Unknown error
     Unknown,
 }

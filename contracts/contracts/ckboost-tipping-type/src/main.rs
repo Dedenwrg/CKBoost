@@ -97,16 +97,21 @@ fn program_entry_wrap() -> Result<(), Error> {
         "CKBoostProtocol.update_tipping_proposal" => {
             debug_trace!("Entered CKBoostProtocol.update_tipping_proposal");
 
-            // Parse tipping_proposal_data from molecule serialized bytes
-            let proposal_type_hash_bytes = decode_hex(argv[1].as_ref())?;
-            let proposal_type_hash = SharedByte32::from_slice(&proposal_type_hash_bytes)
-                .map_err(|_| Error::InvalidArgument)?;
+            // Parse optional transaction (argv[1])
+            let tx: Option<ckb_std::ckb_types::packed::Transaction> = if argv[1].is_empty() || argv[1].as_ref().to_str().map_err(|_| Error::Utf8Error)? == "" {
+                None
+            } else {
+                let parsed_tx = ckb_std::ckb_types::packed::Transaction::from_compatible_slice(&ckb_std::high_level::decode_hex(argv[1].as_ref())?)
+                    .map_err(|_| Error::InvalidBaseTransactionForSSRI)?;
+                Some(parsed_tx)
+            };
 
+            // Parse tipping_proposal_data from molecule serialized bytes
             let proposal_data_bytes = decode_hex(argv[2].as_ref())?;
             let tipping_proposal_data = TippingProposalData::from_slice(&proposal_data_bytes)
                 .map_err(|_| Error::MoleculeVerificationError)?;
 
-            CKBoostTippingType::update_tipping_proposal(proposal_type_hash, tipping_proposal_data)?;
+            CKBoostTippingType::update_tipping_proposal(tx, tipping_proposal_data)?;
             Ok(Cow::from(b"success".to_vec()))
         },
     )?;
