@@ -37,7 +37,7 @@ fn program_entry_wrap() -> Result<(), Error> {
         // # Validation Rules for Funding Lock Script
         //
         // 1. **Dual unlock mechanism**:
-        //    - Campaign admin can unlock (when campaign cell is being spent)
+        //    - Campaign/Tipping admin can unlock (when campaign/tipping cell is being spent)
         //    - Approved user can unlock (with approval proof in transaction)
         debug_trace!("Loading lock script for validation");
         let script = load_script()?;

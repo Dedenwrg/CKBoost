@@ -165,7 +165,6 @@ table UDTAsset {
 
 vector UDTAssetVec <UDTAsset>;
 
-// Campaign funding information
 table AssetList {
     points_amount: Uint128,      // Total points target for the campaign (changed to Uint128)
     ckb_amount: Uint64,        // Total funding target for the campaign
@@ -260,9 +259,8 @@ table TippingProposalData {
     target_address: String,
     proposer_lock_hash: Byte32,
     metadata: TippingProposalMetadata,
-    amount: Uint64,
-    tipping_transaction_hash: Byte32Opt, 
-    approval_transaction_hash: Byte32Vec, 
+    rewards: AssetList,
+    status: String, // created, approved, granted
 }
 
 vector TippingProposalDataVec <TippingProposalData>;

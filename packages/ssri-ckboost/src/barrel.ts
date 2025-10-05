@@ -1,5 +1,6 @@
 export * from "./protocol/index.js";
 export * from "./campaign/index.js";
+export * from "./tipping/index.js";
 export * from "./user/index.js";
 
 

@@ -319,7 +319,7 @@ export class Campaign extends ssri.Trait {
   /**
    * Calculate total available UDT balance from campaign cells
    *
-   * @param campaignUdtCells - Array of campaign UDT cells
+   * @param campaignUdtCells - Array of campaign UDT cells. Make sure you're using the same type of UDT.
    * @returns Total balance as bigint
    */
   private calculateTotalUdtBalance(campaignUdtCells: ccc.Cell[]): bigint {
