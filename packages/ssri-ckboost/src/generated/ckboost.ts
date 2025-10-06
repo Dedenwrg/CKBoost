@@ -111,20 +111,23 @@ export const CampaignData = mol.table({
   total_completions: mol.Uint32
 });
 export const CampaignDataVec = mol.vector(CampaignData);
-export const TippingProposalMetadata = mol.table({
+export const TippingMetadata = mol.table({
   contribution_title: mol.String,
   contribution_type_tags: mol.vector(mol.String),
-  description: mol.String,
-  proposal_creation_timestamp: mol.Uint64
+  short_description: mol.String,
+  long_description: mol.String,
+  creation_timestamp: mol.Uint64
 });
-export const TippingProposalData = mol.table({
+export const TippingData = mol.table({
   target_address: mol.String,
   proposer_lock_hash: mol.Byte32,
-  metadata: TippingProposalMetadata,
+  supporter_lock_hashes: mol.Byte32Vec,
+  metadata: TippingMetadata,
   rewards: AssetList,
-  status: mol.String
+  status: mol.String,
+  granted_at: mol.Uint64
 });
-export const TippingProposalDataVec = mol.vector(TippingProposalData);
+export const TippingDataVec = mol.vector(TippingData);
 export const TippingConfig = mol.table({
   approval_requirement_thresholds: mol.Uint128Vec,
   expiration_duration: mol.Uint64
@@ -146,7 +149,7 @@ export const ProtocolConfig = mol.table({
 });
 export const ProtocolData = mol.table({
   campaigns_approved: mol.Byte32Vec,
-  tipping_proposals_approved: mol.Byte32Vec,
+  tippings_approved: mol.Byte32Vec,
   tipping_config: TippingConfig,
   endorsers_whitelist: EndorserInfoVec,
   last_updated: mol.Uint64,
@@ -290,19 +293,22 @@ export interface CampaignDataLike {
   total_completions: ccc.NumLike;
 }
 
-export interface TippingProposalMetadataLike {
+export interface TippingMetadataLike {
   contribution_title: string;
   contribution_type_tags: string[];
-  description: string;
-  proposal_creation_timestamp: ccc.NumLike;
+  short_description: string;
+  long_description: string;
+  creation_timestamp: ccc.NumLike;
 }
 
-export interface TippingProposalDataLike {
+export interface TippingDataLike {
   target_address: string;
   proposer_lock_hash: ccc.HexLike;
-  metadata: TippingProposalMetadataLike;
+  supporter_lock_hashes: ccc.HexLike[];
+  metadata: TippingMetadataLike;
   rewards: AssetListLike;
   status: string;
+  granted_at: ccc.NumLike;
 }
 
 export interface TippingConfigLike {
@@ -329,7 +335,7 @@ export interface ProtocolConfigLike {
 
 export interface ProtocolDataLike {
   campaigns_approved: ccc.HexLike[];
-  tipping_proposals_approved: ccc.HexLike[];
+  tippings_approved: ccc.HexLike[];
   tipping_config: TippingConfigLike;
   endorsers_whitelist: EndorserInfoLike[];
   last_updated: ccc.NumLike;

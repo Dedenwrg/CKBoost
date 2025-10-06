@@ -11,7 +11,7 @@ import { ccc } from "@ckb-ccc/connector-react";
 import type {
   ProtocolDataLike,
   EndorserInfoLike,
-  TippingProposalDataLike,
+  TippingDataLike,
   CampaignDataLike,
   ProtocolData,
 } from "ssri-ckboost/types";
@@ -43,7 +43,7 @@ interface ProtocolContextType {
 
   // Helper getters
   getEndorser: (address: string) => EndorserInfoLike | undefined;
-  getTippingProposal: (index: number) => TippingProposalDataLike | undefined;
+  getTipping: (index: number) => TippingDataLike | undefined;
   getApprovedCampaign: (id: string) => CampaignDataLike | undefined;
 
   // User-specific data
@@ -527,11 +527,9 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     );
   };
 
-  const getTippingProposal = (
-    index: number
-  ): TippingProposalDataLike | undefined => {
-    return protocolData?.tipping_proposals_approved?.[index] as
-      | TippingProposalDataLike
+  const getTipping = (index: number): TippingDataLike | undefined => {
+    return protocolData?.tippings_approved?.[index] as
+      | TippingDataLike
       | undefined;
   };
 
@@ -560,7 +558,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
 
     // Helper getters
     getEndorser,
-    getTippingProposal,
+    getTipping,
     getApprovedCampaign,
 
     // User-specific data
@@ -631,11 +629,11 @@ export function useEndorser(address?: string) {
   };
 }
 
-// Helper hook for tipping proposal data
-export function useTippingProposals() {
+// Helper hook for tipping data
+export function useTippings() {
   const { protocolData, isLoading } = useProtocol();
 
-  const proposals = protocolData?.tipping_proposals_approved || [];
+  const proposals = protocolData?.tippings_approved || [];
   const pendingProposals = proposals.filter(
     (p) =>
       // TODO: Implement new filter

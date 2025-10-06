@@ -827,7 +827,7 @@ export default function CampaignAdminPage() {
           ...(protocolData.campaigns_approved || []),
           formattedTypeId,
         ],
-        tipping_proposals_approved: protocolData.tipping_proposals_approved,
+        tippings_approved: protocolData.tippings_approved,
         tipping_config: protocolData.tipping_config,
         endorsers_whitelist: protocolData.endorsers_whitelist || [],
         last_updated: Math.floor(Date.now() / 1000),

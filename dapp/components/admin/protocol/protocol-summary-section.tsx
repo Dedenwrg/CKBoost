@@ -128,8 +128,7 @@ export function ProtocolSummarySection({
                   Tipping Proposals
                 </div>
                 <div className="mt-1">
-                  {protocolData?.tipping_proposals_approved.length || 0}{" "}
-                  proposals
+                  {protocolData?.tippings_approved.length || 0} proposals
                 </div>
               </div>
               <div>

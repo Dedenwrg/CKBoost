@@ -229,7 +229,7 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
       },
     },
     campaigns_approved: [],
-    tipping_proposals_approved: [],
+    tippings_approved: [],
     tipping_config: {
       // Default thresholds: 1000 CKB, 5000 CKB, 10000 CKB (in shannon, 1 CKB = 10^8 shannon)
       approval_requirement_thresholds: [

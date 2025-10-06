@@ -7,7 +7,7 @@
 2. [x] Non Admin should be properly guided away from admin page, and admin links (including Parse Nostr Submission) should not be on the wallet connector
 3. [x] In Platform Admin Dashboard - Campaign Reviews, approved campaigns should not show up. The tag showing "1 Connected Campaigns" should be removed too.
 4. [x] fetchAllUserCells is available for Pending Submissions
-   >
+
    > ```typescript
    > <Badge className="bg-yellow-100 text-yellow-800">
    >   <Clock className="w-3 h-3 mr-1" />
@@ -15,7 +15,6 @@
    >   Pending Submissions
    > </Badge>
    > ```
-   >
 
 5. [x] Show Points UDT balance for regular users in the navigation bar (on the left of the wallet connector).
 6. [x] In campaign detail page, buttons should show up for campaign-admin and platform-admin to manage (jump to /campaign-admin)
@@ -67,7 +66,7 @@ The following issues are deferred as they are not critical features at the momen
 ```
 
 - **Issue**: Protocol timestamp is accurate and validated
-- **Status**: Deferred as only needed in tipping proposal and it is not a critical feature at the moment.
+- **Status**: Deferred as only needed in tipping and it is not a critical feature at the moment.
 
 ### 3. SSRI Server Error Reporting
 

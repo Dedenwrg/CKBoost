@@ -1,5 +1,5 @@
 # Tipping Proposal Update Transaction Skeleton
-# SSRI Method: update_tipping_proposal(
+# SSRI Method: update_tipping(
 #   protocol_type_hash: Byte32,
-#   tipping_proposal_data: TippingProposalData,
+#   tipping_data: TippingData,
 # ) -> Result<(), Error>;

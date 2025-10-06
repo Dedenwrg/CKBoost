@@ -6,7 +6,7 @@ import {
   type ProtocolDataLike,
   CampaignDataLike,
   ProtocolData,
-  TippingProposalDataLike,
+  TippingDataLike,
 } from "ssri-ckboost/types";
 import { ProtocolMetrics, ProtocolTransaction } from "../types/protocol";
 import {
@@ -184,7 +184,7 @@ export class ProtocolService {
         // Return a default ProtocolData structure that matches the SDK type
         const defaultProtocolData: ProtocolDataLike = {
           campaigns_approved: [],
-          tipping_proposals_approved: [],
+          tippings_approved: [],
           tipping_config: {
             approval_requirement_thresholds: [], // Empty Uint128Vec
             expiration_duration: defaultTimestamp, // Uint64 as bigint
@@ -342,11 +342,11 @@ export class ProtocolService {
       return {
         totalCampaigns: BigInt(data.campaigns_approved.length),
         activeCampaigns: BigInt(0), // Active campaigns need to be fetched separately by querying each campaign cell
-        totalTippingProposals: BigInt(data.tipping_proposals_approved.length),
-        pendingTippingProposals: BigInt(
+        totalTippings: BigInt(data.tippings_approved.length),
+        pendingTippings: BigInt(
           0
-          // data.tipping_proposals_approved.filter(
-          //   (p: TippingProposalDataLike) => !p.tipping_transaction_hash
+          // data.tippings_approved.filter(
+          //   (p: TippingDataLike) => !p.tipping_transaction_hash
           // ).length
         ),
         totalEndorsers: BigInt(data.endorsers_whitelist.length),

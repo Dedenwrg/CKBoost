@@ -23,16 +23,14 @@ export function ProtocolStats({ metrics, protocolData }: ProtocolStatsProps) {
     <div className="grid gap-4 md:grid-cols-5">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            Total Campaigns
-          </CardTitle>
+          <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{metrics.totalCampaigns}</div>
           <p className="text-xs text-muted-foreground">All time</p>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
@@ -40,13 +38,11 @@ export function ProtocolStats({ metrics, protocolData }: ProtocolStatsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {metrics.activeCampaigns}
-          </div>
+          <div className="text-2xl font-bold">{metrics.activeCampaigns}</div>
           <p className="text-xs text-muted-foreground">Currently running</p>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Endorsers</CardTitle>
@@ -55,7 +51,7 @@ export function ProtocolStats({ metrics, protocolData }: ProtocolStatsProps) {
           <div className="text-2xl font-bold">{metrics.totalEndorsers}</div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
@@ -63,19 +59,16 @@ export function ProtocolStats({ metrics, protocolData }: ProtocolStatsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{metrics.totalTippingProposals}</div>
+          <div className="text-2xl font-bold">{metrics.totalTippings}</div>
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Status</CardTitle>
         </CardHeader>
         <CardContent>
-          <Badge
-            variant="default"
-            className="flex items-center justify-center"
-          >
+          <Badge variant="default" className="flex items-center justify-center">
             <>
               <Activity className="mr-1 h-3 w-3" />
               Active

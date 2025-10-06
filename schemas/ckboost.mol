@@ -248,26 +248,29 @@ vector CampaignDataVec <CampaignData>;
 
 // Schemas for CKBoost Protocol Data
 
-table TippingProposalMetadata {
+table TippingMetadata {
     contribution_title: String,
     contribution_type_tags: StringVec,
-    description: String,
-    proposal_creation_timestamp: Uint64,
+    short_description: String,
+    long_description: String,
+    creation_timestamp: Uint64,
 }
 
-table TippingProposalData {
+table TippingData {
     target_address: String,
     proposer_lock_hash: Byte32,
-    metadata: TippingProposalMetadata,
+    supporter_lock_hashes: Byte32Vec,
+    metadata: TippingMetadata,
     rewards: AssetList,
     status: String, // created, approved, granted
+    granted_at: Uint64,
 }
 
-vector TippingProposalDataVec <TippingProposalData>;
+vector TippingDataVec <TippingData>;
 
 table TippingConfig {
     approval_requirement_thresholds: Uint128Vec, // e.g. [10000, 50000, 100000] means it takes 3 approvals for 10000, 4 approvals for 50000, 5 approvals for 100000. Can add more thresholds in the future. Minimum approval threshold is 3.
-    expiration_duration: Uint64, // The duration of the proposal in seconds since creation.
+    expiration_duration: Uint64, // The duration of the tipping in seconds since creation before granting.
 }
 
 table ScriptCodeHashes {
@@ -289,7 +292,7 @@ table ProtocolConfig {
 
 table ProtocolData {
     campaigns_approved: Byte32Vec,
-    tipping_proposals_approved: Byte32Vec,
+    tippings_approved: Byte32Vec,
     tipping_config: TippingConfig,
     endorsers_whitelist: EndorserInfoVec,
     last_updated: Uint64,

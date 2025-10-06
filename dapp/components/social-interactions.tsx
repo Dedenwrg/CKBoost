@@ -1,34 +1,45 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
-import { Heart, MessageSquare, Share2, Send, MoreHorizontal } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Separator } from "@/components/ui/separator";
+import {
+  Heart,
+  MessageSquare,
+  Share2,
+  Send,
+  MoreHorizontal,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Comment {
-  id: string
-  author: string
-  content: string
-  timestamp: string
-  likes: number
-  isLiked: boolean
+  id: string;
+  author: string;
+  content: string;
+  timestamp: string;
+  likes: number;
+  isLiked: boolean;
 }
 
 interface SocialInteractionsProps {
-  proposalId: string
-  initialLikes: number
-  initialComments: Comment[]
-  isLiked?: boolean
-  onLike?: (proposalId: string) => void
-  onComment?: (proposalId: string, comment: string) => void
-  onShare?: (proposalId: string) => void
+  tipping_type_id: string;
+  initialLikes: number;
+  initialComments: Comment[];
+  isLiked?: boolean;
+  onLike?: (tipping_type_id: string) => void;
+  onComment?: (tipping_type_id: string, comment: string) => void;
+  onShare?: (tipping_type_id: string) => void;
 }
 
 export function SocialInteractions({
-  proposalId,
+  tipping_type_id,
   initialLikes,
   initialComments,
   isLiked = false,
@@ -36,27 +47,27 @@ export function SocialInteractions({
   onComment,
   onShare,
 }: SocialInteractionsProps) {
-  const [liked, setLiked] = useState(isLiked)
-  const [likes, setLikes] = useState(initialLikes)
-  const [comments, setComments] = useState(initialComments)
-  const [showComments, setShowComments] = useState(false)
-  const [newComment, setNewComment] = useState("")
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [liked, setLiked] = useState(isLiked);
+  const [likes, setLikes] = useState(initialLikes);
+  const [comments, setComments] = useState(initialComments);
+  const [showComments, setShowComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
   const handleLike = () => {
-    const newLikedState = !liked
-    setLiked(newLikedState)
-    setLikes((prev) => (newLikedState ? prev + 1 : prev - 1))
-    onLike?.(proposalId)
-  }
+    const newLikedState = !liked;
+    setLiked(newLikedState);
+    setLikes((prev) => (newLikedState ? prev + 1 : prev - 1));
+    onLike?.(tipping_type_id);
+  };
 
   const handleComment = async () => {
-    if (!newComment.trim()) return
+    if (!newComment.trim()) return;
 
-    setIsSubmittingComment(true)
+    setIsSubmittingComment(true);
 
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     const comment: Comment = {
       id: Date.now().toString(),
@@ -65,13 +76,13 @@ export function SocialInteractions({
       timestamp: "now",
       likes: 0,
       isLiked: false,
-    }
+    };
 
-    setComments((prev) => [comment, ...prev])
-    setNewComment("")
-    setIsSubmittingComment(false)
-    onComment?.(proposalId, newComment)
-  }
+    setComments((prev) => [comment, ...prev]);
+    setNewComment("");
+    setIsSubmittingComment(false);
+    onComment?.(tipping_type_id, newComment);
+  };
 
   const handleCommentLike = (commentId: string) => {
     setComments((prev) =>
@@ -82,16 +93,18 @@ export function SocialInteractions({
               isLiked: !comment.isLiked,
               likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
             }
-          : comment,
-      ),
-    )
-  }
+          : comment
+      )
+    );
+  };
 
   const handleShare = () => {
     // Copy link to clipboard
-    navigator.clipboard.writeText(`${window.location.origin}/proposal/${proposalId}`)
-    onShare?.(proposalId)
-  }
+    navigator.clipboard.writeText(
+      `${window.location.origin}/proposal/${tipping_type_id}`
+    );
+    onShare?.(tipping_type_id);
+  };
 
   return (
     <div className="space-y-4">
@@ -103,7 +116,9 @@ export function SocialInteractions({
             size="sm"
             onClick={handleLike}
             className={`flex items-center gap-2 ${
-              liked ? "text-red-600 hover:text-red-700" : "text-muted-foreground hover:text-foreground"
+              liked
+                ? "text-red-600 hover:text-red-700"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
@@ -154,7 +169,9 @@ export function SocialInteractions({
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-gradient-to-br from-purple-200 to-blue-200 text-sm">U</AvatarFallback>
+                <AvatarFallback className="bg-gradient-to-br from-purple-200 to-blue-200 text-sm">
+                  U
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 space-y-2">
                 <Textarea
@@ -165,7 +182,11 @@ export function SocialInteractions({
                   className="resize-none"
                 />
                 <div className="flex justify-end">
-                  <Button size="sm" onClick={handleComment} disabled={!newComment.trim() || isSubmittingComment}>
+                  <Button
+                    size="sm"
+                    onClick={handleComment}
+                    disabled={!newComment.trim() || isSubmittingComment}
+                  >
                     {isSubmittingComment ? (
                       <>
                         <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
@@ -195,8 +216,12 @@ export function SocialInteractions({
                 <div className="flex-1 space-y-1">
                   <div className="bg-muted rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">{comment.author}</span>
-                      <span className="text-xs text-muted-foreground">{comment.timestamp}</span>
+                      <span className="font-medium text-sm">
+                        {comment.author}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {comment.timestamp}
+                      </span>
                     </div>
                     <p className="text-sm">{comment.content}</p>
                   </div>
@@ -205,12 +230,24 @@ export function SocialInteractions({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleCommentLike(comment.id)}
-                      className={`h-6 px-2 text-xs ${comment.isLiked ? "text-red-600" : "text-muted-foreground"}`}
+                      className={`h-6 px-2 text-xs ${
+                        comment.isLiked
+                          ? "text-red-600"
+                          : "text-muted-foreground"
+                      }`}
                     >
-                      <Heart className={`w-3 h-3 mr-1 ${comment.isLiked ? "fill-current" : ""}`} />
+                      <Heart
+                        className={`w-3 h-3 mr-1 ${
+                          comment.isLiked ? "fill-current" : ""
+                        }`}
+                      />
                       {comment.likes > 0 && comment.likes}
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-muted-foreground"
+                    >
                       Reply
                     </Button>
                   </div>
@@ -228,5 +265,5 @@ export function SocialInteractions({
         </div>
       )}
     </div>
-  )
+  );
 }

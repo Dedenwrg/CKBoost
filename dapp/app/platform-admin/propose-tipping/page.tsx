@@ -1,21 +1,32 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Navigation } from "@/components/navigation"
-import { ArrowLeft, CheckCircle, AlertCircle, ExternalLink } from "lucide-react"
-import Link from "next/link"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Navigation } from "@/components/navigation";
+import {
+  ArrowLeft,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+} from "lucide-react";
+import Link from "next/link";
 
 export default function CreateTipProposalPage() {
-  const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [currentUserAllowlisted] = useState(true)
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUserAllowlisted] = useState(true);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -26,29 +37,29 @@ export default function CreateTipProposalPage() {
     recipientName: "",
     recipientAddress: "",
     justification: "",
-  })
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!currentUserAllowlisted) {
-      alert("Only allowlisted community members can create tip proposals")
-      return
+      alert("Only allowlisted community members can create tipping");
+      return;
     }
 
-    setIsSubmitting(true)
-    
+    setIsSubmitting(true);
+
     // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     // In a real app, this would submit to the backend
-    console.log("Creating tip proposal:", formData)
-    
-    setIsSubmitting(false)
-    
+    console.log("Creating tipping:", formData);
+
+    setIsSubmitting(false);
+
     // Redirect to tipping page with success message
-    router.push("/tipping?created=true")
-  }
+    router.push("/tipping?created=true");
+  };
 
   const isFormValid = () => {
     return (
@@ -57,23 +68,23 @@ export default function CreateTipProposalPage() {
       formData.recipientName &&
       formData.recipientAddress &&
       formData.justification
-    )
-  }
+    );
+  };
 
   const getTypeColor = (type: string) => {
     switch (type) {
       case "analysis":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800";
       case "tutorial":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800";
       case "proposal":
-        return "bg-purple-100 text-purple-800"
+        return "bg-purple-100 text-purple-800";
       case "comment":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 text-orange-800";
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -90,16 +101,17 @@ export default function CreateTipProposalPage() {
               <ArrowLeft className="w-4 h-4" />
               Back to Tipping
             </Link>
-            
+
             <div className="flex items-center gap-3 mb-4">
               <div className="text-4xl">💰</div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                Create Tip Proposal
+                Create Tipping
               </h1>
             </div>
-            
+
             <p className="text-lg text-muted-foreground">
-              Propose a community tip for a valuable contribution. Community members will vote on your proposal.
+              Propose a community tipping for a valuable contribution. Community
+              members will vote on your proposed tipping.
             </p>
           </div>
 
@@ -109,9 +121,12 @@ export default function CreateTipProposalPage() {
               <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <div>
-                  <div className="font-medium text-green-800">You&apos;re authorized to create proposals</div>
+                  <div className="font-medium text-green-800">
+                    You&apos;re authorized to proposal tipping
+                  </div>
                   <div className="text-sm text-green-600">
-                    You can create tip proposals that will be voted on by the community
+                    You can proposal tippings that will be voted on by the
+                    community
                   </div>
                 </div>
               </div>
@@ -119,21 +134,24 @@ export default function CreateTipProposalPage() {
               <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="w-5 h-5 text-red-600" />
                 <div>
-                  <div className="font-medium text-red-800">Authorization required</div>
+                  <div className="font-medium text-red-800">
+                    Authorization required
+                  </div>
                   <div className="text-sm text-red-600">
-                    Only allowlisted community members can create tip proposals
+                    Only allowlisted community members can proposal tippings
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Create Proposal Form */}
+          {/* Propose Tipping Form */}
           <Card>
             <CardHeader>
-              <CardTitle>Proposal Details</CardTitle>
+              <CardTitle>Proposed Tipping Details</CardTitle>
               <CardDescription>
-                Provide details about the contribution you&apos;d like to nominate for a community tip.
+                Provide details about the contribution you&apos;d like to
+                nominate for a community tipping.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -141,11 +159,18 @@ export default function CreateTipProposalPage() {
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="contributionTitle">Contribution Title *</Label>
+                    <Label htmlFor="contributionTitle">
+                      Contribution Title *
+                    </Label>
                     <Input
                       id="contributionTitle"
                       value={formData.contributionTitle}
-                      onChange={(e) => setFormData({ ...formData, contributionTitle: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contributionTitle: e.target.value,
+                        })
+                      }
                       placeholder="Brief title of the contribution"
                       required
                     />
@@ -155,7 +180,12 @@ export default function CreateTipProposalPage() {
                     <select
                       id="contributionType"
                       value={formData.contributionType}
-                      onChange={(e) => setFormData({ ...formData, contributionType: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contributionType: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-input rounded-md bg-background"
                       required
                     >
@@ -169,7 +199,9 @@ export default function CreateTipProposalPage() {
 
                 {/* Type Preview */}
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Selected type:</span>
+                  <span className="text-sm text-muted-foreground">
+                    Selected type:
+                  </span>
                   <Badge className={getTypeColor(formData.contributionType)}>
                     {formData.contributionType}
                   </Badge>
@@ -177,11 +209,18 @@ export default function CreateTipProposalPage() {
 
                 {/* Contribution Description */}
                 <div className="space-y-2">
-                  <Label htmlFor="contributionDescription">Contribution Description *</Label>
+                  <Label htmlFor="contributionDescription">
+                    Contribution Description *
+                  </Label>
                   <Textarea
                     id="contributionDescription"
                     value={formData.contributionDescription}
-                    onChange={(e) => setFormData({ ...formData, contributionDescription: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        contributionDescription: e.target.value,
+                      })
+                    }
                     placeholder="Detailed description of what the contributor did..."
                     rows={4}
                     required
@@ -190,13 +229,20 @@ export default function CreateTipProposalPage() {
 
                 {/* Contribution URL */}
                 <div className="space-y-2">
-                  <Label htmlFor="contributionUrl">Contribution URL (Optional)</Label>
+                  <Label htmlFor="contributionUrl">
+                    Contribution URL (Optional)
+                  </Label>
                   <div className="relative">
                     <Input
                       id="contributionUrl"
                       type="url"
                       value={formData.contributionUrl}
-                      onChange={(e) => setFormData({ ...formData, contributionUrl: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          contributionUrl: e.target.value,
+                        })
+                      }
                       placeholder="Link to the contribution (forum post, GitHub, etc.)"
                       className="pr-10"
                     />
@@ -213,17 +259,29 @@ export default function CreateTipProposalPage() {
                     <Input
                       id="recipientName"
                       value={formData.recipientName}
-                      onChange={(e) => setFormData({ ...formData, recipientName: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          recipientName: e.target.value,
+                        })
+                      }
                       placeholder="Username of the contributor"
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="recipientAddress">Recipient Address *</Label>
+                    <Label htmlFor="recipientAddress">
+                      Recipient Address *
+                    </Label>
                     <Input
                       id="recipientAddress"
                       value={formData.recipientAddress}
-                      onChange={(e) => setFormData({ ...formData, recipientAddress: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          recipientAddress: e.target.value,
+                        })
+                      }
                       placeholder="ckb1..."
                       required
                     />
@@ -236,7 +294,12 @@ export default function CreateTipProposalPage() {
                   <Textarea
                     id="justification"
                     value={formData.justification}
-                    onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        justification: e.target.value,
+                      })
+                    }
                     placeholder="Explain why this contribution deserves a community tip from the treasury..."
                     rows={4}
                     required
@@ -248,9 +311,12 @@ export default function CreateTipProposalPage() {
                   <div className="flex items-start gap-3">
                     <div className="text-2xl">💰</div>
                     <div>
-                      <div className="font-medium text-blue-800 mb-1">Community Tip: 50 CKB</div>
+                      <div className="font-medium text-blue-800 mb-1">
+                        Community Tip: 50 CKB
+                      </div>
                       <div className="text-sm text-blue-600">
-                        This proposal will request 50 CKB from the community treasury if approved by 5 community members.
+                        This proposal will request 50 CKB from the community
+                        treasury if approved by 5 community members.
                       </div>
                     </div>
                   </div>
@@ -267,7 +333,9 @@ export default function CreateTipProposalPage() {
                   </Button>
                   <Button
                     type="submit"
-                    disabled={!isFormValid() || !currentUserAllowlisted || isSubmitting}
+                    disabled={
+                      !isFormValid() || !currentUserAllowlisted || isSubmitting
+                    }
                     className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
                   >
                     {isSubmitting ? (
@@ -298,11 +366,12 @@ export default function CreateTipProposalPage() {
                   <div>
                     <div className="font-medium">Submit Your Proposal</div>
                     <div className="text-muted-foreground">
-                      Create a detailed proposal explaining the contribution and why it deserves recognition.
+                      Create a detailed proposal explaining the contribution and
+                      why it deserves recognition.
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold text-xs">
                     2
@@ -310,23 +379,27 @@ export default function CreateTipProposalPage() {
                   <div>
                     <div className="font-medium">Community Voting</div>
                     <div className="text-muted-foreground">
-                      Community members review and vote on your proposal. 5 approvals are needed.
+                      Community members review and vote on your proposal. 5
+                      approvals are needed.
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold text-xs">
                     3
                   </div>
                   <div>
-                    <div className="font-medium">Automatic Tip Distribution</div>
+                    <div className="font-medium">
+                      Automatic Tip Distribution
+                    </div>
                     <div className="text-muted-foreground">
-                      Once approved, 50 CKB is automatically sent from the community treasury to the recipient.
+                      Once approved, 50 CKB is automatically sent from the
+                      community treasury to the recipient.
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold text-xs">
                     4
@@ -334,7 +407,8 @@ export default function CreateTipProposalPage() {
                   <div>
                     <div className="font-medium">Additional Tips</div>
                     <div className="text-muted-foreground">
-                      Community members can add personal tips to any proposal, approved or not.
+                      Community members can add personal tips to any proposal,
+                      approved or not.
                     </div>
                   </div>
                 </div>
@@ -344,5 +418,5 @@ export default function CreateTipProposalPage() {
         </div>
       </main>
     </div>
-  )
-} 
+  );
+}

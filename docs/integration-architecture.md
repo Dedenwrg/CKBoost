@@ -123,8 +123,7 @@ export function parseProtocolCell(cell: Cell): ProtocolData {
 
   return {
     campaigns: unpacked.campaigns_approved.map((c) => bufferToNumber(c)),
-    tippingProposals:
-      unpacked.tipping_proposals_approved.map(parseTippingProposal),
+    tippingProposals: unpacked.tippings_approved.map(parseTipping),
     lastUpdated: bufferToNumber(unpacked.last_updated),
     // ... map other fields
   };

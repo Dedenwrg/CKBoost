@@ -84,7 +84,7 @@ describe('Protocol Integration Tests', () => {
       // Create test protocol data
       const protocolData: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [
             BigInt(1000 * 10**8), // 1000 CKB
@@ -177,7 +177,7 @@ describe('Protocol Integration Tests', () => {
 
       const protocolData: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [BigInt(500 * 10**8)],
           expiration_duration: 3 * 24 * 60 * 60 // 3 days
@@ -216,7 +216,7 @@ describe('Protocol Integration Tests', () => {
     it('should complete fee payment and prepare for sending', async () => {
       const protocolData: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [],
           expiration_duration: 24 * 60 * 60 // 1 day
@@ -411,7 +411,7 @@ describe('Protocol Integration Tests', () => {
       // Test with invalid hex length
       // expect(() => {
       //     campaigns_approved: [],
-      //     tipping_proposals: [],
+      //     tippings: [],
       //     tipping_config: {
       //       approval_requirement_thresholds: [],
       //       expiration_duration: 0
@@ -444,7 +444,7 @@ describe('Protocol Integration Tests', () => {
 
       const protocolData: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [],
           expiration_duration: 0

@@ -752,7 +752,7 @@
     },
     {
       "type": "table",
-      "name": "TippingProposalMetadata",
+      "name": "TippingMetadata",
       "fields": [
         {
           "name": "contribution_title",
@@ -763,18 +763,22 @@
           "type": "StringVec"
         },
         {
-          "name": "description",
+          "name": "short_description",
           "type": "String"
         },
         {
-          "name": "proposal_creation_timestamp",
+          "name": "long_description",
+          "type": "String"
+        },
+        {
+          "name": "creation_timestamp",
           "type": "Uint64"
         }
       ]
     },
     {
       "type": "table",
-      "name": "TippingProposalData",
+      "name": "TippingData",
       "fields": [
         {
           "name": "target_address",
@@ -785,8 +789,12 @@
           "type": "Byte32"
         },
         {
+          "name": "supporter_lock_hashes",
+          "type": "Byte32Vec"
+        },
+        {
           "name": "metadata",
-          "type": "TippingProposalMetadata"
+          "type": "TippingMetadata"
         },
         {
           "name": "rewards",
@@ -795,13 +803,17 @@
         {
           "name": "status",
           "type": "String"
+        },
+        {
+          "name": "granted_at",
+          "type": "Uint64"
         }
       ]
     },
     {
       "type": "dynvec",
-      "name": "TippingProposalDataVec",
-      "item": "TippingProposalData"
+      "name": "TippingDataVec",
+      "item": "TippingData"
     },
     {
       "type": "table",
@@ -882,7 +894,7 @@
           "type": "Byte32Vec"
         },
         {
-          "name": "tipping_proposals_approved",
+          "name": "tippings_approved",
           "type": "Byte32Vec"
         },
         {

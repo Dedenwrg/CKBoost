@@ -78,7 +78,7 @@ describe('Protocol', () => {
     it('should create protocol data with all fields', () => {
       // const input: ProtocolDataLike = {
       //   campaigns_approved: [],
-      //   tipping_proposals: [],
+      //   tippings: [],
       //   tipping_config: {
       //     approval_requirement_thresholds: [BigInt(1000), BigInt(5000)],
       //     expiration_duration: 86400 // 1 day in seconds
@@ -112,7 +112,7 @@ describe('Protocol', () => {
 
       // expect(protocolData).toBeDefined();
       // expect(protocolData.campaigns_approved).toEqual([]);
-      // expect(protocolData.tipping_proposals).toEqual([]);
+      // expect(protocolData.tippings).toEqual([]);
       // expect(protocolData.tipping_config).toBeDefined();
       // expect(protocolData.endorsers_whitelist).toHaveLength(1);
       // expect(protocolData.protocol_config).toBeDefined();
@@ -127,7 +127,7 @@ describe('Protocol', () => {
     // it('should use provided timestamp when all fields are provided', () => {
     //   const input: ProtocolDataLike = {
     //     campaigns_approved: [],
-    //     tipping_proposals: [],
+    //     tippings: [],
     //     tipping_config: {
     //       approval_requirement_thresholds: [],
     //       expiration_duration: 0
@@ -184,7 +184,7 @@ describe('Protocol', () => {
 
       const protocolDataLike: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [BigInt(1000)],
           expiration_duration: 3600
@@ -259,7 +259,7 @@ describe('Protocol', () => {
 
       const protocolDataLike: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [],
           expiration_duration: 0
@@ -293,7 +293,7 @@ describe('Protocol', () => {
 
       const protocolDataLike: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals: [],
+        tippings: [],
         tipping_config: {
           approval_requirement_thresholds: [],
           expiration_duration: 0

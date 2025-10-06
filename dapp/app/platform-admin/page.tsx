@@ -107,8 +107,8 @@ const PENDING_CAMPAIGNS = [
   },
 ];
 
-// Mock tip proposals for review
-const TIP_PROPOSALS = [
+// Mock tipping for review
+const TIPPINGS = [
   {
     id: 1,
     proposer: "CommunityLead",
@@ -839,7 +839,7 @@ export default function PlatformAdminDashboard() {
   const totalActiveUsers = PLATFORM_USERS.filter(
     (u) => u.status === "active"
   ).length;
-  const totalPendingTips = TIP_PROPOSALS.filter(
+  const totalPendingTips = TIPPINGS.filter(
     (t) => t.status === "pending"
   ).length;
   const totalRewards = LEADERBOARD_REWARDS.reduce(
@@ -1158,7 +1158,7 @@ export default function PlatformAdminDashboard() {
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium">
-                            Tip proposal approved
+                            Tippings approved
                           </p>
                           <p className="text-xs text-muted-foreground">
                             150 CKB tip to CKBExpert for documentation
@@ -1830,7 +1830,7 @@ export default function PlatformAdminDashboard() {
               </div>
 
               <div className="grid gap-6">
-                {TIP_PROPOSALS.map((tip) => (
+                {TIPPINGS.map((tip) => (
                   <Card key={tip.id}>
                     <CardHeader>
                       <div className="flex items-start justify-between">

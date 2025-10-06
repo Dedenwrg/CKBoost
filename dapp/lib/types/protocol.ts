@@ -8,7 +8,7 @@ import {
   ProtocolDataLike,
   ScriptCodeHashesLike,
   TippingConfigLike,
-  TippingProposalDataLike,
+  TippingDataLike,
 } from "ssri-ckboost/types";
 
 // Transaction status tracking for UI
@@ -16,8 +16,8 @@ import {
 export interface ProtocolMetrics {
   totalCampaigns: bigint;
   activeCampaigns: bigint;
-  totalTippingProposals: bigint;
-  pendingTippingProposals: bigint;
+  totalTippings: bigint;
+  pendingTippings: bigint;
   totalEndorsers: bigint;
   lastUpdated: string; // ISO date string
 }
@@ -47,8 +47,8 @@ export interface ProtocolTransaction {
 export interface ProtocolMetrics {
   totalCampaigns: ccc.Num;
   activeCampaigns: ccc.Num;
-  totalTippingProposals: ccc.Num;
-  pendingTippingProposals: ccc.Num;
+  totalTippings: ccc.Num;
+  pendingTippings: ccc.Num;
   totalEndorsers: ccc.Num;
   lastUpdated: string;
 }
@@ -112,7 +112,7 @@ export interface ProtocolContextType {
 
   // Query functions
   getEndorser: (lockHash: string) => EndorserInfoLike | undefined;
-  getTippingProposal: (id: string) => TippingProposalDataLike | undefined;
+  getTipping: (id: string) => TippingDataLike | undefined;
   getApprovedCampaign: (id: string) => CampaignDataLike | undefined;
 
   // Change detection

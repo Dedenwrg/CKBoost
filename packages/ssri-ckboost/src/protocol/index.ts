@@ -15,7 +15,7 @@ import {
  * Represents the CKBoost Protocol contract for managing protocol operations.
  *
  * This class provides methods for updating protocol data including campaigns,
- * tipping proposals, and endorsers whitelist.
+ * tippings, and endorsers whitelist.
  *
  * @public
  * @category Protocol
@@ -263,9 +263,9 @@ export class Protocol extends ssri.Trait {
 
   // TODO: Add more methods as needed
   // - getCampaigns()
-  // - getTippingProposals()
+  // - getTippings()
   // - getEndorsers()
   // - approveCampaign()
-  // - createTippingProposal()
-  // - voteTippingProposal()
+  // - createTipping()
+  // - voteTipping()
 }

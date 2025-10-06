@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -13,74 +13,83 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { Badge } from "@/components/ui/badge"
-import { Coins, Info, Wallet, Users } from "lucide-react"
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Coins, Info, Wallet, Users } from "lucide-react";
+import { TippingDataLike } from "ssri-ckboost/types";
 
-interface TipButtonProps {
-  recipientName: string
-  recipientAddress: string
-  contributionId: string
-  currentUserAllowlisted?: boolean
-  onTipInitiated?: (contributionId: string, tipData: any) => void
+interface TippingButtonProps {
+  recipientName: string;
+  recipientAddress: string;
+  contributionId: string;
+  currentUserAllowlisted?: boolean;
+  onTippingInitiated?: (
+    contributionId: string,
+    tippingData: TippingDataLike
+  ) => void;
 }
 
-export function TipButton({
+export function TippingButton({
   recipientName,
   recipientAddress,
   contributionId,
   currentUserAllowlisted = false,
-  onTipInitiated,
-}: TipButtonProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [activeTab, setActiveTab] = useState("community")
+  onTippingInitiated,
+}: TippingButtonProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState("community");
 
   // Community tip form
-  const [communityReason, setCommunityReason] = useState("")
+  const [communityReason, setCommunityReason] = useState("");
 
   // Personal tip form
-  const [personalAmount, setPersonalAmount] = useState("")
-  const [personalMessage, setPersonalMessage] = useState("")
+  const [personalAmount, setPersonalAmount] = useState("");
+  const [personalMessage, setPersonalMessage] = useState("");
 
   const handleCommunityTip = async () => {
-    if (!currentUserAllowlisted || !communityReason.trim()) return
+    if (!currentUserAllowlisted || !communityReason.trim()) return;
 
-    setIsProcessing(true)
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    setIsProcessing(false)
-    setIsModalOpen(false)
+    setIsProcessing(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setIsProcessing(false);
+    setIsModalOpen(false);
 
-    const tipData = {
+    const tippingData = {
       type: "community",
       reason: communityReason,
       amount: 50,
       requiredApprovals: 5,
-    }
+    };
 
-    onTipInitiated?.(contributionId, tipData)
-    setCommunityReason("")
-  }
+    // onTippingInitiated?.(contributionId, tippingData);
+    setCommunityReason("");
+  };
 
   const handlePersonalTip = async () => {
-    if (!personalAmount || Number.parseFloat(personalAmount) <= 0) return
+    if (!personalAmount || Number.parseFloat(personalAmount) <= 0) return;
 
-    setIsProcessing(true)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsProcessing(false)
-    setIsModalOpen(false)
+    setIsProcessing(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    setIsProcessing(false);
+    setIsModalOpen(false);
 
-    const tipData = {
+    const tippingData = {
       type: "personal",
       amount: Number.parseFloat(personalAmount),
       message: personalMessage,
-    }
+    };
 
-    onTipInitiated?.(contributionId, tipData)
-    setPersonalAmount("")
-    setPersonalMessage("")
-  }
+    // onTipInitiated?.(contributionId, tipData);
+    setPersonalAmount("");
+    setPersonalMessage("");
+  };
 
   return (
     <>
@@ -101,7 +110,9 @@ export function TipButton({
               <Coins className="w-5 h-5 text-yellow-600" />
               Tip {recipientName}
             </DialogTitle>
-            <DialogDescription>Choose how you'd like to tip this valuable contribution</DialogDescription>
+            <DialogDescription>
+              Choose how you&apos;d like to tip this valuable contribution
+            </DialogDescription>
           </DialogHeader>
 
           {/* Recipient Info */}
@@ -119,9 +130,16 @@ export function TipButton({
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="community" className="flex items-center gap-2">
+              <TabsTrigger
+                value="community"
+                className="flex items-center gap-2"
+              >
                 <Users className="w-4 h-4" />
                 Community Tip
               </TabsTrigger>
@@ -136,7 +154,9 @@ export function TipButton({
                 <div className="flex items-start gap-2">
                   <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <div className="text-sm text-blue-800">
-                    <div className="font-medium mb-1">Community Tips (50 CKB)</div>
+                    <div className="font-medium mb-1">
+                      Community Tips (50 CKB)
+                    </div>
                     <ul className="space-y-1 text-xs">
                       <li>• Funded by community treasury</li>
                       <li>• Requires 5 community approvals</li>
@@ -149,7 +169,9 @@ export function TipButton({
 
               <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="reason">Why does this contribution deserve a community tip? *</Label>
+                  <Label htmlFor="reason">
+                    Why does this contribution deserve a community tip? *
+                  </Label>
                   <Textarea
                     id="reason"
                     placeholder="Explain why this contribution adds value to the community and deserves recognition from the treasury..."
@@ -163,11 +185,17 @@ export function TipButton({
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Your Status:</span>
-                    <Badge variant={currentUserAllowlisted ? "default" : "secondary"}>
-                      {currentUserAllowlisted ? "✅ Allowlisted" : "❌ Not Allowlisted"}
+                    <Badge
+                      variant={currentUserAllowlisted ? "default" : "secondary"}
+                    >
+                      {currentUserAllowlisted
+                        ? "✅ Allowlisted"
+                        : "❌ Not Allowlisted"}
                     </Badge>
                   </div>
-                  <div className="text-sm font-semibold text-yellow-600">50 CKB</div>
+                  <div className="text-sm font-semibold text-yellow-600">
+                    50 CKB
+                  </div>
                 </div>
               </div>
             </TabsContent>
@@ -236,7 +264,11 @@ export function TipButton({
                     <div>
                       <Button
                         onClick={handleCommunityTip}
-                        disabled={!currentUserAllowlisted || isProcessing || !communityReason.trim()}
+                        disabled={
+                          !currentUserAllowlisted ||
+                          isProcessing ||
+                          !communityReason.trim()
+                        }
                         className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
                       >
                         {isProcessing ? (
@@ -255,7 +287,10 @@ export function TipButton({
                   </TooltipTrigger>
                   {!currentUserAllowlisted && (
                     <TooltipContent>
-                      <p>Only allowlisted community members can propose community tips</p>
+                      <p>
+                        Only allowlisted community members can propose community
+                        tips
+                      </p>
                     </TooltipContent>
                   )}
                 </Tooltip>
@@ -263,7 +298,11 @@ export function TipButton({
             ) : (
               <Button
                 onClick={handlePersonalTip}
-                disabled={isProcessing || !personalAmount || Number.parseFloat(personalAmount) <= 0}
+                disabled={
+                  isProcessing ||
+                  !personalAmount ||
+                  Number.parseFloat(personalAmount) <= 0
+                }
                 className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
               >
                 {isProcessing ? (
@@ -283,5 +322,5 @@ export function TipButton({
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

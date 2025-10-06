@@ -1,9 +1,6 @@
 import { ccc } from "@ckb-ccc/core";
 import { ssri } from "@ckb-ccc/ssri";
-import {
-  TippingProposalData,
-  type TippingProposalDataLike,
-} from "../generated";
+import { TippingData, type TippingDataLike } from "../generated";
 
 export interface FundingPoolSummary {
   /** Capacity-only cells (CKB funding) locked by the funding lock */
@@ -47,13 +44,13 @@ export class Tipping extends ssri.Trait {
   }
 
   /**
-   * Submit or update a tipping proposal via the SSRI executor. The proposal is
+   * Submit or update a tipping via the SSRI executor. The proposal is
    * linked to the protocol's type hash so it automatically leverages the shared
    * funding pool managed by the protocol funding lock.
    */
-  async updateTippingProposal(
+  async updateTipping(
     signer: ccc.Signer,
-    proposalData: TippingProposalDataLike,
+    proposalData: TippingDataLike,
     tx?: ccc.Transaction
   ): Promise<ssri.ExecutorResponse<ccc.Transaction>> {
     if (!this.executor) {
@@ -70,18 +67,18 @@ export class Tipping extends ssri.Trait {
     }
 
     const protocolTypeHash = this.getProtocolTypeHash();
-    const proposalBytes = TippingProposalData.encode(proposalData);
+    const proposalBytes = TippingData.encode(proposalData);
     const proposalHex = ccc.hexFrom(proposalBytes);
 
     const res = await this.executor.runScript(
       this.code,
-      "CKBoostTipping.update_tipping_proposal",
+      "CKBoostTipping.update_tipping",
       [protocolTypeHash, proposalHex],
       { script: this.script }
     );
 
     if (!res) {
-      throw new Error("update_tipping_proposal did not return a response");
+      throw new Error("update_tipping did not return a response");
     } else {
       resTx = res.map((res) => ccc.Transaction.fromBytes(res));
       resTx.res.addCellDeps({

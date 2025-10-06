@@ -1,6 +1,7 @@
-import { Navigation } from "@/components/navigation"
-import { TipProposals } from "@/components/tip-proposals"
-import { WalletConnect } from "@/components/wallet-connect"
+import { Navigation } from "@/components/navigation";
+import { Tippings } from "@/components/tippings";
+import { TippingProvider } from "../../lib/providers/tipping-provider";
+import { WalletConnect } from "@/components/wallet-connect";
 
 export default function CommunityPage() {
   return (
@@ -16,13 +17,16 @@ export default function CommunityPage() {
             </h1>
           </div>
           <p className="text-lg text-muted-foreground mb-6">
-            Discover and support valuable community contributions through tip proposals. Vote on community-funded
-            tips or add your own personal tips to show appreciation.
+            Discover and support valuable community contributions through tip
+            proposals. Vote on community-funded tips or add your own personal
+            tips to show appreciation.
           </p>
         </div>
 
-        <TipProposals />
+        <TippingProvider>
+          <Tippings />
+        </TippingProvider>
       </main>
     </div>
-  )
+  );
 }

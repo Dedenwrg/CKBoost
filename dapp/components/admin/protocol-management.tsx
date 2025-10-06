@@ -179,7 +179,7 @@ export function ProtocolManagement() {
     error,
     updateProtocol,
     addEndorser,
-    getTippingProposal,
+    getTipping,
     editEndorser,
     removeEndorser,
     calculateChanges,
@@ -1251,7 +1251,7 @@ export function ProtocolManagement() {
       // Collect form data
       const deploymentParams: ProtocolDataLike = {
         campaigns_approved: [],
-        tipping_proposals_approved: [],
+        tippings_approved: [],
         last_updated: ccc.numFrom(Date.now()),
         tipping_config: tippingConfigValues,
         endorsers_whitelist: pendingEndorserChanges.toAdd.map((endorser) => ({
