@@ -2,7 +2,7 @@ use ckb_std::ckb_types::packed::Transaction;
 use ckboost_shared::{
     cell_collector::RuleBasedClassifier,
     transaction_context::TransactionContext,
-    types::{Byte32, ProtocolData, TippingProposalData},
+    types::{Byte32, ProtocolData, TippingData},
     Error,
 };
 

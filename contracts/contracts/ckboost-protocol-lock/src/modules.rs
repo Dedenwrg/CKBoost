@@ -16,16 +16,16 @@ impl CKBoostProtocolLock {
         Ok(())
     }
 
-    /// Validates tipping proposal update transaction in Lock Script
+    /// Validates tipping update transaction in Lock Script
     ///
     /// # Validation Rules
-    /// 1. Only lock hashes in endorsers_whitelist can update tipping proposal
+    /// 1. Only lock hashes in endorsers_whitelist can update tipping
     ///
     /// # Returns
     /// - `Ok(())`: Validation passed
     /// - `Err(Error)`: Validation failed with specific error details
     #[allow(dead_code)]
-    fn verify_update_tipping_proposal() -> Result<(), Error> {
+    fn verify_update_tipping() -> Result<(), Error> {
         Ok(())
     }
 }

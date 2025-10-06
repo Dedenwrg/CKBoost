@@ -20,7 +20,7 @@ use ckb_std::{
 };
 use ckboost_shared::types::Byte32 as SharedByte32;
 use ckboost_shared::{
-    types::{ProtocolData, TippingProposalData},
+    types::{ProtocolData, TippingData},
     Error,
 };
 

@@ -21,7 +21,7 @@ use ckb_std::{
     high_level::load_script,
 };
 use ckboost_shared::{
-    types::{Byte32 as SharedByte32, ConnectedTypeID, TippingProposalData},
+    types::{Byte32 as SharedByte32, ConnectedTypeID, TippingData},
     Error,
 };
 
@@ -30,13 +30,11 @@ pub struct CKBoostTippingType;
 use crate::{recipes, ssri::CKBoostTipping};
 
 impl CKBoostTipping for CKBoostTippingType {
-    fn update_tipping_proposal(
+    fn update_tipping(
         tx: Option<Transaction>,
-        tipping_proposal_data: TippingProposalData,
+        tipping_data: TippingData,
     ) -> Result<Transaction, Error> {
-        debug_trace!(
-            "CKBoostTippingType::update_tipping_proposal - Starting tipping proposal update"
-        );
+        debug_trace!("CKBoostTippingType::update_tipping - Starting tipping update");
         debug_info!("Input transaction present: {}", tx.is_some());
 
         // Initialize transaction builders
@@ -224,7 +222,7 @@ impl CKBoostTipping for CKBoostTippingType {
 
         // Serialize and add updated tipping data
         debug_trace!("Serializing tipping data");
-        let tipping_data_bytes = tipping_proposal_data.as_bytes();
+        let tipping_data_bytes = tipping_data.as_bytes();
         debug_info!("Serialized size: {} bytes", tipping_data_bytes.len());
         if tipping_data_bytes.len() > 100000 {
             debug_info!("WARNING: Large tipping data size!");
@@ -240,7 +238,7 @@ impl CKBoostTipping for CKBoostTippingType {
 
         // Create recipe with output data reference
         let recipe = create_recipe_with_args(
-            "CKBoostTipping.update_tipping_proposal",
+            "CKBoostTipping.update_tipping",
             vec![create_recipe_with_reference(
                 Source::Output,
                 output_data_index,
@@ -381,22 +379,22 @@ impl CKBoostTipping for CKBoostTippingType {
         Ok(result)
     }
 
-    fn verify_update_tipping_proposal(
+    fn verify_update_tipping(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error> {
-        debug_trace!("Starting verify_update_tipping_proposal");
+        debug_trace!("Starting verify_update_tipping");
 
         // Use the recipe validation rules
-        let validation_rules = recipes::update_tipping_proposal::get_rules();
+        let validation_rules = recipes::update_tipping::get_rules();
         validation_rules.validate(context)?;
 
-        debug_trace!("verify_update_tipping_proposal completed successfully");
+        debug_trace!("verify_update_tipping completed successfully");
         Ok(())
     }
 
     fn grant_tipping_reward(
         tx: Option<Transaction>,
-        tipping_proposal_data: TippingProposalData,
+        tipping_data: TippingData,
     ) -> Result<Transaction, Error> {
         debug_trace!("CKBoostTippingType::grant_tipping_reward - Starting tipping reward grant");
 
@@ -448,17 +446,17 @@ impl CKBoostTipping for CKBoostTippingType {
 
         // TODO: Not handling this for now
         // // Verify tipping is active (status = 4)
-        // if tipping_proposal_data.status() != 4u8.into() {
+        // if tipping_data.status() != 4u8.into() {
         //     return Err(Error::TippingNotActive);
         // }
 
         // Create updated tipping data
-        let updated_tipping_data = TippingProposalData::new_builder()
-            .target_address(tipping_proposal_data.target_address())
-            .proposer_lock_hash(tipping_proposal_data.proposer_lock_hash())
-            .metadata(tipping_proposal_data.metadata())
-            .rewards(tipping_proposal_data.rewards())
-            .status(tipping_proposal_data.status())
+        let updated_tipping_data = TippingData::new_builder()
+            .target_address(tipping_data.target_address())
+            .proposer_lock_hash(tipping_data.proposer_lock_hash())
+            .metadata(tipping_data.metadata())
+            .rewards(tipping_data.rewards())
+            .status(tipping_data.status())
             .build();
 
         // Create output tipping cell with updated data

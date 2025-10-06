@@ -11,7 +11,7 @@ use ckb_ssri_std_proc_macro::ssri_methods;
 use ckb_std::syscalls::{pipe, write};
 use ckb_std::{ckb_types::packed::Byte32Vec, high_level::load_script};
 use ckboost_shared::type_id::validate_type_id;
-use ckboost_shared::types::{Byte32 as SharedByte32, ConnectedTypeID, TippingProposalData};
+use ckboost_shared::types::{Byte32 as SharedByte32, ConnectedTypeID, TippingData};
 use ckboost_shared::Error;
 use molecule::prelude::Entity;
 
@@ -94,8 +94,8 @@ fn program_entry_wrap() -> Result<(), Error> {
         invalid_method: Error::SSRIMethodsNotFound,
         invalid_args: Error::SSRIMethodsArgsInvalid,
 
-        "CKBoostProtocol.update_tipping_proposal" => {
-            debug_trace!("Entered CKBoostProtocol.update_tipping_proposal");
+        "CKBoostProtocol.update_tipping" => {
+            debug_trace!("Entered CKBoostProtocol.update_tipping");
 
             // Parse optional transaction (argv[1])
             let tx: Option<ckb_std::ckb_types::packed::Transaction> = if argv[1].is_empty() || argv[1].as_ref().to_str().map_err(|_| Error::Utf8Error)? == "" {
@@ -106,12 +106,12 @@ fn program_entry_wrap() -> Result<(), Error> {
                 Some(parsed_tx)
             };
 
-            // Parse tipping_proposal_data from molecule serialized bytes
-            let proposal_data_bytes = decode_hex(argv[2].as_ref())?;
-            let tipping_proposal_data = TippingProposalData::from_slice(&proposal_data_bytes)
+            // Parse tipping_data from molecule serialized bytes
+            let tipping_data_bytes = decode_hex(argv[2].as_ref())?;
+            let tipping_data = TippingData::from_slice(&tipping_data_bytes)
                 .map_err(|_| Error::MoleculeVerificationError)?;
 
-            CKBoostTippingType::update_tipping_proposal(tx, tipping_proposal_data)?;
+            CKBoostTippingType::update_tipping(tx, tipping_data)?;
             Ok(Cow::from(b"success".to_vec()))
         },
     )?;

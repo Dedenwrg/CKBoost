@@ -152,7 +152,7 @@ pub mod common {
     }
 }
 
-pub mod update_tipping_proposal {
+pub mod update_tipping {
     use super::common;
     use alloc::{string::ToString, vec};
     use ckb_deterministic::{
@@ -161,7 +161,7 @@ pub mod update_tipping_proposal {
     };
 
     pub fn get_rules() -> TransactionValidationRules<RuleBasedClassifier> {
-        TransactionValidationRules::new(b"updateTippingProposal".to_vec())
+        TransactionValidationRules::new(b"updateTipping".to_vec())
             .with_arguments(1)
             .with_custom_cell(
                 "tipping",
@@ -170,14 +170,14 @@ pub mod update_tipping_proposal {
             )
             .with_business_rule(
                 "automatic_execution".to_string(),
-                "When a proposal receives sufficient approval, it must be automatically executed"
+                "When a tipping receives sufficient approval, it must be automatically executed"
                     .to_string(),
                 vec!["protocol".to_string()],
                 business_logic::automatic_execution,
             )
             .with_business_rule(
                 "approval_restrictions".to_string(),
-                "Cannot approve proposals that are already fully approved or have expired"
+                "Cannot approve tippings that are already fully approved or have expired"
                     .to_string(),
                 vec!["protocol".to_string()],
                 business_logic::approval_restrictions,
@@ -192,7 +192,7 @@ pub mod update_tipping_proposal {
         use ckboost_shared::transaction_context::TransactionContext;
         use molecule::prelude::*;
 
-        /// **Automatic execution**: When a proposal receives sufficient approval,
+        /// **Automatic execution**: When a tipping receives sufficient approval,
         /// it must be automatically executed with funds transferred to the target address
         pub fn automatic_execution(
             context: &TransactionContext<RuleBasedClassifier>,
@@ -213,19 +213,19 @@ pub mod update_tipping_proposal {
             let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
                 .map_err(|_| DeterministicError::Encoding)?;
 
-            let input_proposals = input_protocol_data.tipping_proposals_approved();
-            let output_proposals = output_protocol_data.tipping_proposals_approved();
+            let input_tippings = input_protocol_data.tippings_approved();
+            let output_tippings = output_protocol_data.tippings_approved();
             let tipping_config = input_protocol_data.tipping_config();
 
-            // Check each proposal to see if it should be executed
-            // for i in 0..input_proposals.len() {
-            //     let input_proposal = input_proposals.get(i).unwrap();
+            // Check each tipping to see if it should be executed
+            // for i in 0..input_tippings.len() {
+            //     let input_tipping = input_tippings.get(i).unwrap();
 
             //     // Get approval count from approval_transaction_hash vector
-            //     let approval_count = input_proposal.approval_transaction_hash().len() as u8;
+            //     let approval_count = input_tipping.approval_transaction_hash().len() as u8;
 
-            //     // Get approval threshold based on proposal amount
-            //     let _proposal_amount = input_proposal.amount();
+            //     // Get approval threshold based on tipping amount
+            //     let _tipping_amount = input_tipping.amount();
             //     let thresholds = tipping_config.approval_requirement_thresholds();
 
             //     // Find appropriate threshold
@@ -239,16 +239,16 @@ pub mod update_tipping_proposal {
             //         1u8 // Default minimum
             //     };
 
-            //     // If proposal has enough approvals, it should be executed (removed from list)
+            //     // If tipping has enough approvals, it should be executed (removed from list)
             //     if approval_count >= required_approvals {
-            //         // The proposal should not exist in output (it was executed)
-            //         // Since we're checking existing proposals, if it still exists with enough approvals,
+            //         // The tipping should not exist in output (it was executed)
+            //         // Since we're checking existing tippings, if it still exists with enough approvals,
             //         // that's a violation
-            //         if i < output_proposals.len() {
-            //             match output_proposals.get(i) {
-            //                 Some(output_proposal) => {
-            //                     // Compare to see if it's the same proposal
-            //                     if input_proposal.as_slice() == output_proposal.as_slice() {
+            //         if i < output_tippings.len() {
+            //             match output_tippings.get(i) {
+            //                 Some(output_tipping) => {
+            //                     // Compare to see if it's the same tipping
+            //                     if input_tipping.as_slice() == output_tipping.as_slice() {
             //                         return Err(DeterministicError::BusinessRuleViolation);
             //                     }
             //                 }
@@ -263,13 +263,13 @@ pub mod update_tipping_proposal {
             Ok(())
         }
 
-        /// **Approval restrictions**: Cannot approve proposals that are already
+        /// **Approval restrictions**: Cannot approve tippings that are already
         /// fully approved or have expired
         pub fn approval_restrictions(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
             // For this validation, we need to compare input and output to detect new approvals
-            // We'll check if expired proposals have new approvals or if fully approved proposals get more
+            // We'll check if expired tippings have new approvals or if fully approved tippings get more
 
             // Get protocol cells
             let input_protocol_cells = context
@@ -287,8 +287,8 @@ pub mod update_tipping_proposal {
             let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
                 .map_err(|_| DeterministicError::Encoding)?;
 
-            let input_proposals = input_protocol_data.tipping_proposals_approved();
-            let output_proposals = output_protocol_data.tipping_proposals_approved();
+            let input_tippings = input_protocol_data.tippings_approved();
+            let output_tippings = output_protocol_data.tippings_approved();
             let tipping_config = output_protocol_data.tipping_config();
 
             // Get expiration duration
@@ -304,23 +304,23 @@ pub mod update_tipping_proposal {
             // For now, we'll use a placeholder approach
             // TODO: Implement proper timestamp retrieval from header deps
 
-            // // Check each proposal for new approvals
-            // for i in 0..input_proposals.len() {
-            //     if i >= output_proposals.len() {
-            //         break; // Proposal was removed (executed)
+            // // Check each tipping for new approvals
+            // for i in 0..input_tippings.len() {
+            //     if i >= output_tippings.len() {
+            //         break; // tipping was removed (executed)
             //     }
 
-            //     let input_proposal = input_proposals.get(i).unwrap();
-            //     let output_proposal = output_proposals.get(i).unwrap();
+            //     let input_tipping = input_tippings.get(i).unwrap();
+            //     let output_tipping = output_tippings.get(i).unwrap();
 
-            //     let input_approvals = input_proposal.approval_transaction_hash();
-            //     let output_approvals = output_proposal.approval_transaction_hash();
+            //     let input_approvals = input_tipping.approval_transaction_hash();
+            //     let output_approvals = output_tipping.approval_transaction_hash();
 
             //     // Check if new approvals were added
             //     if output_approvals.len() > input_approvals.len() {
             //         // New approvals were added, check if this is allowed
 
-            //         // Check if proposal is already at max approvals
+            //         // Check if tipping is already at max approvals
             //         let thresholds = tipping_config.approval_requirement_thresholds();
             //         let max_approvals = if thresholds.len() > 0 {
             //             core::cmp::min(5, thresholds.len()) // Reasonable max
@@ -342,7 +342,7 @@ pub mod update_tipping_proposal {
         }
 
         /// **Data immutability**: All other protocol data must remain unchanged
-        /// during tipping proposal updates
+        /// during tipping updates
         pub fn data_immutability(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
@@ -362,7 +362,7 @@ pub mod update_tipping_proposal {
             let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
                 .map_err(|_| DeterministicError::Encoding)?;
 
-            // Check all fields except tipping_proposals remain unchanged
+            // Check all fields except tippings remain unchanged
 
             // campaigns_approved must be unchanged
             if input_protocol_data.campaigns_approved().as_slice()
@@ -396,6 +396,6 @@ pub mod update_tipping_proposal {
 
             Ok(())
         }
-        // **Tipping proposal immutability**: Tipping proposal data must remain unchanged during protocol updates to maintain proposal integrity
+        // **Tipping tipping immutability**: Tipping tipping data must remain unchanged during protocol updates to maintain tipping integrity
     }
 }

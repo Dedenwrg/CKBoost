@@ -95,11 +95,11 @@ pub mod protocol {
         ProtocolDataBuilder,
         // Add other readers/builders as needed
         ProtocolDataReader,
-        TippingProposalData,
-        TippingProposalDataBuilder,
-        TippingProposalDataReader,
-        TippingProposalDataVec,
-        TippingProposalMetadata,
+        TippingData,
+        TippingDataBuilder,
+        TippingDataReader,
+        TippingDataVec,
+        TippingMetadata,
         UserVerificationData,
         UserVerificationDataBuilder,
         // Readers and Builders

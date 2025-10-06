@@ -19,14 +19,14 @@ use ckb_testtool::{
 use ckboost_shared::{
     generated::ckboost::{
         Byte32, Byte32Vec, CampaignDataVec, EndorserInfoVec, ProtocolConfigBuilder,
-        ProtocolDataBuilder, ScriptCodeHashesBuilder, TippingConfigBuilder, TippingProposalDataVec,
+        ProtocolDataBuilder, ScriptCodeHashesBuilder, TippingConfigBuilder, TippingDataVec,
         Uint128Vec, Uint64,
     },
     types::ScriptVec,
 };
 
-/// Helper to create protocol data with admin lock and optional tipping proposal  
-fn create_protocol_data(admin_lock_hash: [u8; 32], _tipping_proposal: Option<Vec<u8>>) -> Bytes {
+/// Helper to create protocol data with admin lock and optional tipping  
+fn create_protocol_data(admin_lock_hash: [u8; 32], _tipping: Option<Vec<u8>>) -> Bytes {
     // Create ProtocolConfig with admin lock hash
     let admin_lock_hash_vec = Byte32Vec::new_builder()
         .push(Byte32::from(admin_lock_hash))
@@ -56,7 +56,7 @@ fn create_protocol_data(admin_lock_hash: [u8; 32], _tipping_proposal: Option<Vec
     // Build ProtocolData
     let protocol_data = ProtocolDataBuilder::default()
         .campaigns_approved(Byte32Vec::new_builder().build())
-        .tipping_proposals(TippingProposalDataVec::default())
+        .tippings_approved(Byte32Vec::new_builder().build())
         .tipping_config(tipping_config)
         .endorsers_whitelist(EndorserInfoVec::default())
         .last_updated(Uint64::from_slice(&0u64.to_le_bytes()).unwrap())
@@ -200,11 +200,9 @@ fn test_update_protocol_with_transaction_context() {
         .previous_output(protocol_cell_out_point)
         .build();
 
-    // Create updated protocol data with tipping proposal
-    let updated_protocol_data = create_protocol_data(
-        admin_lock_hash_array,
-        Some(b"new_tipping_proposal".to_vec()),
-    );
+    // Create updated protocol data with tipping
+    let updated_protocol_data =
+        create_protocol_data(admin_lock_hash_array, Some(b"new_tipping".to_vec()));
 
     let updated_protocol_output = CellOutput::new_builder()
         .capacity(1000u64.pack())

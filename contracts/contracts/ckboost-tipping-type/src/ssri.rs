@@ -4,22 +4,22 @@ use ckb_deterministic::{
 };
 use ckb_std::ckb_types::packed::{Byte32Vec, Transaction};
 use ckboost_shared::{
-    types::{Byte32, CampaignData, TippingProposalData, UDTAsset},
+    types::{Byte32, CampaignData, TippingData, UDTAsset},
     Error,
 };
 
 /// CKBoost Tipping SSRI trait for tipping management operations
 pub trait CKBoostTipping {
-    fn update_tipping_proposal(
+    fn update_tipping(
         tx: Option<Transaction>,
-        tipping_proposal_data: TippingProposalData,
+        tipping_data: TippingData,
     ) -> Result<Transaction, Error>;
-    fn verify_update_tipping_proposal(
+    fn verify_update_tipping(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error>;
     fn grant_tipping_reward(
         tx: Option<Transaction>,
-        tipping_proposal_data: TippingProposalData,
+        tipping_data: TippingData,
     ) -> Result<Transaction, Error>;
     fn verify_grant_tipping_reward(
         context: &TransactionContext<RuleBasedClassifier>,

@@ -30,15 +30,15 @@ pub fn fallback() -> Result<(), Error> {
     );
 
     let result = match method_path.as_slice() {
-        b"CKBoostTipping.update_tipping_proposal" => {
-            debug_trace!("Executing verify_update_tipping_proposal");
-            let verify_result = CKBoostTippingType::verify_update_tipping_proposal(&context);
-            debug_trace!("verify_update_tipping_proposal result: {:?}", verify_result);
+        b"CKBoostTipping.update_tipping" => {
+            debug_trace!("Executing verify_update_tipping");
+            let verify_result = CKBoostTippingType::verify_update_tipping(&context);
+            debug_trace!("verify_update_tipping result: {:?}", verify_result);
             verify_result
         }
         _ => {
             debug_trace!("No matching validation rules found for method path");
-            debug_trace!("Expected one of: CKBoostTipping.update_tipping_proposal");
+            debug_trace!("Expected one of: CKBoostTipping.update_tipping");
             Err(Error::SSRIMethodsNotFound)
         }
     };
