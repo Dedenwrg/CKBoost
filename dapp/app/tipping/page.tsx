@@ -23,9 +23,7 @@ export default function CommunityPage() {
           </p>
         </div>
 
-        <TippingProvider>
-          <Tippings />
-        </TippingProvider>
+        <Tippings />
       </main>
     </div>
   );

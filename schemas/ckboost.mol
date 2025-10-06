@@ -257,7 +257,7 @@ table TippingMetadata {
 }
 
 table TippingData {
-    target_address: String,
+    target_lock_hash: Byte32,
     proposer_lock_hash: Byte32,
     supporter_lock_hashes: Byte32Vec,
     metadata: TippingMetadata,

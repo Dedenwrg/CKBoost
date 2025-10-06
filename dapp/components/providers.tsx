@@ -1,25 +1,29 @@
-'use client'
+"use client";
 
-import { WalletProvider } from '@/components/wallet-provider'
-import { ThemeProvider } from '@/components/theme-provider'
-import { CampaignProvider } from '@/lib'
-import { ProtocolProvider } from '@/lib/providers/protocol-provider'
-import { UserProvider } from '@/lib/providers/user-provider'
-import { NostrProvider } from '@/lib/providers/nostr-provider'
-import { CampaignAdminProvider } from '@/lib/providers/campaign-admin-provider'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState } from 'react'
-import { StorageModalProvider } from '@/lib/providers/storage-modal-provider'
+import { WalletProvider } from "@/components/wallet-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { CampaignProvider } from "@/lib";
+import { ProtocolProvider } from "@/lib/providers/protocol-provider";
+import { UserProvider } from "@/lib/providers/user-provider";
+import { NostrProvider } from "@/lib/providers/nostr-provider";
+import { CampaignAdminProvider } from "@/lib/providers/campaign-admin-provider";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { StorageModalProvider } from "@/lib/providers/storage-modal-provider";
+import { TippingProvider } from "@/lib/providers/tipping-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 60 * 1000, // 1 minute
-        gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
-      },
-    },
-  }))
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 60 * 1000, // 1 minute
+            gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
+          },
+        },
+      })
+  );
 
   return (
     <ThemeProvider
@@ -36,7 +40,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 <UserProvider>
                   <CampaignAdminProvider>
                     <StorageModalProvider>
-                      {children}
+                      <TippingProvider>{children}</TippingProvider>
                     </StorageModalProvider>
                   </CampaignAdminProvider>
                 </UserProvider>
@@ -46,5 +50,5 @@ export function Providers({ children }: { children: React.ReactNode }) {
         </WalletProvider>
       </QueryClientProvider>
     </ThemeProvider>
-  )
+  );
 }

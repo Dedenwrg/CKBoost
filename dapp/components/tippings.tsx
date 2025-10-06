@@ -44,7 +44,8 @@ export function Tippings() {
         tipping.metadata.contribution_title
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
-        tipping.data.target_address
+        tipping.data.target_lock_hash
+          .toString()
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
         tipping.data.proposer_lock_hash
@@ -153,7 +154,7 @@ export function Tippings() {
             className="pl-10"
           />
         </div>
-        <Link href="/platform-admin/propose-tipping">
+        <Link href="/tipping/propose-tipping">
           <Button className="flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Propose Tipping

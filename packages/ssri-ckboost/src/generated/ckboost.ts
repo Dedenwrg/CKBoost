@@ -119,7 +119,7 @@ export const TippingMetadata = mol.table({
   creation_timestamp: mol.Uint64
 });
 export const TippingData = mol.table({
-  target_address: mol.String,
+  target_lock_hash: mol.Byte32,
   proposer_lock_hash: mol.Byte32,
   supporter_lock_hashes: mol.Byte32Vec,
   metadata: TippingMetadata,
@@ -302,7 +302,7 @@ export interface TippingMetadataLike {
 }
 
 export interface TippingDataLike {
-  target_address: string;
+  target_lock_hash: ccc.HexLike;
   proposer_lock_hash: ccc.HexLike;
   supporter_lock_hashes: ccc.HexLike[];
   metadata: TippingMetadataLike;

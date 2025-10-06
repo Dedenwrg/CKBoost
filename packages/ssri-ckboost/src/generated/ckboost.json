@@ -781,8 +781,8 @@
       "name": "TippingData",
       "fields": [
         {
-          "name": "target_address",
-          "type": "String"
+          "name": "target_lock_hash",
+          "type": "Byte32"
         },
         {
           "name": "proposer_lock_hash",

@@ -62,6 +62,27 @@ export function TippingCard({
   const { protocolData } = useProtocol();
   const tippingConfig = protocolData?.tipping_config;
   const { userRecommendedAddressObj } = useUser();
+
+  const formatLongDescription = (content: string) => {
+    if (!content) {
+      return "";
+    }
+
+    const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+    if (hasHtmlTags) {
+      return content;
+    }
+
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    return `<p>${escapeHtml(content).replace(/\n/g, "<br />")}</p>`;
+  };
   const handleApprove = async () => {
     if (tipping.data.status !== "pending") return;
 
@@ -209,13 +230,18 @@ export function TippingCard({
         <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-200 to-blue-200 flex items-center justify-center font-semibold">
-              {tipping.data.target_address.charAt(0).toUpperCase()}
+              {ccc
+                .hexFrom(tipping.data.target_lock_hash)
+                .charAt(0)
+                .toUpperCase()}
             </div>
             <div>
-              <div className="font-semibold">{tipping.data.target_address}</div>
+              <div className="font-semibold">
+                {ccc.hexFrom(tipping.data.target_lock_hash)}
+              </div>
               <div className="text-sm text-muted-foreground font-mono">
-                {tipping.data.target_address.slice(0, 8)}...
-                {tipping.data.target_address.slice(-6)}
+                {ccc.hexFrom(tipping.data.target_lock_hash).slice(0, 8)}...
+                {ccc.hexFrom(tipping.data.target_lock_hash).slice(-6)}
               </div>
             </div>
           </div>
@@ -239,9 +265,14 @@ export function TippingCard({
         {/* Justification */}
         <div className="p-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="text-sm font-medium mb-2">Justification:</div>
-          <div className="text-sm text-muted-foreground">
-            {tipping.data.metadata.long_description}
-          </div>
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
+            dangerouslySetInnerHTML={{
+              __html: formatLongDescription(
+                tipping.data.metadata.long_description || ""
+              ),
+            }}
+          />
         </div>
 
         {/* Community Tip Progress */}
@@ -438,7 +469,7 @@ export function TippingCard({
           <div className="text-center p-4 bg-green-100 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <div className="text-green-800 dark:text-green-200 font-medium">
               🎉 Community tip of {ccc.numFrom(tipping.data.rewards.ckb_amount)}{" "}
-              CKB sent to {tipping.data.target_address}!
+              CKB sent to {ccc.hexFrom(tipping.data.target_lock_hash)}!
             </div>
             {totalAdditionalTips > 0 && (
               <div className="text-sm text-green-600 dark:text-green-300 mt-1">
@@ -484,8 +515,8 @@ export function TippingCard({
               Send Additional Tip
             </DialogTitle>
             <DialogDescription>
-              Send a personal tip to {tipping.data.target_address} for this
-              contribution
+              Send a personal tip to{" "}
+              {ccc.hexFrom(tipping.data.target_lock_hash)} for this contribution
             </DialogDescription>
           </DialogHeader>
 
@@ -495,7 +526,8 @@ export function TippingCard({
                 <div className="font-medium mb-1">Personal Tip</div>
                 <div className="text-xs">
                   This tip will be sent directly from your wallet to{" "}
-                  {tipping.data.target_address}. No approvals needed.
+                  {ccc.hexFrom(tipping.data.target_lock_hash)}. No approvals
+                  needed.
                 </div>
               </div>
             </div>

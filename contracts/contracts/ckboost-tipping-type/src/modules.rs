@@ -452,7 +452,7 @@ impl CKBoostTipping for CKBoostTippingType {
 
         // Create updated tipping data
         let updated_tipping_data = TippingData::new_builder()
-            .target_address(tipping_data.target_address())
+            .target_lock_hash(tipping_data.target_lock_hash())
             .proposer_lock_hash(tipping_data.proposer_lock_hash())
             .metadata(tipping_data.metadata())
             .rewards(tipping_data.rewards())
