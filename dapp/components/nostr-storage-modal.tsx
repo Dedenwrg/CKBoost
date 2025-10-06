@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -12,6 +12,20 @@ import { Loader2, CheckCircle, XCircle, RefreshCw, ExternalLink, Cloud, AlertTri
 import { useNostrFetch } from "@/hooks/use-nostr-fetch"
 import { debug } from "@/lib/utils/debug"
 import { isNostrSubmissionData } from "@/types/submission"
+
+interface TippingNostrPayload {
+  format: string
+  version?: string
+  timestamp?: number
+  metadata?: {
+    targetLockHash?: string
+    proposerLockHash?: string | null
+    contributionTitle?: string
+    shortDescription?: string
+    typeTags?: string[]
+  }
+  contentHtml: string
+}
 
 interface NostrStorageModalProps {
   isOpen: boolean
@@ -41,6 +55,45 @@ export function NostrStorageModal({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [verifiedNeventId, setVerifiedNeventId] = useState<string | null>(null)
   const prevOpenRef = useRef(false)
+
+  const parsedVerifiedContent = useMemo(() => {
+    if (!verifiedContent) {
+      return null
+    }
+
+    try {
+      return JSON.parse(verifiedContent) as unknown
+    } catch {
+      return null
+    }
+  }, [verifiedContent])
+
+  const questSubmissionData = useMemo(() => {
+    if (!parsedVerifiedContent) {
+      return null
+    }
+    if (isNostrSubmissionData(parsedVerifiedContent)) {
+      return parsedVerifiedContent
+    }
+    return null
+  }, [parsedVerifiedContent])
+
+  const tippingSubmissionData = useMemo(() => {
+    if (!parsedVerifiedContent || typeof parsedVerifiedContent !== "object") {
+      return null
+    }
+
+    const payload = parsedVerifiedContent as Partial<TippingNostrPayload>
+    if (
+      payload &&
+      payload.format === "ckboost-tipping-long-description" &&
+      typeof payload.contentHtml === "string"
+    ) {
+      return payload as TippingNostrPayload
+    }
+
+    return null
+  }, [parsedVerifiedContent])
 
   const getExplorerUrl = (hash: string | null) => {
     if (!hash) return null
@@ -234,60 +287,113 @@ export function NostrStorageModal({
                             </TabsList>
                             <TabsContent value="rendered" className="mt-4">
                               <div className="border rounded-lg p-4 max-h-[400px] overflow-auto bg-white dark:bg-gray-900 space-y-4">
-                                {(() => {
-                                  try {
-                                    const parsed = JSON.parse(verifiedContent) as unknown
-                                    if (isNostrSubmissionData(parsed)) {
-                                      return parsed.subtasks.map((subtask, index) => (
-                                        <div key={index} className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
-                                          <div className="mb-2 pb-2 border-b">
-                                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{subtask.title || `Subtask ${index + 1}`}</span>
-                                            {subtask.description && (<span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">{subtask.description}</span>)}
-                                          </div>
-                                          {subtask.response ? (
-                                            <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: subtask.response }} />
-                                          ) : (
-                                            <p className="text-sm text-gray-500 dark:text-gray-400 italic">No response provided</p>
-                                          )}
-                                        </div>
-                                      ))
-                                    }
-                                    return null
-                                  } catch {
-                                    return (
-                                      <div className="text-center py-8">
-                                        <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
-                                        <p className="text-sm text-gray-600 dark:text-gray-400">Invalid submission format detected.</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Please resubmit your quest response.</p>
+                                {questSubmissionData &&
+                                  questSubmissionData.subtasks.map((subtask, index) => (
+                                    <div key={index} className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                                      <div className="mb-2 pb-2 border-b">
+                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                          {subtask.title || `Subtask ${index + 1}`}
+                                        </span>
+                                        {subtask.description && (
+                                          <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
+                                            {subtask.description}
+                                          </span>
+                                        )}
                                       </div>
-                                    )
-                                  }
-                                })()}
+                                      {subtask.response ? (
+                                        <div
+                                          className="prose prose-sm dark:prose-invert max-w-none"
+                                          dangerouslySetInnerHTML={{ __html: subtask.response }}
+                                        />
+                                      ) : (
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                                          No response provided
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+
+                                {tippingSubmissionData && (
+                                  <div className="space-y-4">
+                                    <div className="rounded-lg border border-muted p-4 bg-gray-50 dark:bg-gray-800 space-y-2">
+                                      <p className="text-sm font-semibold text-muted-foreground">
+                                        Proposal Metadata
+                                      </p>
+                                      {tippingSubmissionData.metadata?.contributionTitle && (
+                                        <p className="text-sm">
+                                          <span className="font-medium">Title:</span> {tippingSubmissionData.metadata.contributionTitle}
+                                        </p>
+                                      )}
+                                      {tippingSubmissionData.metadata?.shortDescription && (
+                                        <p className="text-sm">
+                                          <span className="font-medium">Summary:</span> {tippingSubmissionData.metadata.shortDescription}
+                                        </p>
+                                      )}
+                                      {(tippingSubmissionData.metadata?.typeTags?.length ?? 0) > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                          Tags: {tippingSubmissionData.metadata?.typeTags?.join(", ")}
+                                        </p>
+                                      )}
+                                      {tippingSubmissionData.metadata?.targetLockHash && (
+                                        <p className="text-xs text-muted-foreground font-mono break-all">
+                                          Recipient: {tippingSubmissionData.metadata.targetLockHash}
+                                        </p>
+                                      )}
+                                      {tippingSubmissionData.metadata?.proposerLockHash && (
+                                        <p className="text-xs text-muted-foreground font-mono break-all">
+                                          Proposer: {tippingSubmissionData.metadata.proposerLockHash}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {tippingSubmissionData.contentHtml ? (
+                                      <div
+                                        className="prose prose-sm dark:prose-invert max-w-none"
+                                        dangerouslySetInnerHTML={{
+                                          __html: tippingSubmissionData.contentHtml,
+                                        }}
+                                      />
+                                    ) : (
+                                      <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                                        No detailed justification provided.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {!questSubmissionData && !tippingSubmissionData && (
+                                  <div className="text-center py-8">
+                                    <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      Unrecognised submission format.
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                      Raw content is available in the JSON tab.
+                                    </p>
+                                  </div>
+                                )}
                               </div>
                             </TabsContent>
                             <TabsContent value="json" className="mt-4">
                               <div className="relative">
-                                <Button size="sm" variant="ghost" className="absolute top-2 right-2 z-10" onClick={() => {
-                                  const subtaskSections = verifiedContent.split(/<h3>/).filter(Boolean)
-                                  const subtasks = subtaskSections.length > 1 ? subtaskSections.map((section, index) => {
-                                    const titleMatch = section.match(/^([^<]*)</)
-                                    const title = titleMatch ? titleMatch[1] : `Subtask ${index + 1}`
-                                    const content = `<h3>${section}`
-                                    return { title, content }
-                                  }) : [{ title: 'Full Content', content: verifiedContent }]
-                                  navigator.clipboard.writeText(JSON.stringify({ eventId: neventId, timestamp: new Date().toISOString(), subtasks }, null, 2))
-                                }}><Copy className="w-4 h-4" /></Button>
-                                <pre className="border rounded-lg p-4 max-h-96 overflow-auto bg-gray-50 dark:bg-gray-900 text-xs whitespace-pre-wrap break-words"><code className="block">{(() => {
-                                  try {
-                                    const parsed = JSON.parse(verifiedContent) as unknown
-                                    if (isNostrSubmissionData(parsed)) {
-                                      return JSON.stringify(parsed, null, 2)
-                                    }
-                                    throw new Error('Invalid JSON format')
-                                  } catch {
-                                    return JSON.stringify({ error: 'Invalid JSON format', message: 'Please resubmit your quest response', rawContent: verifiedContent.substring(0, 100) + '...' }, null, 2)
-                                  }
-                                })()}</code></pre>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="absolute top-2 right-2 z-10"
+                                  onClick={() => navigator.clipboard.writeText(
+                                    parsedVerifiedContent
+                                      ? JSON.stringify(parsedVerifiedContent, null, 2)
+                                      : verifiedContent
+                                  )}
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                                <pre className="border rounded-lg p-4 max-h-96 overflow-auto bg-gray-50 dark:bg-gray-900 text-xs whitespace-pre-wrap break-words">
+                                  <code className="block">
+                                    {parsedVerifiedContent
+                                      ? JSON.stringify(parsedVerifiedContent, null, 2)
+                                      : verifiedContent}
+                                  </code>
+                                </pre>
                               </div>
                             </TabsContent>
                           </Tabs>

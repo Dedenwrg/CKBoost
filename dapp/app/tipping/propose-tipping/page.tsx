@@ -21,6 +21,7 @@ import {
   CheckCircle,
   AlertCircle,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -29,16 +30,21 @@ import {
 } from "@/lib/providers/tipping-provider";
 import { TippingDataLike } from "ssri-ckboost/types";
 import { MarkdownEditor } from "@/components/markdown-editor";
+import { useNostrStorage } from "@/hooks/use-nostr-storage";
+import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 
 export default function ProposeTippingPage() {
   const router = useRouter();
   const signer = ccc.useSigner();
   const { updateTipping } = useTippingContext();
+  const { storeSubmission, isConnected: nostrConnected } = useNostrStorage();
+  const storageModal = useStorageModal();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [currentUserAllowlisted] = useState(true);
   const [proposerLockHash, setProposerLockHash] = useState<string | null>(null);
+  const [proposerAddress, setProposerAddress] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     targetLockHash: "",
@@ -47,6 +53,7 @@ export default function ProposeTippingPage() {
     typeTags: "analysis",
     shortDescription: "",
     longDescription: "",
+    supporterLockHashes: "",
     ckbAmount: "0",
     pointsAmount: "0",
   });
@@ -57,6 +64,7 @@ export default function ProposeTippingPage() {
     async function resolveProposerLockHash() {
       if (!signer) {
         setProposerLockHash(null);
+        setProposerAddress(null);
         return;
       }
 
@@ -65,11 +73,13 @@ export default function ProposeTippingPage() {
         const lockHash = recommended.script.hash();
         if (!cancelled) {
           setProposerLockHash(lockHash);
+          setProposerAddress(recommended.toString() ?? null);
         }
       } catch (error) {
         console.error("Failed to derive proposer lock hash", error);
         if (!cancelled) {
           setProposerLockHash(null);
+          setProposerAddress(null);
         }
       }
     }
@@ -81,6 +91,24 @@ export default function ProposeTippingPage() {
   }, [signer]);
 
   const creationTimestamp = useMemo(() => BigInt(Date.now()), []);
+
+  const finalizeTippingSubmission = async (data: TippingDataLike) => {
+    try {
+      const txHash = await updateTipping(data);
+      router.push(`/tipping?created=${txHash}`);
+      return txHash;
+    } catch (error) {
+      console.error("Failed to submit tipping proposal", error);
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "Failed to submit tipping proposal"
+      );
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -101,10 +129,61 @@ export default function ProposeTippingPage() {
     setIsSubmitting(true);
 
     try {
+      let longDescriptionForChain = formData.longDescription;
+
+      if (
+        longDescriptionForChain &&
+        !longDescriptionForChain.startsWith("nevent1") &&
+        nostrConnected
+      ) {
+        const identifier = formData.targetLockHash || proposerLockHash;
+        if (identifier) {
+          try {
+            const userAddress =
+              proposerAddress || proposerLockHash || "unknown";
+            const uniqueQuestId = Date.now();
+            const serializedContent = JSON.stringify({
+              format: "ckboost-tipping-long-description",
+              version: "1.0",
+              timestamp: Date.now(),
+              metadata: {
+                targetLockHash: formData.targetLockHash,
+                proposerLockHash,
+                contributionTitle: formData.contributionTitle,
+                shortDescription: formData.shortDescription,
+                typeTags: formData.typeTags
+                  .split(",")
+                  .map((tag) => tag.trim())
+                  .filter((tag) => tag.length > 0),
+              },
+              contentHtml: longDescriptionForChain,
+            });
+            const neventId = await storeSubmission.mutateAsync({
+              campaignTypeId: identifier,
+              questId: uniqueQuestId,
+              userAddress,
+              content: serializedContent,
+              timestamp: Date.now(),
+            });
+            longDescriptionForChain = neventId;
+          } catch (nostrError) {
+            console.warn(
+              "Failed to store long description on Nostr; falling back to on-chain storage",
+              nostrError
+            );
+          }
+        }
+      }
+
+      const supporterLockHashes = formData.supporterLockHashes
+        .split(",")
+        .map((hash) => hash.trim())
+        .filter((hash) => hash.length > 0);
+
       const tippingData: TippingDataLike = {
         target_lock_hash: formData.targetLockHash,
         proposer_lock_hash: proposerLockHash,
-        supporter_lock_hashes: [],
+        supporter_lock_hashes: supporterLockHashes,
         metadata: {
           contribution_title: formData.contributionTitle,
           contribution_type_tags: formData.typeTags
@@ -112,7 +191,7 @@ export default function ProposeTippingPage() {
             .map((tag) => tag.trim())
             .filter((tag) => tag.length > 0),
           short_description: formData.shortDescription,
-          long_description: formData.longDescription,
+          long_description: longDescriptionForChain,
           creation_timestamp: creationTimestamp,
         },
         rewards: {
@@ -127,8 +206,20 @@ export default function ProposeTippingPage() {
         granted_at: 0n,
       };
 
-      const txHash = await updateTipping(tippingData);
-      router.push(`/tipping?created=${txHash}`);
+      if (longDescriptionForChain.startsWith("nevent1") && nostrConnected) {
+        storageModal.open({
+          neventId: longDescriptionForChain,
+          mode: "verifying",
+          onConfirm: async () => finalizeTippingSubmission(tippingData),
+          onClose: () => {
+            setIsSubmitting(false);
+          },
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      await finalizeTippingSubmission(tippingData);
     } catch (error) {
       console.error("Failed to submit tipping proposal", error);
       setSubmitError(
@@ -171,6 +262,25 @@ export default function ProposeTippingPage() {
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const fillTestData = () => {
+    const randomSuffix = Math.floor(Math.random() * 1000);
+    const mockLockHash = `0x${"ab".repeat(32)}`;
+
+    setFormData({
+      targetLockHash: mockLockHash,
+      contributionTitle: `Insightful Community Analysis #${randomSuffix}`,
+      contributionType: "analysis",
+      typeTags: "analysis, community, research",
+      shortDescription:
+        "Highlighting tangible outcomes from this week's CKBoost collaboration wave.",
+      longDescription:
+        "<p><strong>Summary:</strong> We delivered three high-impact assets that unblock new builders.</p><ul><li>Published a step-by-step SDK integration tutorial with code samples.</li><li>Drove a 60-person workshop where 70% shipped working demos.</li><li>Coordinated translation of onboarding docs into three new languages.</li></ul><p>Each deliverable includes reproducible references so the next cohort can ramp instantly.</p>",
+      supporterLockHashes: `0x${"cd".repeat(32)}, 0x${"ef".repeat(32)}`,
+      ckbAmount: "64",
+      pointsAmount: "250",
+    });
   };
 
   return (
@@ -356,6 +466,24 @@ export default function ProposeTippingPage() {
                   />
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="supporterLockHashes">
+                    Supporter Lock Hashes
+                  </Label>
+                  <Textarea
+                    id="supporterLockHashes"
+                    value={formData.supporterLockHashes}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        supporterLockHashes: e.target.value,
+                      })
+                    }
+                    placeholder="Comma-separated list of lock hashes supporting this proposal"
+                    rows={3}
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="pointsAmount">Points Reward</Label>
@@ -390,7 +518,7 @@ export default function ProposeTippingPage() {
                   <div className="text-sm text-destructive">{submitError}</div>
                 )}
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <Button
                     type="submit"
                     className="flex items-center gap-2"
@@ -398,6 +526,18 @@ export default function ProposeTippingPage() {
                   >
                     {isSubmitting ? "Submitting…" : "Submit Proposal"}
                   </Button>
+                  {process.env.NODE_ENV !== "production" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex items-center gap-2"
+                      onClick={fillTestData}
+                      disabled={isSubmitting}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Fill Test Data
+                    </Button>
+                  )}
                   <a
                     href="https://docs.ckboost.xyz/developer-docs"
                     target="_blank"

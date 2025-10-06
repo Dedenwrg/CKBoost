@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -28,11 +28,11 @@ import {
   Wallet,
   Gift,
 } from "lucide-react";
-import { TippingDataLike } from "ssri-ckboost/types";
 import { TippingInfo } from "@/lib/providers/tipping-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ccc } from "@ckb-ccc/connector-react";
 import { useUser } from "@/lib/providers/user-provider";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 
 interface TippingCardProps {
   tipping: TippingInfo;
@@ -62,6 +62,86 @@ export function TippingCard({
   const { protocolData } = useProtocol();
   const tippingConfig = protocolData?.tipping_config;
   const { userRecommendedAddressObj } = useUser();
+  const { fetchSubmission } = useNostrFetch();
+  const [resolvedLongDescription, setResolvedLongDescription] = useState<string>(
+    tipping.data.metadata.long_description || ""
+  );
+  const [isResolvingLongDescription, setIsResolvingLongDescription] =
+    useState(false);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
+  const extractHtmlFromContent = (raw: string) => {
+    if (!raw) {
+      return "";
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        (parsed as { format?: string }).format ===
+          "ckboost-tipping-long-description" &&
+        typeof (parsed as { contentHtml?: unknown }).contentHtml === "string"
+      ) {
+        return (parsed as { contentHtml: string }).contentHtml;
+      }
+    } catch {
+      // Raw content was not JSON, fall back to original string
+    }
+
+    return raw;
+  };
+
+  useEffect(() => {
+    const current = tipping.data.metadata.long_description || "";
+
+    if (!current.startsWith("nevent1")) {
+      setResolvedLongDescription(extractHtmlFromContent(current));
+      setResolveError(null);
+      setIsResolvingLongDescription(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveFromNostr = async () => {
+      setIsResolvingLongDescription(true);
+      setResolveError(null);
+
+      try {
+        const result = await fetchSubmission(current);
+        if (cancelled) {
+          return;
+        }
+
+        if (result?.content) {
+          setResolvedLongDescription(extractHtmlFromContent(result.content));
+          setResolveError(null);
+        } else {
+          setResolvedLongDescription("");
+          setResolveError("Unable to load description from Nostr.");
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.warn("Failed to fetch tipping description from Nostr", error);
+        setResolvedLongDescription("");
+        setResolveError("Unable to load description from Nostr.");
+      } finally {
+        if (!cancelled) {
+          setIsResolvingLongDescription(false);
+        }
+      }
+    };
+
+    resolveFromNostr();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tipping.data.metadata.long_description, fetchSubmission]);
 
   const formatLongDescription = (content: string) => {
     if (!content) {
@@ -83,6 +163,10 @@ export function TippingCard({
 
     return `<p>${escapeHtml(content).replace(/\n/g, "<br />")}</p>`;
   };
+  const formattedLongDescription = useMemo(
+    () => formatLongDescription(resolvedLongDescription),
+    [resolvedLongDescription]
+  );
   const handleApprove = async () => {
     if (tipping.data.status !== "pending") return;
 
@@ -265,14 +349,24 @@ export function TippingCard({
         {/* Justification */}
         <div className="p-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
           <div className="text-sm font-medium mb-2">Justification:</div>
-          <div
-            className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
-            dangerouslySetInnerHTML={{
-              __html: formatLongDescription(
-                tipping.data.metadata.long_description || ""
-              ),
-            }}
-          />
+          {isResolvingLongDescription ? (
+            <div className="text-sm text-muted-foreground italic">
+              Loading description from Nostr…
+            </div>
+          ) : resolveError ? (
+            <div className="text-sm text-muted-foreground italic">
+              {resolveError}
+            </div>
+          ) : formattedLongDescription ? (
+            <div
+              className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
+              dangerouslySetInnerHTML={{ __html: formattedLongDescription }}
+            />
+          ) : (
+            <div className="text-sm text-muted-foreground italic">
+              No detailed justification provided.
+            </div>
+          )}
         </div>
 
         {/* Community Tip Progress */}

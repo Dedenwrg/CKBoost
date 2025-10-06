@@ -47,54 +47,6 @@ export const handler: Handler = async (event) => {
   });
 
   log("JSON Body", event.body);
-  // Support GET to expose authenticator lock script (public info)
-  // if (event.httpMethod === "GET") {
-  //   try {
-  //     const serverKey = process.env.TELEGRAM_AUTH_PRIVATE_KEY as
-  //       | Hex
-  //       | undefined;
-  //     const rpcUrl =
-  //       process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
-  //     if (!serverKey) {
-  //       log("config_error_get", { hasServerKey: !!serverKey });
-  //       return {
-  //         statusCode: 500,
-  //         headers: { "Content-Type": "application/json" },
-  //         body: JSON.stringify({
-  //           success: false,
-  //           error: "missing_private_key",
-  //         }),
-  //       };
-  //     }
-  //     const client = new ccc.ClientPublicTestnet({ url: rpcUrl });
-  //     const signer = new ccc.SignerCkbPrivateKey(client, serverKey as ccc.Hex);
-  //     const addrObj = await signer.getRecommendedAddressObj();
-  //     const script = addrObj.script;
-  //     const address = await signer.getRecommendedAddress();
-  //     log("authenticator_info", {
-  //       addressPreview: address.slice(0, 10) + "...",
-  //     });
-  //     return {
-  //       statusCode: 200,
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({
-  //         success: true,
-  //         address,
-  //         script: {
-  //           codeHash: script.codeHash,
-  //           hashType: script.hashType,
-  //           args: script.args,
-  //         } as ccc.ScriptLike,
-  //       }),
-  //     };
-  //   } catch (e) {
-  //     log("get_error", { message: (e as Error)?.message });
-  //     return {
-  //       statusCode: 500,
-  //       body: JSON.stringify({ success: false, error: "internal_error" }),
-  //     };
-  //   }
-  // }
 
   if (event.httpMethod !== "POST") {
     log("method_not_allowed");
