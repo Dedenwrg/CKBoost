@@ -39,7 +39,7 @@ fn program_entry_wrap() -> Result<(), Error> {
         debug_trace!("Should fallback!");
         // # Validation Rules
         //
-        // 1. **Type ID mechanism**: Ensures the campaign cell uses the correct type ID
+        // 1. **Type ID mechanism**: Ensures the tipping cell uses the correct type ID
         debug_trace!("Loading script for validation");
         let script = load_script()?;
         debug_trace!("Script loaded successfully");
@@ -47,10 +47,7 @@ fn program_entry_wrap() -> Result<(), Error> {
         let args = script.args();
         let args_raw = args.raw_data();
         debug_info!("Script args length: {} bytes", args_raw.len());
-        debug_info!(
-            "Script args hex: {:02x?}",
-            &args_raw[..core::cmp::min(64, args_raw.len())]
-        );
+        debug_info!("Script args hex: {:02x?}", &args_raw);
 
         // ConnectedTypeID should be exactly 64 bytes (32 bytes type_id + 32 bytes connected_key)
         if args_raw.len() != 76 {
@@ -87,15 +84,15 @@ fn program_entry_wrap() -> Result<(), Error> {
         return Ok(());
     }
 
-    debug_trace!("Entering SSRI methods for CKBoost Campaign");
+    debug_trace!("Entering SSRI methods for CKBoost Tipping");
 
     let res: Cow<'static, [u8]> = ssri_methods!(
         argv: &argv,
         invalid_method: Error::SSRIMethodsNotFound,
         invalid_args: Error::SSRIMethodsArgsInvalid,
 
-        "CKBoostProtocol.update_tipping" => {
-            debug_trace!("Entered CKBoostProtocol.update_tipping");
+        "CKBoostTipping.update_tipping" => {
+            debug_trace!("Entered CKBoostTipping.update_tipping");
 
             // Parse optional transaction (argv[1])
             let tx: Option<ckb_std::ckb_types::packed::Transaction> = if argv[1].is_empty() || argv[1].as_ref().to_str().map_err(|_| Error::Utf8Error)? == "" {
@@ -111,8 +108,8 @@ fn program_entry_wrap() -> Result<(), Error> {
             let tipping_data = TippingData::from_slice(&tipping_data_bytes)
                 .map_err(|_| Error::MoleculeVerificationError)?;
 
-            CKBoostTippingType::update_tipping(tx, tipping_data)?;
-            Ok(Cow::from(b"success".to_vec()))
+            let result_tx = CKBoostTippingType::update_tipping(tx, tipping_data)?;
+            Ok(Cow::from(result_tx.as_bytes().to_vec()))
         },
     )?;
 

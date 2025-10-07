@@ -85,7 +85,7 @@ pub mod common {
             None => {
                 // Only creation scenario when the recipe is create campaign has no input campaign cell
                 if context.recipe.method_path_bytes().as_slice()
-                    == b"CKBoostCampaign.create_campaign"
+                    == b"CKBoostCampaign.update_campaign"
                 {
                     return Ok(());
                 } else {

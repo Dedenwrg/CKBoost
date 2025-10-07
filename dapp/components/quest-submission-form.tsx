@@ -1,85 +1,110 @@
 /* eslint-disable react/no-unescaped-entities */
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Send, AlertCircle, Loader2, UserPlus, TestTube, ExternalLink, Database, Cloud, Coins } from "lucide-react"
-import { MarkdownEditor } from "@/components/markdown-editor"
-import { useUser } from "@/lib/providers/user-provider"
-import { useProtocol } from "@/lib/providers/protocol-provider"
-import { useNostrStorage } from "@/hooks/use-nostr-storage"
-import { ccc } from "@ckb-ccc/connector-react"
-import { debug } from "@/lib/utils/debug"
-import { useNostrFetch } from "@/hooks/use-nostr-fetch"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  CheckCircle,
+  Send,
+  AlertCircle,
+  Loader2,
+  UserPlus,
+  TestTube,
+  ExternalLink,
+  Database,
+  Cloud,
+  Coins,
+} from "lucide-react";
+import { MarkdownEditor } from "@/components/markdown-editor";
+import { useUser } from "@/lib/providers/user-provider";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import { useNostrStorage } from "@/hooks/use-nostr-storage";
+import { ccc } from "@ckb-ccc/connector-react";
+import { debug } from "@/lib/utils/debug";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 // Global storage modal
-import { useStorageModal } from "@/lib/providers/storage-modal-provider"
-import { isNostrSubmissionData, QuestSubtask } from "@/types/submission"
+import { useStorageModal } from "@/lib/providers/storage-modal-provider";
+import { isNostrSubmissionData, QuestSubtask } from "@/types/submission";
 
 interface QuestSubmissionFormProps {
   quest: {
-    quest_id?: number
-    sub_tasks?: QuestSubtask[]
-  }
-  questIndex: number
-  campaignTypeId: ccc.Hex
-  isAccepted?: boolean
-  earnedPoints?: number
-  earnedUdts?: Array<{ symbol: string; amount: string }>
-  ckbPerCompletion?: number
-  onSuccess?: () => void | Promise<void>
+    quest_id?: number;
+    sub_tasks?: QuestSubtask[];
+  };
+  questIndex: number;
+  campaignTypeId: ccc.Hex;
+  isAccepted?: boolean;
+  earnedPoints?: number;
+  earnedUdts?: Array<{ symbol: string; amount: string }>;
+  ckbPerCompletion?: number;
+  onSuccess?: () => void | Promise<void>;
 }
 
-export function QuestSubmissionForm({ 
-  quest, 
+export function QuestSubmissionForm({
+  quest,
   questIndex,
   campaignTypeId,
   isAccepted: isAcceptedProp,
   earnedPoints,
   earnedUdts = [],
   ckbPerCompletion,
-  onSuccess 
+  onSuccess,
 }: QuestSubmissionFormProps) {
-  const { currentUserTypeId, submitQuest, hasUserSubmittedQuest, getUserSubmissions, isLoading: userLoading } = useUser()
-  const { userAddress } = useProtocol()
-  const { storeSubmission, isConnected: nostrConnected } = useNostrStorage()
-  const { fetchSubmission } = useNostrFetch()
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isFirstTime, setIsFirstTime] = useState(false)
-  const [isLoadingSubmission, setIsLoadingSubmission] = useState(true)
+  const {
+    currentUserTypeId,
+    submitQuest,
+    hasUserSubmittedQuest,
+    getUserSubmissions,
+    isLoading: userLoading,
+  } = useUser();
+  const { userAddress } = useProtocol();
+  const { storeSubmission, isConnected: nostrConnected } = useNostrStorage();
+  const { fetchSubmission } = useNostrFetch();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isFirstTime, setIsFirstTime] = useState(false);
+  const [isLoadingSubmission, setIsLoadingSubmission] = useState(true);
   const [existingSubmission, setExistingSubmission] = useState<{
-    submission_timestamp?: number | bigint
-    submission_content?: string
-  } | null>(null)
-  const [isEditMode, setIsEditMode] = useState(false)
-  const [nostrFetchError, setNostrFetchError] = useState(false)
-  const [showStorageModal, setShowStorageModal] = useState(false)
-  const [pendingNeventId, setPendingNeventId] = useState<string | null>(null)
+    submission_timestamp?: number | bigint;
+    submission_content?: string;
+  } | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [nostrFetchError, setNostrFetchError] = useState(false);
+  const [showStorageModal, setShowStorageModal] = useState(false);
+  const [pendingNeventId, setPendingNeventId] = useState<string | null>(null);
   const [pendingSubmissionData, setPendingSubmissionData] = useState<{
-    campaignTypeId: ccc.Hex
-    questId: number
-    contentToStore: string
-  } | null>(null)
+    campaignTypeId: ccc.Hex;
+    questId: number;
+    contentToStore: string;
+  } | null>(null);
   // Nostr event ID stored after successful submission (for debugging/tracking)
-  const [subtaskResponses, setSubtaskResponses] = useState<Record<number, string>>({})
+  const [subtaskResponses, setSubtaskResponses] = useState<
+    Record<number, string>
+  >({});
   const [userVerificationData, setUserVerificationData] = useState({
     name: "",
     email: "",
     twitter: "",
-    discord: ""
-  })
-  const storageModal = useStorageModal()
+    discord: "",
+  });
+  const storageModal = useStorageModal();
 
   // Check if user has already submitted this quest and load the submission
   const checkSubmission = async () => {
-    setIsLoadingSubmission(true)
-    
+    setIsLoadingSubmission(true);
+
     if (currentUserTypeId) {
       try {
         // Check if submitted
@@ -87,103 +112,114 @@ export function QuestSubmissionForm({
           currentUserTypeId,
           campaignTypeId,
           Number(quest.quest_id || questIndex + 1)
-        )
-        setHasSubmitted(submitted)
-        setIsFirstTime(false)
-        
+        );
+        setHasSubmitted(submitted);
+        setIsFirstTime(false);
+
         // If submitted, load the submission content
         if (submitted) {
-          const submissions = await getUserSubmissions(currentUserTypeId)
-          const questId = Number(quest.quest_id || questIndex + 1)
-          
-          const submission = submissions.find((s) => 
-            s.campaign_type_id === campaignTypeId && 
-            s.quest_id === questId
-          )
-          
+          const submissions = await getUserSubmissions(currentUserTypeId);
+          const questId = Number(quest.quest_id || questIndex + 1);
+
+          const submission = submissions.find(
+            (s) =>
+              s.campaign_type_id === campaignTypeId && s.quest_id === questId
+          );
+
           if (submission) {
-            setExistingSubmission(submission)
-            
+            setExistingSubmission(submission);
+
             // Load content from Nostr if it's a nevent ID
-            if (submission.submission_content?.startsWith('nevent1')) {
+            if (submission.submission_content?.startsWith("nevent1")) {
               try {
-                const nostrData = await fetchSubmission(submission.submission_content)
+                const nostrData = await fetchSubmission(
+                  submission.submission_content
+                );
                 if (nostrData) {
                   // Parse the content and populate the form
-                  const responses = parseSubmissionContent(nostrData.content)
-                  setSubtaskResponses(responses)
-                  setNostrFetchError(false)
+                  const responses = parseSubmissionContent(nostrData.content);
+                  setSubtaskResponses(responses);
+                  setNostrFetchError(false);
                 } else {
                   // Nostr fetch failed - mark error and prepare for resubmission
-                  setNostrFetchError(true)
+                  setNostrFetchError(true);
                   // Set empty responses to allow resubmission
-                  const responses: Record<number, string> = {}
+                  const responses: Record<number, string> = {};
                   quest.sub_tasks?.forEach((_, index) => {
-                    responses[index] = ""
-                  })
-                  setSubtaskResponses(responses)
+                    responses[index] = "";
+                  });
+                  setSubtaskResponses(responses);
                 }
               } catch (err) {
-                console.error("Failed to load content from Nostr:", err)
+                console.error("Failed to load content from Nostr:", err);
                 // Mark as Nostr fetch error
-                setNostrFetchError(true)
+                setNostrFetchError(true);
                 // Set empty responses to allow resubmission
-                const responses: Record<number, string> = {}
+                const responses: Record<number, string> = {};
                 quest.sub_tasks?.forEach((_, index) => {
-                  responses[index] = ""
-                })
-                setSubtaskResponses(responses)
+                  responses[index] = "";
+                });
+                setSubtaskResponses(responses);
               }
             } else {
               // Direct content - parse it
-              const content = submission.submission_content || ""
-              const responses = parseSubmissionContent(content)
-              setSubtaskResponses(responses)
+              const content = submission.submission_content || "";
+              const responses = parseSubmissionContent(content);
+              setSubtaskResponses(responses);
             }
           }
         }
       } catch (err) {
-        console.error("Failed to check/load submission:", err)
+        console.error("Failed to check/load submission:", err);
       }
     } else if (userAddress) {
-      setIsFirstTime(true)
+      setIsFirstTime(true);
     }
-    
-    setIsLoadingSubmission(false)
-  }
+
+    setIsLoadingSubmission(false);
+  };
 
   useEffect(() => {
-    checkSubmission()
-  }, [currentUserTypeId, campaignTypeId, quest.quest_id, questIndex, hasUserSubmittedQuest, getUserSubmissions, userAddress, fetchSubmission])
+    checkSubmission();
+  }, [
+    currentUserTypeId,
+    campaignTypeId,
+    quest.quest_id,
+    questIndex,
+    hasUserSubmittedQuest,
+    getUserSubmissions,
+    userAddress,
+    fetchSubmission,
+  ]);
 
   const handleSubtaskResponseChange = (subtaskIndex: number, value: string) => {
-    setSubtaskResponses(prev => ({
+    setSubtaskResponses((prev) => ({
       ...prev,
-      [subtaskIndex]: value
-    }))
-  }
+      [subtaskIndex]: value,
+    }));
+  };
 
   // Parse submission content (JSON format only)
   const parseSubmissionContent = (content: string): Record<number, string> => {
-    const responses: Record<number, string> = {}
-    
+    const responses: Record<number, string> = {};
+
     try {
-      const parsed = JSON.parse(content) as unknown
+      const parsed = JSON.parse(content) as unknown;
       if (isNostrSubmissionData(parsed)) {
         parsed.subtasks.forEach((subtask, index) => {
-          responses[index] = subtask.response || ""
-        })
-        return responses
+          responses[index] = subtask.response || "";
+        });
+        return responses;
       }
     } catch {
       // Invalid format - return empty responses to prompt resubmission
       quest.sub_tasks?.forEach((_, index) => {
-        responses[index] = ""
-      })
+        responses[index] = "";
+      });
     }
-    
-    return responses
-  }
+
+    return responses;
+  };
 
   // Test data generator with varied content for different subtasks
   const fillTestData = () => {
@@ -215,7 +251,7 @@ export function QuestSubmissionForm({
     <div style="color: #4ade80; margin-top: 10px;">✅ All tests passing!</div>
   </div>
 </div>`,
-      
+
       // Research and analysis responses
       `<h2>Research Findings</h2>
 <p>After conducting thorough research on the topic, I've identified the following key insights:</p>
@@ -259,7 +295,7 @@ export function QuestSubmissionForm({
   </div>
   <div style="text-align: right; color: #10b981; font-weight: bold; margin-top: 10px; font-size: 18px;">+45% Growth 📈</div>
 </div>`,
-      
+
       // Creative content responses
       `<h2>Creative Campaign Proposal</h2>
 <p>🎨 <strong>Campaign Theme:</strong> "Build the Future Together"</p>
@@ -301,7 +337,7 @@ export function QuestSubmissionForm({
     Join Now
   </button>
 </div>`,
-      
+
       // Community engagement responses
       `<h2>Community Engagement Report</h2>
 <p>I've been actively engaging with the community through various channels:</p>
@@ -319,7 +355,7 @@ export function QuestSubmissionForm({
 <li>Community highlights: 8 posts (avg. 100 comments)</li>
 </ul>
 <p>Links to posts: <a href="#">Thread 1</a> | <a href="#">Thread 2</a> | <a href="#">Thread 3</a></p>`,
-      
+
       // Bug report/testing responses
       `<h2>Testing & Quality Assurance Report</h2>
 <p>Comprehensive testing has been completed with the following results:</p>
@@ -341,7 +377,7 @@ Lines        : 93.84% ( 183/195 )
 <li>🐛 Resolved memory leak in WebSocket connection</li>
 <li>🐛 Corrected validation logic for user inputs</li>
 </ol>
-<p>All critical issues have been resolved. System is production-ready.</p>`
+<p>All critical issues have been resolved. System is production-ready.</p>`,
     ];
 
     // Generate varied responses based on subtask index
@@ -359,100 +395,111 @@ Lines        : 93.84% ( 183/195 )
         name: "Test User " + Math.floor(Math.random() * 1000),
         email: `testuser${Math.floor(Math.random() * 1000)}@example.com`,
         twitter: "@testuser" + Math.floor(Math.random() * 1000),
-        discord: "TestUser#" + Math.floor(Math.random() * 10000)
+        discord: "TestUser#" + Math.floor(Math.random() * 10000),
       });
     }
-  }
+  };
 
   const handleSubmit = async () => {
     // Check if at least one subtask has a response
-    const hasResponses = Object.values(subtaskResponses).some(response => response.trim() !== "")
+    const hasResponses = Object.values(subtaskResponses).some(
+      (response) => response.trim() !== ""
+    );
     if (!hasResponses) {
-      setError("Please provide a response for at least one subtask")
-      return
+      setError("Please provide a response for at least one subtask");
+      return;
     }
 
     // If first time user, ensure they provide at least a name
     if (isFirstTime && !userVerificationData.name) {
-      setError("Please provide your name for profile creation")
-      return
+      setError("Please provide your name for profile creation");
+      return;
     }
 
     // Don't set isSubmitting here - it will be set in the modal flow
     // Just prepare the data and show the modal
-    
+
     // Format submission as JSON structure
     const submissionData = {
       format: "json",
       version: "1.0",
       timestamp: Date.now(),
-      subtasks: quest.sub_tasks?.map((subtask, index) => ({
-        title: subtask.title || `Task ${index + 1}`,
-        description: subtask.description,
-        type: subtask.type,
-        proof_required: subtask.proof_required,
-        response: subtaskResponses[index] || ""
-      })) || []
-    }
-    
-    const submissionContent = JSON.stringify(submissionData)
+      subtasks:
+        quest.sub_tasks?.map((subtask, index) => ({
+          title: subtask.title || `Task ${index + 1}`,
+          description: subtask.description,
+          type: subtask.type,
+          proof_required: subtask.proof_required,
+          response: subtaskResponses[index] || "",
+        })) || [],
+    };
 
-    setError(null)
+    const submissionContent = JSON.stringify(submissionData);
+
+    setError(null);
 
     // First, store the full content on Nostr using the React hook
-    let nostrNeventId: string | undefined
-    
+    let nostrNeventId: string | undefined;
+
     // When editing, always create a new Nostr event for the updated content
     // This ensures the latest content is stored on Nostr
     if (nostrConnected && userAddress) {
       try {
-        setIsSubmitting(true)
-        debug.log(isEditMode ? "Updating submission on Nostr..." : "Storing submission on Nostr...")
+        setIsSubmitting(true);
+        debug.log(
+          isEditMode
+            ? "Updating submission on Nostr..."
+            : "Storing submission on Nostr..."
+        );
         const result = await storeSubmission.mutateAsync({
           campaignTypeId,
           questId: Number(quest.quest_id || questIndex + 1),
           userAddress,
           content: submissionContent,
-          timestamp: Date.now()
-        })
-        nostrNeventId = result
-        debug.log("✅ Successfully stored on Nostr!")
-        debug.log("Stored nevent ID:", nostrNeventId)
-        debug.log("Full nevent ID that will be submitted:", nostrNeventId)
-        debug.log("Is this an edit?", isEditMode)
-        
+          timestamp: Date.now(),
+        });
+        nostrNeventId = result;
+        debug.log("✅ Successfully stored on Nostr!");
+        debug.log("Stored nevent ID:", nostrNeventId);
+        debug.log("Full nevent ID that will be submitted:", nostrNeventId);
+        debug.log("Is this an edit?", isEditMode);
+
         // Store the submission data for later - use the nevent ID directly
         setPendingSubmissionData({
           campaignTypeId,
           questId: Number(quest.quest_id || questIndex + 1),
-          contentToStore: nostrNeventId // Use the nevent ID directly
-        })
-        setPendingNeventId(nostrNeventId)
-        debug.log("Pending data set with nevent ID:", nostrNeventId)
-        
+          contentToStore: nostrNeventId, // Use the nevent ID directly
+        });
+        setPendingNeventId(nostrNeventId);
+        debug.log("Pending data set with nevent ID:", nostrNeventId);
+
         // Open global modal after successful Nostr storage
-        const questIdNum = Number(quest.quest_id || questIndex + 1)
+        const questIdNum = Number(quest.quest_id || questIndex + 1);
         storageModal.open({
           neventId: nostrNeventId,
           mode: "verifying",
-          onConfirm: async () => finalizeSubmission(campaignTypeId, questIdNum, nostrNeventId),
+          onConfirm: async () =>
+            finalizeSubmission(campaignTypeId, questIdNum, nostrNeventId),
           onClose: async () => {
-            setPendingNeventId(null)
-            setPendingSubmissionData(null)
-            setIsSubmitting(false)
+            setPendingNeventId(null);
+            setPendingSubmissionData(null);
+            setIsSubmitting(false);
             // If submission exists, reload
             if (hasSubmitted) {
-              await checkSubmission()
+              await checkSubmission();
             }
-          }
-        })
-        setIsSubmitting(false)
-        
+          },
+        });
+        setIsSubmitting(false);
+
         // Don't proceed with transaction yet - wait for verification
-        return
+        return;
       } catch (nostrError) {
-        console.warn("Failed to store on Nostr, will store on-chain:", nostrError)
-        setIsSubmitting(false)
+        console.warn(
+          "Failed to store on Nostr, will store on-chain:",
+          nostrError
+        );
+        setIsSubmitting(false);
         // Continue without Nostr storage
       }
     }
@@ -461,92 +508,98 @@ Lines        : 93.84% ( 183/195 )
     setPendingSubmissionData({
       campaignTypeId,
       questId: Number(quest.quest_id || questIndex + 1),
-      contentToStore: submissionContent
-    })
+      contentToStore: submissionContent,
+    });
     if (pendingNeventId) {
       storageModal.open({
         neventId: pendingNeventId,
         mode: "verifying",
         onConfirm: async () => finalizeSubmission(),
         onClose: async () => {
-          setPendingNeventId(null)
-          setPendingSubmissionData(null)
-          setIsSubmitting(false)
-          if (hasSubmitted) await checkSubmission()
-        }
-      })
+          setPendingNeventId(null);
+          setPendingSubmissionData(null);
+          setIsSubmitting(false);
+          if (hasSubmitted) await checkSubmission();
+        },
+      });
     }
-  }
+  };
 
   // Separate function to finalize submission after verification
-  const finalizeSubmission = async (campaignHash?: ccc.Hex, questIdParam?: number, content?: string) => {
+  const finalizeSubmission = async (
+    campaignTypeId?: ccc.Hex,
+    questIdParam?: number,
+    content?: string
+  ) => {
     try {
       // Use pending data if available
-      const finalCampaignHash = campaignHash || pendingSubmissionData?.campaignTypeId
-      const finalQuestId = questIdParam || pendingSubmissionData?.questId
-      const finalContent = content || pendingSubmissionData?.contentToStore
+      const finalCampaignTypeId =
+        campaignTypeId || pendingSubmissionData?.campaignTypeId;
+      const finalQuestId = questIdParam || pendingSubmissionData?.questId;
+      const finalContent = content || pendingSubmissionData?.contentToStore;
 
       debug.log("📍 finalizeSubmission called with:", {
-        providedCampaignHash: campaignHash,
+        providedCampaignTypeId: campaignTypeId,
         providedQuestId: questIdParam,
         providedContent: content?.slice(0, 50),
         pendingData: pendingSubmissionData,
         pendingNeventId,
         finalContent: finalContent?.slice(0, 50),
-        isNeventId: finalContent?.startsWith('nevent1')
-      })
+        isNeventId: finalContent?.startsWith("nevent1"),
+      });
 
-      if (!finalCampaignHash || !finalQuestId || !finalContent) {
-        throw new Error("Missing submission data")
+      if (!finalCampaignTypeId || !finalQuestId || !finalContent) {
+        throw new Error("Missing submission data");
       }
 
       const txHash = await submitQuest(
-        finalCampaignHash,
+        finalCampaignTypeId,
         finalQuestId,
         finalContent,
         isFirstTime ? userVerificationData : undefined
-      )
+      );
 
-      debug.log("Quest submitted successfully:", { 
-        txHash, 
+      debug.log("Quest submitted successfully:", {
+        txHash,
         questId: finalQuestId,
-        usedNostr: !!pendingNeventId
-      })
-      
-      setHasSubmitted(true)
-      setIsEditMode(false)
-      
+        usedNostr: !!pendingNeventId,
+      });
+
+      setHasSubmitted(true);
+      setIsEditMode(false);
+
       // Reload the submission to get the latest data
-      const submissions = await getUserSubmissions(currentUserTypeId!)
-      const submission = submissions.find((s) => 
-        s.campaign_type_id === finalCampaignHash && 
-        s.quest_id === finalQuestId
-      )
+      const submissions = await getUserSubmissions(currentUserTypeId!);
+      const submission = submissions.find(
+        (s) =>
+          s.campaign_type_id === finalCampaignTypeId &&
+          s.quest_id === finalQuestId
+      );
       if (submission) {
-        setExistingSubmission(submission)
+        setExistingSubmission(submission);
       }
 
       // Clear pending data after successful submission (modal stays open until user finishes)
-      setPendingSubmissionData(null)
-      setPendingNeventId(null)
-      
+      setPendingSubmissionData(null);
+      setPendingNeventId(null);
+
       // Call the onSuccess callback if provided
       if (onSuccess) {
-        debug.log("Calling onSuccess callback after successful submission")
-        await onSuccess()
+        debug.log("Calling onSuccess callback after successful submission");
+        await onSuccess();
       }
-      
+
       // Return the txHash so the modal can display it
-      return txHash
+      return txHash;
     } catch (err) {
-      debug.error("Failed to finalize submission:", err)
-      setError(err instanceof Error ? err.message : "Failed to submit quest")
+      debug.error("Failed to finalize submission:", err);
+      setError(err instanceof Error ? err.message : "Failed to submit quest");
       // Re-throw so the modal can handle the error
-      throw err
+      throw err;
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   if (!userAddress) {
     return (
@@ -556,7 +609,7 @@ Lines        : 93.84% ( 183/195 )
           Please connect your wallet to submit this quest
         </AlertDescription>
       </Alert>
-    )
+    );
   }
 
   // Show loading state while checking submission
@@ -566,15 +619,17 @@ Lines        : 93.84% ( 183/195 )
         <CardContent className="py-8">
           <div className="flex items-center justify-center">
             <Loader2 className="w-6 h-6 animate-spin mr-2" />
-            <span className="text-muted-foreground">Loading submission status...</span>
+            <span className="text-muted-foreground">
+              Loading submission status...
+            </span>
           </div>
         </CardContent>
       </Card>
-    )
+    );
   }
 
   // Acceptance status provided by parent (campaign page)
-  const isAccepted = !!isAcceptedProp
+  const isAccepted = !!isAcceptedProp;
 
   return (
     <div className="space-y-6">
@@ -584,7 +639,8 @@ Lines        : 93.84% ( 183/195 )
           <CardHeader>
             <CardTitle className="text-lg">Create Your Profile</CardTitle>
             <CardDescription>
-              This is your first submission. Please provide your profile information.
+              This is your first submission. Please provide your profile
+              information.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -597,10 +653,12 @@ Lines        : 93.84% ( 183/195 )
                   id="user-name"
                   placeholder="Your display name"
                   value={userVerificationData.name}
-                  onChange={(e) => setUserVerificationData({
-                    ...userVerificationData,
-                    name: e.target.value
-                  })}
+                  onChange={(e) =>
+                    setUserVerificationData({
+                      ...userVerificationData,
+                      name: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -611,10 +669,12 @@ Lines        : 93.84% ( 183/195 )
                     id="user-twitter"
                     placeholder="@yourhandle"
                     value={userVerificationData.twitter}
-                    onChange={(e) => setUserVerificationData({
-                      ...userVerificationData,
-                      twitter: e.target.value
-                    })}
+                    onChange={(e) =>
+                      setUserVerificationData({
+                        ...userVerificationData,
+                        twitter: e.target.value,
+                      })
+                    }
                   />
                 </div>
 
@@ -624,10 +684,12 @@ Lines        : 93.84% ( 183/195 )
                     id="user-discord"
                     placeholder="username#1234"
                     value={userVerificationData.discord}
-                    onChange={(e) => setUserVerificationData({
-                      ...userVerificationData,
-                      discord: e.target.value
-                    })}
+                    onChange={(e) =>
+                      setUserVerificationData({
+                        ...userVerificationData,
+                        discord: e.target.value,
+                      })
+                    }
                   />
                 </div>
               </div>
@@ -646,10 +708,12 @@ Lines        : 93.84% ( 183/195 )
               <div className="flex items-center justify-between w-full">
                 <div>
                   <AlertDescription className="text-orange-800 dark:text-orange-200 font-medium">
-                    Unable to load your submission content from decentralized storage
+                    Unable to load your submission content from decentralized
+                    storage
                   </AlertDescription>
                   <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                    Your submission is recorded on-chain, but the content needs to be resubmitted to restore access.
+                    Your submission is recorded on-chain, but the content needs
+                    to be resubmitted to restore access.
                   </p>
                 </div>
                 {!isAccepted && (
@@ -658,8 +722,8 @@ Lines        : 93.84% ( 183/195 )
                     variant="default"
                     className="bg-orange-600 hover:bg-orange-700"
                     onClick={() => {
-                      setIsEditMode(true)
-                      setNostrFetchError(false)
+                      setIsEditMode(true);
+                      setNostrFetchError(false);
                     }}
                   >
                     Resubmit Content
@@ -668,17 +732,24 @@ Lines        : 93.84% ( 183/195 )
               </div>
             </Alert>
           )}
-          
+
           {/* Regular submission status */}
           {!nostrFetchError && (
-            <Alert className={isAccepted ? "border-green-200 bg-green-50 dark:bg-green-900/20" : "border-blue-200 bg-blue-50 dark:bg-blue-900/20"}>
+            <Alert
+              className={
+                isAccepted
+                  ? "border-green-200 bg-green-50 dark:bg-green-900/20"
+                  : "border-blue-200 bg-blue-50 dark:bg-blue-900/20"
+              }
+            >
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
                   {isAccepted ? (
                     <>
                       <CheckCircle className="h-4 w-4 text-green-600" />
                       <AlertDescription className="text-green-800 dark:text-green-200">
-                        Your submission has been accepted! You earned {Number(earnedPoints || 0)} points.
+                        Your submission has been accepted! You earned{" "}
+                        {Number(earnedPoints || 0)} points.
                       </AlertDescription>
                     </>
                   ) : (
@@ -711,10 +782,15 @@ Lines        : 93.84% ( 183/195 )
           {/* Earned UDTs (if accepted) */}
           {isAccepted && earnedUdts.length > 0 && (
             <div className="mt-3">
-              <div className="text-sm text-muted-foreground mb-1">Your rewards:</div>
+              <div className="text-sm text-muted-foreground mb-1">
+                Your rewards:
+              </div>
               <div className="flex flex-wrap gap-2">
                 {earnedUdts.map((r, idx) => (
-                  <Badge key={`earned-udt-${idx}`} className="bg-yellow-100 text-yellow-800">
+                  <Badge
+                    key={`earned-udt-${idx}`}
+                    className="bg-yellow-100 text-yellow-800"
+                  >
                     <Coins className="w-3 h-3 mr-1" />
                     {r.amount} {r.symbol}
                   </Badge>
@@ -736,13 +812,21 @@ Lines        : 93.84% ( 183/195 )
                       // For Milestone 1, CKB rewards are paid upon approval or via sponsor pool.
                       // Enable claim button to signal availability and unify UX.
                       try {
-                        console.log('CKB claim requested for', ckbPerCompletion, 'CKB');
+                        console.log(
+                          "CKB claim requested for",
+                          ckbPerCompletion,
+                          "CKB"
+                        );
                         // TODO: Integrate on-chain claim when campaign CKB pool is live.
                         // This will build a tx spending funding-locked CKB to the user lock.
-                        alert('CKB claim requested. In Milestone 1, CKB payouts are distributed upon approval or from sponsor pool once funded.');
+                        alert(
+                          "CKB claim requested. In Milestone 1, CKB payouts are distributed upon approval or from sponsor pool once funded."
+                        );
                       } catch (e) {
-                        console.error('CKB claim failed', e);
-                        alert('Failed to initiate CKB claim. Please try again later.');
+                        console.error("CKB claim failed", e);
+                        alert(
+                          "Failed to initiate CKB claim. Please try again later."
+                        );
                       }
                     }}
                   >
@@ -756,128 +840,165 @@ Lines        : 93.84% ( 183/195 )
       )}
 
       {/* Storage Debug Information */}
-      {hasSubmitted && existingSubmission && existingSubmission.submission_content?.startsWith('nevent1') && (
-        <Card className="border-purple-200 dark:border-purple-800">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Cloud className="w-4 h-4" />
-              Nostr Storage Information (Debug)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Storage Type:</span>
-                <Badge variant="outline" className="font-mono">
-                  Decentralized (Nostr)
-                </Badge>
-              </div>
-              
-              <div className="flex flex-col gap-1">
-                <span className="text-sm text-muted-foreground">Event ID:</span>
-                <div className="flex items-center gap-2">
-                  <code className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded flex-1 overflow-x-auto">
-                    {existingSubmission.submission_content}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => navigator.clipboard.writeText(existingSubmission.submission_content || '')}
-                  >
-                    Copy
-                  </Button>
+      {hasSubmitted &&
+        existingSubmission &&
+        existingSubmission.submission_content?.startsWith("nevent1") && (
+          <Card className="border-purple-200 dark:border-purple-800">
+            <CardHeader>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Cloud className="w-4 h-4" />
+                Nostr Storage Information (Debug)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Storage Type:
+                  </span>
+                  <Badge variant="outline" className="font-mono">
+                    Decentralized (Nostr)
+                  </Badge>
                 </div>
-              </div>
 
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Storage Status:</span>
-                {nostrFetchError ? (
-                  <Badge variant="destructive">Not Accessible</Badge>
-                ) : (
-                  <Badge variant="default" className="bg-green-600">Verified</Badge>
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm text-muted-foreground">
+                    Event ID:
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded flex-1 overflow-x-auto">
+                      {existingSubmission.submission_content}
+                    </code>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        navigator.clipboard.writeText(
+                          existingSubmission.submission_content || ""
+                        )
+                      }
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Storage Status:
+                  </span>
+                  {nostrFetchError ? (
+                    <Badge variant="destructive">Not Accessible</Badge>
+                  ) : (
+                    <Badge variant="default" className="bg-green-600">
+                      Verified
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 pt-2 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    View on External Tools:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-green-50 hover:bg-green-100 dark:bg-green-900/20"
+                      onClick={() => {
+                        window.open(
+                          `https://njump.me/${existingSubmission.submission_content}`,
+                          "_blank"
+                        );
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      njump.me ✓
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        window.open(
+                          `https://nostrudel.ninja/#/n/${existingSubmission.submission_content}`,
+                          "_blank"
+                        );
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Nostrudel
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        window.open(
+                          `https://snort.social/e/${existingSubmission.submission_content}`,
+                          "_blank"
+                        );
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Snort
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        window.open(
+                          `https://nostr.band/?q=${existingSubmission.submission_content}`,
+                          "_blank"
+                        );
+                      }}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      nostr.band
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    njump.me works best. Try others if needed.
+                  </p>
+                </div>
+
+                {nostrFetchError && (
+                  <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/20">
+                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                    <AlertDescription className="text-sm text-orange-700 dark:text-orange-300">
+                      The event could not be retrieved from Nostr relays. This
+                      may be due to:
+                      <ul className="list-disc list-inside mt-1">
+                        <li>Event not propagated to accessible relays</li>
+                        <li>Relay connection issues</li>
+                        <li>Event was deleted or expired</li>
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
-
-              <div className="flex flex-col gap-2 pt-2 border-t">
-                <span className="text-sm text-muted-foreground">View on External Tools:</span>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="bg-green-50 hover:bg-green-100 dark:bg-green-900/20"
-                    onClick={() => {
-                      window.open(`https://njump.me/${existingSubmission.submission_content}`, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    njump.me ✓
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      window.open(`https://nostrudel.ninja/#/n/${existingSubmission.submission_content}`, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    Nostrudel
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      window.open(`https://snort.social/e/${existingSubmission.submission_content}`, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    Snort
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      window.open(`https://nostr.band/?q=${existingSubmission.submission_content}`, '_blank');
-                    }}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-1" />
-                    nostr.band
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  njump.me works best. Try others if needed.
-                </p>
-              </div>
-
-              {nostrFetchError && (
-                <Alert className="border-orange-300 bg-orange-50 dark:bg-orange-900/20">
-                  <AlertCircle className="h-4 w-4 text-orange-600" />
-                  <AlertDescription className="text-sm text-orange-700 dark:text-orange-300">
-                    The event could not be retrieved from Nostr relays. This may be due to:
-                    <ul className="list-disc list-inside mt-1">
-                      <li>Event not propagated to accessible relays</li>
-                      <li>Relay connection issues</li>
-                      <li>Event was deleted or expired</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
       {/* Subtasks Submission Form */}
       <Card>
         <CardHeader>
           <CardTitle>
-            {hasSubmitted && !isEditMode ? "Your Submission" : 
-             isEditMode && nostrFetchError ? "Resubmit Your Content" :
-             isEditMode ? "Edit Your Submission" : 
-             "Submit Your Responses"}
+            {hasSubmitted && !isEditMode
+              ? "Your Submission"
+              : isEditMode && nostrFetchError
+              ? "Resubmit Your Content"
+              : isEditMode
+              ? "Edit Your Submission"
+              : "Submit Your Responses"}
           </CardTitle>
           <CardDescription>
-            {hasSubmitted && !isEditMode && !nostrFetchError && existingSubmission
-              ? `Submitted on ${new Date(Number(existingSubmission.submission_timestamp)).toLocaleString()}`
+            {hasSubmitted &&
+            !isEditMode &&
+            !nostrFetchError &&
+            existingSubmission
+              ? `Submitted on ${new Date(
+                  Number(existingSubmission.submission_timestamp)
+                ).toLocaleString()}`
               : nostrFetchError && isEditMode
               ? "Please re-enter your submission content. The original content could not be retrieved from storage."
               : "Provide your responses for each task below. You can use Markdown formatting."}
@@ -891,7 +1012,9 @@ Lines        : 93.84% ( 183/195 )
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="font-semibold text-sm">{subIndex + 1}</span>
+                        <span className="font-semibold text-sm">
+                          {subIndex + 1}
+                        </span>
                       </div>
                       <div className="flex-1">
                         <h4 className="font-semibold">
@@ -904,7 +1027,7 @@ Lines        : 93.84% ( 183/195 )
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Task metadata badges */}
                     <div className="flex flex-wrap gap-2 mb-3 ml-11">
                       {subtask.type && (
@@ -928,9 +1051,15 @@ Lines        : 93.84% ( 183/195 )
                     <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
                       <div className="prose prose-sm dark:prose-invert max-w-none">
                         {subtaskResponses[subIndex] ? (
-                          <div dangerouslySetInnerHTML={{ __html: subtaskResponses[subIndex] }} />
+                          <div
+                            dangerouslySetInnerHTML={{
+                              __html: subtaskResponses[subIndex],
+                            }}
+                          />
                         ) : (
-                          <p className="text-muted-foreground italic">No response provided</p>
+                          <p className="text-muted-foreground italic">
+                            No response provided
+                          </p>
                         )}
                       </div>
                     </div>
@@ -938,7 +1067,8 @@ Lines        : 93.84% ( 183/195 )
                     // Display mode with fetch error - show error message
                     <div className="p-4 border border-orange-300 rounded-lg bg-orange-50 dark:bg-orange-900/20">
                       <p className="text-orange-700 dark:text-orange-300 text-sm">
-                        ⚠️ Content could not be loaded from storage. Click "Resubmit Content" above to restore your submission.
+                        ⚠️ Content could not be loaded from storage. Click
+                        "Resubmit Content" above to restore your submission.
                       </p>
                     </div>
                   ) : (
@@ -946,14 +1076,19 @@ Lines        : 93.84% ( 183/195 )
                     <>
                       <MarkdownEditor
                         id={`subtask-editor-${subIndex}`}
-                        placeholder={`Enter your response for ${subtask.title || 'this task'}...`}
+                        placeholder={`Enter your response for ${
+                          subtask.title || "this task"
+                        }...`}
                         value={subtaskResponses[subIndex] || ""}
-                        onChange={(value) => handleSubtaskResponseChange(subIndex, value)}
+                        onChange={(value) =>
+                          handleSubtaskResponseChange(subIndex, value)
+                        }
                         height={250}
                       />
                       {subtask.proof_required && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          💡 Tip: Include links, screenshots, or other proof as required. You can use the link button to add URLs.
+                          💡 Tip: Include links, screenshots, or other proof as
+                          required. You can use the link button to add URLs.
                         </p>
                       )}
                     </>
@@ -978,7 +1113,7 @@ Lines        : 93.84% ( 183/195 )
             {(!hasSubmitted || isEditMode) && (
               <div className="flex justify-between pt-4 border-t">
                 {/* Test Data Button (Development Only) */}
-                {process.env.NODE_ENV === 'development' && !hasSubmitted && (
+                {process.env.NODE_ENV === "development" && !hasSubmitted && (
                   <Button
                     type="button"
                     variant="outline"
@@ -990,48 +1125,68 @@ Lines        : 93.84% ( 183/195 )
                     Fill Test Data
                   </Button>
                 )}
-                
+
                 {isEditMode && (
                   <Button
                     type="button"
                     variant="outline"
                     size="lg"
                     onClick={() => {
-                      setIsEditMode(false)
+                      setIsEditMode(false);
                       // Reload original submission content
-                      checkSubmission()
+                      checkSubmission();
                     }}
                   >
                     Cancel Edit
                   </Button>
                 )}
-                
+
                 <Button
                   size="lg"
                   onClick={handleSubmit}
                   disabled={
-                    isSubmitting || 
-                    userLoading || 
+                    isSubmitting ||
+                    userLoading ||
                     (isFirstTime && !userVerificationData.name) ||
                     Object.keys(subtaskResponses).length === 0
                   }
-                  className={`${isFirstTime ? "bg-purple-600 hover:bg-purple-700" : isEditMode ? "bg-orange-600 hover:bg-orange-700" : "bg-blue-600 hover:bg-blue-700"} ${process.env.NODE_ENV !== 'development' || isEditMode ? 'ml-auto' : ''}`}
+                  className={`${
+                    isFirstTime
+                      ? "bg-purple-600 hover:bg-purple-700"
+                      : isEditMode
+                      ? "bg-orange-600 hover:bg-orange-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  } ${
+                    process.env.NODE_ENV !== "development" || isEditMode
+                      ? "ml-auto"
+                      : ""
+                  }`}
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      {isFirstTime ? "Creating Profile & Submitting..." : 
-                       isEditMode && nostrFetchError ? "Resubmitting Content..." :
-                       isEditMode ? "Updating Submission..." : 
-                       "Submitting Quest..."}
+                      {isFirstTime
+                        ? "Creating Profile & Submitting..."
+                        : isEditMode && nostrFetchError
+                        ? "Resubmitting Content..."
+                        : isEditMode
+                        ? "Updating Submission..."
+                        : "Submitting Quest..."}
                     </>
                   ) : (
                     <>
-                      {isFirstTime ? <UserPlus className="w-5 h-5 mr-2" /> : <Send className="w-5 h-5 mr-2" />}
-                      {isFirstTime ? "Create Profile & Submit Quest" : 
-                       isEditMode && nostrFetchError ? "Resubmit Content" :
-                       isEditMode ? "Update Submission" : 
-                       "Submit All Responses"}
+                      {isFirstTime ? (
+                        <UserPlus className="w-5 h-5 mr-2" />
+                      ) : (
+                        <Send className="w-5 h-5 mr-2" />
+                      )}
+                      {isFirstTime
+                        ? "Create Profile & Submit Quest"
+                        : isEditMode && nostrFetchError
+                        ? "Resubmit Content"
+                        : isEditMode
+                        ? "Update Submission"
+                        : "Submit All Responses"}
                     </>
                   )}
                 </Button>
@@ -1044,5 +1199,5 @@ Lines        : 93.84% ( 183/195 )
       {/* Nostr Storage Verification Modal */}
       {/* Modal moved to global provider */}
     </div>
-  )
+  );
 }

@@ -2,11 +2,8 @@ use alloc::vec::Vec;
 use ckb_deterministic::{
     cell_classifier::RuleBasedClassifier, transaction_context::TransactionContext,
 };
-use ckb_std::ckb_types::packed::{Byte32Vec, Transaction};
-use ckboost_shared::{
-    types::{Byte32, CampaignData, TippingData, UDTAsset},
-    Error,
-};
+use ckb_std::ckb_types::packed::Transaction;
+use ckboost_shared::{types::TippingData, Error};
 
 /// CKBoost Tipping SSRI trait for tipping management operations
 pub trait CKBoostTipping {

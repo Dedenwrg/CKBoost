@@ -46,10 +46,17 @@ export class TippingService {
     this.signer = signer;
   }
 
+  setTipping(tipping: Tipping | null) {
+    this.tipping = tipping;
+  }
+
   /**
    * Propose or update a tipping on-chain via SSRI executor
    */
-  async updateTipping(tippingData: TippingDataLike): Promise<string> {
+  async updateTipping(
+    tippingData: TippingDataLike,
+    tx?: ccc.Transaction
+  ): Promise<string> {
     if (!this.signer) {
       throw new Error("Wallet connection required to propose tipping");
     }
@@ -60,8 +67,15 @@ export class TippingService {
     }
 
     try {
-      const tx = await tipping.updateTipping(this.signer, tippingData);
-      const txHash = await sendTransactionWithFeeRetry(this.signer, tx.res);
+      const updateTippingTx = await tipping.updateTipping(
+        this.signer,
+        tippingData,
+        tx
+      );
+      const txHash = await sendTransactionWithFeeRetry(
+        this.signer,
+        updateTippingTx.res
+      );
       return txHash;
     } catch (error) {
       debug.error("Failed to propose tipping", error);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ccc } from "@ckb-ccc/connector-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
+  TippingInfo,
   TippingProvider,
   useTippingContext,
 } from "@/lib/providers/tipping-provider";
@@ -35,6 +36,7 @@ import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 
 export default function ProposeTippingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const signer = ccc.useSigner();
   const { updateTipping } = useTippingContext();
   const { storeSubmission, isConnected: nostrConnected } = useNostrStorage();
@@ -45,6 +47,22 @@ export default function ProposeTippingPage() {
   const [currentUserAllowlisted] = useState(true);
   const [proposerLockHash, setProposerLockHash] = useState<string | null>(null);
   const [proposerAddress, setProposerAddress] = useState<string | null>(null);
+  const [tippingTypeId, setTippingTypeId] = useState<string | null>(
+    searchParams.get("typeId")
+  );
+  const [pendingTippingData, setPendingTippingData] =
+    useState<TippingDataLike | null>(null);
+  const [pendingTippingTypeId, setPendingTippingTypeId] = useState<
+    string | null
+  >(null);
+  const [pendingNeventId, setPendingNeventId] = useState<string | null>(null);
+  const typeIdParam = searchParams.get("typeId");
+
+  useEffect(() => {
+    if (typeIdParam) {
+      setTippingTypeId(typeIdParam);
+    }
+  }, [typeIdParam]);
 
   const [formData, setFormData] = useState({
     targetLockHash: "",
@@ -92,10 +110,45 @@ export default function ProposeTippingPage() {
 
   const creationTimestamp = useMemo(() => BigInt(Date.now()), []);
 
-  const finalizeTippingSubmission = async (data: TippingDataLike) => {
+  const finalizeTippingSubmission = async (tipping?: TippingInfo) => {
+    console.debug("📍 About to finalizeTippingSubmission", {
+      pendingTippingData,
+      tipping,
+    });
     try {
-      const txHash = await updateTipping(data);
-      router.push(`/tipping?created=${txHash}`);
+      const finalTippingData = pendingTippingData || tipping?.data;
+
+      if (!finalTippingData) {
+        throw new Error("Missing tipping data");
+      }
+
+      const finalTipping =
+        tipping ||
+        ({
+          data: pendingTippingData,
+          metadata: {
+            contribution_title: finalTippingData.metadata.contribution_title,
+            contribution_type_tags:
+              finalTippingData.metadata.contribution_type_tags,
+            short_description: finalTippingData.metadata.short_description,
+            long_description: finalTippingData.metadata.long_description,
+            creation_timestamp: finalTippingData.metadata.creation_timestamp,
+          },
+          comments: [],
+          additionalTips: [],
+        } as TippingInfo);
+
+      console.debug("📍 finalizeTippingSubmission", {
+        providedData: tipping,
+        hasPendingNevent: !!pendingNeventId,
+      });
+
+      const txHash = await updateTipping(finalTipping);
+
+      setPendingTippingData(null);
+      setPendingTippingTypeId(null);
+      setPendingNeventId(null);
+
       return txHash;
     } catch (error) {
       console.error("Failed to submit tipping proposal", error);
@@ -166,6 +219,7 @@ export default function ProposeTippingPage() {
               timestamp: Date.now(),
             });
             longDescriptionForChain = neventId;
+            setPendingNeventId(neventId);
           } catch (nostrError) {
             console.warn(
               "Failed to store long description on Nostr; falling back to on-chain storage",
@@ -206,12 +260,24 @@ export default function ProposeTippingPage() {
         granted_at: 0n,
       };
 
+      setPendingTippingData(tippingData);
+      setPendingTippingTypeId(tippingTypeId);
+
       if (longDescriptionForChain.startsWith("nevent1") && nostrConnected) {
         storageModal.open({
           neventId: longDescriptionForChain,
           mode: "verifying",
-          onConfirm: async () => finalizeTippingSubmission(tippingData),
+          onConfirm: async () =>
+            finalizeTippingSubmission({
+              data: tippingData,
+              comments: [],
+              additionalTips: [],
+              metadata: tippingData.metadata,
+            }),
           onClose: () => {
+            setPendingTippingData(null);
+            setPendingTippingTypeId(null);
+            setPendingNeventId(null);
             setIsSubmitting(false);
           },
         });
@@ -219,7 +285,15 @@ export default function ProposeTippingPage() {
         return;
       }
 
-      await finalizeTippingSubmission(tippingData);
+      await finalizeTippingSubmission({
+        data: tippingData,
+        comments: [],
+        additionalTips: [],
+        metadata: tippingData.metadata,
+      });
+      setPendingTippingData(null);
+      setPendingTippingTypeId(null);
+      setPendingNeventId(null);
     } catch (error) {
       console.error("Failed to submit tipping proposal", error);
       setSubmitError(

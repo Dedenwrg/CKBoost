@@ -8,8 +8,8 @@ pub mod helper {
     use ckboost_shared::types::protocol::ProtocolDataReader;
     use molecule::prelude::Reader;
 
-    // 1.Validate a protocol cell's data against expected campaign code hash
-    // 2. Validate connection to campaign type
+    // 1.Validate a protocol cell's data against expected tipping code hash
+    // 2. Validate connection to tipping type
     pub fn validate_protocol_cell(
         data: &[u8],
         expected_code_hash: &[u8],
@@ -17,17 +17,17 @@ pub mod helper {
         let protocol_data =
             ProtocolDataReader::from_slice(data).map_err(|_| DeterministicError::Encoding)?;
 
-        let campaign_code_hash = protocol_data
+        let tipping_code_hash = protocol_data
             .protocol_config()
             .script_code_hashes()
-            .ckb_boost_campaign_type_code_hash();
+            .ckb_boost_tipping_type_code_hash();
 
-        if campaign_code_hash.as_slice() == expected_code_hash {
+        if tipping_code_hash.as_slice() == expected_code_hash {
             Ok(())
         } else {
-            ("CellRelationshipRuleViolation: Campaign code hash mismatch in protocol cell");
+            ("CellRelationshipRuleViolation: tipping code hash mismatch in protocol cell");
             ("  Expected: {:?}", expected_code_hash);
-            ("  Got: {:?}", campaign_code_hash.as_slice());
+            ("  Got: {:?}", tipping_code_hash.as_slice());
             Err(DeterministicError::CellRelationshipRuleViolation)
         }
     }
@@ -75,38 +75,36 @@ pub mod common {
     use ckb_deterministic::{assertions::expect, cell_classifier::RuleBasedClassifier};
     use ckboost_shared::transaction_context::TransactionContext;
 
-    // **Script immutability**: Lock hash and type hash for campaign cells must remain unchanged
+    // **Script immutability**: Lock hash and type hash for tipping cells must remain unchanged
     pub fn script_immutability(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), DeterministicError> {
-        // Get the campaign cells from input and output
-        let input_campaign_cells = match context.input_cells.get_custom("campaign") {
+        // Get the tipping cells from input and output
+        let input_tipping_cells = match context.input_cells.get_custom("tipping") {
             Some(cells) => cells,
             None => {
-                // Only creation scenario when the recipe is create campaign has no input campaign cell
-                if context.recipe.method_path_bytes().as_slice()
-                    == b"CKBoostCampaign.create_campaign"
+                // Only creation scenario when the recipe is create tipping has no input tipping cell
+                if context.recipe.method_path_bytes().as_slice() == b"CKBoostTipping.update_tipping"
                 {
                     return Ok(());
                 } else {
-                    debug_trace!("Missing campaign cell in input");
+                    debug_trace!("Missing tipping cell in input");
                     return Err(DeterministicError::CellCountViolation);
                 }
             }
         };
-        let output_campaign_cells =
-            context.output_cells.get_custom("campaign").ok_or_else(|| {
-                debug_trace!(
-                    "CellCountViolation: Missing campaign cell in output (script_immutability)"
-                );
-                DeterministicError::CellCountViolation
-            })?;
+        let output_tipping_cells = context.output_cells.get_custom("tipping").ok_or_else(|| {
+            debug_trace!(
+                "CellCountViolation: Missing tipping cell in output (script_immutability)"
+            );
+            DeterministicError::CellCountViolation
+        })?;
 
-        // For each campaign cell, verify lock and type hashes remain unchanged
-        for (i, input_cell) in input_campaign_cells.iter().enumerate() {
-            let output_cell = output_campaign_cells.get(i).ok_or_else(|| {
+        // For each tipping cell, verify lock and type hashes remain unchanged
+        for (i, input_cell) in input_tipping_cells.iter().enumerate() {
+            let output_cell = output_tipping_cells.get(i).ok_or_else(|| {
                 debug_trace!(
-                    "CellCountViolation: Output campaign cell {} not found (script_immutability)",
+                    "CellCountViolation: Output tipping cell {} not found (script_immutability)",
                     i
                 );
                 DeterministicError::CellCountViolation
@@ -139,8 +137,11 @@ pub mod common {
                     })?;
                 }
                 _ => {
-                    // Either input or output campaign cell has no type hash - this is not allowed
-                    debug_trace!("CellRelationshipRuleViolation: Campaign cell missing type hash at index {}", i);
+                    // Either input or output tipping cell has no type hash - this is not allowed
+                    debug_trace!(
+                        "CellRelationshipRuleViolation: tipping cell missing type hash at index {}",
+                        i
+                    );
                     debug_trace!("  Input has type: {}", input_cell.type_hash.is_some());
                     debug_trace!("  Output has type: {}", output_cell.type_hash.is_some());
                     return Err(DeterministicError::CellRelationshipRuleViolation);
@@ -161,7 +162,7 @@ pub mod update_tipping {
     };
 
     pub fn get_rules() -> TransactionValidationRules<RuleBasedClassifier> {
-        TransactionValidationRules::new(b"updateTipping".to_vec())
+        TransactionValidationRules::new(b"CKBoostTipping.update_tipping".to_vec())
             .with_arguments(1)
             .with_custom_cell(
                 "tipping",
@@ -364,9 +365,9 @@ pub mod update_tipping {
 
             // Check all fields except tippings remain unchanged
 
-            // campaigns_approved must be unchanged
-            if input_protocol_data.campaigns_approved().as_slice()
-                != output_protocol_data.campaigns_approved().as_slice()
+            // tippings_approved must be unchanged
+            if input_protocol_data.tippings_approved().as_slice()
+                != output_protocol_data.tippings_approved().as_slice()
             {
                 return Err(DeterministicError::BusinessRuleViolation);
             }

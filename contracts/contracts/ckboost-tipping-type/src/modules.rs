@@ -12,7 +12,7 @@ use ckb_std::{
     ckb_types::{
         packed::{
             Byte32, Byte32Vec, Byte32VecBuilder, BytesOpt, BytesVecBuilder, CellDepVecBuilder,
-            CellInput, CellInputVecBuilder, CellOutputBuilder, CellOutputVecBuilder,
+            CellInput, CellInputVecBuilder, CellOutputBuilder, CellOutputVecBuilder, OutPoint,
             RawTransactionBuilder, ScriptBuilder, ScriptOptBuilder, Transaction,
             TransactionBuilder, WitnessArgsBuilder,
         },
@@ -105,18 +105,29 @@ impl CKBoostTipping for CKBoostTippingType {
         // Track if we have a tipping output and at what index
         let tipping_output_index: Option<usize>;
 
-        // If tipping_type_id is empty, we're creating a new tipping cell
-        // Otherwise, we should try to find the existing one
+        let tipping_outpoint_option: Option<OutPoint>;
 
         match connected_type_id {
             Ok(connected_type_id) => {
                 debug_trace!("Found existing tipping cell, updating it");
-                let tipping_outpoint =
-                    find_out_point_by_type(current_script.clone()).map_err(|e| {
-                        debug_info!("ERROR finding tipping cell: {:?}", e);
-                        e
-                    })?;
-                debug_info!("Found tipping at index: {}", tipping_outpoint.index());
+                if connected_type_id.type_id().as_slice() == [0u8; 32] {
+                    tipping_outpoint_option = None;
+                } else {
+                    tipping_outpoint_option = Some(find_out_point_by_type(current_script.clone())?);
+                }
+            }
+            Err(_) => {
+                debug_trace!("No tipping cell found. Creating a new tipping cell.");
+                tipping_outpoint_option = None;
+            }
+        }
+
+        // If tipping_type_id is empty, we're creating a new tipping cell
+        // Otherwise, we should try to find the existing one
+
+        match tipping_outpoint_option {
+            Some(tipping_outpoint) => {
+                debug_trace!("Found existing tipping cell, updating it");
 
                 // The tipping cell will be added at the current end of inputs
                 tipping_input_index = tx.as_ref().map(|t| t.raw().inputs().len()).unwrap_or(0);
@@ -150,7 +161,7 @@ impl CKBoostTipping for CKBoostTippingType {
                     .build();
                 cell_output_vec_builder = cell_output_vec_builder.push(new_tipping_output);
             }
-            Err(_) => {
+            None => {
                 debug_trace!("No tipping cell found. Creating a new tipping cell.");
 
                 // In creation case, tipping cell doesn't exist as input

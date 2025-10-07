@@ -5,10 +5,10 @@ use ckboost_shared::{error::Error, transaction_context::create_transaction_conte
 
 use crate::{modules::CKBoostTippingType, ssri::CKBoostTipping};
 
-/// Fallback validation implementation for CKBoost Campaign Type
+/// Fallback validation implementation for CKBoost Tipping Type
 /// This executes when SSRI methods are not yet implemented
 pub fn fallback() -> Result<(), Error> {
-    debug_trace!("CKBoost Campaign Type: Starting fallback validation");
+    debug_trace!("CKBoost Tipping Type: Starting fallback validation");
 
     debug_trace!("Creating transaction context");
     let context = match create_transaction_context() {

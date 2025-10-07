@@ -9,18 +9,24 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
-import { ccc } from "@ckb-ccc/connector-react";
-import { TippingMetadataLike, type TippingDataLike } from "ssri-ckboost/types";
+import { ccc, ssri } from "@ckb-ccc/connector-react";
+import {
+  ConnectedTypeID,
+  TippingMetadataLike,
+  type TippingDataLike,
+} from "ssri-ckboost/types";
 import { useProtocol } from "./protocol-provider";
 import { TippingService } from "../services/tipping-service";
 import { debug } from "../utils/debug";
+import { Tipping } from "ssri-ckboost/tipping";
+import { deploymentManager } from "../ckb/deployment-manager";
 
 interface TippingContextType {
   tippings: TippingInfo[];
   isLoading: boolean;
   error: string | null;
   refreshTippings: () => Promise<void>;
-  updateTipping: (tippingData: TippingDataLike) => Promise<string>;
+  updateTipping: (tipping: TippingInfo) => Promise<string>;
   fundingSummary: Awaited<ReturnType<TippingService["getFundingSummary"]>>;
 }
 
@@ -88,12 +94,77 @@ export function TippingProvider({ children }: { children: ReactNode }) {
   }, [refreshTippings]);
 
   const updateTipping = useCallback(
-    async (tippingData: TippingDataLike) => {
+    async (tipping: TippingInfo): Promise<string> => {
       if (!service) {
         throw new Error("Tipping service not available");
       }
 
-      const result = await service.updateTipping(tippingData);
+      if (!protocolCell) {
+        throw new Error("Protocol cell not available");
+      }
+
+      const executor = new ssri.ExecutorJsonRpc(
+        process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090"
+      );
+
+      const network = deploymentManager.getCurrentNetwork();
+      const codeOutPoint = deploymentManager.getContractOutPoint(
+        network,
+        "ckboostTippingType"
+      );
+      if (!codeOutPoint) {
+        debug.warn(
+          "Tipping type contract out point not found in deployments.json"
+        );
+        throw new Error(
+          "Tipping type contract out point not found in deployments.json"
+        );
+      }
+
+      const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+      if (!protocolTypeHash) {
+        debug.warn("Protocol cell missing type hash");
+        throw new Error("Protocol cell missing type hash");
+      }
+
+      let tippingCodeArgs;
+
+      if (tipping.typeId) {
+        tippingCodeArgs = ConnectedTypeID.encode({
+          type_id: tipping.typeId,
+          connected_key: protocolTypeHash,
+        });
+      } else {
+        tippingCodeArgs = ConnectedTypeID.encode({
+          type_id: ("0x" + "00".repeat(32)) as ccc.Hex,
+          connected_key: protocolTypeHash,
+        });
+      }
+
+      const tippingTypeCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostTippingType"
+      );
+      if (!tippingTypeCodeHash) {
+        throw new Error("Tipping type contract not deployed");
+      }
+
+      const script = ccc.Script.from({
+        codeHash: tippingTypeCodeHash,
+        hashType: "type" as const,
+        args: ccc.hexFrom(tippingCodeArgs),
+      });
+
+      const newTippingInstance = new Tipping(
+        codeOutPoint,
+        script,
+        protocolCell,
+        { executor }
+      );
+
+      await service.setTipping(newTippingInstance);
+
+      const result = await service.updateTipping(tipping.data);
       await refreshTippings();
       return result;
     },
@@ -125,9 +196,9 @@ export function useTippingContext() {
 // Helper hook exposing simplified data for components
 
 export interface TippingInfo {
-  typeId: ccc.Hex;
+  typeId?: ccc.Hex;
   data: TippingDataLike;
-  cell: ccc.Cell;
+  cell?: ccc.Cell;
   metadata: TippingMetadataLike;
   comments: Array<{
     id: string;
@@ -167,5 +238,20 @@ export function useTippingsData() {
     error,
     fundingSummary,
     totalTippings: decodedTippings.length,
+  };
+}
+
+export function useTipping(
+  protocolCell: ccc.Cell | null,
+  tippingTypeId: ccc.Hex
+) {
+  const { tippings, isLoading, error } = useTippingsData();
+
+  const tipping = tippings.find((tipping) => tipping.typeId === tippingTypeId);
+
+  return {
+    tipping,
+    isLoading,
+    error,
   };
 }

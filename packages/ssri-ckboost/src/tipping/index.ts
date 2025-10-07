@@ -1,6 +1,10 @@
 import { ccc } from "@ckb-ccc/core";
 import { ssri } from "@ckb-ccc/ssri";
-import { TippingData, type TippingDataLike } from "../generated";
+import {
+  ConnectedTypeID,
+  TippingData,
+  type TippingDataLike,
+} from "../generated";
 
 export interface FundingPoolSummary {
   /** Capacity-only cells (CKB funding) locked by the funding lock */
@@ -16,7 +20,7 @@ export interface FundingPoolSummary {
 /**
  * Represents CKBoost tipping functionality where funding is pooled at the
  * protocol level instead of being isolated per campaign. This class mirrors
- * the Campaign helper but targets the tipping type script, so all proposals
+ * the Campaign helper but targets the tipping type script, so all tippings
  * operate on the shared protocol funding lock.
  */
 export class Tipping extends ssri.Trait {
@@ -44,13 +48,13 @@ export class Tipping extends ssri.Trait {
   }
 
   /**
-   * Submit or update a tipping via the SSRI executor. The proposal is
+   * Submit or update a tipping via the SSRI executor. The tipping is
    * linked to the protocol's type hash so it automatically leverages the shared
    * funding pool managed by the protocol funding lock.
    */
   async updateTipping(
     signer: ccc.Signer,
-    proposalData: TippingDataLike,
+    tippingData: TippingDataLike,
     tx?: ccc.Transaction
   ): Promise<ssri.ExecutorResponse<ccc.Transaction>> {
     if (!this.executor) {
@@ -66,31 +70,105 @@ export class Tipping extends ssri.Trait {
       await txReq.completeInputsByCapacity(signer);
     }
 
-    const protocolTypeHash = this.getProtocolTypeHash();
-    const proposalBytes = TippingData.encode(proposalData);
-    const proposalHex = ccc.hexFrom(proposalBytes);
+    const tippingDataBytes = TippingData.encode(tippingData);
+    const tippingDataHex = ccc.hexFrom(tippingDataBytes);
+    const txHex = ccc.hexFrom(txReq.toBytes());
 
     const res = await this.executor.runScript(
       this.code,
       "CKBoostTipping.update_tipping",
-      [protocolTypeHash, proposalHex],
+      [txHex, tippingDataHex],
       { script: this.script }
     );
 
-    if (!res) {
-      throw new Error("update_tipping did not return a response");
-    } else {
+    // Parse the returned transaction - the result is a hex string that needs to be parsed
+    if (res) {
       resTx = res.map((res) => ccc.Transaction.fromBytes(res));
+      // Add the tipping code cell as a dependency
       resTx.res.addCellDeps({
         outPoint: this.code,
         depType: "code",
       });
-      // Add the protocol cell as a dependency
+
+      // Find the tipping cell output (should be the first output with the tipping type script)
+      const tippingCellOutputIndex = resTx.res.outputs.findIndex(
+        (output) => output.type?.codeHash === this.script.codeHash
+      );
+
+      if (tippingCellOutputIndex === -1) {
+        throw new Error("Tipping cell output not found in transaction");
+      }
+
+      // Get the protocol cell type hash
+      const connectedProtocolCellTypeHash =
+        this.connectedProtocolCell.cellOutput.type?.hash();
+      if (!connectedProtocolCellTypeHash) {
+        throw new Error("ConnectedProtocolCellTypeHash is not found");
+      }
+      // Create ConnectedTypeID with the protocol cell type hash
+      let tippingCellTypeArgs =
+        resTx.res.outputs[tippingCellOutputIndex].type?.args;
+      if (!tippingCellTypeArgs) {
+        throw new Error("tippingCellTypeArgs is empty.");
+      }
+
+      // Handle different type args formats
+      let connectedTypeId;
+      const argsBytes = ccc.bytesFrom(tippingCellTypeArgs);
+
+      if (argsBytes.length === 0 || tippingCellTypeArgs === "0x") {
+        // Empty args - create new ConnectedTypeID with a generated type_id
+        // Generate a unique type_id based on the transaction hash and output index
+        const txHash = resTx.res.hash();
+        const typeIdBytes = ccc.bytesFrom(txHash).slice(0, 32);
+
+        connectedTypeId = {
+          type_id: ccc.hexFrom(typeIdBytes),
+          connected_key: connectedProtocolCellTypeHash,
+        };
+        console.log("Connected_Key: ", connectedProtocolCellTypeHash);
+      } else if (argsBytes.length === 32) {
+        // Direct protocol reference - wrap in ConnectedTypeID
+        // Use the existing 32 bytes as the type_id
+        connectedTypeId = {
+          type_id: tippingCellTypeArgs,
+          connected_key: connectedProtocolCellTypeHash,
+        };
+        console.log("Connected_Key: ", connectedProtocolCellTypeHash);
+      } else if (argsBytes.length === 76) {
+        // Already a ConnectedTypeID - decode and update
+        connectedTypeId = ConnectedTypeID.decode(tippingCellTypeArgs);
+        connectedTypeId.connected_key = connectedProtocolCellTypeHash;
+        console.log("Connected_Key: ", connectedProtocolCellTypeHash);
+      } else {
+        throw new Error(
+          `Invalid tipping type args length: ${argsBytes.length}. Expected 0, 32, or 76 bytes.`
+        );
+      }
+
+      // Encode ConnectedTypeID and set it as the tipping type script args
+      const connectedTypeIdBytes = ConnectedTypeID.encode(connectedTypeId);
+      const connectedTypeIdHex = ccc.hexFrom(connectedTypeIdBytes);
+      console.log("ConnectedTypeIDHex: ", connectedTypeIdHex);
+
+      // Update the tipping cell's type script args with the ConnectedTypeID
+      if (resTx.res.outputs[tippingCellOutputIndex].type) {
+        console.log("Updating tipping cell type args with ConnectedTypeID");
+        resTx.res.outputs[tippingCellOutputIndex].type.args =
+          connectedTypeIdHex;
+        console.log(
+          "Updated tipping cell type args: ",
+          resTx.res.outputs[tippingCellOutputIndex].type.args
+        );
+      }
+
       resTx.res.addCellDeps({
         outPoint: this.connectedProtocolCell.outPoint,
         depType: "code",
       });
       return resTx;
+    } else {
+      throw new Error("Failed to update tipping");
     }
   }
 
