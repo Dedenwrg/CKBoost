@@ -228,6 +228,8 @@ export function useTippingsData() {
           data: tipping.data,
           cell: tipping.cell,
           metadata: tipping.data.metadata,
+          comments: tipping.comments,
+          additionalTips: tipping.additionalTips,
         } as TippingInfo)
     );
   }, [tippings]);

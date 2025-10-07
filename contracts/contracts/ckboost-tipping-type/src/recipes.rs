@@ -198,25 +198,25 @@ pub mod update_tipping {
         pub fn automatic_execution(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
-            // Get protocol cells
-            let input_protocol_cells = context
-                .input_cells
-                .get_custom("protocol")
-                .ok_or(DeterministicError::CellCountViolation)?;
-            let output_protocol_cells = context
-                .output_cells
-                .get_custom("protocol")
-                .ok_or(DeterministicError::CellCountViolation)?;
+            // // Get protocol cells
+            // let input_protocol_cells = context
+            //     .input_cells
+            //     .get_custom("protocol")
+            //     .ok_or(DeterministicError::CellCountViolation)?;
+            // let output_protocol_cells = context
+            //     .output_cells
+            //     .get_custom("protocol")
+            //     .ok_or(DeterministicError::CellCountViolation)?;
 
-            // Parse protocol data
-            let input_protocol_data = ProtocolData::from_slice(&input_protocol_cells[0].data)
-                .map_err(|_| DeterministicError::Encoding)?;
-            let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
-                .map_err(|_| DeterministicError::Encoding)?;
+            // // Parse protocol data
+            // let input_protocol_data = ProtocolData::from_slice(&input_protocol_cells[0].data)
+            //     .map_err(|_| DeterministicError::Encoding)?;
+            // let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
+            //     .map_err(|_| DeterministicError::Encoding)?;
 
-            let input_tippings = input_protocol_data.tippings_approved();
-            let output_tippings = output_protocol_data.tippings_approved();
-            let tipping_config = input_protocol_data.tipping_config();
+            // let input_tippings = input_protocol_data.tippings_approved();
+            // let output_tippings = output_protocol_data.tippings_approved();
+            // let tipping_config = input_protocol_data.tipping_config();
 
             // Check each tipping to see if it should be executed
             // for i in 0..input_tippings.len() {
@@ -269,36 +269,36 @@ pub mod update_tipping {
         pub fn approval_restrictions(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
-            // For this validation, we need to compare input and output to detect new approvals
-            // We'll check if expired tippings have new approvals or if fully approved tippings get more
+            // // For this validation, we need to compare input and output to detect new approvals
+            // // We'll check if expired tippings have new approvals or if fully approved tippings get more
 
-            // Get protocol cells
-            let input_protocol_cells = context
-                .input_cells
-                .get_custom("protocol")
-                .ok_or(DeterministicError::CellCountViolation)?;
-            let output_protocol_cells = context
-                .output_cells
-                .get_custom("protocol")
-                .ok_or(DeterministicError::CellCountViolation)?;
+            // // Get protocol cells
+            // let input_protocol_cells = context
+            //     .input_cells
+            //     .get_custom("protocol")
+            //     .ok_or(DeterministicError::CellCountViolation)?;
+            // let output_protocol_cells = context
+            //     .output_cells
+            //     .get_custom("protocol")
+            //     .ok_or(DeterministicError::CellCountViolation)?;
 
-            // Parse protocol data
-            let input_protocol_data = ProtocolData::from_slice(&input_protocol_cells[0].data)
-                .map_err(|_| DeterministicError::Encoding)?;
-            let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
-                .map_err(|_| DeterministicError::Encoding)?;
+            // // Parse protocol data
+            // let input_protocol_data = ProtocolData::from_slice(&input_protocol_cells[0].data)
+            //     .map_err(|_| DeterministicError::Encoding)?;
+            // let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
+            //     .map_err(|_| DeterministicError::Encoding)?;
 
-            let input_tippings = input_protocol_data.tippings_approved();
-            let output_tippings = output_protocol_data.tippings_approved();
-            let tipping_config = output_protocol_data.tipping_config();
+            // let input_tippings = input_protocol_data.tippings_approved();
+            // let output_tippings = output_protocol_data.tippings_approved();
+            // let tipping_config = output_protocol_data.tipping_config();
 
-            // Get expiration duration
-            let expiration_duration_bytes = tipping_config.expiration_duration();
-            let _expiration_duration = u64::from_le_bytes(
-                expiration_duration_bytes.as_slice()[0..8]
-                    .try_into()
-                    .map_err(|_| DeterministicError::Encoding)?,
-            );
+            // // Get expiration duration
+            // let expiration_duration_bytes = tipping_config.expiration_duration();
+            // let _expiration_duration = u64::from_le_bytes(
+            //     expiration_duration_bytes.as_slice()[0..8]
+            //         .try_into()
+            //         .map_err(|_| DeterministicError::Encoding)?,
+            // );
 
             // Get current timestamp from transaction context
             // Note: In a real implementation, you'd get this from the block header
@@ -398,5 +398,6 @@ pub mod update_tipping {
             Ok(())
         }
         // **Tipping tipping immutability**: Tipping tipping data must remain unchanged during protocol updates to maintain tipping integrity
+        //TODO: pub fn supporter_proxy_validation(
     }
 }

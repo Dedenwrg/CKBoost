@@ -71,7 +71,6 @@ export default function ProposeTippingPage() {
     typeTags: "analysis",
     shortDescription: "",
     longDescription: "",
-    supporterLockHashes: "",
     ckbAmount: "0",
     pointsAmount: "0",
   });
@@ -229,15 +228,10 @@ export default function ProposeTippingPage() {
         }
       }
 
-      const supporterLockHashes = formData.supporterLockHashes
-        .split(",")
-        .map((hash) => hash.trim())
-        .filter((hash) => hash.length > 0);
-
       const tippingData: TippingDataLike = {
         target_lock_hash: formData.targetLockHash,
         proposer_lock_hash: proposerLockHash,
-        supporter_lock_hashes: supporterLockHashes,
+        supporter_lock_hashes: [],
         metadata: {
           contribution_title: formData.contributionTitle,
           contribution_type_tags: formData.typeTags
@@ -351,7 +345,6 @@ export default function ProposeTippingPage() {
         "Highlighting tangible outcomes from this week's CKBoost collaboration wave.",
       longDescription:
         "<p><strong>Summary:</strong> We delivered three high-impact assets that unblock new builders.</p><ul><li>Published a step-by-step SDK integration tutorial with code samples.</li><li>Drove a 60-person workshop where 70% shipped working demos.</li><li>Coordinated translation of onboarding docs into three new languages.</li></ul><p>Each deliverable includes reproducible references so the next cohort can ramp instantly.</p>",
-      supporterLockHashes: `0x${"cd".repeat(32)}, 0x${"ef".repeat(32)}`,
       ckbAmount: "64",
       pointsAmount: "250",
     });
@@ -537,24 +530,6 @@ export default function ProposeTippingPage() {
                     }
                     placeholder="Detailed explanation of the contribution and justification for tipping"
                     height={300}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="supporterLockHashes">
-                    Supporter Lock Hashes
-                  </Label>
-                  <Textarea
-                    id="supporterLockHashes"
-                    value={formData.supporterLockHashes}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        supporterLockHashes: e.target.value,
-                      })
-                    }
-                    placeholder="Comma-separated list of lock hashes supporting this proposal"
-                    rows={3}
                   />
                 </div>
 

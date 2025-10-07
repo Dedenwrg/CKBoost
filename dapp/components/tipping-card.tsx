@@ -63,9 +63,8 @@ export function TippingCard({
   const tippingConfig = protocolData?.tipping_config;
   const { userRecommendedAddressObj } = useUser();
   const { fetchSubmission } = useNostrFetch();
-  const [resolvedLongDescription, setResolvedLongDescription] = useState<string>(
-    tipping.data.metadata.long_description || ""
-  );
+  const [resolvedLongDescription, setResolvedLongDescription] =
+    useState<string>(tipping.data.metadata.long_description || "");
   const [isResolvingLongDescription, setIsResolvingLongDescription] =
     useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
@@ -174,7 +173,7 @@ export function TippingCard({
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setIsApproving(false);
 
-    onApprove?.(tipping.typeId);
+    onApprove?.(tipping.typeId ?? "");
   };
 
   const handleAdditionalTip = async () => {
@@ -185,7 +184,7 @@ export function TippingCard({
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsSendingTip(false);
 
-    onAdditionalTip?.(tipping.typeId, {
+    onAdditionalTip?.(tipping.typeId ?? "", {
       amount: Number.parseFloat(additionalTipAmount),
       message: additionalTipMessage || undefined,
     });
@@ -273,12 +272,20 @@ export function TippingCard({
     (sum, tip) => sum + tip.amount,
     0
   );
+  const creationDate = useMemo(() => {
+    const timestamp = tipping.data.metadata.creation_timestamp;
+    if (!timestamp) {
+      return "";
+    }
+
+    return new Date(ccc.stringify(ccc.numFrom(timestamp))).toLocaleDateString();
+  }, [tipping.data.metadata.creation_timestamp]);
 
   return (
     <Card className="border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
       <CardHeader className="pb-4">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-stretch justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="text-3xl">
               {getTypeIcon(tipping.data.metadata.contribution_type_tags[0])}
@@ -302,11 +309,11 @@ export function TippingCard({
               </p>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-yellow-600 mb-1">
+          <div className="text-right flex flex-col items-end h-full">
+            <div className="text-2xl font-bold text-yellow-600 whitespace-nowrap">
               {ccc.numFrom(tipping.data.rewards.ckb_amount)} CKB
             </div>
-            {getStatusBadge()}
+            <div className="mt-1">{getStatusBadge()}</div>
           </div>
         </div>
 
@@ -327,19 +334,6 @@ export function TippingCard({
                 {ccc.hexFrom(tipping.data.target_lock_hash).slice(0, 8)}...
                 {ccc.hexFrom(tipping.data.target_lock_hash).slice(-6)}
               </div>
-            </div>
-          </div>
-          <div className="text-right text-sm text-muted-foreground">
-            <div>
-              Proposed by {ccc.stringify(tipping.data.proposer_lock_hash)}
-            </div>
-            <div className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {new Date(
-                ccc.stringify(
-                  ccc.numFrom(tipping.data.metadata.creation_timestamp)
-                )
-              ).toLocaleDateString()}
             </div>
           </div>
         </div>
@@ -365,6 +359,17 @@ export function TippingCard({
           ) : (
             <div className="text-sm text-muted-foreground italic">
               No detailed justification provided.
+            </div>
+          )}
+        </div>
+        <div className="text-left flex justify-between text-xs text-muted-foreground">
+          <div>
+            Proposed by {ccc.stringify(tipping.data.proposer_lock_hash)}
+          </div>
+          {creationDate && (
+            <div className="mt-auto flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              {creationDate}
             </div>
           )}
         </div>
@@ -585,7 +590,7 @@ export function TippingCard({
         {/* Social Interactions */}
         <Separator />
         <SocialInteractions
-          tipping_type_id={tipping.typeId}
+          tipping_type_id={tipping.typeId ?? ""}
           // TODO: Get likes and comments from the tipping
           initialLikes={0}
           initialComments={tipping.comments}
