@@ -224,6 +224,8 @@ pub mod update_tipping {
                 .tipping_config()
                 .approval_requirement_thresholds();
 
+            let mut filtered_approval_requirement_thresholds = Vec::new();
+
             let mut raw_ckb_amount = [0u8; 16];
             raw_ckb_amount.copy_from_slice(
                 output_tipping_data
@@ -232,10 +234,7 @@ pub mod update_tipping {
                     .to_entity()
                     .as_slice(),
             );
-
             let ckb_amount = u128::from_le_bytes(raw_ckb_amount);
-
-            let mut filtered_approval_requirement_thresholds = Vec::new();
 
             for threshold in approval_requirement_thresholds {
                 let mut raw_threshold = [0u8; 16];
@@ -250,9 +249,18 @@ pub mod update_tipping {
             let output_supporter_lock_hashes =
                 output_tipping_data.supporter_lock_hashes().to_entity();
 
-            if output_supporter_lock_hashes.len() as u8 <= required_approvals {
-                debug_trace!("BusinessRuleViolation: Output tipping supporter lock hashes is less than required approvals");
-                return Err(DeterministicError::BusinessRuleViolation);
+            if output_supporter_lock_hashes.len() as u8 >= required_approvals {
+                if output_status != b"granted" {
+                    debug_trace!("BusinessRuleViolation: Output tipping status is not granted while supporters are greater or equal to required approvals");
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            } else {
+                if output_status == b"granted" {
+                    debug_trace!("BusinessRuleViolation: Output tipping status is granted while supporters are less than required approvals");
+                    return Err(DeterministicError::BusinessRuleViolation);
+                } else {
+                    return Ok(());
+                }
             }
 
             // Check rewards distribution
@@ -260,15 +268,10 @@ pub mod update_tipping {
             Ok(())
         }
 
-        /// **Approval restrictions**: Cannot approve tippings that are already
-        /// fully approved or have expired
+        /// **Approval restrictions**:
         pub fn approval_restrictions(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
-            // For this validation, we need to compare input and output to detect new approvals
-            // We'll check if expired tippings have new approvals
-
-            // Get Output tipping
             let output_tipping = context
                 .output_cells
                 .get_custom("tipping")
@@ -280,7 +283,6 @@ pub mod update_tipping {
                 .map_err(|_| DeterministicError::Encoding)?;
             let output_status = output_tipping_data.status().as_slice();
 
-            // Authenticate the proposal lock hash is both in the input and endorser whitelist
             let output_proposer_lock_hash = output_tipping_data.proposer_lock_hash().as_slice();
             let protocol_data = match get_protocol_data() {
                 Ok(pd) => pd,
@@ -288,7 +290,7 @@ pub mod update_tipping {
             };
             let endorser_whitelist = protocol_data.endorsers_whitelist();
             let admin_list = protocol_data.protocol_config().admin_lock_hash_vec();
-            // The proposer must be either in the endorser_whitelist or admin_list
+            // 1. The proposer must be either in the endorser_whitelist or admin_list
             if !endorser_whitelist
                 .clone()
                 .into_iter()
@@ -301,9 +303,9 @@ pub mod update_tipping {
                 return Err(DeterministicError::BusinessRuleViolation);
             }
 
-            // The first supporter must be in the admin_list
             let output_supporter_lock_hashes =
                 output_tipping_data.supporter_lock_hashes().to_entity();
+            // 2. If supporters are added, the first supporter must be in the admin list.
             if output_supporter_lock_hashes.len() > 0 {
                 if !admin_list.clone().into_iter().any(|h| {
                     h.as_slice() == output_supporter_lock_hashes.get(0).unwrap().as_slice()
@@ -311,7 +313,7 @@ pub mod update_tipping {
                     return Err(DeterministicError::BusinessRuleViolation);
                 }
             }
-            // The following supporters must be either in the endorser_whitelist or admin_list
+            // 3. The following supporters must be either in the endorser_whitelist or admin_list
             for supporter_lock_hash in output_supporter_lock_hashes.clone().into_iter() {
                 if supporter_lock_hash.as_slice()
                     == output_supporter_lock_hashes.get(0).unwrap().as_slice()
@@ -339,19 +341,40 @@ pub mod update_tipping {
                 .get(0);
             match input_tipping_opt {
                 None => {
+                    debug_trace!("Creating new tipping");
                     let output_status = output_tipping_data.status().to_entity();
+                    // 4. If creating a new tipping, the status must be created
                     if output_status.as_slice() != b"created" {
                         debug_trace!("BusinessRuleViolation: Output tipping status is not created");
                         debug_trace!("  Output status: {:?}", output_status);
                         return Err(DeterministicError::BusinessRuleViolation);
                     }
+                    // 5. If creating a new tipping, proposer must have a proxy cell in in the input
+                    if !context
+                        .input_cells
+                        .get_simple_ckb()
+                        .iter()
+                        .any(|c| c.lock_hash.as_slice() == output_proposer_lock_hash)
+                    {
+                        debug_trace!("BusinessRuleViolation: Proposer must have a proxy cell in in the input");
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    }
+                    // 6. For newly created tippings, supporters must be empty
+                    if output_supporter_lock_hashes.len() > 0 {
+                        debug_trace!(
+                            "BusinessRuleViolation: Output tipping supporters must be empty"
+                        );
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    }
                 }
                 Some(input_tipping) => {
+                    debug_trace!("Updating existing tipping");
                     let input_tipping_data = TippingDataReader::from_slice(&input_tipping.data)
                         .map_err(|_| DeterministicError::Encoding)?;
                     let input_supporter_lock_hashes =
                         input_tipping_data.supporter_lock_hashes().to_entity();
                     let input_status = input_tipping_data.status().as_slice();
+                    // 8. You should not be able to update a tipping that is already granted
                     if input_status == b"granted" {
                         debug_trace!("BusinessRuleViolation: Input tipping status is granted");
                         return Err(DeterministicError::BusinessRuleViolation);
@@ -374,14 +397,13 @@ pub mod update_tipping {
 
                         let creation_timestamp = u64::from_le_bytes(raw_creation_timestamp);
                         let expiration_duration = u64::from_le_bytes(raw_expiration_duration);
+                        // 9. If updating an existing tipping, the creation timestamp plus expiration duration must be greater than current timestamp (skipping this for now)
                         if creation_timestamp + expiration_duration > 0 {
-                            debug_trace!("(Skipping) BusinessRuleViolation: Input tipping creation timestamp is greater than 0");
+                            debug_trace!("(Skipping) BusinessRuleViolation: Input tipping creation timestamp is greater than current timestamp. Skipping this check for now.");
                             // return Err(DeterministicError::BusinessRuleViolation);
                         }
                     }
-                    // Authenticate the supporter lock hashes are both in the input and endorser whitelist
-
-                    // If neither lock hashes nor status change, return Ok
+                    // If neither supporters lock hashes nor status change, return Ok
                     if input_supporter_lock_hashes.as_slice()
                         == output_supporter_lock_hashes.as_slice()
                         && input_status == output_status

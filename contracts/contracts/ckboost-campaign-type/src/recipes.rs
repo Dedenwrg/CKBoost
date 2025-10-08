@@ -329,8 +329,8 @@ pub mod update_campaign {
                         .map_err(|_| DeterministicError::Encoding)?;
 
                     // Verify creator remains the same (campaigns cannot change ownership)
-                    if input_campaign_data.endorser().as_slice()
-                        != output_campaign_data.endorser().as_slice()
+                    if input_campaign_data.endorser_lock_hash().as_slice()
+                        != output_campaign_data.endorser_lock_hash().as_slice()
                     {
                         debug_trace!("Campaign endorser changed during update");
                         return Err(DeterministicError::BusinessRuleViolation);
@@ -651,8 +651,8 @@ pub mod approve_completion {
             }
 
             // Verify endorser remains the same (campaigns cannot change ownership)
-            if input_campaign_data.endorser().as_slice()
-                != output_campaign_data.endorser().as_slice()
+            if input_campaign_data.endorser_lock_hash().as_slice()
+                != output_campaign_data.endorser_lock_hash().as_slice()
             {
                 debug_trace!("Campaign endorser changed during approval");
                 return Err(DeterministicError::BusinessRuleViolation);
