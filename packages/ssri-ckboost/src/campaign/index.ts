@@ -74,7 +74,7 @@ export class Campaign extends ssri.Trait {
 
     // Debug: Log the campaign data structure before encoding
     console.log("Campaign data structure before encoding:", {
-      hasEndorser: !!campaignData.endorser,
+      endorserLockHash: !!campaignData.endorser_lock_hash,
       hasMetadata: !!campaignData.metadata,
       questCount: campaignData.quests?.length || 0,
       rulesCount: campaignData.rules?.length || 0,

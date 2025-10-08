@@ -99,7 +99,8 @@ export const CampaignMetadata = mol.table({
   image_url: mol.String
 });
 export const CampaignData = mol.table({
-  endorser: EndorserInfo,
+  endorser_lock_hash: mol.Byte32,
+  staff_lock_hash_vec: mol.Byte32Vec,
   created_at: mol.Uint64,
   starting_time: mol.Uint64,
   ending_time: mol.Uint64,
@@ -281,7 +282,8 @@ export interface CampaignMetadataLike {
 }
 
 export interface CampaignDataLike {
-  endorser: EndorserInfoLike;
+  endorser_lock_hash: ccc.HexLike;
+  staff_lock_hash_vec: ccc.HexLike[];
   created_at: ccc.NumLike;
   starting_time: ccc.NumLike;
   ending_time: ccc.NumLike;

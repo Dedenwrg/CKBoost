@@ -1,14 +1,9 @@
-use alloc::vec::Vec;
-use ckb_deterministic::cell_classifier::RuleBasedClassifier;
-use ckb_std::ckb_types::packed::{Byte32Vec, Transaction};
-use ckboost_shared::transaction_context::TransactionContext;
-use ckboost_shared::types::TippingData;
 use ckboost_shared::{
-    types::{Byte32, CampaignData, UDTAsset},
+    transaction_context::{RuleBasedClassifier, TransactionContext},
+    types::{Byte32Vec, CampaignData, ProtocolData, TippingData, Transaction},
     Error,
 };
 
-/// CKBoost Campaign SSRI trait for campaign management operations
 pub trait CKBoostCampaign {
     /// Create or update a campaign
     ///
@@ -70,6 +65,18 @@ pub trait CKBoostTipping {
         tipping_data: TippingData,
     ) -> Result<Transaction, Error>;
     fn verify_grant_tipping_reward(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error>;
+}
+
+pub trait CKBoostProtocol {
+    // If the context script cannot locate the protocol cell, will try to create a new one.
+    // #[ssri_method(level = "script", transaction = true)]
+    fn update_protocol(
+        tx: Option<Transaction>,
+        protocol_data: ProtocolData,
+    ) -> Result<Transaction, Error>;
+    fn verify_update_protocol(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error>;
 }

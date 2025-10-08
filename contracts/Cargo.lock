@@ -1000,8 +1000,12 @@ dependencies = [
 name = "ckboost-protocol-lock"
 version = "0.1.0"
 dependencies = [
+ "ckb-ssri-std",
+ "ckb-ssri-std-proc-macro",
  "ckb-std",
+ "ckb_deterministic",
  "ckboost-shared",
+ "molecule 0.8.0",
 ]
 
 [[package]]

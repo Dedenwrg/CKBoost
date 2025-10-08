@@ -9,7 +9,7 @@ use ckb_std::{
     },
     high_level::{load_cell_type_hash, load_script, load_witness_args},
 };
-use ckboost_shared::transaction_context::TransactionContext;
+use ckboost_shared::{transaction_context::TransactionContext, types::TippingData};
 use ckboost_shared::{
     types::{CampaignData, ConnectedTypeID},
     Error,
@@ -17,7 +17,10 @@ use ckboost_shared::{
 
 pub struct CKBoostFundingLock;
 
-use crate::{recipes, ssri::CKBoostCampaign};
+use crate::{
+    recipes,
+    ssri::{CKBoostCampaign, CKBoostTipping},
+};
 
 impl CKBoostCampaign for CKBoostFundingLock {
     fn update_campaign(
@@ -60,6 +63,35 @@ impl CKBoostCampaign for CKBoostFundingLock {
         // For lock script, we validate that an approved user is claiming rewards
         // This checks the approval proof in the transaction
         recipes::approve_completion::validate_approve_completion(context).map_err(|e| e.into())
+    }
+}
+
+impl CKBoostTipping for CKBoostFundingLock {
+    fn update_tipping(
+        _tx: Option<Transaction>,
+        _tipping_data: TippingData,
+    ) -> Result<Transaction, Error> {
+        debug_trace!("CKBoostFundingLock::update_tipping - Not implemented for lock script");
+        Err(Error::SSRIMethodsNotImplemented)
+    }
+
+    fn verify_update_tipping(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn grant_tipping_reward(
+        tx: Option<Transaction>,
+        tipping_data: TippingData,
+    ) -> Result<Transaction, Error> {
+        todo!()
+    }
+
+    fn verify_grant_tipping_reward(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        todo!()
     }
 }
 

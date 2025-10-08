@@ -232,7 +232,8 @@ table CampaignMetadata {
 }
 
 table CampaignData {
-    endorser: EndorserInfo,
+    endorser_lock_hash: Byte32,
+    staff_lock_hash_vec: Byte32Vec,
     created_at: Uint64,
     starting_time: Uint64,
     ending_time: Uint64,

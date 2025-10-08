@@ -1,31 +1,142 @@
-use ckboost_shared::Error;
+use alloc::vec::Vec;
+use ckb_deterministic::cell_classifier::RuleBasedClassifier;
+use ckb_deterministic::debug_trace;
+use ckb_std::ckb_constants::Source;
+use ckb_std::high_level::load_witness_args;
+use ckboost_shared::types::{Byte32Vec, CampaignData, ProtocolData, TippingData, Transaction};
+use ckboost_shared::{transaction_context::TransactionContext, Error};
 
 pub struct CKBoostProtocolLock;
 
-impl CKBoostProtocolLock {
-    /// Validates protocol update transaction in Lock Script
-    ///
-    /// # Validation Rules
-    /// 1. Only protocol admin can update protocol
-    ///
-    /// # Returns
-    /// - `Ok(())`: Validation passed
-    /// - `Err(Error)`: Validation failed with specific error details
-    #[allow(dead_code)]
-    fn verify_update_protocol() -> Result<(), Error> {
-        Ok(())
+use crate::ssri::{CKBoostProtocol, CKBoostTipping};
+use crate::{recipes, ssri::CKBoostCampaign};
+
+impl CKBoostCampaign for CKBoostProtocolLock {
+    fn update_campaign(
+        _tx: Option<Transaction>,
+        _campaign_data: CampaignData,
+    ) -> Result<Transaction, Error> {
+        debug_trace!("CKBoostFundingLock::update_campaign - Not implemented for lock script");
+        // Lock scripts don't typically build transactions for campaign updates
+        // This is handled by the type script
+        Err(Error::SSRIMethodsNotImplemented)
     }
 
-    /// Validates tipping update transaction in Lock Script
-    ///
-    /// # Validation Rules
-    /// 1. Only lock hashes in endorsers_whitelist can update tipping
-    ///
-    /// # Returns
-    /// - `Ok(())`: Validation passed
-    /// - `Err(Error)`: Validation failed with specific error details
-    #[allow(dead_code)]
-    fn verify_update_tipping() -> Result<(), Error> {
-        Ok(())
+    fn verify_update_campaign(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        debug_trace!("CKBoostFundingLock::verify_update_campaign - Starting validation");
+
+        // For lock script, we validate that the campaign admin is unlocking
+        // This happens when the campaign cell is being updated
+        recipes::approve_completion::validate_approve_completion(context).map_err(|e| e.into())
+    }
+
+    fn approve_completion(
+        _tx: Option<Transaction>,
+        _campaign_data: CampaignData,
+        _quest_id: u32,
+        _user_type_ids: Byte32Vec,
+    ) -> Result<Transaction, Error> {
+        debug_trace!("CKBoostFundingLock::approve_completion - Not implemented for lock script");
+        // Lock scripts don't build approval transactions
+        // This is handled by the type script
+        Err(Error::SSRIMethodsNotImplemented)
+    }
+
+    fn verify_approve_completion(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        debug_trace!("CKBoostFundingLock::verify_approve_completion - Starting validation");
+
+        // For lock script, we validate that an approved user is claiming rewards
+        // This checks the approval proof in the transaction
+        recipes::approve_completion::validate_approve_completion(context).map_err(|e| e.into())
+    }
+}
+
+impl CKBoostProtocol for CKBoostProtocolLock {
+    fn update_protocol(
+        _tx: Option<Transaction>,
+        _protocol_data: ProtocolData,
+    ) -> Result<Transaction, Error> {
+        debug_trace!("CKBoostProtocolLock::update_protocol - Not implemented for lock script");
+        Err(Error::SSRIMethodsNotImplemented)
+    }
+
+    fn verify_update_protocol(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        todo!()
+    }
+}
+
+impl CKBoostTipping for CKBoostProtocolLock {
+    fn update_tipping(
+        _tx: Option<Transaction>,
+        _tipping_data: TippingData,
+    ) -> Result<Transaction, Error> {
+        debug_trace!("CKBoostProtocolLock::update_tipping - Not implemented for lock script");
+        Err(Error::SSRIMethodsNotImplemented)
+    }
+
+    fn verify_update_tipping(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        todo!()
+    }
+
+    fn grant_tipping_reward(
+        tx: Option<Transaction>,
+        tipping_data: ckboost_shared::types::TippingData,
+    ) -> Result<Transaction, Error> {
+        todo!()
+    }
+
+    fn verify_grant_tipping_reward(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        todo!()
+    }
+}
+
+// Helper functions for lock validation
+impl CKBoostProtocolLock {
+    /// Check if an approved user is claiming rewards
+    pub fn is_approved_user_claiming(campaign_type_id: &[u8]) -> Result<bool, Error> {
+        debug_trace!("Checking if approved user is claiming");
+
+        // Check if there's approval data in any witness
+        let mut index = 0;
+        loop {
+            match load_witness_args(index, Source::Input) {
+                Ok(witness_args) => {
+                    // Check if output_type contains approval proof
+                    match witness_args.output_type().to_opt() {
+                        Some(output_type) => {
+                            // Parse approval proof from output_type field
+                            // Format: [method_name][quest_id][user_type_ids]
+                            let proof_data = output_type.raw_data();
+                            if proof_data.starts_with(b"CKBoostCampaign.approve_completion") {
+                                debug_trace!("Found approval proof in witness");
+                                return Ok(true);
+                            }
+                        }
+                        None => {
+                            // No output_type data in this witness
+                        }
+                    }
+                }
+                Err(ckb_std::error::SysError::IndexOutOfBound) => {
+                    break;
+                }
+                Err(_e) => {
+                    // Continue checking other witnesses
+                }
+            }
+            index += 1;
+        }
+
+        Ok(false)
     }
 }

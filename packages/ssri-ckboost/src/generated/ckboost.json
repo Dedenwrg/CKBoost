@@ -704,8 +704,12 @@
       "name": "CampaignData",
       "fields": [
         {
-          "name": "endorser",
-          "type": "EndorserInfo"
+          "name": "endorser_lock_hash",
+          "type": "Byte32"
+        },
+        {
+          "name": "staff_lock_hash_vec",
+          "type": "Byte32Vec"
         },
         {
           "name": "created_at",

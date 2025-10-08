@@ -186,11 +186,15 @@ pub mod update_tipping {
     }
 
     pub mod business_logic {
+        use alloc::string::String;
         use ckb_deterministic::assertions::expect;
         use ckb_deterministic::cell_classifier::RuleBasedClassifier;
+        use ckb_deterministic::debug_trace;
         use ckb_deterministic::errors::Error as DeterministicError;
         use ckboost_shared::generated::ckboost::ProtocolData;
+        use ckboost_shared::protocol_data::get_protocol_data;
         use ckboost_shared::transaction_context::TransactionContext;
+        use ckboost_shared::types::{TippingData, TippingDataReader};
         use molecule::prelude::*;
 
         /// **Automatic execution**: When a tipping receives sufficient approval,
@@ -198,68 +202,60 @@ pub mod update_tipping {
         pub fn automatic_execution(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
-            // // Get protocol cells
-            // let input_protocol_cells = context
-            //     .input_cells
-            //     .get_custom("protocol")
-            //     .ok_or(DeterministicError::CellCountViolation)?;
-            // let output_protocol_cells = context
-            //     .output_cells
-            //     .get_custom("protocol")
-            //     .ok_or(DeterministicError::CellCountViolation)?;
+            let output_tipping = context
+                .output_cells
+                .get_custom("tipping")
+                .ok_or(DeterministicError::CellCountViolation)?
+                .get(0)
+                .ok_or(DeterministicError::CellCountViolation)?;
+            let output_tipping_data = TippingDataReader::from_slice(&output_tipping.data)
+                .map_err(|_| DeterministicError::Encoding)?;
+            let output_status = output_tipping_data.status().as_slice();
+            if output_status != b"granted" {
+                return Ok(());
+            }
 
-            // // Parse protocol data
-            // let input_protocol_data = ProtocolData::from_slice(&input_protocol_cells[0].data)
-            //     .map_err(|_| DeterministicError::Encoding)?;
-            // let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
-            //     .map_err(|_| DeterministicError::Encoding)?;
+            // Check approval requirements thresholds
+            let protocol_data = match get_protocol_data() {
+                Ok(pd) => pd,
+                Err(_) => return Err(DeterministicError::BusinessRuleViolation),
+            };
+            let approval_requirement_thresholds = protocol_data
+                .tipping_config()
+                .approval_requirement_thresholds();
 
-            // let input_tippings = input_protocol_data.tippings_approved();
-            // let output_tippings = output_protocol_data.tippings_approved();
-            // let tipping_config = input_protocol_data.tipping_config();
+            let mut raw_ckb_amount = [0u8; 16];
+            raw_ckb_amount.copy_from_slice(
+                output_tipping_data
+                    .rewards()
+                    .ckb_amount()
+                    .to_entity()
+                    .as_slice(),
+            );
 
-            // Check each tipping to see if it should be executed
-            // for i in 0..input_tippings.len() {
-            //     let input_tipping = input_tippings.get(i).unwrap();
+            let ckb_amount = u128::from_le_bytes(raw_ckb_amount);
 
-            //     // Get approval count from approval_transaction_hash vector
-            //     let approval_count = input_tipping.approval_transaction_hash().len() as u8;
+            let mut filtered_approval_requirement_thresholds = Vec::new();
 
-            //     // Get approval threshold based on tipping amount
-            //     let _tipping_amount = input_tipping.amount();
-            //     let thresholds = tipping_config.approval_requirement_thresholds();
+            for threshold in approval_requirement_thresholds {
+                let mut raw_threshold = [0u8; 16];
+                raw_threshold.copy_from_slice(threshold.as_slice());
+                let threshold = u128::from_le_bytes(raw_threshold);
+                if ckb_amount >= threshold {
+                    filtered_approval_requirement_thresholds.push(threshold);
+                }
+            }
 
-            //     // Find appropriate threshold
-            //     // For now, we'll use a simple threshold calculation
-            //     // In a real implementation, you'd check the amount against the thresholds
-            //     let required_approvals = if thresholds.len() > 0 {
-            //         // Use thresholds length as a simple proxy for required approvals
-            //         // In production, you'd have a proper threshold lookup based on amount
-            //         core::cmp::min(3u8, thresholds.len() as u8)
-            //     } else {
-            //         1u8 // Default minimum
-            //     };
+            let required_approvals = filtered_approval_requirement_thresholds.len() as u8 + 1;
+            let output_supporter_lock_hashes =
+                output_tipping_data.supporter_lock_hashes().to_entity();
 
-            //     // If tipping has enough approvals, it should be executed (removed from list)
-            //     if approval_count >= required_approvals {
-            //         // The tipping should not exist in output (it was executed)
-            //         // Since we're checking existing tippings, if it still exists with enough approvals,
-            //         // that's a violation
-            //         if i < output_tippings.len() {
-            //             match output_tippings.get(i) {
-            //                 Some(output_tipping) => {
-            //                     // Compare to see if it's the same tipping
-            //                     if input_tipping.as_slice() == output_tipping.as_slice() {
-            //                         return Err(DeterministicError::BusinessRuleViolation);
-            //                     }
-            //                 }
-            //                 None => {
-            //                     // Index out of bounds, skip
-            //                 }
-            //             }
-            //         }
-            //     }
-            // }
+            if output_supporter_lock_hashes.len() as u8 <= required_approvals {
+                debug_trace!("BusinessRuleViolation: Output tipping supporter lock hashes is less than required approvals");
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
+
+            // Check rewards distribution
 
             Ok(())
         }
@@ -269,76 +265,169 @@ pub mod update_tipping {
         pub fn approval_restrictions(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
-            // // For this validation, we need to compare input and output to detect new approvals
-            // // We'll check if expired tippings have new approvals or if fully approved tippings get more
+            // For this validation, we need to compare input and output to detect new approvals
+            // We'll check if expired tippings have new approvals
 
-            // // Get protocol cells
-            // let input_protocol_cells = context
-            //     .input_cells
-            //     .get_custom("protocol")
-            //     .ok_or(DeterministicError::CellCountViolation)?;
-            // let output_protocol_cells = context
-            //     .output_cells
-            //     .get_custom("protocol")
-            //     .ok_or(DeterministicError::CellCountViolation)?;
+            // Get Output tipping
+            let output_tipping = context
+                .output_cells
+                .get_custom("tipping")
+                .ok_or(DeterministicError::CellCountViolation)?
+                .get(0)
+                .ok_or(DeterministicError::CellCountViolation)?;
 
-            // // Parse protocol data
-            // let input_protocol_data = ProtocolData::from_slice(&input_protocol_cells[0].data)
-            //     .map_err(|_| DeterministicError::Encoding)?;
-            // let output_protocol_data = ProtocolData::from_slice(&output_protocol_cells[0].data)
-            //     .map_err(|_| DeterministicError::Encoding)?;
+            let output_tipping_data = TippingDataReader::from_slice(&output_tipping.data)
+                .map_err(|_| DeterministicError::Encoding)?;
+            let output_status = output_tipping_data.status().as_slice();
 
-            // let input_tippings = input_protocol_data.tippings_approved();
-            // let output_tippings = output_protocol_data.tippings_approved();
-            // let tipping_config = output_protocol_data.tipping_config();
+            // Authenticate the proposal lock hash is both in the input and endorser whitelist
+            let output_proposer_lock_hash = output_tipping_data.proposer_lock_hash().as_slice();
+            let protocol_data = match get_protocol_data() {
+                Ok(pd) => pd,
+                Err(_) => return Err(DeterministicError::BusinessRuleViolation),
+            };
+            let endorser_whitelist = protocol_data.endorsers_whitelist();
+            let admin_list = protocol_data.protocol_config().admin_lock_hash_vec();
+            // The proposer must be either in the endorser_whitelist or admin_list
+            if !endorser_whitelist
+                .clone()
+                .into_iter()
+                .any(|h| h.endorser_lock_hash().as_slice() == output_proposer_lock_hash)
+                && !admin_list
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.as_slice() == output_proposer_lock_hash)
+            {
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
 
-            // // Get expiration duration
-            // let expiration_duration_bytes = tipping_config.expiration_duration();
-            // let _expiration_duration = u64::from_le_bytes(
-            //     expiration_duration_bytes.as_slice()[0..8]
-            //         .try_into()
-            //         .map_err(|_| DeterministicError::Encoding)?,
-            // );
+            // The first supporter must be in the admin_list
+            let output_supporter_lock_hashes =
+                output_tipping_data.supporter_lock_hashes().to_entity();
+            if output_supporter_lock_hashes.len() > 0 {
+                if !admin_list.clone().into_iter().any(|h| {
+                    h.as_slice() == output_supporter_lock_hashes.get(0).unwrap().as_slice()
+                }) {
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            }
+            // The following supporters must be either in the endorser_whitelist or admin_list
+            for supporter_lock_hash in output_supporter_lock_hashes.clone().into_iter() {
+                if supporter_lock_hash.as_slice()
+                    == output_supporter_lock_hashes.get(0).unwrap().as_slice()
+                {
+                    continue;
+                }
+                if !endorser_whitelist
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.endorser_lock_hash().as_slice() == supporter_lock_hash.as_slice())
+                    && !admin_list
+                        .clone()
+                        .into_iter()
+                        .any(|h| h.as_slice() == supporter_lock_hash.as_slice())
+                {
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            }
+            // Get Input tipping
 
-            // Get current timestamp from transaction context
-            // Note: In a real implementation, you'd get this from the block header
-            // For now, we'll use a placeholder approach
-            // TODO: Implement proper timestamp retrieval from header deps
+            let input_tipping_opt = context
+                .input_cells
+                .get_custom("tipping")
+                .ok_or(DeterministicError::CellCountViolation)?
+                .get(0);
+            match input_tipping_opt {
+                None => {
+                    let output_status = output_tipping_data.status().to_entity();
+                    if output_status.as_slice() != b"created" {
+                        debug_trace!("BusinessRuleViolation: Output tipping status is not created");
+                        debug_trace!("  Output status: {:?}", output_status);
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    }
+                }
+                Some(input_tipping) => {
+                    let input_tipping_data = TippingDataReader::from_slice(&input_tipping.data)
+                        .map_err(|_| DeterministicError::Encoding)?;
+                    let input_supporter_lock_hashes =
+                        input_tipping_data.supporter_lock_hashes().to_entity();
+                    let input_status = input_tipping_data.status().as_slice();
+                    if input_status == b"granted" {
+                        debug_trace!("BusinessRuleViolation: Input tipping status is granted");
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    } else {
+                        let mut raw_creation_timestamp = [0u8; 8];
+                        raw_creation_timestamp.copy_from_slice(
+                            input_tipping_data
+                                .metadata()
+                                .creation_timestamp()
+                                .to_entity()
+                                .as_slice(),
+                        );
+                        let mut raw_expiration_duration = [0u8; 8];
+                        raw_expiration_duration.copy_from_slice(
+                            protocol_data
+                                .tipping_config()
+                                .expiration_duration()
+                                .as_slice(),
+                        );
 
-            // // Check each tipping for new approvals
-            // for i in 0..input_tippings.len() {
-            //     if i >= output_tippings.len() {
-            //         break; // tipping was removed (executed)
-            //     }
+                        let creation_timestamp = u64::from_le_bytes(raw_creation_timestamp);
+                        let expiration_duration = u64::from_le_bytes(raw_expiration_duration);
+                        if creation_timestamp + expiration_duration > 0 {
+                            debug_trace!("(Skipping) BusinessRuleViolation: Input tipping creation timestamp is greater than 0");
+                            // return Err(DeterministicError::BusinessRuleViolation);
+                        }
+                    }
+                    // Authenticate the supporter lock hashes are both in the input and endorser whitelist
 
-            //     let input_tipping = input_tippings.get(i).unwrap();
-            //     let output_tipping = output_tippings.get(i).unwrap();
+                    // If neither lock hashes nor status change, return Ok
+                    if input_supporter_lock_hashes.as_slice()
+                        == output_supporter_lock_hashes.as_slice()
+                        && input_status == output_status
+                    {
+                        return Ok(());
+                    } else {
+                        // Changes are made to either lock hashes or status
+                        // Supporter lock hashes can only be added, not removed
+                        if output_supporter_lock_hashes.len() < input_supporter_lock_hashes.len() {
+                            return Err(DeterministicError::BusinessRuleViolation);
+                        }
 
-            //     let input_approvals = input_tipping.approval_transaction_hash();
-            //     let output_approvals = output_tipping.approval_transaction_hash();
-
-            //     // Check if new approvals were added
-            //     if output_approvals.len() > input_approvals.len() {
-            //         // New approvals were added, check if this is allowed
-
-            //         // Check if tipping is already at max approvals
-            //         let thresholds = tipping_config.approval_requirement_thresholds();
-            //         let max_approvals = if thresholds.len() > 0 {
-            //             core::cmp::min(5, thresholds.len()) // Reasonable max
-            //         } else {
-            //             3 // Default max
-            //         };
-
-            //         if input_approvals.len() >= max_approvals {
-            //             // Already at max approvals, no new ones allowed
-            //             return Err(DeterministicError::BusinessRuleViolation);
-            //         }
-
-            //         // TODO: Check expiration when we have proper timestamp access
-            //         // For now, we'll skip the expiration check
-            //     }
-            // }
-
+                        // Check if all preexisting supporter lock hashes are in the output
+                        for lock_hash in input_supporter_lock_hashes.clone() {
+                            if !output_supporter_lock_hashes
+                                .clone()
+                                .into_iter()
+                                .any(|h| h.as_slice() == lock_hash.as_slice())
+                            {
+                                return Err(DeterministicError::BusinessRuleViolation);
+                            }
+                        }
+                        // Collect all new lock hashes in the output
+                        let new_lock_hashes = output_supporter_lock_hashes
+                            .clone()
+                            .into_iter()
+                            .filter(|h| {
+                                !input_supporter_lock_hashes
+                                    .clone()
+                                    .into_iter()
+                                    .any(|h| h.as_slice() == h.as_slice())
+                            })
+                            .collect::<Vec<_>>();
+                        let input_ckb_cells = context.input_cells.simple_ckb_cells.clone();
+                        // each new lock hash must have a corresponding ckb cell in the input
+                        for lock_hash in new_lock_hashes {
+                            if !input_ckb_cells
+                                .iter()
+                                .any(|c| c.lock_hash.as_slice() == lock_hash.as_slice())
+                            {
+                                return Err(DeterministicError::BusinessRuleViolation);
+                            }
+                        }
+                    }
+                }
+            }
             Ok(())
         }
 
