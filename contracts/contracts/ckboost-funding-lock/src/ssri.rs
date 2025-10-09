@@ -65,11 +65,4 @@ pub trait CKBoostTipping {
     fn verify_update_tipping(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error>;
-    fn grant_tipping_reward(
-        tx: Option<Transaction>,
-        tipping_data: TippingData,
-    ) -> Result<Transaction, Error>;
-    fn verify_grant_tipping_reward(
-        context: &TransactionContext<RuleBasedClassifier>,
-    ) -> Result<(), Error>;
 }

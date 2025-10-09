@@ -80,19 +80,6 @@ impl CKBoostTipping for CKBoostFundingLock {
     ) -> Result<(), Error> {
         todo!()
     }
-
-    fn grant_tipping_reward(
-        tx: Option<Transaction>,
-        tipping_data: TippingData,
-    ) -> Result<Transaction, Error> {
-        todo!()
-    }
-
-    fn verify_grant_tipping_reward(
-        context: &TransactionContext<RuleBasedClassifier>,
-    ) -> Result<(), Error> {
-        todo!()
-    }
 }
 
 // Helper functions for lock validation
