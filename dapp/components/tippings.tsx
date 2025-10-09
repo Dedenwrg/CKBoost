@@ -1,78 +1,219 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { TippingCard } from "./tipping-card";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import {
   TippingInfo,
+  useTippingContext,
   useTippingsData,
 } from "../lib/providers/tipping-provider";
-import { Tipping } from "ssri-ckboost";
-import { TippingDataLike } from "ssri-ckboost/types";
-import { useUser } from "@/lib/providers/user-provider";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import { useToast } from "@/components/ui/use-toast";
 import { ccc } from "@ckb-ccc/connector-react";
 
-const MOCK_TIPPINGS: TippingInfo[] = [];
+const parseBigInt = (value: ccc.NumLike | undefined | null): bigint => {
+  if (value === undefined || value === null) return 0n;
+  try {
+    return BigInt(ccc.numFrom(value));
+  } catch {
+    return 0n;
+  }
+};
 
 export function Tippings() {
   const { tippings: contextTippings, isLoading, error } = useTippingsData();
+  const { updateTipping, refreshTippings } = useTippingContext();
+  const { isAdmin, protocolData } = useProtocol();
+  const signer = ccc.useSigner();
+  const { toast } = useToast();
 
   const [tippings, setTippings] = useState<TippingInfo[]>(contextTippings);
   const [searchTerm, setSearchTerm] = useState("");
-  const { userRecommendedAddressObj } = useUser();
+  const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
 
   useEffect(() => {
     setTippings(contextTippings);
   }, [contextTippings]);
 
-  const filteredTippings = useMemo(() => {
-    return tippings.filter(
-      (tipping) =>
-        tipping.metadata.contribution_title
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        tipping.data.target_lock_hash
-          .toString()
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
-        tipping.data.proposer_lock_hash
-          .toString()
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())
-    );
-  }, [tippings, searchTerm]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const handleApprove = (typeId: string) => {
-    setTippings((prev) =>
-      prev.map((tipping) =>
-        tipping.typeId === typeId
-          ? {
-              ...tipping,
-              data: {
-                ...tipping.data,
-                approvals: [
-                  ...tipping.data.supporter_lock_hashes,
-                  ccc.hexFrom(userRecommendedAddressObj?.script.hash() ?? ""),
-                ],
-              },
-            }
-          : tipping
-      )
-    );
-  };
+    const loadLockHash = async () => {
+      if (!signer) {
+        if (!cancelled) {
+          setViewerLockHash(null);
+        }
+        return;
+      }
+
+      try {
+        const recommended = await signer.getRecommendedAddressObj();
+        const hash = recommended.script.hash().toLowerCase();
+        if (!cancelled) {
+          setViewerLockHash(hash);
+        }
+      } catch (err) {
+        console.error("Failed to derive viewer lock hash", err);
+        if (!cancelled) {
+          setViewerLockHash(null);
+        }
+      }
+    };
+
+    loadLockHash();
+    return () => {
+      cancelled = true;
+    };
+  }, [signer]);
+
+  const approvalThresholds = useMemo(() => {
+    if (!protocolData?.tipping_config?.approval_requirement_thresholds) {
+      return [];
+    }
+
+    try {
+      return protocolData.tipping_config.approval_requirement_thresholds.map(
+        (threshold) => BigInt(ccc.numFrom(threshold))
+      );
+    } catch {
+      return [];
+    }
+  }, [protocolData]);
+
+  const getRequiredApprovals = useCallback(
+    (ckbAmount: bigint) => {
+      const matched = approvalThresholds.filter(
+        (threshold) => ckbAmount >= threshold
+      );
+      return matched.length + 1;
+    },
+    [approvalThresholds]
+  );
+
+  const filteredTippings = useMemo(() => {
+    return tippings.filter((tipping) => {
+      if (!isAdmin) {
+        const status = tipping.data.status?.toLowerCase?.() ?? "";
+        if (status === "created") {
+          const proposerLockHash = ccc
+            .hexFrom(tipping.data.proposer_lock_hash)
+            .toLowerCase();
+          const isOwner =
+            viewerLockHash &&
+            proposerLockHash === viewerLockHash.toLowerCase();
+          if (!isOwner) {
+            return false;
+          }
+        }
+      }
+
+      const lowerSearch = searchTerm.toLowerCase();
+      const titleMatch = tipping.metadata.contribution_title
+        .toLowerCase()
+        .includes(lowerSearch);
+      const targetMatch = tipping.data.target_lock_hash
+        .toString()
+        .toLowerCase()
+        .includes(lowerSearch);
+      const proposerMatch = tipping.data.proposer_lock_hash
+        .toString()
+        .toLowerCase()
+        .includes(lowerSearch);
+
+      return titleMatch || targetMatch || proposerMatch;
+    });
+  }, [isAdmin, searchTerm, tippings]);
+
+  const handleApprove = useCallback(
+    async (tipping: TippingInfo) => {
+      if (!isAdmin) {
+        toast({
+          title: "Admin access required",
+          description: "Only admins can approve tipping proposals.",
+          variant: "destructive",
+        });
+        throw new Error("Admin access required");
+      }
+
+      if (!signer || !viewerLockHash) {
+        toast({
+          title: "Wallet required",
+          description: "Connect your admin wallet to approve proposals.",
+          variant: "destructive",
+        });
+        throw new Error("Admin wallet required");
+      }
+
+      const supporters = tipping.data.supporter_lock_hashes.map((hash) =>
+        ccc.hexFrom(hash)
+      );
+      const supportersLower = supporters.map((hash) => hash.toLowerCase());
+
+      if (supportersLower.includes(viewerLockHash.toLowerCase())) {
+        toast({
+          title: "Already approved",
+          description: "Your approval is already recorded for this tipping.",
+        });
+        return;
+      }
+
+      const updatedSupporters = [
+        ...supporters,
+        viewerLockHash as ccc.HexLike,
+      ] as ccc.HexLike[];
+
+      const ckbAmount = parseBigInt(tipping.data.rewards.ckb_amount);
+      const requiredApprovals = getRequiredApprovals(ckbAmount);
+      const approvalsMet = updatedSupporters.length >= requiredApprovals;
+
+      const updatedTipping: TippingInfo = {
+        ...tipping,
+        data: {
+          ...tipping.data,
+          supporter_lock_hashes: updatedSupporters as ccc.HexLike[],
+          status: approvalsMet ? "granted" : "pending",
+          granted_at: approvalsMet
+            ? BigInt(Date.now())
+            : tipping.data.granted_at ?? 0n,
+        },
+      };
+
+      try {
+        const txHash = await updateTipping(updatedTipping);
+        await refreshTippings();
+        toast({
+          title: approvalsMet ? "Tipping granted" : "Approval recorded",
+          description: approvalsMet
+            ? "Required approvals reached. Distribution can proceed."
+            : `Transaction ${txHash.slice(0, 10)}…${txHash.slice(-6)} submitted.`,
+        });
+      } catch (error) {
+        console.error("Failed to approve tipping", error);
+        toast({
+          title: "Approval failed",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Unable to approve tipping proposal.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [
+      getRequiredApprovals,
+      isAdmin,
+      refreshTippings,
+      signer,
+      toast,
+      updateTipping,
+      viewerLockHash,
+    ]
+  );
 
   const handleLike = (typeId: string) => {
     setTippings((prev) =>
@@ -176,8 +317,10 @@ export function Tippings() {
       <div className="space-y-6">
         {filteredTippings.map((tipping) => (
           <TippingCard
-            key={tipping.typeId}
+            key={tipping.typeId ?? ccc.hexFrom(tipping.data.target_lock_hash)}
             tipping={tipping}
+            canApprove={isAdmin}
+            viewerLockHash={viewerLockHash}
             onApprove={handleApprove}
             onLike={handleLike}
             onComment={handleComment}

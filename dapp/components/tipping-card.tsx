@@ -31,15 +31,16 @@ import {
 import { TippingInfo } from "@/lib/providers/tipping-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ccc } from "@ckb-ccc/connector-react";
-import { useUser } from "@/lib/providers/user-provider";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 
 interface TippingCardProps {
   tipping: TippingInfo;
-  onApprove: (tippingId: string) => void;
-  onLike: (tippingId: string) => void;
-  onComment: (tippingId: string, comment: string) => void;
-  onAdditionalTip: (
+  canApprove?: boolean;
+  viewerLockHash?: string | null;
+  onApprove?: (tipping: TippingInfo) => Promise<void>;
+  onLike?: (tippingId: string) => void;
+  onComment?: (tippingId: string, comment: string) => void;
+  onAdditionalTip?: (
     tippingId: string,
     tipData: { amount: number; message?: string }
   ) => void;
@@ -47,12 +48,15 @@ interface TippingCardProps {
 
 export function TippingCard({
   tipping,
+  canApprove = false,
+  viewerLockHash,
   onApprove,
   onLike,
   onComment,
   onAdditionalTip,
 }: TippingCardProps) {
   const [isApproving, setIsApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [isAdditionalTipModalOpen, setIsAdditionalTipModalOpen] =
     useState(false);
@@ -61,7 +65,6 @@ export function TippingCard({
   const [isSendingTip, setIsSendingTip] = useState(false);
   const { protocolData } = useProtocol();
   const tippingConfig = protocolData?.tipping_config;
-  const { userRecommendedAddressObj } = useUser();
   const { fetchSubmission } = useNostrFetch();
   const [resolvedLongDescription, setResolvedLongDescription] =
     useState<string>(tipping.data.metadata.long_description || "");
@@ -166,14 +169,39 @@ export function TippingCard({
     () => formatLongDescription(resolvedLongDescription),
     [resolvedLongDescription]
   );
+  const tipStatus = tipping.data.status?.toLowerCase?.() ?? "pending";
+  const hasViewerApproved = useMemo(() => {
+    if (!viewerLockHash) {
+      return false;
+    }
+    const lockLower = viewerLockHash.toLowerCase();
+    return tipping.data.supporter_lock_hashes.some(
+      (hash) => ccc.hexFrom(hash).toLowerCase() === lockLower
+    );
+  }, [tipping.data.supporter_lock_hashes, viewerLockHash]);
+
   const handleApprove = async () => {
-    if (tipping.data.status !== "pending") return;
+    if (!canApprove || !onApprove) {
+      return;
+    }
+    if (tipStatus === "granted" || tipStatus === "completed" || hasViewerApproved) {
+      return;
+    }
 
     setIsApproving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setIsApproving(false);
-
-    onApprove?.(tipping.typeId ?? "");
+    setApproveError(null);
+    try {
+      await onApprove(tipping);
+    } catch (error) {
+      console.error("Failed to approve tipping", error);
+      setApproveError(
+        error instanceof Error
+          ? error.message
+          : "Failed to approve tipping proposal."
+      );
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   const handleAdditionalTip = async () => {
@@ -259,13 +287,16 @@ export function TippingCard({
     }
   };
 
-  const approvalRequirement =
+  const matchedThresholds =
     tippingConfig?.approval_requirement_thresholds.filter(
       (threshold) => threshold <= ccc.numFrom(tipping.data.rewards.ckb_amount)
-    ).length ?? 1;
+    ) ?? [];
+  const approvalRequirement = Math.max(1, matchedThresholds.length + 1);
 
-  const approvalsNeeded =
-    approvalRequirement - tipping.data.supporter_lock_hashes.length;
+  const approvalsNeeded = Math.max(
+    approvalRequirement - tipping.data.supporter_lock_hashes.length,
+    0
+  );
   const progressPercentage =
     (tipping.data.supporter_lock_hashes.length / approvalRequirement) * 100;
   const totalAdditionalTips = tipping.additionalTips.reduce(
@@ -507,26 +538,20 @@ export function TippingCard({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3 pt-2">
-          {tipping.data.status === "pending" && (
+          {canApprove && tipStatus !== "granted" && tipStatus !== "completed" && (
             <Button
               onClick={handleApprove}
               disabled={
-                tipping.data.supporter_lock_hashes.includes(
-                  ccc.hexFrom(userRecommendedAddressObj?.script.hash() ?? "")
-                ) || isApproving
+                isApproving || hasViewerApproved || !onApprove
               }
               size="sm"
-              className={`${
-                tipping.data.supporter_lock_hashes.includes(
-                  ccc.hexFrom(userRecommendedAddressObj?.script.hash() ?? "")
-                )
+              className={`${ 
+                hasViewerApproved
                   ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900"
                   : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
               }`}
               variant={
-                tipping.data.supporter_lock_hashes.includes(
-                  ccc.hexFrom(userRecommendedAddressObj?.script.hash() ?? "")
-                )
+                hasViewerApproved
                   ? "outline"
                   : "default"
               }
@@ -536,9 +561,7 @@ export function TippingCard({
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Approving...
                 </>
-              ) : tipping.data.supporter_lock_hashes.includes(
-                  ccc.hexFrom(userRecommendedAddressObj?.script.hash() ?? "")
-                ) ? (
+              ) : hasViewerApproved ? (
                 <>
                   <ThumbsUp className="w-4 h-4 mr-2 fill-current" />
                   You Approved
@@ -550,6 +573,9 @@ export function TippingCard({
                 </>
               )}
             </Button>
+          )}
+          {approveError && (
+            <div className="text-xs text-red-500">{approveError}</div>
           )}
 
           <Button

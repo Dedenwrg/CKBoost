@@ -202,6 +202,7 @@ pub mod update_tipping {
         pub fn automatic_execution(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
+            debug_trace!("Starting automatic_execution");
             let output_tipping = context
                 .output_cells
                 .get_custom("tipping")
@@ -211,10 +212,6 @@ pub mod update_tipping {
             let output_tipping_data = TippingDataReader::from_slice(&output_tipping.data)
                 .map_err(|_| DeterministicError::Encoding)?;
             let output_status = output_tipping_data.status().as_slice();
-            if output_status != b"granted" {
-                return Ok(());
-            }
-
             // Check approval requirements thresholds
             let protocol_data = match get_protocol_data() {
                 Ok(pd) => pd,
@@ -226,15 +223,12 @@ pub mod update_tipping {
 
             let mut filtered_approval_requirement_thresholds = Vec::new();
 
+            let rewards = output_tipping_data.rewards().to_entity();
+
             let mut raw_ckb_amount = [0u8; 16];
-            raw_ckb_amount.copy_from_slice(
-                output_tipping_data
-                    .rewards()
-                    .ckb_amount()
-                    .to_entity()
-                    .as_slice(),
-            );
+            raw_ckb_amount.copy_from_slice(rewards.ckb_amount().as_slice());
             let ckb_amount = u128::from_le_bytes(raw_ckb_amount);
+            debug_trace!("Automatic execution: CKB reward: {}", ckb_amount);
 
             for threshold in approval_requirement_thresholds {
                 let mut raw_threshold = [0u8; 16];
@@ -246,8 +240,16 @@ pub mod update_tipping {
             }
 
             let required_approvals = filtered_approval_requirement_thresholds.len() as u8 + 1;
+            debug_trace!(
+                "Automatic execution: Required approvals: {}",
+                required_approvals
+            );
             let output_supporter_lock_hashes =
                 output_tipping_data.supporter_lock_hashes().to_entity();
+            debug_trace!(
+                "Automatic execution: Output supporters: {}",
+                output_supporter_lock_hashes.len()
+            );
 
             if output_supporter_lock_hashes.len() as u8 >= required_approvals {
                 if output_status != b"granted" {
@@ -263,6 +265,16 @@ pub mod update_tipping {
                 }
             }
 
+            // TODO: Other forms of rewards are not permitted yet
+            if rewards.udt_assets().len() > 0 {
+                debug_trace!("BusinessRuleViolation: UDT rewards are not permitted yet");
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
+            if rewards.nft_assets().len() != 0 {
+                debug_trace!("BusinessRuleViolation: NFT rewards are not permitted yet");
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
+
             // Check rewards distribution
             let rewards = output_tipping_data.rewards().to_entity();
             let target_lock_hash = output_tipping_data.target_lock_hash().to_entity();
@@ -271,8 +283,10 @@ pub mod update_tipping {
             // Validate points rewards (if any)
             let mut raw_points_amount = [0u8; 16];
             raw_points_amount.copy_from_slice(rewards.points_amount().as_slice());
-            let has_points_reward = raw_points_amount.iter().any(|byte| *byte != 0);
+            let points_amount = u128::from_le_bytes(raw_points_amount);
+            let has_points_reward = points_amount > 0;
             if has_points_reward {
+                debug_trace!("Automatic execution: Points reward expected");
                 let points_cells = context.output_cells.get_custom("points").ok_or_else(|| {
                     debug_trace!(
                         "BusinessRuleViolation: Points reward expected but no points outputs found"
@@ -280,20 +294,24 @@ pub mod update_tipping {
                     DeterministicError::BusinessRuleViolation
                 })?;
 
-                let has_target_points = points_cells
-                    .iter()
-                    .any(|cell| cell.lock_hash.as_slice() == target_lock_bytes);
+                let points_rewarded = points_cells.iter().filter(|cell| cell.lock_hash.as_slice() == target_lock_bytes).try_fold(0u128, |acc, cell| {
+                    load_cell_capacity(cell.index, cell.source)
+                        .map(|capacity| acc + capacity as u128)
+                        .map_err(|err| {
+                            debug_trace!("BusinessRuleViolation: Failed to load points cell capacity: {:?}", err);
+                            DeterministicError::BusinessRuleViolation
+                        })
+                })?;
 
-                if !has_target_points {
-                    debug_trace!(
-                        "BusinessRuleViolation: Points reward expected but target lock has no points output"
-                    );
+                if points_rewarded < points_amount {
+                    debug_trace!("BusinessRuleViolation: Points reward expected but target lock has not enough points output");
                     return Err(DeterministicError::BusinessRuleViolation);
                 }
             }
 
             // Validate CKB rewards (if any)
             if ckb_amount > 0 {
+                debug_trace!("Automatic execution: CKB reward expected");
                 let output_simple_ckb = context.output_cells.get_simple_ckb();
                 let input_simple_ckb = context.input_cells.get_simple_ckb();
 
