@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TippingCard } from "./tipping-card";
+import { TippingFundingPanel } from "./tipping-funding-panel";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import {
@@ -14,6 +15,7 @@ import {
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { useToast } from "@/components/ui/use-toast";
 import { ccc } from "@ckb-ccc/connector-react";
+import { InsufficientTippingFundingError } from "@/lib/services/tipping-service";
 
 const parseBigInt = (value: ccc.NumLike | undefined | null): bigint => {
   if (value === undefined || value === null) return 0n;
@@ -103,8 +105,7 @@ export function Tippings() {
             .hexFrom(tipping.data.proposer_lock_hash)
             .toLowerCase();
           const isOwner =
-            viewerLockHash &&
-            proposerLockHash === viewerLockHash.toLowerCase();
+            viewerLockHash && proposerLockHash === viewerLockHash.toLowerCase();
           if (!isOwner) {
             return false;
           }
@@ -168,31 +169,50 @@ export function Tippings() {
 
       const ckbAmount = parseBigInt(tipping.data.rewards.ckb_amount);
       const requiredApprovals = getRequiredApprovals(ckbAmount);
-      const approvalsMet = updatedSupporters.length >= requiredApprovals;
+      let status = "created";
+      if (updatedSupporters.length > 0) {
+        status = "approved";
+      }
+      if (updatedSupporters.length >= requiredApprovals) {
+        status = "granted";
+      }
 
       const updatedTipping: TippingInfo = {
         ...tipping,
         data: {
           ...tipping.data,
           supporter_lock_hashes: updatedSupporters as ccc.HexLike[],
-          status: approvalsMet ? "granted" : "pending",
-          granted_at: approvalsMet
-            ? BigInt(Date.now())
-            : tipping.data.granted_at ?? 0n,
+          status: status,
+          granted_at:
+            // TODO: Add a check to see if the tipping is already granted
+            status === "granted"
+              ? BigInt(Date.now())
+              : tipping.data.granted_at ?? 0n,
         },
       };
 
       try {
         const txHash = await updateTipping(updatedTipping);
-        await refreshTippings();
         toast({
-          title: approvalsMet ? "Tipping granted" : "Approval recorded",
-          description: approvalsMet
-            ? "Required approvals reached. Distribution can proceed."
-            : `Transaction ${txHash.slice(0, 10)}…${txHash.slice(-6)} submitted.`,
+          title: status === "granted" ? "Tipping granted" : "Approval recorded",
+          description:
+            status === "granted"
+              ? "Required approvals reached. Distribution can proceed."
+              : `Transaction ${txHash.slice(0, 10)}…${txHash.slice(
+                  -6
+                )} submitted.`,
         });
       } catch (error) {
         console.error("Failed to approve tipping", error);
+        if (error instanceof InsufficientTippingFundingError) {
+          toast({
+            title: "Insufficient funding",
+            description:
+              "Not enough assets in the protocol pool. Please top up before granting.",
+            variant: "destructive",
+          });
+          throw error;
+        }
         toast({
           title: "Approval failed",
           description:
@@ -207,7 +227,6 @@ export function Tippings() {
     [
       getRequiredApprovals,
       isAdmin,
-      refreshTippings,
       signer,
       toast,
       updateTipping,
@@ -284,6 +303,8 @@ export function Tippings() {
 
   return (
     <div className="space-y-6">
+      <TippingFundingPanel />
+
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="relative flex-1 max-w-md">

@@ -211,7 +211,7 @@ pub mod update_tipping {
                 .ok_or(DeterministicError::CellCountViolation)?;
             let output_tipping_data = TippingDataReader::from_slice(&output_tipping.data)
                 .map_err(|_| DeterministicError::Encoding)?;
-            let output_status = output_tipping_data.status().as_slice();
+            let output_status = output_tipping_data.status().raw_data();
             // Check approval requirements thresholds
             let protocol_data = match get_protocol_data() {
                 Ok(pd) => pd,
@@ -254,11 +254,13 @@ pub mod update_tipping {
             if output_supporter_lock_hashes.len() as u8 >= required_approvals {
                 if output_status != b"granted" {
                     debug_trace!("BusinessRuleViolation: Output tipping status is not granted while supporters are greater or equal to required approvals");
+                    debug_trace!("  Output status: {:?}", output_status);
                     return Err(DeterministicError::BusinessRuleViolation);
                 }
             } else {
                 if output_status == b"granted" {
                     debug_trace!("BusinessRuleViolation: Output tipping status is granted while supporters are less than required approvals");
+                    debug_trace!("  Output status: {:?}", output_status);
                     return Err(DeterministicError::BusinessRuleViolation);
                 } else {
                     return Ok(());

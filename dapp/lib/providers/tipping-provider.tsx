@@ -14,9 +14,14 @@ import {
   ConnectedTypeID,
   TippingMetadataLike,
   type TippingDataLike,
+  type UDTAssetLike,
 } from "ssri-ckboost/types";
 import { useProtocol } from "./protocol-provider";
-import { TippingService } from "../services/tipping-service";
+import {
+  TippingService,
+  InsufficientTippingFundingError,
+  type FundingShortage,
+} from "../services/tipping-service";
 import { debug } from "../utils/debug";
 import { Tipping } from "ssri-ckboost/tipping";
 import { deploymentManager } from "../ckb/deployment-manager";
@@ -28,6 +33,9 @@ interface TippingContextType {
   refreshTippings: () => Promise<void>;
   updateTipping: (tipping: TippingInfo) => Promise<string>;
   fundingSummary: Awaited<ReturnType<TippingService["getFundingSummary"]>>;
+  fundProtocolWithCKB: (amount: bigint) => Promise<string>;
+  fundProtocolWithUDT: (assets: UDTAssetLike[]) => Promise<string>;
+  fundingShortage: FundingShortage | null;
 }
 
 const TippingContext = createContext<TippingContextType | undefined>(undefined);
@@ -42,6 +50,8 @@ export function TippingProvider({ children }: { children: ReactNode }) {
     useState<Awaited<ReturnType<TippingService["getFundingSummary"]>>>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fundingShortage, setFundingShortage] =
+    useState<FundingShortage | null>(null);
 
   const service = useMemo(() => {
     if (!protocolCell) {
@@ -60,6 +70,7 @@ export function TippingProvider({ children }: { children: ReactNode }) {
     if (!service || !protocolCell || !client) {
       setTippings([]);
       setFundingSummary(null);
+      setFundingShortage(null);
       if (!service) {
         setError("Tipping service not available");
       }
@@ -72,6 +83,7 @@ export function TippingProvider({ children }: { children: ReactNode }) {
     try {
       const decoded = await service.loadApprovedTippings(protocolData, client);
       setTippings(decoded);
+      setFundingShortage(null);
 
       if (signer) {
         const summary = await service.getFundingSummary();
@@ -164,9 +176,45 @@ export function TippingProvider({ children }: { children: ReactNode }) {
 
       await service.setTipping(newTippingInstance);
 
-      const result = await service.updateTipping(tipping.data);
+      try {
+        const result = await service.updateTipping(tipping.data);
+        setFundingShortage(null);
+        await refreshTippings();
+        return result;
+      } catch (err) {
+        if (err instanceof InsufficientTippingFundingError) {
+          setFundingShortage(err.shortage);
+        }
+        throw err;
+      }
+    },
+    [service, refreshTippings]
+  );
+
+  const fundProtocolWithCKB = useCallback(
+    async (amount: bigint): Promise<string> => {
+      if (!service) {
+        throw new Error("Tipping service not available");
+      }
+
+      const txHash = await service.fundProtocolWithCKB(amount);
+      setFundingShortage(null);
       await refreshTippings();
-      return result;
+      return txHash;
+    },
+    [service, refreshTippings]
+  );
+
+  const fundProtocolWithUDT = useCallback(
+    async (assets: UDTAssetLike[]): Promise<string> => {
+      if (!service) {
+        throw new Error("Tipping service not available");
+      }
+
+      const txHash = await service.fundProtocolWithUDT(assets);
+      setFundingShortage(null);
+      await refreshTippings();
+      return txHash;
     },
     [service, refreshTippings]
   );
@@ -178,6 +226,9 @@ export function TippingProvider({ children }: { children: ReactNode }) {
     refreshTippings,
     updateTipping,
     fundingSummary,
+    fundProtocolWithCKB,
+    fundProtocolWithUDT,
+    fundingShortage,
   };
 
   return (

@@ -184,7 +184,11 @@ export function TippingCard({
     if (!canApprove || !onApprove) {
       return;
     }
-    if (tipStatus === "granted" || tipStatus === "completed" || hasViewerApproved) {
+    if (
+      tipStatus === "granted" ||
+      tipStatus === "completed" ||
+      hasViewerApproved
+    ) {
       return;
     }
 
@@ -224,7 +228,7 @@ export function TippingCard({
 
   const getStatusBadge = () => {
     switch (tipping.data.status) {
-      case "pending":
+      case "created":
         return (
           <Badge className="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 whitespace-nowrap">
             ⏳ Pending Approval
@@ -236,22 +240,16 @@ export function TippingCard({
             ✅ Approved
           </Badge>
         );
-      case "completed":
+      case "granted":
         return (
           <Badge className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 whitespace-nowrap">
             🎉 Completed
           </Badge>
         );
-      case "rejected":
-        return (
-          <Badge className="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 whitespace-nowrap">
-            ❌ Rejected
-          </Badge>
-        );
       default:
         return (
           <Badge variant="outline" className="whitespace-nowrap">
-            Unknown
+            {tipping.data.status}
           </Badge>
         );
     }
@@ -284,6 +282,28 @@ export function TippingCard({
         return "bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200";
       default:
         return "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200";
+    }
+  };
+
+  const SHANNON_FACTOR = 10n ** 8n;
+
+  const formatCkbAmount = (
+    shannons: ccc.NumLike | undefined | null
+  ): string => {
+    try {
+      const value = shannons ? BigInt(ccc.numFrom(shannons)) : 0n;
+      const integer = value / SHANNON_FACTOR;
+      const fractional = value % SHANNON_FACTOR;
+      if (fractional === 0n) {
+        return integer.toString();
+      }
+      const fractionalStr = fractional
+        .toString()
+        .padStart(8, "0")
+        .replace(/0+$/, "");
+      return `${integer}.${fractionalStr}`;
+    } catch {
+      return "0";
     }
   };
 
@@ -342,7 +362,7 @@ export function TippingCard({
           </div>
           <div className="text-right flex flex-col items-end h-full">
             <div className="text-2xl font-bold text-yellow-600 whitespace-nowrap">
-              {ccc.numFrom(tipping.data.rewards.ckb_amount)} CKB
+              {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB
             </div>
             <div className="mt-1">{getStatusBadge()}</div>
           </div>
@@ -538,42 +558,38 @@ export function TippingCard({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3 pt-2">
-          {canApprove && tipStatus !== "granted" && tipStatus !== "completed" && (
-            <Button
-              onClick={handleApprove}
-              disabled={
-                isApproving || hasViewerApproved || !onApprove
-              }
-              size="sm"
-              className={`${ 
-                hasViewerApproved
-                  ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900"
-                  : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-              }`}
-              variant={
-                hasViewerApproved
-                  ? "outline"
-                  : "default"
-              }
-            >
-              {isApproving ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Approving...
-                </>
-              ) : hasViewerApproved ? (
-                <>
-                  <ThumbsUp className="w-4 h-4 mr-2 fill-current" />
-                  You Approved
-                </>
-              ) : (
-                <>
-                  <ThumbsUp className="w-4 h-4 mr-2" />
-                  Approve Proposal
-                </>
-              )}
-            </Button>
-          )}
+          {canApprove &&
+            tipStatus !== "granted" &&
+            tipStatus !== "completed" && (
+              <Button
+                onClick={handleApprove}
+                disabled={isApproving || hasViewerApproved || !onApprove}
+                size="sm"
+                className={`${
+                  hasViewerApproved
+                    ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900"
+                    : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+                }`}
+                variant={hasViewerApproved ? "outline" : "default"}
+              >
+                {isApproving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Approving...
+                  </>
+                ) : hasViewerApproved ? (
+                  <>
+                    <ThumbsUp className="w-4 h-4 mr-2 fill-current" />
+                    You Approved
+                  </>
+                ) : (
+                  <>
+                    <ThumbsUp className="w-4 h-4 mr-2" />
+                    Approve Proposal
+                  </>
+                )}
+              </Button>
+            )}
           {approveError && (
             <div className="text-xs text-red-500">{approveError}</div>
           )}
@@ -593,8 +609,9 @@ export function TippingCard({
         {tipping.data.status === "completed" && (
           <div className="text-center p-4 bg-green-100 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <div className="text-green-800 dark:text-green-200 font-medium">
-              🎉 Community tip of {ccc.numFrom(tipping.data.rewards.ckb_amount)}{" "}
-              CKB sent to {ccc.hexFrom(tipping.data.target_lock_hash)}!
+              🎉 Community tip of{" "}
+              {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB sent to{" "}
+              {ccc.hexFrom(tipping.data.target_lock_hash)}!
             </div>
             {totalAdditionalTips > 0 && (
               <div className="text-sm text-green-600 dark:text-green-300 mt-1">

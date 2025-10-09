@@ -229,6 +229,22 @@ export default function ProposeTippingPage() {
         }
       }
 
+      let ckbAmountRaw = 0n;
+      if (formData.ckbAmount && formData.ckbAmount.trim().length > 0) {
+        try {
+          ckbAmountRaw = parseCkbToShannons(formData.ckbAmount);
+        } catch (parseError) {
+          throw new Error(
+            parseError instanceof Error
+              ? parseError.message
+              : "Invalid CKB reward amount"
+          );
+        }
+      }
+      if (ckbAmountRaw !== 0n && ckbAmountRaw < MIN_CKB_REWARD) {
+        throw new Error("CKB reward must be at least 100 CKB or zero");
+      }
+
       const tippingData: TippingDataLike = {
         target_lock_hash: formData.targetLockHash,
         proposer_lock_hash: proposerLockHash,
@@ -247,7 +263,7 @@ export default function ProposeTippingPage() {
           points_amount: formData.pointsAmount
             ? BigInt(formData.pointsAmount)
             : 0n,
-          ckb_amount: formData.ckbAmount ? BigInt(formData.ckbAmount) : 0n,
+          ckb_amount: ckbAmountRaw,
           nft_assets: [],
           udt_assets: [],
         },
@@ -556,6 +572,7 @@ export default function ProposeTippingPage() {
                       id="ckbAmount"
                       type="number"
                       min="0"
+                      step="0.00000001"
                       value={formData.ckbAmount}
                       onChange={(e) =>
                         setFormData({ ...formData, ckbAmount: e.target.value })
@@ -605,4 +622,33 @@ export default function ProposeTippingPage() {
       </main>
     </div>
   );
+}
+const SHANNON_FACTOR = 10n ** 8n;
+const MIN_CKB_REWARD = 100n * SHANNON_FACTOR;
+
+function parseCkbToShannons(input: string): bigint {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return 0n;
+  }
+
+  const [integerPartRaw, fractionalPartRaw = ""] = trimmed.split(".");
+
+  if (!/^\d+$/.test(integerPartRaw || "0")) {
+    throw new Error("Invalid CKB amount");
+  }
+
+  if (!/^\d*$/.test(fractionalPartRaw)) {
+    throw new Error("Invalid CKB amount");
+  }
+
+  if (fractionalPartRaw.length > 8) {
+    throw new Error("CKB amount supports up to 8 decimal places");
+  }
+
+  const integerPart = BigInt(integerPartRaw || "0");
+  const fractionalPartPadded = (fractionalPartRaw || "").padEnd(8, "0");
+  const fractionalPart = BigInt(fractionalPartPadded || "0");
+
+  return integerPart * SHANNON_FACTOR + fractionalPart;
 }

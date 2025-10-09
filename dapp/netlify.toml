@@ -24,6 +24,11 @@ to = "/.netlify/functions/telegram-authenticate"
 status = 200
 
 [[redirects]]
+from = "/api/resolve-lock-script"
+to = "/.netlify/functions/resolve-lock-script"
+status = 200
+
+[[redirects]]
 from = "/api/verification/*"
 to = "/.netlify/functions/verification-api/:splat"
 status = 200
