@@ -493,7 +493,7 @@
         },
         {
           "name": "ckb_amount",
-          "type": "Uint64"
+          "type": "Uint128"
         },
         {
           "name": "nft_assets",

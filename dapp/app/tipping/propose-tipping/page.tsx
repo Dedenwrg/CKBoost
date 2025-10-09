@@ -135,6 +135,7 @@ export default function ProposeTippingPage() {
           },
           comments: [],
           additionalTips: [],
+          status: "created",
         } as TippingInfo);
 
       console.debug("📍 finalizeTippingSubmission", {

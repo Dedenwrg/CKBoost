@@ -154,7 +154,6 @@ pub mod common {
 }
 
 pub mod update_tipping {
-    use super::common;
     use alloc::{string::ToString, vec};
     use ckb_deterministic::{
         cell_classifier::RuleBasedClassifier,
@@ -186,15 +185,16 @@ pub mod update_tipping {
     }
 
     pub mod business_logic {
-        use alloc::string::String;
-        use ckb_deterministic::assertions::expect;
+        use alloc::vec::Vec;
         use ckb_deterministic::cell_classifier::RuleBasedClassifier;
         use ckb_deterministic::debug_trace;
         use ckb_deterministic::errors::Error as DeterministicError;
+        use ckb_std::high_level::load_cell_capacity;
+        use ckboost_shared::cell_collector::get_udt_identifier;
         use ckboost_shared::generated::ckboost::ProtocolData;
         use ckboost_shared::protocol_data::get_protocol_data;
         use ckboost_shared::transaction_context::TransactionContext;
-        use ckboost_shared::types::{TippingData, TippingDataReader};
+        use ckboost_shared::types::TippingDataReader;
         use molecule::prelude::*;
 
         /// **Automatic execution**: When a tipping receives sufficient approval,
@@ -264,6 +264,121 @@ pub mod update_tipping {
             }
 
             // Check rewards distribution
+            let rewards = output_tipping_data.rewards().to_entity();
+            let target_lock_hash = output_tipping_data.target_lock_hash().to_entity();
+            let target_lock_bytes = target_lock_hash.as_slice();
+
+            // Validate points rewards (if any)
+            let mut raw_points_amount = [0u8; 16];
+            raw_points_amount.copy_from_slice(rewards.points_amount().as_slice());
+            let has_points_reward = raw_points_amount.iter().any(|byte| *byte != 0);
+            if has_points_reward {
+                let points_cells = context.output_cells.get_custom("points").ok_or_else(|| {
+                    debug_trace!(
+                        "BusinessRuleViolation: Points reward expected but no points outputs found"
+                    );
+                    DeterministicError::BusinessRuleViolation
+                })?;
+
+                let has_target_points = points_cells
+                    .iter()
+                    .any(|cell| cell.lock_hash.as_slice() == target_lock_bytes);
+
+                if !has_target_points {
+                    debug_trace!(
+                        "BusinessRuleViolation: Points reward expected but target lock has no points output"
+                    );
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            }
+
+            // Validate CKB rewards (if any)
+            if ckb_amount > 0 {
+                let output_simple_ckb = context.output_cells.get_simple_ckb();
+                let input_simple_ckb = context.input_cells.get_simple_ckb();
+
+                let output_target_capacity: u128 = output_simple_ckb
+                    .iter()
+                    .filter(|cell| cell.lock_hash.as_slice() == target_lock_bytes)
+                    .try_fold(0u128, |acc, cell| {
+                        load_cell_capacity(cell.index, cell.source)
+                            .map(|capacity| acc + capacity as u128)
+                            .map_err(|err| {
+                                debug_trace!(
+                                    "BusinessRuleViolation: Failed to load output cell capacity: {:?}",
+                                    err
+                                );
+                                DeterministicError::CellRelationshipRuleViolation
+                            })
+                    })?;
+                let input_target_capacity: u128 = input_simple_ckb
+                    .iter()
+                    .filter(|cell| cell.lock_hash.as_slice() == target_lock_bytes)
+                    .try_fold(0u128, |acc, cell| {
+                        load_cell_capacity(cell.index, cell.source)
+                            .map(|capacity| acc + capacity as u128)
+                            .map_err(|err| {
+                                debug_trace!(
+                                    "BusinessRuleViolation: Failed to load input cell capacity: {:?}",
+                                    err
+                                );
+                                DeterministicError::CellRelationshipRuleViolation
+                            })
+                    })?;
+
+                if output_target_capacity <= input_target_capacity {
+                    debug_trace!(
+                        "BusinessRuleViolation: CKB reward expected but no net capacity delivered to target lock hash"
+                    );
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+
+                let delivered_ckb = output_target_capacity - input_target_capacity;
+                if delivered_ckb < ckb_amount as u128 {
+                    debug_trace!(
+                        "BusinessRuleViolation: Delivered CKB {} is less than required {}",
+                        delivered_ckb,
+                        ckb_amount
+                    );
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            }
+
+            // Validate UDT rewards (if any)
+            let udt_assets = rewards.udt_assets();
+            for i in 0..udt_assets.len() {
+                let udt_asset = udt_assets.get(i).unwrap();
+                let mut udt_amount_bytes = [0u8; 16];
+                udt_amount_bytes.copy_from_slice(udt_asset.amount().as_slice());
+                let has_udt_reward = udt_amount_bytes.iter().any(|byte| *byte != 0);
+                if !has_udt_reward {
+                    continue;
+                }
+
+                let udt_identifier = get_udt_identifier(&udt_asset.udt_script());
+                let udt_cells = context
+                    .output_cells
+                    .get_custom(udt_identifier.as_str())
+                    .ok_or_else(|| {
+                        debug_trace!(
+                            "BusinessRuleViolation: Expected UDT reward {} but no outputs found",
+                            udt_identifier
+                        );
+                        DeterministicError::BusinessRuleViolation
+                    })?;
+
+                let has_target_udt = udt_cells
+                    .iter()
+                    .any(|cell| cell.lock_hash.as_slice() == target_lock_bytes);
+
+                if !has_target_udt {
+                    debug_trace!(
+                        "BusinessRuleViolation: UDT reward {} expected for target lock hash but none found",
+                        udt_identifier
+                    );
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            }
 
             Ok(())
         }
@@ -272,6 +387,7 @@ pub mod update_tipping {
         pub fn approval_restrictions(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
+            debug_trace!("Starting approval_restrictions");
             let output_tipping = context
                 .output_cells
                 .get_custom("tipping")
@@ -281,7 +397,7 @@ pub mod update_tipping {
 
             let output_tipping_data = TippingDataReader::from_slice(&output_tipping.data)
                 .map_err(|_| DeterministicError::Encoding)?;
-            let output_status = output_tipping_data.status().as_slice();
+            let output_status = output_tipping_data.status().to_entity();
 
             let output_proposer_lock_hash = output_tipping_data.proposer_lock_hash().as_slice();
             let protocol_data = match get_protocol_data() {
@@ -311,6 +427,11 @@ pub mod update_tipping {
                     h.as_slice() == output_supporter_lock_hashes.get(0).unwrap().as_slice()
                 }) {
                     return Err(DeterministicError::BusinessRuleViolation);
+                } else {
+                    if output_status.as_slice() == b"created" {
+                        debug_trace!("BusinessRuleViolation: If acquired a admin as a supporter, the status must be changed to approved");
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    }
                 }
             }
             // 3. The following supporters must be either in the endorser_whitelist or admin_list
@@ -333,19 +454,18 @@ pub mod update_tipping {
                 }
             }
             // Get Input tipping
-
-            let input_tipping_opt = context
-                .input_cells
-                .get_custom("tipping")
-                .ok_or(DeterministicError::CellCountViolation)?
-                .get(0);
+            debug_trace!("Getting input tipping");
+            let input_tipping_opt = context.input_cells.get_custom("tipping");
             match input_tipping_opt {
                 None => {
                     debug_trace!("Creating new tipping");
                     let output_status = output_tipping_data.status().to_entity();
                     // 4. If creating a new tipping, the status must be created
-                    if output_status.as_slice() != b"created" {
-                        debug_trace!("BusinessRuleViolation: Output tipping status is not created");
+                    if output_status.raw_data().iter().as_slice() != b"created" {
+                        debug_trace!(
+                            "BusinessRuleViolation: Output tipping status is not created ({:?})",
+                            b"created"
+                        );
                         debug_trace!("  Output status: {:?}", output_status);
                         return Err(DeterministicError::BusinessRuleViolation);
                     }
@@ -368,14 +488,18 @@ pub mod update_tipping {
                     }
                 }
                 Some(input_tipping) => {
+                    if input_tipping.len() != 1 {
+                        debug_trace!("BusinessRuleViolation: Input tipping cell count is not 1 while updating existing tipping");
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    }
                     debug_trace!("Updating existing tipping");
-                    let input_tipping_data = TippingDataReader::from_slice(&input_tipping.data)
+                    let input_tipping_data = TippingDataReader::from_slice(&input_tipping[0].data)
                         .map_err(|_| DeterministicError::Encoding)?;
                     let input_supporter_lock_hashes =
                         input_tipping_data.supporter_lock_hashes().to_entity();
-                    let input_status = input_tipping_data.status().as_slice();
+                    let input_status = input_tipping_data.status().to_entity();
                     // 8. You should not be able to update a tipping that is already granted
-                    if input_status == b"granted" {
+                    if input_status.as_slice() == b"granted" {
                         debug_trace!("BusinessRuleViolation: Input tipping status is granted");
                         return Err(DeterministicError::BusinessRuleViolation);
                     } else {
@@ -406,7 +530,7 @@ pub mod update_tipping {
                     // If neither supporters lock hashes nor status change, return Ok
                     if input_supporter_lock_hashes.as_slice()
                         == output_supporter_lock_hashes.as_slice()
-                        && input_status == output_status
+                        && input_status.as_slice() == output_status.as_slice()
                     {
                         return Ok(());
                     } else {
@@ -416,13 +540,17 @@ pub mod update_tipping {
                             return Err(DeterministicError::BusinessRuleViolation);
                         }
 
-                        // Check if all preexisting supporter lock hashes are in the output
-                        for lock_hash in input_supporter_lock_hashes.clone() {
-                            if !output_supporter_lock_hashes
-                                .clone()
-                                .into_iter()
-                                .any(|h| h.as_slice() == lock_hash.as_slice())
+                        // Check if all preexisting supporter lock hashes are matching one by one in the output too
+                        for (i, lock_hash) in
+                            input_supporter_lock_hashes.clone().into_iter().enumerate()
+                        {
+                            if output_supporter_lock_hashes.get(i).unwrap().as_slice()
+                                != lock_hash.as_slice()
                             {
+                                debug_trace!(
+                                    "BusinessRuleViolation: Preexisting supporter lock hash {:?} does not match in the output at index {}",
+                                    lock_hash.as_slice(), i
+                                );
                                 return Err(DeterministicError::BusinessRuleViolation);
                             }
                         }
@@ -458,6 +586,7 @@ pub mod update_tipping {
         pub fn data_immutability(
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
+            debug_trace!("Starting data_immutability");
             // Get protocol cells
             let input_protocol_cells = context
                 .input_cells
