@@ -4,6 +4,7 @@ import {
   CampaignData,
   UserSubmissionRecordLike,
   UserDataLike,
+  ConnectedTypeID,
 } from "ssri-ckboost/types";
 import {
   fetchAllUserCells,
@@ -416,6 +417,33 @@ export class CampaignAdminService {
       console.log("Transaction Hex:", txHex);
       console.log("Transaction Size:", txBytes.length, "bytes");
       console.log("=== END TRANSACTION BYTES ===");
+      const network = deploymentManager.getCurrentNetwork();
+      const protocolLockCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostProtocolLock"
+      );
+      if (!protocolLockCodeHash) {
+        throw new Error("Tipping type contract not deployed");
+      }
+      const currentUserLock = (await this.signer.getRecommendedAddressObj())
+        .script;
+      const connectedIDforProtocolLock = ConnectedTypeID.encode({
+        type_id: currentUserLock.hash(),
+        connected_key: protocolLockCodeHash,
+      });
+
+      const campaignCell = updateTx.outputs.find(
+        (output) => output.type?.codeHash === this.campaignTypeCodeHash
+      );
+      if (campaignCell) {
+        campaignCell.lock = ccc.Script.from({
+          codeHash: protocolLockCodeHash,
+          hashType: this.protocolCell.cellOutput.lock.hashType,
+          args: ccc.hexFrom(connectedIDforProtocolLock),
+        });
+      } else {
+        throw new Error("Campaign cell not found in transaction");
+      }
 
       const txHash = await this.signer.sendTransaction(updateTx);
 

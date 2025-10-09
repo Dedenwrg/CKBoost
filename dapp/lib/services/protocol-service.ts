@@ -5,6 +5,7 @@ import { ccc, ssri } from "@ckb-ccc/connector-react";
 import {
   type ProtocolDataLike,
   CampaignDataLike,
+  ConnectedTypeID,
   ProtocolData,
   TippingDataLike,
 } from "ssri-ckboost/types";
@@ -110,6 +111,32 @@ export class ProtocolService {
           }
         }
       }
+      const protocolLockCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostProtocolLock"
+      );
+      if (!protocolLockCodeHash) {
+        throw new Error("Tipping type contract not deployed");
+      }
+      const currentUserLock = (await this.signer.getRecommendedAddressObj())
+        .script;
+      const connectedIDforProtocolLock = ConnectedTypeID.encode({
+        type_id: currentUserLock.hash(),
+        connected_key: protocolLockCodeHash,
+      });
+      // Find the protocol cell output (should be the first output with the protocol type script)
+      const protocolCellOutputIndex = tx.outputs.findIndex(
+        (output) => output.type?.codeHash === protocolTypeCodeHash
+      );
+
+      if (protocolCellOutputIndex === -1) {
+        throw new Error("Protocol cell output not found in transaction");
+      }
+      tx.outputs[protocolCellOutputIndex].lock = ccc.Script.from({
+        codeHash: protocolLockCodeHash,
+        hashType: tx.outputs[protocolCellOutputIndex].lock.hashType,
+        args: ccc.hexFrom(connectedIDforProtocolLock),
+      });
     } catch (e) {
       console.warn("Failed to rebuild protocol outputs for auto-capacity:", e);
     }
