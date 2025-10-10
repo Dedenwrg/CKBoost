@@ -488,8 +488,8 @@ fn find_bounded_protocol_cell_for_data(
                             }
                         } else {
                             debug_trace!("Bounded cell type hash is not the same as args at index {}. Continue to find the next cell", index);
-                            debug_trace!("Bounded cell type hash: {:?}", type_hash);
-                            debug_trace!("Args at index {}: {:?}", index, args_u832);
+                            debug_trace!("Bounded cell type hash: {:?}", args_u832);
+                            debug_trace!("Args at index {}: {:?}", index, type_hash);
                             index += 1;
                             continue;
                         }

@@ -427,9 +427,28 @@ export class CampaignAdminService {
       }
       const currentUserLock = (await this.signer.getRecommendedAddressObj())
         .script;
+      const protocolTypeHash = this.protocolCell.cellOutput.type?.hash();
+      if (!protocolTypeHash) {
+        throw new Error("Protocol type hash not found");
+      }
       const connectedIDforProtocolLock = ConnectedTypeID.encode({
         type_id: currentUserLock.hash(),
-        connected_key: protocolLockCodeHash,
+        connected_key: protocolTypeHash,
+      });
+
+      const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
+        network,
+        "ckboostProtocolLock"
+      );
+      if (!protocolLockCodeHash || !protocolLockCodeOutPoint) {
+        throw new Error("Tipping type contract not deployed");
+      }
+      updateTx.addCellDeps({
+        outPoint: {
+          txHash: protocolLockCodeOutPoint.txHash,
+          index: protocolLockCodeOutPoint.index,
+        },
+        depType: "code",
       });
 
       const campaignCell = updateTx.outputs.find(

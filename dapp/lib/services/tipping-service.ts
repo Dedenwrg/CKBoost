@@ -125,11 +125,29 @@ export class TippingService {
       if (!protocolLockCodeHash) {
         throw new Error("Tipping type contract not deployed");
       }
+      const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
+        network,
+        "ckboostProtocolLock"
+      );
+      if (!protocolLockCodeHash || !protocolLockCodeOutPoint) {
+        throw new Error("Tipping type contract not deployed");
+      }
+      updateTippingTx.res.addCellDeps({
+        outPoint: {
+          txHash: protocolLockCodeOutPoint.txHash,
+          index: protocolLockCodeOutPoint.index,
+        },
+        depType: "code",
+      });
       const currentUserLock = (await this.signer.getRecommendedAddressObj())
         .script;
+      const protocolTypeHash = this.protocolCell.cellOutput.type?.hash();
+      if (!protocolTypeHash) {
+        throw new Error("Protocol type hash not found");
+      }
       const connectedIDforProtocolLock = ConnectedTypeID.encode({
         type_id: currentUserLock.hash(),
-        connected_key: protocolLockCodeHash,
+        connected_key: protocolTypeHash,
       });
 
       // Find the tipping cell and replace the lock with the protocol lock

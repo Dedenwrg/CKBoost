@@ -4,7 +4,7 @@
 import { ccc, ssri } from "@ckb-ccc/connector-react";
 import { Protocol } from "ssri-ckboost";
 import { deploymentManager, DeploymentRecord } from "./deployment-manager";
-import { ProtocolDataLike } from "ssri-ckboost/types";
+import { ConnectedTypeID, ProtocolDataLike } from "ssri-ckboost/types";
 import { sendTransactionWithFeeRetry } from "./transaction-wrapper";
 
 /**
@@ -301,13 +301,13 @@ export async function deployProtocolCell(
 
     // For new protocol cell creation, we need the actual protocol type script
     // Use the typeHash from deployment as the code hash
-    const protocolTypeScript = {
+    const protocolTypeScriptPlaceHolder = ccc.Script.from({
       codeHash:
         deployment?.typeHash ||
         "0x0000000000000000000000000000000000000000000000000000000000000000",
       hashType: "type" as const,
       args: "0x", // Empty args - SSRI will calculate and fill the Type ID
-    };
+    });
 
     // Create SSRI executor for protocol operations
     // The executor URL should be configured based on environment
@@ -317,16 +317,23 @@ export async function deployProtocolCell(
 
     // Create Protocol instance with executor
     // Pass the type script of the protocol cell (with empty args)
-    const protocol = new Protocol(protocolTypeCodeCell, protocolTypeScript, {
-      executor: executor,
-    });
+    const protocol = new Protocol(
+      protocolTypeCodeCell,
+      protocolTypeScriptPlaceHolder,
+      {
+        executor: executor,
+      }
+    );
 
     // Use the Protocol's updateProtocol method to create the transaction
     // This method will handle all the complex transaction building
     let tx: ccc.Transaction;
 
     console.log("Calling SSRI updateProtocol with executor:", executorUrl);
-    console.log("Protocol type script:", protocolTypeScript);
+    console.log(
+      "Protocol type script place holder:",
+      protocolTypeScriptPlaceHolder
+    );
 
     // Only try to log protocol data properties if it exists
     if (protocolData && typeof protocolData === "object") {
@@ -348,6 +355,59 @@ export async function deployProtocolCell(
     try {
       const response = await protocol.updateProtocol(signer, protocolData);
       tx = response.res;
+      const network = deploymentManager.getCurrentNetwork();
+      const protocolLockCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostProtocolLock"
+      );
+      const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
+        network,
+        "ckboostProtocolLock"
+      );
+      if (!protocolLockCodeHash || !protocolLockCodeOutPoint) {
+        throw new Error("Tipping type contract not deployed");
+      }
+      tx.addCellDeps({
+        outPoint: {
+          txHash: protocolLockCodeOutPoint.txHash,
+          index: protocolLockCodeOutPoint.index,
+        },
+        depType: "code",
+      });
+      const currentUserLock = (await signer.getRecommendedAddressObj()).script;
+      const protocolTypeCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostProtocolType"
+      );
+      const protocolCell = tx.outputs.find(
+        (output) => output.type?.codeHash === protocolTypeCodeHash
+      );
+      if (!protocolCell) {
+        throw new Error("Protocol cell not found in transaction");
+      }
+      const protocolCellTypeHash = protocolCell.type?.hash();
+      if (!protocolCellTypeHash) {
+        throw new Error("Protocol cell type hash not found");
+      }
+      const connectedIDforProtocolLock = ConnectedTypeID.encode({
+        type_id: currentUserLock.hash(),
+        connected_key: protocolCellTypeHash,
+      });
+      // Find the protocol cell output (should be the first output with the protocol type script)
+
+      const protocolCellOutputIndex = tx.outputs.findIndex(
+        (output) => output.type?.codeHash === protocolTypeCodeHash
+      );
+
+      if (protocolCellOutputIndex === -1) {
+        throw new Error("Protocol cell output not found in transaction");
+      }
+      console.log("Implementing protocol lock");
+      tx.outputs[protocolCellOutputIndex].lock = ccc.Script.from({
+        codeHash: protocolLockCodeHash,
+        hashType: tx.outputs[protocolCellOutputIndex].lock.hashType,
+        args: ccc.hexFrom(connectedIDforProtocolLock),
+      });
 
       console.log("SSRI response received successfully");
       console.log("Transaction in Hex:");
