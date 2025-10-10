@@ -662,10 +662,6 @@
           "type": "String"
         },
         {
-          "name": "endorser_info",
-          "type": "EndorserInfo"
-        },
-        {
           "name": "short_description",
           "type": "String"
         },

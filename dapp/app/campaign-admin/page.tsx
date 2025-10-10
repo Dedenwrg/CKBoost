@@ -1,186 +1,252 @@
 /* eslint-disable react/no-unescaped-entities */
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Navigation } from "@/components/navigation"
-import { ccc } from "@ckb-ccc/connector-react"
-import { useProtocol } from "@/lib/providers/protocol-provider"
-import { fetchCampaignsOwnedByUser, extractTypeIdFromCampaignCell, isCampaignApproved } from "@/lib/ckb/campaign-cells"
-import { CampaignData, CampaignDataLike, ConnectedTypeID } from "ssri-ckboost/types"
-import { debug, formatDateConsistent } from "@/lib/utils/debug"
-import { fetchAllUserCells, parseUserData, extractTypeIdFromUserCell } from "@/lib/ckb/user-cells"
-import { deploymentManager } from "@/lib/ckb/deployment-manager"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { 
-  Settings, 
-  Plus, 
-  Edit, 
-  Eye, 
-  Users, 
-  Trophy, 
-  Calendar, 
+import { useState, useEffect } from "react";
+import { Navigation } from "@/components/navigation";
+import { ccc } from "@ckb-ccc/connector-react";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import {
+  fetchCampaignsOwnedByUser,
+  extractTypeIdFromCampaignCell,
+  isCampaignApproved,
+} from "@/lib/ckb/campaign-cells";
+import {
+  CampaignData,
+  CampaignDataLike,
+  ConnectedTypeID,
+  EndorserInfoLike,
+} from "ssri-ckboost/types";
+import { debug, formatDateConsistent } from "@/lib/utils/debug";
+import {
+  fetchAllUserCells,
+  parseUserData,
+  extractTypeIdFromUserCell,
+} from "@/lib/ckb/user-cells";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Settings,
+  Plus,
+  Edit,
+  Eye,
+  Users,
+  Trophy,
+  Calendar,
   CheckCircle,
   Clock,
   AlertCircle,
   DollarSign,
   UserPlus,
   Crown,
-  Trash2
-} from "lucide-react"
-import Link from "next/link"
+  Trash2,
+} from "lucide-react";
+import Link from "next/link";
 
 // Campaign admin configuration
 const CURRENT_USER = {
   id: 1,
   name: "Campaign Administrator",
   email: "admin@ckboost.com",
-  address: "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+  address:
+    "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
   avatar: "CA",
   role: "campaign_admin", // or "platform_admin" or "both"
-  permissions: ["manage_campaigns", "review_quests", "manage_staff"]
-}
-
+  permissions: ["manage_campaigns", "review_quests", "manage_staff"],
+};
 
 export default function CampaignAdminDashboard() {
-  const { signer, protocolCell, protocolData, isAdmin, isEndorser } = useProtocol()
-  const [activeTab, setActiveTab] = useState("overview")
-  const [isAddStaffOpen, setIsAddStaffOpen] = useState(false)
+  const { signer, protocolCell, protocolData, isAdmin, isEndorser } =
+    useProtocol();
+  const [activeTab, setActiveTab] = useState("overview");
+  const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
   const [staffForm, setStaffForm] = useState({
     email: "",
     campaignTypeId: "",
-    role: "reviewer"
-  })
-  const [ownedCampaigns, setOwnedCampaigns] = useState<(CampaignDataLike & { 
-    typeId: ccc.Hex
-    status: string
-    isConnected: boolean
-    isApproved: boolean
-    totalPoints: number
-    participants: number  // computed from submissions
-    completedQuests: number  // computed from submissions
-    pendingReviews: number  // computed from submissions
-  })[]>([])
-  const [campaignPendingCounts, setCampaignPendingCounts] = useState<Record<string, number>>({})
-  const [pendingReviews, setPendingReviews] = useState<{
-    campaignTitle: string
-    campaignTypeId: string
-    questCount: number
-  }[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+    role: "reviewer",
+  });
+  const [ownedCampaigns, setOwnedCampaigns] = useState<
+    (CampaignDataLike & {
+      typeId: ccc.Hex;
+      status: string;
+      isConnected: boolean;
+      isApproved: boolean;
+      totalPoints: number;
+      participants: number; // computed from submissions
+      completedQuests: number; // computed from submissions
+      pendingReviews: number; // computed from submissions
+    })[]
+  >([]);
+  const [campaignPendingCounts, setCampaignPendingCounts] = useState<
+    Record<string, number>
+  >({});
+  const [pendingReviews, setPendingReviews] = useState<
+    {
+      campaignTitle: string;
+      campaignTypeId: string;
+      questCount: number;
+    }[]
+  >([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch campaigns owned by the current user
   useEffect(() => {
     const fetchCampaigns = async () => {
-      debug.group('Campaign Admin - Fetch User Campaigns')
-      debug.log('Signer status:', { signerPresent: !!signer })
-      debug.log('Protocol status:', { 
-        protocolCell: !!protocolCell, 
-        protocolData: !!protocolData 
-      })
-      
+      debug.group("Campaign Admin - Fetch User Campaigns");
+      debug.log("Signer status:", { signerPresent: !!signer });
+      debug.log("Protocol status:", {
+        protocolCell: !!protocolCell,
+        protocolData: !!protocolData,
+      });
+
       // Wait for signer to be available
       if (!signer) {
-        debug.warn('No signer available, waiting...')
-        debug.groupEnd()
+        debug.warn("No signer available, waiting...");
+        debug.groupEnd();
         // Keep loading state true while waiting for signer
-        return
+        return;
       }
-      
+
       // Wait for protocol to be loaded
       if (!protocolCell || !protocolData) {
-        debug.log('Waiting for protocol to load...', {
+        debug.log("Waiting for protocol to load...", {
           protocolCell: !!protocolCell,
-          protocolData: !!protocolData
-        })
-        debug.groupEnd()
+          protocolData: !!protocolData,
+        });
+        debug.groupEnd();
         // Keep loading state true while waiting for protocol
-        return
+        return;
       }
-      
-      setIsLoading(true)
+
+      setIsLoading(true);
       try {
         // Protocol is now loaded, we can proceed
-        debug.log('Protocol loaded, fetching campaigns...')
-        debug.log('Protocol cell found:', {
+        debug.log("Protocol loaded, fetching campaigns...");
+        debug.log("Protocol cell found:", {
           typeHash: protocolCell.cellOutput.type?.hash(),
-          dataLength: protocolCell.outputData.length
-        })
-        const campaignCodeHash = protocolData.protocol_config.script_code_hashes.ckb_boost_campaign_type_code_hash
-        const protocolTypeHash = protocolCell.cellOutput.type?.hash() || "0x"
-        
-        debug.log('Extracted data:', {
+          dataLength: protocolCell.outputData.length,
+        });
+        const campaignCodeHash =
+          protocolData.protocol_config.script_code_hashes
+            .ckb_boost_campaign_type_code_hash;
+        const protocolTypeHash = protocolCell.cellOutput.type?.hash() || "0x";
+
+        debug.log("Extracted data:", {
           campaignCodeHash,
           protocolTypeHash,
-          approvedCampaigns: protocolData.campaigns_approved?.length || 0
-        })
-        
+          approvedCampaigns: protocolData.campaigns_approved?.length || 0,
+        });
+
+        const userLockScript = (await signer.getRecommendedAddressObj()).script;
+        const protocolLockConnectedId = ConnectedTypeID.encode({
+          type_id: userLockScript.hash(),
+          connected_key: protocolTypeHash,
+        });
+
+        const protocolLockCodeHash = deploymentManager.getContractCodeHash(
+          deploymentManager.getCurrentNetwork(),
+          "ckboostProtocolLock"
+        );
+
+        if (!protocolLockCodeHash) {
+          throw new Error("Protocol lock code hash not found");
+        }
+
+        const protocolLockScript = ccc.Script.from({
+          codeHash: protocolLockCodeHash,
+          hashType: "type",
+          args: protocolLockConnectedId,
+        });
+
         // Fetch campaigns owned by the current user
-        debug.log('Fetching campaigns owned by user...')
+        debug.log("Fetching campaigns owned by user...");
         const userCampaigns = await fetchCampaignsOwnedByUser(
           signer.client,
-          (await signer.getRecommendedAddressObj()).script,
+          protocolLockScript,
           campaignCodeHash as ccc.Hex
-        )
-        
-        debug.log(`Found ${userCampaigns.length} campaigns owned by user`)
-        
+        );
+
+        debug.log(`Found ${userCampaigns.length} campaigns owned by user`);
+
         // Process campaigns and check their connection status
-        const processedCampaigns: typeof ownedCampaigns = []
-        const reviews: typeof pendingReviews = []
-        
+        const processedCampaigns: typeof ownedCampaigns = [];
+        const reviews: typeof pendingReviews = [];
+
         for (const campaign of userCampaigns) {
           try {
-            const campaignData = CampaignData.decode(campaign.outputData)
-            
+            const campaignData = CampaignData.decode(campaign.outputData);
+
             // Check if campaign is connected to the protocol
-            const isConnected = campaign.cellOutput.type?.args && (() => {
-              try {
-                const argsBytes = ccc.bytesFrom(campaign.cellOutput.type!.args)
-                const connectedTypeId = ConnectedTypeID.decode(argsBytes)
-                return connectedTypeId.connected_key === protocolTypeHash
-              } catch {
-                return false
-              }
-            })()
-            
+            const isConnected =
+              campaign.cellOutput.type?.args &&
+              (() => {
+                try {
+                  const argsBytes = ccc.bytesFrom(
+                    campaign.cellOutput.type!.args
+                  );
+                  const connectedTypeId = ConnectedTypeID.decode(argsBytes);
+                  return connectedTypeId.connected_key === protocolTypeHash;
+                } catch {
+                  return false;
+                }
+              })();
+
             // Extract type_id for comparison
-            const campaignTypeId = extractTypeIdFromCampaignCell(campaign)
-            
+            const campaignTypeId = extractTypeIdFromCampaignCell(campaign);
+
             // Check if campaign is approved using helper function
             const isApproved = isCampaignApproved(
               campaignTypeId,
               protocolData.campaigns_approved as ccc.Hex[] | undefined
-            )
-            
+            );
+
             // Skip campaigns that are not connected to the protocol
             if (!isConnected) {
-              debug.log('Skipping campaign - not connected to protocol')
-              continue
+              debug.log("Skipping campaign - not connected to protocol");
+              continue;
             }
-            
+
             // Calculate campaign status
-            const now = Date.now()
-            const startTime = Number(campaignData.starting_time) * 1000
-            const endTime = Number(campaignData.ending_time) * 1000
-            const status = !isApproved ? "under-review" : 
-                          now < startTime ? "draft" : 
-                          now > endTime ? "completed" : "active"
-            
+            const now = Date.now();
+            const startTime = Number(campaignData.starting_time) * 1000;
+            const endTime = Number(campaignData.ending_time) * 1000;
+            const status = !isApproved
+              ? "under-review"
+              : now < startTime
+              ? "draft"
+              : now > endTime
+              ? "completed"
+              : "active";
+
             // Calculate total points
-            const totalPoints = campaignData.quests?.reduce((sum: number, quest) => {
-              return sum + Number(quest.points || 100)
-            }, 0) || 0
-            
+            const totalPoints =
+              campaignData.quests?.reduce((sum: number, quest) => {
+                return sum + Number(quest.points || 100);
+              }, 0) || 0;
+
             // Process campaign for display (only connected campaigns)
-            const campaignInfo: typeof ownedCampaigns[0] = {
+            const campaignInfo: (typeof ownedCampaigns)[0] = {
               ...campaignData,
               typeId: (campaignTypeId || "0x") as ccc.Hex,
               status,
@@ -189,181 +255,205 @@ export default function CampaignAdminDashboard() {
               totalPoints,
               participants: 0, // Would need submission data to calculate
               completedQuests: 0, // Would need submission data
-              pendingReviews: 0 // Would need submission data
-            }
-            
-            processedCampaigns.push(campaignInfo)
-            
+              pendingReviews: 0, // Would need submission data
+            };
+
+            processedCampaigns.push(campaignInfo);
+
             // Check for pending reviews (placeholder - would need submission data)
-            if (status === "active" && campaignData.quests && campaignData.quests.length > 0) {
+            if (
+              status === "active" &&
+              campaignData.quests &&
+              campaignData.quests.length > 0
+            ) {
               // This would check actual submission data
               reviews.push({
                 campaignTitle: campaignData.metadata.title,
                 campaignTypeId: campaignTypeId || "0x",
                 questCount: campaignData.quests.length,
-              })
+              });
             }
-            
-            debug.log('Processed campaign:', {
+
+            debug.log("Processed campaign:", {
               title: campaignInfo.metadata.title,
               status: campaignInfo.status,
-              isApproved: campaignInfo.isApproved
-            })
-            
+              isApproved: campaignInfo.isApproved,
+            });
           } catch (error) {
-            debug.warn("Failed to parse campaign data:", error)
+            debug.warn("Failed to parse campaign data:", error);
           }
         }
-        
-        debug.log(`Processed ${processedCampaigns.length} campaigns`)
-        setOwnedCampaigns(processedCampaigns)
-        setPendingReviews(reviews)
-        
-      } catch (error) {
-        debug.error("Failed to fetch campaigns:", error)
-      } finally {
-        setIsLoading(false)
-        debug.groupEnd()
-      }
-    }
 
-    fetchCampaigns()
-  }, [signer, protocolCell, protocolData])
+        debug.log(`Processed ${processedCampaigns.length} campaigns`);
+        setOwnedCampaigns(processedCampaigns);
+        setPendingReviews(reviews);
+      } catch (error) {
+        debug.error("Failed to fetch campaigns:", error);
+      } finally {
+        setIsLoading(false);
+        debug.groupEnd();
+      }
+    };
+
+    fetchCampaigns();
+  }, [signer, protocolCell, protocolData]);
 
   // Fetch pending submissions count for campaigns
   useEffect(() => {
-    if (!signer || ownedCampaigns.length === 0) return
+    if (!signer || ownedCampaigns.length === 0) return;
 
     const fetchPendingSubmissions = async () => {
       try {
-        debug.group('Fetching pending submissions')
-        
-        const network = deploymentManager.getCurrentNetwork()
-        const userTypeCodeHash = deploymentManager.getContractCodeHash(network, "ckboostUserType")
-        
+        debug.group("Fetching pending submissions");
+
+        const network = deploymentManager.getCurrentNetwork();
+        const userTypeCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostUserType"
+        );
+
         if (!userTypeCodeHash) {
-          debug.warn("User type code hash not found")
-          return
+          debug.warn("User type code hash not found");
+          return;
         }
 
         // Fetch all user cells
-        const userCells = await fetchAllUserCells(userTypeCodeHash, signer)
-        debug.log(`Found ${userCells.length} total user cells`)
+        const userCells = await fetchAllUserCells(userTypeCodeHash, signer);
+        debug.log(`Found ${userCells.length} total user cells`);
 
         // Count pending submissions per campaign
-        const pendingCounts: Record<string, number> = {}
+        const pendingCounts: Record<string, number> = {};
 
         for (const userCell of userCells) {
-          const userData = parseUserData(userCell)
-          if (!userData || !userData.submission_records) continue
+          const userData = parseUserData(userCell);
+          if (!userData || !userData.submission_records) continue;
 
           // Extract the user's type_id from the cell's ConnectedTypeID args
-          const userTypeId = extractTypeIdFromUserCell(userCell)
+          const userTypeId = extractTypeIdFromUserCell(userCell);
           if (!userTypeId) {
-            debug.warn("Could not extract type_id from user cell")
-            continue
+            debug.warn("Could not extract type_id from user cell");
+            continue;
           }
 
           // Check each submission record
           for (const submission of userData.submission_records) {
             // The submission contains the campaign_type_id which is the type_id of the campaign
-            const submissionCampaignTypeId = ccc.hexFrom(submission.campaign_type_id)
-            
+            const submissionCampaignTypeId = ccc.hexFrom(
+              submission.campaign_type_id
+            );
+
             // Find the campaign by matching typeId
-            const campaign = ownedCampaigns.find(c => {
+            const campaign = ownedCampaigns.find((c) => {
               // The campaign's typeId is the type_id from its ConnectedTypeID args
               // This should match the campaign_type_id in the submission
-              return c.typeId === submissionCampaignTypeId
-            })
+              return c.typeId === submissionCampaignTypeId;
+            });
 
             if (campaign) {
               // Find the quest in the campaign
-              const questId = Number(submission.quest_id)
-              const quest = campaign.quests?.find(q => Number(q.quest_id) === questId)
-              
+              const questId = Number(submission.quest_id);
+              const quest = campaign.quests?.find(
+                (q) => Number(q.quest_id) === questId
+              );
+
               if (quest) {
                 // Check if this user's submission is already accepted
-                const acceptedUserTypeIds = quest.accepted_submission_user_type_ids || []
-                const isAccepted = acceptedUserTypeIds.some(acceptedId => {
-                  const acceptedHex = typeof acceptedId === 'string' ? acceptedId : ccc.hexFrom(acceptedId)
-                  return acceptedHex === userTypeId
-                })
-                
+                const acceptedUserTypeIds =
+                  quest.accepted_submission_user_type_ids || [];
+                const isAccepted = acceptedUserTypeIds.some((acceptedId) => {
+                  const acceptedHex =
+                    typeof acceptedId === "string"
+                      ? acceptedId
+                      : ccc.hexFrom(acceptedId);
+                  return acceptedHex === userTypeId;
+                });
+
                 // Only count as pending if not already accepted
                 if (!isAccepted) {
-                  const key = campaign.typeId
-                  pendingCounts[key] = (pendingCounts[key] || 0) + 1
+                  const key = campaign.typeId;
+                  pendingCounts[key] = (pendingCounts[key] || 0) + 1;
                 }
               }
             }
           }
         }
 
-        debug.log('Pending submissions per campaign:', pendingCounts)
-        setCampaignPendingCounts(pendingCounts)
-        
+        debug.log("Pending submissions per campaign:", pendingCounts);
+        setCampaignPendingCounts(pendingCounts);
       } catch (error) {
-        debug.error("Failed to fetch pending submissions:", error)
+        debug.error("Failed to fetch pending submissions:", error);
       } finally {
-        debug.groupEnd()
+        debug.groupEnd();
       }
-    }
+    };
 
-    fetchPendingSubmissions()
-  }, [signer, ownedCampaigns])
+    fetchPendingSubmissions();
+  }, [signer, ownedCampaigns]);
 
   // Check for pending funding from recently created campaigns
   useEffect(() => {
     const checkPendingFunding = () => {
-      const pendingFundingStr = sessionStorage.getItem('pendingCampaignFunding')
+      const pendingFundingStr = sessionStorage.getItem(
+        "pendingCampaignFunding"
+      );
       if (pendingFundingStr) {
-        const pendingFunding = JSON.parse(pendingFundingStr)
-        debug.log("Found pending funding for campaign:", pendingFunding)
-        
+        const pendingFunding = JSON.parse(pendingFundingStr);
+        debug.log("Found pending funding for campaign:", pendingFunding);
+
         // Show notification about pending funding
-        alert(`Campaign "${pendingFunding.campaignTitle}" was created successfully!\n\nThe campaign has ${pendingFunding.funding.length} UDT token(s) ready to be funded.\n\nPlease navigate to the campaign's funding tab to complete the funding process once the transaction is confirmed.`)
-        
+        alert(
+          `Campaign "${pendingFunding.campaignTitle}" was created successfully!\n\nThe campaign has ${pendingFunding.funding.length} UDT token(s) ready to be funded.\n\nPlease navigate to the campaign's funding tab to complete the funding process once the transaction is confirmed.`
+        );
+
         // Clear the pending funding after showing the notification
-        sessionStorage.removeItem('pendingCampaignFunding')
+        sessionStorage.removeItem("pendingCampaignFunding");
       }
-    }
-    
+    };
+
     // Check after a short delay to ensure page is fully loaded
-    const timer = setTimeout(checkPendingFunding, 500)
-    return () => clearTimeout(timer)
-  }, [])
+    const timer = setTimeout(checkPendingFunding, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const getEndorserInfo = (
+    endorserLockHash: ccc.Hex
+  ): EndorserInfoLike | undefined => {
+    return protocolData?.endorsers_whitelist.find(
+      (e) => e.endorser_lock_hash === endorserLockHash
+    );
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800";
       case "draft":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800";
       case "completed":
-        return "bg-purple-100 text-purple-800"
+        return "bg-purple-100 text-purple-800";
       case "under-review":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-yellow-100 text-yellow-800";
       case "paused":
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "Ecosystem":
-        return "bg-blue-100 text-blue-800"
+        return "bg-blue-100 text-blue-800";
       case "Education":
-        return "bg-green-100 text-green-800"
+        return "bg-green-100 text-green-800";
       case "Community":
-        return "bg-purple-100 text-purple-800"
+        return "bg-purple-100 text-purple-800";
       case "Testing":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-100 text-orange-800";
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
 
   // Commented out - can be used later for staff management
   // const getRoleColor = (role: string) => {
@@ -381,25 +471,33 @@ export default function CampaignAdminDashboard() {
 
   const formatDate = (dateString: string) => {
     // Use consistent date formatting to avoid hydration mismatch
-    return formatDateConsistent(dateString)
-  }
+    return formatDateConsistent(dateString);
+  };
 
   const handleAddStaff = () => {
-    console.log("Adding staff:", staffForm)
-    setIsAddStaffOpen(false)
-    setStaffForm({ email: "", campaignTypeId: "", role: "reviewer" })
-  }
+    console.log("Adding staff:", staffForm);
+    setIsAddStaffOpen(false);
+    setStaffForm({ email: "", campaignTypeId: "", role: "reviewer" });
+  };
 
   // Calculate stats from real campaigns or use mock data as fallback
-  const campaignsToShow =  ownedCampaigns
-  const totalActiveCampaigns = campaignsToShow.filter(c => c.status === "active").length
-  const totalParticipants = campaignsToShow.reduce((sum, c) => sum + (c.participants || 0), 0)
-  const totalPendingReviews = Object.values(campaignPendingCounts).reduce((sum, count) => sum + count, 0)
-  const totalStaff = 0
+  const campaignsToShow = ownedCampaigns;
+  const totalActiveCampaigns = campaignsToShow.filter(
+    (c) => c.status === "active"
+  ).length;
+  const totalParticipants = campaignsToShow.reduce(
+    (sum, c) => sum + (c.participants || 0),
+    0
+  );
+  const totalPendingReviews = Object.values(campaignPendingCounts).reduce(
+    (sum, count) => sum + count,
+    0
+  );
+  const totalStaff = 0;
 
   // Check if user has access (either owns campaigns, is an endorser, or is a platform admin)
-  const hasAccess = isAdmin || isEndorser || ownedCampaigns.length > 0
-  
+  const hasAccess = isAdmin || isEndorser || ownedCampaigns.length > 0;
+
   // Show access denied message if user doesn't have access
   if (!hasAccess && !isLoading) {
     return (
@@ -413,11 +511,13 @@ export default function CampaignAdminDashboard() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">
-                  You need to be an endorsed campaign creator to access this page.
+                  You need to be an endorsed campaign creator to access this
+                  page.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Only users in the endorser whitelist can create and manage campaigns. 
-                  Please contact the platform administrators to become an endorsed creator.
+                  Only users in the endorser whitelist can create and manage
+                  campaigns. Please contact the platform administrators to
+                  become an endorsed creator.
                 </p>
                 <div className="pt-4">
                   <Link href="/">
@@ -429,9 +529,9 @@ export default function CampaignAdminDashboard() {
           </div>
         </main>
       </div>
-    )
+    );
   }
-  
+
   // Show different message if user is an endorser but has no campaigns yet
   if (isEndorser && ownedCampaigns.length === 0 && !isLoading) {
     return (
@@ -445,10 +545,12 @@ export default function CampaignAdminDashboard() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground">
-                  Welcome! As an endorsed creator, you can now create your first campaign.
+                  Welcome! As an endorsed creator, you can now create your first
+                  campaign.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Create a campaign to start managing quests, reviewing submissions, and tracking performance.
+                  Create a campaign to start managing quests, reviewing
+                  submissions, and tracking performance.
                 </p>
                 <div className="pt-4">
                   <Link href="/platform-admin">
@@ -460,7 +562,7 @@ export default function CampaignAdminDashboard() {
           </div>
         </main>
       </div>
-    )
+    );
   }
 
   return (
@@ -470,7 +572,7 @@ export default function CampaignAdminDashboard() {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-        <div className="mb-8">
+          <div className="mb-8">
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-3">
@@ -488,7 +590,10 @@ export default function CampaignAdminDashboard() {
                   </Badge>
                   {CURRENT_USER.role === "both" && (
                     <Link href="/platform-admin">
-                      <Badge variant="outline" className="bg-red-100 text-red-800 cursor-pointer hover:bg-red-200">
+                      <Badge
+                        variant="outline"
+                        className="bg-red-100 text-red-800 cursor-pointer hover:bg-red-200"
+                      >
                         🛡️ Platform Admin Access
                       </Badge>
                     </Link>
@@ -504,8 +609,12 @@ export default function CampaignAdminDashboard() {
                   </Avatar>
                   <div className="text-sm max-w-48">
                     <div className="font-medium">{CURRENT_USER.name}</div>
-                    <div className="text-muted-foreground truncate" title={CURRENT_USER.address}>
-                      {CURRENT_USER.address.slice(0, 12)}...{CURRENT_USER.address.slice(-8)}
+                    <div
+                      className="text-muted-foreground truncate"
+                      title={CURRENT_USER.address}
+                    >
+                      {CURRENT_USER.address.slice(0, 12)}...
+                      {CURRENT_USER.address.slice(-8)}
                     </div>
                   </div>
                 </div>
@@ -517,7 +626,7 @@ export default function CampaignAdminDashboard() {
                 </Link>
               </div>
             </div>
-        </div>
+          </div>
 
           {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
@@ -525,7 +634,9 @@ export default function CampaignAdminDashboard() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Active Campaigns</p>
+                    <p className="text-sm text-muted-foreground">
+                      Active Campaigns
+                    </p>
                     <p className="text-2xl font-bold">{totalActiveCampaigns}</p>
                   </div>
                   <div className="p-3 bg-blue-100 rounded-full">
@@ -535,21 +646,23 @@ export default function CampaignAdminDashboard() {
               </CardContent>
             </Card>
 
-          <Card>
+            <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Participants</p>
+                    <p className="text-sm text-muted-foreground">
+                      Total Participants
+                    </p>
                     <p className="text-2xl font-bold">{totalParticipants}</p>
                   </div>
                   <div className="p-3 bg-green-100 rounded-full">
                     <Users className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
+            <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -559,40 +672,48 @@ export default function CampaignAdminDashboard() {
                     <DollarSign className="w-6 h-6 text-purple-600" />
                   </div>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
+            <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pending Reviews</p>
+                    <p className="text-sm text-muted-foreground">
+                      Pending Reviews
+                    </p>
                     <p className="text-2xl font-bold">{totalPendingReviews}</p>
                   </div>
                   <div className="p-3 bg-orange-100 rounded-full">
                     <AlertCircle className="w-6 h-6 text-orange-600" />
                   </div>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
+            <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Staff Members</p>
+                    <p className="text-sm text-muted-foreground">
+                      Staff Members
+                    </p>
                     <p className="text-2xl font-bold">{totalStaff}</p>
                   </div>
                   <div className="p-3 bg-indigo-100 rounded-full">
                     <UserPlus className="w-6 h-6 text-indigo-600" />
                   </div>
                 </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Main Content */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="space-y-6"
+          >
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="campaigns">My Campaigns</TabsTrigger>
@@ -602,13 +723,13 @@ export default function CampaignAdminDashboard() {
 
             <TabsContent value="overview" className="space-y-6">
               <div className="grid lg:grid-cols-2 gap-6">
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
+                {/* Recent Activity */}
+                <Card>
+                  <CardHeader>
                     <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-green-100 rounded-full">
                           <CheckCircle className="w-4 h-4 text-green-600" />
@@ -619,7 +740,9 @@ export default function CampaignAdminDashboard() {
                             "Deploy Smart Contract" was completed by CKBMaster
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground">2h ago</span>
+                        <span className="text-xs text-muted-foreground">
+                          2h ago
+                        </span>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-100 rounded-full">
@@ -628,34 +751,44 @@ export default function CampaignAdminDashboard() {
                         <div className="flex-1">
                           <p className="text-sm font-medium">New participant</p>
                           <p className="text-xs text-muted-foreground">
-                            BlockchainDev joined "CKB Ecosystem Growth Initiative"
+                            BlockchainDev joined "CKB Ecosystem Growth
+                            Initiative"
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground">4h ago</span>
+                        <span className="text-xs text-muted-foreground">
+                          4h ago
+                        </span>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-purple-100 rounded-full">
                           <UserPlus className="w-4 h-4 text-purple-600" />
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-medium">Staff member added</p>
+                          <p className="text-sm font-medium">
+                            Staff member added
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             Community Manager was added to review team
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground">6h ago</span>
+                        <span className="text-xs text-muted-foreground">
+                          6h ago
+                        </span>
                       </div>
-                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3">
                         <div className="p-2 bg-orange-100 rounded-full">
                           <AlertCircle className="w-4 h-4 text-orange-600" />
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium">Review needed</p>
                           <p className="text-xs text-muted-foreground">
-                            "Raid the CKB Announcement" submission from CryptoNinja
+                            "Raid the CKB Announcement" submission from
+                            CryptoNinja
                           </p>
                         </div>
-                        <span className="text-xs text-muted-foreground">8h ago</span>
+                        <span className="text-xs text-muted-foreground">
+                          8h ago
+                        </span>
                       </div>
                     </div>
                   </CardContent>
@@ -670,28 +803,36 @@ export default function CampaignAdminDashboard() {
                     <div className="space-y-4">
                       <div>
                         <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Quest Completion Rate</span>
+                          <span className="text-sm text-muted-foreground">
+                            Quest Completion Rate
+                          </span>
                           <span className="text-sm font-medium">84%</span>
                         </div>
                         <Progress value={84} className="h-2" />
                       </div>
                       <div>
                         <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Participant Engagement</span>
+                          <span className="text-sm text-muted-foreground">
+                            Participant Engagement
+                          </span>
                           <span className="text-sm font-medium">92%</span>
                         </div>
                         <Progress value={92} className="h-2" />
                       </div>
                       <div>
                         <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Budget Utilization</span>
+                          <span className="text-sm text-muted-foreground">
+                            Budget Utilization
+                          </span>
                           <span className="text-sm font-medium">25%</span>
                         </div>
                         <Progress value={25} className="h-2" />
                       </div>
                       <div>
                         <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">Review Efficiency</span>
+                          <span className="text-sm text-muted-foreground">
+                            Review Efficiency
+                          </span>
                           <span className="text-sm font-medium">96%</span>
                         </div>
                         <Progress value={96} className="h-2" />
@@ -709,9 +850,11 @@ export default function CampaignAdminDashboard() {
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                     <p className="text-muted-foreground">
-                      {!signer ? "Waiting for wallet connection..." : 
-                       !protocolCell || !protocolData ? "Loading protocol data..." : 
-                       "Loading campaigns..."}
+                      {!signer
+                        ? "Waiting for wallet connection..."
+                        : !protocolCell || !protocolData
+                        ? "Loading protocol data..."
+                        : "Loading campaigns..."}
                     </p>
                   </div>
                 </div>
@@ -721,12 +864,18 @@ export default function CampaignAdminDashboard() {
                   <CardContent className="py-16">
                     <div className="text-center">
                       <Trophy className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                      <h3 className="text-xl font-semibold mb-2">No Campaigns Yet</h3>
+                      <h3 className="text-xl font-semibold mb-2">
+                        No Campaigns Yet
+                      </h3>
                       <p className="text-muted-foreground mb-6">
-                        You haven't created any campaigns yet. Get started by creating your first campaign!
+                        You haven't created any campaigns yet. Get started by
+                        creating your first campaign!
                       </p>
                       <Link href="/campaign-admin/new">
-                        <Button size="lg" className="flex items-center gap-2 mx-auto">
+                        <Button
+                          size="lg"
+                          className="flex items-center gap-2 mx-auto"
+                        >
                           <Plus className="w-5 h-5" />
                           Create Your First Campaign
                         </Button>
@@ -738,143 +887,221 @@ export default function CampaignAdminDashboard() {
                 <>
                   {/* Campaign Status Summary */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Approved Campaigns</p>
-                        <p className="text-2xl font-bold">
-                          {campaignsToShow.filter(c => c.isApproved).length}
-                        </p>
-                      </div>
-                      <CheckCircle className="w-8 h-8 text-green-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Pending Approval</p>
-                        <p className="text-2xl font-bold">
-                          {campaignsToShow.filter(c => !c.isApproved).length}
-                        </p>
-                      </div>
-                      <Clock className="w-8 h-8 text-yellow-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="grid gap-6">
-                {campaignsToShow.map((campaign) => (
-                  <Card key={campaign.typeId}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-xl">{campaign.metadata?.title || "Untitled"}</CardTitle>
-                          <p className="text-muted-foreground mt-1">{campaign.metadata?.short_description || "No description"}</p>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
+                              Approved Campaigns
+                            </p>
+                            <p className="text-2xl font-bold">
+                              {
+                                campaignsToShow.filter((c) => c.isApproved)
+                                  .length
+                              }
+                            </p>
+                          </div>
+                          <CheckCircle className="w-8 h-8 text-green-600" />
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(campaign.status)}>
-                            {campaign.status}
-                          </Badge>
-                          {campaign.isApproved ? (
-                            <Badge className="bg-green-100 text-green-800">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Approved
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-yellow-100 text-yellow-800">
-                              <Clock className="w-3 h-3 mr-1" />
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-muted-foreground">
                               Pending Approval
-                            </Badge>
-                          )}
-                          <Badge variant="outline" className={getCategoryColor(campaign.metadata?.categories?.[0] || "General")}>
-                            {campaign.metadata?.categories?.[0] || "General"}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
-                            <Users className="w-4 h-4" />
-                            <span className="font-semibold">{campaign.participants || 0}</span>
+                            </p>
+                            <p className="text-2xl font-bold">
+                              {
+                                campaignsToShow.filter((c) => !c.isApproved)
+                                  .length
+                              }
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">Participants</p>
+                          <Clock className="w-8 h-8 text-yellow-600" />
                         </div>
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
-                            <Trophy className="w-4 h-4" />
-                            <span className="font-semibold">{campaign.quests?.length || 0}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Total Quests</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-1 text-purple-600 mb-1">
-                            <CheckCircle className="w-4 h-4" />
-                            <span className="font-semibold">{campaign.completedQuests || 0}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Completions</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-1 text-orange-600 mb-1">
-                            <AlertCircle className="w-4 h-4" />
-                            <span className="font-semibold">{campaignPendingCounts[campaign.typeId] || 0}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Pending Reviews</p>
-                        </div>
-                        <div className="text-center">
-                          <div className="flex items-center justify-center gap-1 text-indigo-600 mb-1">
-                            <UserPlus className="w-4 h-4" />
-                            <span className="font-semibold">{0}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">Staff Members</p>
-                        </div>
-                      </div>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-                      <div className="mb-4">
-                        <div className="flex justify-between text-sm mb-2">
-                          <span>Budget Used</span>
-                          <span>{Number(campaign.metadata?.total_rewards.points_amount || 0)} / {Number(campaign.metadata?.total_rewards.points_amount || 0)} CKB</span>
-                        </div>
-                        <Progress value={((Number(campaign.metadata?.total_rewards.points_amount || 0)) / (Number(campaign.metadata?.total_rewards.points_amount || 1))) * 100} className="h-2" />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {formatDate(new Date(Number(campaign.starting_time) * 1000).toISOString())} - {formatDate(new Date(Number(campaign.ending_time) * 1000).toISOString())}
+                  <div className="grid gap-6">
+                    {campaignsToShow.map((campaign) => (
+                      <Card key={campaign.typeId}>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-xl">
+                                {campaign.metadata?.title || "Untitled"}
+                              </CardTitle>
+                              <p className="text-muted-foreground mt-1">
+                                {campaign.metadata?.short_description ||
+                                  "No description"}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                className={getStatusColor(campaign.status)}
+                              >
+                                {campaign.status}
+                              </Badge>
+                              {campaign.isApproved ? (
+                                <Badge className="bg-green-100 text-green-800">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Approved
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-yellow-100 text-yellow-800">
+                                  <Clock className="w-3 h-3 mr-1" />
+                                  Pending Approval
+                                </Badge>
+                              )}
+                              <Badge
+                                variant="outline"
+                                className={getCategoryColor(
+                                  campaign.metadata?.categories?.[0] ||
+                                    "General"
+                                )}
+                              >
+                                {campaign.metadata?.categories?.[0] ||
+                                  "General"}
+                              </Badge>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Link href={`/campaign/${campaign.typeId}`}>
-                            <Button variant="outline" size="sm">
-                              <Eye className="w-4 h-4 mr-1" />
-                              View
-                            </Button>
-                          </Link>
-                          <Link href={`/campaign-admin/${campaign.typeId}?tab=quests`}>
-                            <Button variant="outline" size="sm">
-                              <Plus className="w-4 h-4 mr-1" />
-                              Add Quest
-                            </Button>
-                          </Link>
-                          <Link href={`/campaign-admin/${campaign.typeId}`}>
-                            <Button variant="outline" size="sm">
-                              <Edit className="w-4 h-4 mr-1" />
-                              Manage
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
+                                <Users className="w-4 h-4" />
+                                <span className="font-semibold">
+                                  {campaign.participants || 0}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Participants
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-1 text-green-600 mb-1">
+                                <Trophy className="w-4 h-4" />
+                                <span className="font-semibold">
+                                  {campaign.quests?.length || 0}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Total Quests
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-1 text-purple-600 mb-1">
+                                <CheckCircle className="w-4 h-4" />
+                                <span className="font-semibold">
+                                  {campaign.completedQuests || 0}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Completions
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-1 text-orange-600 mb-1">
+                                <AlertCircle className="w-4 h-4" />
+                                <span className="font-semibold">
+                                  {campaignPendingCounts[campaign.typeId] || 0}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Pending Reviews
+                              </p>
+                            </div>
+                            <div className="text-center">
+                              <div className="flex items-center justify-center gap-1 text-indigo-600 mb-1">
+                                <UserPlus className="w-4 h-4" />
+                                <span className="font-semibold">{0}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Staff Members
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mb-4">
+                            <div className="flex justify-between text-sm mb-2">
+                              <span>Budget Used</span>
+                              <span>
+                                {Number(
+                                  campaign.metadata?.total_rewards
+                                    .points_amount || 0
+                                )}{" "}
+                                /{" "}
+                                {Number(
+                                  campaign.metadata?.total_rewards
+                                    .points_amount || 0
+                                )}{" "}
+                                CKB
+                              </span>
+                            </div>
+                            <Progress
+                              value={
+                                (Number(
+                                  campaign.metadata?.total_rewards
+                                    .points_amount || 0
+                                ) /
+                                  Number(
+                                    campaign.metadata?.total_rewards
+                                      .points_amount || 1
+                                  )) *
+                                100
+                              }
+                              className="h-2"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                {formatDate(
+                                  new Date(
+                                    Number(campaign.starting_time) * 1000
+                                  ).toISOString()
+                                )}{" "}
+                                -{" "}
+                                {formatDate(
+                                  new Date(
+                                    Number(campaign.ending_time) * 1000
+                                  ).toISOString()
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Link href={`/campaign/${campaign.typeId}`}>
+                                <Button variant="outline" size="sm">
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  View
+                                </Button>
+                              </Link>
+                              <Link
+                                href={`/campaign-admin/${campaign.typeId}?tab=quests`}
+                              >
+                                <Button variant="outline" size="sm">
+                                  <Plus className="w-4 h-4 mr-1" />
+                                  Add Quest
+                                </Button>
+                              </Link>
+                              <Link href={`/campaign-admin/${campaign.typeId}`}>
+                                <Button variant="outline" size="sm">
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Manage
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </>
               )}
             </TabsContent>
@@ -893,7 +1120,8 @@ export default function CampaignAdminDashboard() {
                     <DialogHeader>
                       <DialogTitle>Add Staff Member</DialogTitle>
                       <DialogDescription>
-                        Add a new team member to help manage campaigns and review quest submissions.
+                        Add a new team member to help manage campaigns and
+                        review quest submissions.
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
@@ -904,7 +1132,12 @@ export default function CampaignAdminDashboard() {
                           type="email"
                           placeholder="staff@ckboost.com"
                           value={staffForm.email}
-                          onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                          onChange={(e) =>
+                            setStaffForm({
+                              ...staffForm,
+                              email: e.target.value,
+                            })
+                          }
                         />
                       </div>
                       <div className="space-y-2">
@@ -913,11 +1146,19 @@ export default function CampaignAdminDashboard() {
                           id="campaign"
                           className="w-full p-2 border rounded-md"
                           value={staffForm.campaignTypeId}
-                          onChange={(e) => setStaffForm({ ...staffForm, campaignTypeId: e.target.value })}
+                          onChange={(e) =>
+                            setStaffForm({
+                              ...staffForm,
+                              campaignTypeId: e.target.value,
+                            })
+                          }
                         >
                           <option value="">Select campaign</option>
                           {ownedCampaigns.map((campaign) => (
-                            <option key={campaign.typeId} value={campaign.typeId}>
+                            <option
+                              key={campaign.typeId}
+                              value={campaign.typeId}
+                            >
                               {campaign.metadata?.title}
                             </option>
                           ))}
@@ -929,7 +1170,9 @@ export default function CampaignAdminDashboard() {
                           id="role"
                           className="w-full p-2 border rounded-md"
                           value={staffForm.role}
-                          onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                          onChange={(e) =>
+                            setStaffForm({ ...staffForm, role: e.target.value })
+                          }
                         >
                           <option value="reviewer">Reviewer</option>
                           <option value="moderator">Moderator</option>
@@ -937,7 +1180,10 @@ export default function CampaignAdminDashboard() {
                       </div>
                     </div>
                     <DialogFooter>
-                      <Button variant="outline" onClick={() => setIsAddStaffOpen(false)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsAddStaffOpen(false)}
+                      >
                         Cancel
                       </Button>
                       <Button onClick={handleAddStaff}>Add Staff Member</Button>
@@ -947,23 +1193,50 @@ export default function CampaignAdminDashboard() {
               </div>
 
               <div className="grid gap-4">
-                {ownedCampaigns.map((staff) => (
-                  <Card key={staff.typeId}>
+                {ownedCampaigns.map((campaign) => (
+                  <Card key={campaign.typeId}>
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <Avatar className="w-12 h-12">
                             <AvatarFallback className="bg-gradient-to-br from-blue-200 to-purple-200">
-                              {staff.metadata?.endorser_info.endorser_name}
+                              {
+                                getEndorserInfo(
+                                  ccc.hexFrom(campaign.endorser_lock_hash)
+                                )?.endorser_name
+                              }
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-semibold">{staff.metadata?.endorser_info.endorser_name}</div>
-                            <div className="text-sm text-muted-foreground">{staff.metadata?.endorser_info.endorser_description}</div>
-                            <div className="text-xs text-muted-foreground">{staff.metadata?.endorser_info.website}</div>
+                            <div className="font-semibold">
+                              {
+                                getEndorserInfo(
+                                  ccc.hexFrom(campaign.endorser_lock_hash)
+                                )?.endorser_name
+                              }
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {
+                                getEndorserInfo(
+                                  ccc.hexFrom(campaign.endorser_lock_hash)
+                                )?.endorser_description
+                              }
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {
+                                getEndorserInfo(
+                                  ccc.hexFrom(campaign.endorser_lock_hash)
+                                )?.website
+                              }
+                            </div>
                             <div className="flex items-center gap-2 mt-2">
                               <span className="text-xs text-muted-foreground">
-                                Added {formatDate(new Date(Number(staff.created_at) * 1000).toISOString())}
+                                Added{" "}
+                                {formatDate(
+                                  new Date(
+                                    Number(campaign.created_at) * 1000
+                                  ).toISOString()
+                                )}
                               </span>
                             </div>
                           </div>
@@ -974,126 +1247,175 @@ export default function CampaignAdminDashboard() {
                               <Edit className="w-4 h-4 mr-1" />
                               Edit
                             </Button>
-                            <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                            >
                               <Trash2 className="w-4 h-4 mr-1" />
                               Remove
                             </Button>
                           </div>
                         </div>
-              </div>
-            </CardContent>
-          </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </TabsContent>
 
             <TabsContent value="reviews" className="space-y-6">
-          <Card>
-            <CardHeader>
+              <Card>
+                <CardHeader>
                   <CardTitle>Campaigns with Pending Submissions</CardTitle>
-                  <CardDescription>Review and approve quest submissions across all your campaigns</CardDescription>
-            </CardHeader>
+                  <CardDescription>
+                    Review and approve quest submissions across all your
+                    campaigns
+                  </CardDescription>
+                </CardHeader>
                 <CardContent>
                   {isLoading || !protocolCell || !protocolData ? (
                     <div className="flex items-center justify-center py-8">
                       <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
                         <p className="text-sm text-muted-foreground">
-                          {!signer ? "Waiting for wallet connection..." : 
-                           !protocolCell || !protocolData ? "Loading protocol data..." : 
-                           "Loading campaigns..."}
+                          {!signer
+                            ? "Waiting for wallet connection..."
+                            : !protocolCell || !protocolData
+                            ? "Loading protocol data..."
+                            : "Loading campaigns..."}
                         </p>
                       </div>
                     </div>
                   ) : ownedCampaigns.length === 0 ? (
                     <div className="text-center py-8">
-                      <p className="text-muted-foreground">No campaigns found connected to this protocol.</p>
+                      <p className="text-muted-foreground">
+                        No campaigns found connected to this protocol.
+                      </p>
                       <p className="text-sm text-muted-foreground mt-2">
-                        Campaigns will appear here once they are deployed and connected to your protocol.
+                        Campaigns will appear here once they are deployed and
+                        connected to your protocol.
                       </p>
                     </div>
-                  ) : ownedCampaigns.filter(campaign => {
-                    const pendingCount = campaignPendingCounts[campaign.typeId] || 0
-                    return pendingCount > 0
-                  }).length === 0 ? (
+                  ) : ownedCampaigns.filter((campaign) => {
+                      const pendingCount =
+                        campaignPendingCounts[campaign.typeId] || 0;
+                      return pendingCount > 0;
+                    }).length === 0 ? (
                     <div className="text-center py-8">
                       <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                      <p className="text-muted-foreground">No pending submissions to review.</p>
+                      <p className="text-muted-foreground">
+                        No pending submissions to review.
+                      </p>
                       <p className="text-sm text-muted-foreground mt-2">
-                        All quest submissions have been reviewed. Check back later for new submissions.
+                        All quest submissions have been reviewed. Check back
+                        later for new submissions.
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {ownedCampaigns.filter(campaign => {
-                        // Only show campaigns that actually have pending submissions
-                        const pendingCount = campaignPendingCounts[campaign.typeId] || 0
-                        return pendingCount > 0
-                      }).map((campaign, index) => {
-                        try {
-                          // Campaign is already processed with all needed fields
-                          const campaignTypeId = campaign.typeId || "0x"
-                          
-                          return (
-                            <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
-                              <Avatar className="w-10 h-10">
-                                <AvatarFallback className="bg-gradient-to-br from-blue-200 to-purple-200">
-                                  {(campaign.metadata?.title || "CA").substring(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <p className="font-medium">{campaign.metadata?.title || "Untitled"}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                      {campaign.metadata?.short_description || "No description"}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      Type ID: {campaignTypeId.slice(0, 10)}...{campaignTypeId.slice(-8)}
-                                    </p>
+                      {ownedCampaigns
+                        .filter((campaign) => {
+                          // Only show campaigns that actually have pending submissions
+                          const pendingCount =
+                            campaignPendingCounts[campaign.typeId] || 0;
+                          return pendingCount > 0;
+                        })
+                        .map((campaign, index) => {
+                          try {
+                            // Campaign is already processed with all needed fields
+                            const campaignTypeId = campaign.typeId || "0x";
+
+                            return (
+                              <div
+                                key={index}
+                                className="flex items-center gap-4 p-4 border rounded-lg"
+                              >
+                                <Avatar className="w-10 h-10">
+                                  <AvatarFallback className="bg-gradient-to-br from-blue-200 to-purple-200">
+                                    {(campaign.metadata?.title || "CA")
+                                      .substring(0, 2)
+                                      .toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="font-medium">
+                                        {campaign.metadata?.title || "Untitled"}
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        {campaign.metadata?.short_description ||
+                                          "No description"}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Type ID: {campaignTypeId.slice(0, 10)}
+                                        ...{campaignTypeId.slice(-8)}
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className="bg-yellow-100 text-yellow-800">
+                                        <Clock className="w-3 h-3 mr-1" />
+                                        {campaignPendingCounts[
+                                          campaignTypeId
+                                        ] || 0}{" "}
+                                        Pending Submissions
+                                      </Badge>
+                                      <Link
+                                        href={`/campaign-admin/${campaignTypeId}?tab=submissions`}
+                                      >
+                                        <Button size="sm">
+                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                          Review Submissions
+                                        </Button>
+                                      </Link>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge className="bg-yellow-100 text-yellow-800">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      {campaignPendingCounts[campaignTypeId] || 0} Pending Submissions
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Badge variant="outline">
+                                      {campaign.quests?.length || 0} Quests
                                     </Badge>
-                                    <Link href={`/campaign-admin/${campaignTypeId}?tab=submissions`}>
-                                      <Button size="sm">
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                        Review Submissions
-                                      </Button>
-                                    </Link>
+                                    {campaign.metadata?.categories?.map(
+                                      (category: string, catIndex: number) => (
+                                        <Badge
+                                          key={catIndex}
+                                          variant="outline"
+                                          className="bg-blue-100 text-blue-800"
+                                        >
+                                          {category}
+                                        </Badge>
+                                      )
+                                    )}
+                                    <span className="text-xs text-muted-foreground">
+                                      Created by:{" "}
+                                      {
+                                        getEndorserInfo(
+                                          ccc.hexFrom(
+                                            campaign.endorser_lock_hash
+                                          )
+                                        )?.endorser_name
+                                      }
+                                    </span>
                                   </div>
-                                </div>
-                                <div className="flex items-center gap-2 mt-2">
-                                  <Badge variant="outline">
-                                    {campaign.quests?.length || 0} Quests
-                                  </Badge>
-                                  {campaign.metadata?.categories?.map((category: string, catIndex: number) => (
-                                    <Badge key={catIndex} variant="outline" className="bg-blue-100 text-blue-800">
-                                      {category}
-                                    </Badge>
-                                  ))}
-                                  <span className="text-xs text-muted-foreground">
-                                    Created by: {campaign.endorser?.endorser_name || "Unknown"}
-                                  </span>
                                 </div>
                               </div>
-                            </div>
-                          )
-                        } catch (error) {
-                          console.warn("Failed to parse campaign data for display:", error)
-                          return null
-                        }
-                      })}
+                            );
+                          } catch (error) {
+                            console.warn(
+                              "Failed to parse campaign data for display:",
+                              error
+                            );
+                            return null;
+                          }
+                        })}
                     </div>
                   )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
       </main>
     </div>
-  )
+  );
 }

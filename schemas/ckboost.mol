@@ -220,7 +220,6 @@ vector EndorserInfoVec <EndorserInfo>;
 
 table CampaignMetadata {
     title: String,
-    endorser_info: EndorserInfo,
     short_description: String,     // For campaign cards
     long_description: String,      // For detail pages
     total_rewards: AssetList,

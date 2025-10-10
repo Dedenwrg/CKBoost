@@ -88,7 +88,6 @@ export const EndorserInfo = mol.table({
 export const EndorserInfoVec = mol.vector(EndorserInfo);
 export const CampaignMetadata = mol.table({
   title: mol.String,
-  endorser_info: EndorserInfo,
   short_description: mol.String,
   long_description: mol.String,
   total_rewards: AssetList,
@@ -270,7 +269,6 @@ export interface EndorserInfoLike {
 
 export interface CampaignMetadataLike {
   title: string;
-  endorser_info: EndorserInfoLike;
   short_description: string;
   long_description: string;
   total_rewards: AssetListLike;

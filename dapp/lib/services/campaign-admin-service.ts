@@ -464,7 +464,7 @@ export class CampaignAdminService {
         throw new Error("Campaign cell not found in transaction");
       }
 
-      const txHash = await this.signer.sendTransaction(updateTx);
+      const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx);
 
       console.log("Campaign updated:", { campaignTypeId, txHash });
       return txHash;

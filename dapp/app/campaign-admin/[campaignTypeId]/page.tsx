@@ -575,15 +575,12 @@ export default function CampaignAdminPage() {
           : []; // Explicitly return empty array
 
       // Build campaign data - ensure all arrays and nested structures are properly typed
+      const admin_lock_hash = (
+        await signer.getRecommendedAddressObj()
+      ).script.hash();
       const updatedCampaign: CampaignDataLike = {
-        endorser: campaign?.endorser || {
-          endorser_lock_hash: ("0x" + "00".repeat(32)) as ccc.Hex,
-          endorser_name: "",
-          endorser_description: "",
-          website: "",
-          social_links: [] as string[],
-          verified: 0 as ccc.NumLike,
-        },
+        endorser_lock_hash: admin_lock_hash,
+        staff_lock_hash_vec: campaign?.staff_lock_hash_vec || [],
         created_at:
           campaign?.created_at || BigInt(Math.floor(Date.now() / 1000)),
         starting_time: campaignData.startDate
@@ -598,15 +595,6 @@ export default function CampaignAdminPage() {
           []) as string[],
         metadata: {
           title: (campaignData.title || "") as string,
-          endorser_info: campaign?.metadata?.endorser_info ||
-            campaign?.endorser || {
-              endorser_lock_hash: ("0x" + "00".repeat(32)) as ccc.Hex,
-              endorser_name: "",
-              endorser_description: "",
-              website: "",
-              social_links: [] as string[],
-              verified: 0 as ccc.NumLike,
-            },
           short_description: (campaignData.shortDescription || "") as string,
           long_description: (campaignData.longDescription || "") as string,
           total_rewards: campaign?.metadata?.total_rewards || {

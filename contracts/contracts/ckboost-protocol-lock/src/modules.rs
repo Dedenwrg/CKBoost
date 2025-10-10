@@ -15,14 +15,6 @@ pub struct CKBoostProtocolLock;
 use crate::ssri::{CKBoostProtocol, CKBoostTipping};
 use crate::{recipes, ssri::CKBoostCampaign};
 
-pub fn default_protocol_lock(
-    context: &TransactionContext<RuleBasedClassifier>,
-) -> Result<(), Error> {
-    debug_trace!("CKBoostProtocolLock::default_protocol_lock - Starting validation");
-
-    Ok(())
-}
-
 impl CKBoostCampaign for CKBoostProtocolLock {
     fn update_campaign(
         _tx: Option<Transaction>,
@@ -37,11 +29,60 @@ impl CKBoostCampaign for CKBoostProtocolLock {
     fn verify_update_campaign(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error> {
-        debug_trace!("CKBoostFundingLock::verify_update_campaign - Starting validation");
+        debug_trace!("CKBoostProtocolLock::verify_update_campaign - Starting validation");
+        let args = load_script()?.args();
+        let connected_type_id = ConnectedTypeID::from_slice(&args.raw_data())
+            .map_err(|e| Error::InvalidConnectedTypeId)?;
+        let connected_key = connected_type_id.connected_key();
+        let mut connected_key_u832 = [0u8; 32];
+        connected_key_u832.copy_from_slice(&connected_key.raw_data());
+        let output_campaign_cell_vec = context
+            .output_cells
+            .get_custom("campaign")
+            .ok_or(Error::CellCountViolation)?;
+        if output_campaign_cell_vec.len() != 1 {
+            return Err(Error::CellCountViolation);
+        }
+        let output_campaign_cell = &output_campaign_cell_vec[0];
 
-        // For lock script, we validate that the campaign admin is unlocking
-        // This happens when the campaign cell is being updated
-        recipes::approve_completion::validate_approve_completion(context).map_err(|e| e.into())
+        let input_campaign_cell_vec = context
+            .input_cells
+            .get_custom("campaign")
+            .ok_or(Error::CellCountViolation)?;
+        if input_campaign_cell_vec.len() == 1 {
+            let input_campaign_cell = &input_campaign_cell_vec[0];
+            if input_campaign_cell.type_hash != output_campaign_cell.type_hash {
+                return Err(Error::ProtocolCellNotFound);
+            }
+        } else if input_campaign_cell_vec.len() > 1 {
+            return Err(Error::CellCountViolation);
+        }
+        let protocol_data = ProtocolData::from_slice(&output_campaign_cell.data)
+            .map_err(|e| Error::InvalidProtocolData)?;
+        let campaign_data = CampaignData::from_slice(&output_campaign_cell.data)
+            .map_err(|e| Error::InvalidCampaignData)?;
+        let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
+        let staff_lock_hash_vec = campaign_data.staff_lock_hash_vec();
+        if output_campaign_cell.type_hash != Some(connected_key_u832) {
+            return Err(Error::InvalidConnectedTypeId);
+        }
+        let proxy_ckb_cells = context.input_cells.get_simple_ckb();
+        // If any proxy ckb cell is the connectedTypeId.type_id or in the admin_lock_hash_vec, return Ok
+        for proxy_ckb_cell in proxy_ckb_cells {
+            if proxy_ckb_cell.lock_hash == connected_key_u832
+                || admin_lock_hash_vec
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.as_slice() == proxy_ckb_cell.lock_hash.as_slice())
+                || staff_lock_hash_vec
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.as_slice() == proxy_ckb_cell.lock_hash.as_slice())
+            {
+                return Ok(());
+            }
+        }
+        return Err(Error::InvalidConnectedTypeId);
     }
 
     fn approve_completion(
@@ -79,6 +120,7 @@ impl CKBoostProtocol for CKBoostProtocolLock {
     fn verify_update_protocol(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error> {
+        debug_trace!("CKBoostProtocolLock::verify_update_protocol - Starting validation");
         let args = load_script()?.args();
         let connected_type_id = ConnectedTypeID::from_slice(&args.raw_data())
             .map_err(|e| Error::InvalidConnectedTypeId)?;

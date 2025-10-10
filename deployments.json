@@ -17,12 +17,12 @@
         "typeHash": "0x53769be2ed1d09a9da7c1d71488347449bb76f1212068f7e366939d0d5fd59fa"
       },
       "ckboostCampaignType": {
-        "transactionHash": "0x4af8f2c93952f1f2064ac46089b191d90548816ae7b12ac5a661fc7c7836d851",
+        "transactionHash": "0x17f8d30e6ae2b0d620d12a0b0f5c002c71e8c8d98734907cde514c9bb6312526",
         "index": 0,
-        "deployedAt": "2025-10-03T16:45:02.659Z",
+        "deployedAt": "2025-10-10T22:59:44.497Z",
         "contractName": "ckboost-campaign-type",
-        "tag": "v20251003-1744",
-        "dataHash": "0x3eebebe69b39957f734b777e6e3087d8ac8c40c7c941a8c808e8871fc4f6742d",
+        "tag": "v20251010-2359",
+        "dataHash": "0xcea9b3dff5e889cb51fbd98fbc83e3bc7ce91ec2f0d8a033ef99a98e87834070",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -77,12 +77,12 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       "ckboostProtocolLock": {
-        "transactionHash": "0xa9bdd7360888d7615abf11afb3fa57532ce8b4e7190d2db38190a07a022c3317",
+        "transactionHash": "0x2c3b0f2a362c6617e20c209ffd940099106a7f4c3721cc4deb1d8e2cdd31c471",
         "index": 0,
-        "deployedAt": "2025-10-10T14:03:29.603Z",
+        "deployedAt": "2025-10-10T22:57:33.826Z",
         "contractName": "ckboost-protocol-lock",
-        "tag": "m2-v20250930-0913-new-new-new",
-        "dataHash": "0xe6daf79e4c6e1ef61d1222c431334b0cd30be93da3adc176e75e86dae85bbea6",
+        "tag": "m2-v20250930-0913-new-new-new-new",
+        "dataHash": "0xc9bb731b5ba88799da49ad5f77696a7c3f637458e016795ade68fa7b67acbbd2",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -4719,6 +4719,54 @@
         },
         "isTypeId": true,
         "typeHash": "0x8e777244ddbd0c77ca788a1bfc8ccdf1712f7ececca954c2466b847c42af5252"
+      },
+      {
+        "contractName": "ckboost-protocol-lock",
+        "transactionHash": "0x2c3b0f2a362c6617e20c209ffd940099106a7f4c3721cc4deb1d8e2cdd31c471",
+        "index": 0,
+        "deployedAt": "2025-10-10T22:57:33.826Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0xc9bb731b5ba88799da49ad5f77696a7c3f637458e016795ade68fa7b67acbbd2",
+        "contractSize": 268312,
+        "tag": "m2-v20250930-0913-new-new-new-new",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0xa9bdd7360888d7615abf11afb3fa57532ce8b4e7190d2db38190a07a022c3317",
+          "index": 0,
+          "deployedAt": "2025-10-10T14:03:29.603Z",
+          "tag": "m2-v20250930-0913-new-new-new"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0x150d5f80b524d4ca6655494a9158629cfff63736c9812441c8cca8672fea7064"
+        },
+        "isTypeId": true,
+        "typeHash": "0x8e777244ddbd0c77ca788a1bfc8ccdf1712f7ececca954c2466b847c42af5252"
+      },
+      {
+        "contractName": "ckboost-campaign-type",
+        "transactionHash": "0x17f8d30e6ae2b0d620d12a0b0f5c002c71e8c8d98734907cde514c9bb6312526",
+        "index": 0,
+        "deployedAt": "2025-10-10T22:59:44.497Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0xcea9b3dff5e889cb51fbd98fbc83e3bc7ce91ec2f0d8a033ef99a98e87834070",
+        "contractSize": 503584,
+        "tag": "v20251010-2359",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0x4af8f2c93952f1f2064ac46089b191d90548816ae7b12ac5a661fc7c7836d851",
+          "index": 0,
+          "deployedAt": "2025-10-03T16:45:02.659Z",
+          "tag": "v20251003-1744"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0xa9f561bf7f0e26f5caed5b7562a0eae213125ceba7f5dd3f84b940e197510ed0"
+        },
+        "isTypeId": true,
+        "typeHash": "0x0bf18a83f13ec240d84b322ee8b1827b811137024749c7d5fbf4d6bdeed81778"
       }
     ],
     "mainnet": []
