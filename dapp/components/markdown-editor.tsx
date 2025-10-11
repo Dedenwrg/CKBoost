@@ -10,6 +10,7 @@ interface MarkdownEditorProps {
   placeholder?: string;
   height?: number;
   id?: string;
+  disabled?: boolean;
 }
 
 export function MarkdownEditor({ 
@@ -17,7 +18,8 @@ export function MarkdownEditor({
   onChange, 
   placeholder = "Enter your response...",
   height = 200,
-  id
+  id,
+  disabled = false,
 }: MarkdownEditorProps) {
   // TinyMCE editor reference - type is from TinyMCE library
   const editorRef = useRef<unknown>(null);
@@ -52,6 +54,7 @@ export function MarkdownEditor({
         tinymceScriptSrc='/tinymce/tinymce.min.js'
         licenseKey='gpl'
         value={value}
+        disabled={disabled}
         onEditorChange={(content) => onChange(content)}
         init={{
           height,
@@ -120,6 +123,7 @@ export function MarkdownEditor({
         // Theme configuration based on site theme
         skin: isDark ? 'oxide-dark' : 'oxide',
         content_css: isDark ? 'dark' : 'default',
+        readonly: disabled ? 1 : 0,
         // Image handling
         images_upload_handler: (blobInfo, progress) => {
           return new Promise((resolve, reject) => {

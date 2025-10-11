@@ -23,6 +23,7 @@ interface QuestDialogProps {
   localQuestsLength: number
   lockUDTOnSave?: boolean
   setLockUDTOnSave?: (lock: boolean) => void
+  onClear?: () => void
 }
 
 export function QuestDialog({
@@ -34,7 +35,8 @@ export function QuestDialog({
   editMode,
   localQuestsLength,
   lockUDTOnSave = false,
-  setLockUDTOnSave
+  setLockUDTOnSave,
+  onClear
 }: QuestDialogProps) {
   const isCreateMode = !editMode
   const { signer } = useProtocol()
@@ -631,6 +633,11 @@ export function QuestDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
+          {onClear && (
+            <Button type="button" variant="secondary" onClick={onClear}>
+              Clear
+            </Button>
+          )}
           <Button onClick={onSave}>
             {editMode ? "Save Quest" : "Add Quest"}
           </Button>

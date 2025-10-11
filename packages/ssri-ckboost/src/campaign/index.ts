@@ -145,7 +145,6 @@ export class Campaign extends ssri.Trait {
         [txHex, campaignDataHex],
         { script: this.script }
       );
-
       // Parse the returned transaction - the result is a hex string that needs to be parsed
       if (res) {
         resTx = res.map((res) => ccc.Transaction.fromBytes(res));
@@ -155,12 +154,59 @@ export class Campaign extends ssri.Trait {
           depType: "code",
         });
 
+        // SSRI Method might fail to find the campaign cell by out point, so we need to find it manually for both input and output
+        console.log("Finding campaign cell by type:", {
+          codeHash: this.script.codeHash,
+          hashType: "type",
+          args: this.script.args,
+        });
+        for await (const cell of signer.client.findCellsByType({
+          codeHash: this.script.codeHash,
+          hashType: "type",
+          args: this.script.args, // Empty args to match any args
+        })) {
+          console.log("Found campaign cell:", cell.outPoint);
+          // Check if the cell is in the inputs of the transaction. If none, add it as an input.
+          if (
+            !resTx.res.inputs.some(
+              (input) =>
+                input.previousOutput.txHash === cell.outPoint.txHash &&
+                input.previousOutput.index === cell.outPoint.index
+            )
+          ) {
+            console.log("Adding campaign cell as input:", cell.outPoint);
+            resTx.res.addInput(cell);
+          }
+          // Check if the cell is in the outputs of the transaction. If none, add it as an output.
+          if (
+            !resTx.res.outputs.some(
+              (output) =>
+                output.type?.codeHash === cell.cellOutput.type?.codeHash &&
+                output.type?.args === cell.cellOutput.type?.args
+            )
+          ) {
+            console.log("Adding new campaign cell as output:", cell.outPoint);
+            const campaignCellOutput = ccc.CellOutput.from({
+              lock: cell.cellOutput.lock,
+              type: cell.cellOutput.type,
+            });
+            resTx.res.addOutput(
+              campaignCellOutput,
+              ccc.hexFrom(CampaignData.encode(campaignData))
+            );
+          }
+        }
+
         // Find the campaign cell output (should be the first output with the campaign type script)
         const campaignCellOutputIndex = resTx.res.outputs.findIndex(
           (output) => output.type?.codeHash === this.script.codeHash
         );
 
         if (campaignCellOutputIndex === -1) {
+          console.log(
+            "Campaign cell output not found in transaction. TxHex:",
+            ccc.hexFrom(resTx.res.toBytes())
+          );
           throw new Error("Campaign cell output not found in transaction");
         }
 

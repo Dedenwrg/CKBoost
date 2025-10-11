@@ -3,6 +3,7 @@ use ckb_deterministic::cell_classifier::RuleBasedClassifier;
 use ckb_deterministic::debug_trace;
 use ckb_std::ckb_constants::Source;
 use ckb_std::high_level::{load_script, load_witness_args};
+use ckboost_shared::protocol_data::get_protocol_data;
 use ckboost_shared::types::{
     Byte32Vec, CampaignData, ConnectedTypeID, ProtocolData, TippingData, Transaction,
 };
@@ -57,13 +58,24 @@ impl CKBoostCampaign for CKBoostProtocolLock {
         } else if input_campaign_cell_vec.len() > 1 {
             return Err(Error::CellCountViolation);
         }
-        let protocol_data = ProtocolData::from_slice(&output_campaign_cell.data)
-            .map_err(|e| Error::InvalidProtocolData)?;
+        let protocol_data = get_protocol_data().map_err(|e| Error::InvalidProtocolData)?;
         let campaign_data = CampaignData::from_slice(&output_campaign_cell.data)
             .map_err(|e| Error::InvalidCampaignData)?;
         let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
         let staff_lock_hash_vec = campaign_data.staff_lock_hash_vec();
-        if output_campaign_cell.type_hash != Some(connected_key_u832) {
+        let output_campaign_cell_connected_type_id =
+            ConnectedTypeID::from_slice(&output_campaign_cell.lock.args().raw_data())
+                .map_err(|e| Error::InvalidConnectedTypeId)?;
+        if output_campaign_cell_connected_type_id
+            .connected_key()
+            .as_slice()
+            != connected_key_u832.as_slice()
+        {
+            debug_trace!(
+                "Output campaign cell connected type id mismatch: {:?}",
+                output_campaign_cell_connected_type_id
+            );
+            debug_trace!("Connected key: {:?}", connected_key_u832);
             return Err(Error::InvalidConnectedTypeId);
         }
         let proxy_ckb_cells = context.input_cells.get_simple_ckb();

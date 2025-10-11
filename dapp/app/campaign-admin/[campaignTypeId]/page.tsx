@@ -52,9 +52,12 @@ import {
   CampaignForm,
   CampaignStats,
 } from "@/components/campaign-admin/campaign";
+import { StaffManagement } from "@/components/campaign-admin/campaign/staff-management";
 import { InitialFunding } from "@/components/campaign-admin/funding/initial-funding";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import DraftHistory from "@/components/draft-history";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { NostrStorageService } from "@/lib/services/nostr-storage-service";
 
 // Type for simplified campaign form data
 interface CampaignFormData {
@@ -67,6 +70,13 @@ interface CampaignFormData {
   difficulty: number;
   verificationLevel: string;
   rules: string[];
+}
+
+interface CoverImageState {
+  dataUrl?: string;
+  neventId?: string;
+  dirty: boolean;
+  isLoading?: boolean;
 }
 
 export default function CampaignAdminPage() {
@@ -98,6 +108,88 @@ export default function CampaignAdminPage() {
     new Map()
   );
   const [ckbInitialFunding, setCkbInitialFunding] = useState<bigint>(0n);
+  const { fetchSubmission } = useNostrFetch();
+  const [staffLockHashes, setStaffLockHashes] = useState<string[]>([]);
+  const [coverImage, setCoverImage] = useState<CoverImageState>({
+    dirty: false,
+  });
+  const [longDescriptionNeventId, setLongDescriptionNeventId] = useState<
+    string | null
+  >(null);
+  const [longDescriptionDirty, setLongDescriptionDirty] = useState(false);
+  const nostrServiceRef = useRef<NostrStorageService | null>(null);
+  const [isDetailsReadOnly, setIsDetailsReadOnly] = useState(!isCreateMode);
+
+  useEffect(() => {
+    setIsDetailsReadOnly(!isCreateMode);
+  }, [isCreateMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCoverImage = async () => {
+      if (
+        !coverImage.neventId ||
+        coverImage.dirty ||
+        !coverImage.neventId.startsWith("nevent1")
+      ) {
+        return;
+      }
+      setCoverImage((prev) => ({ ...prev, isLoading: true }));
+      try {
+        const result = await fetchSubmission(coverImage.neventId);
+        if (!cancelled && result?.content) {
+          setCoverImage((prev) => ({
+            ...prev,
+            dataUrl: result.content,
+            isLoading: false,
+          }));
+        } else if (!cancelled) {
+          setCoverImage((prev) => ({ ...prev, isLoading: false }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          debug.error("Failed to fetch cover image from Nostr:", error);
+          setCoverImage((prev) => ({ ...prev, isLoading: false }));
+        }
+      }
+    };
+
+    loadCoverImage();
+    return () => {
+      cancelled = true;
+    };
+  }, [coverImage.neventId, coverImage.dirty, fetchSubmission]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadLongDescription = async () => {
+      if (
+        !longDescriptionNeventId ||
+        longDescriptionDirty ||
+        !longDescriptionNeventId.startsWith("nevent1")
+      ) {
+        return;
+      }
+      try {
+        const result = await fetchSubmission(longDescriptionNeventId);
+        if (!cancelled && result?.content) {
+          setCampaignData((prev) => ({
+            ...prev,
+            longDescription: result.content,
+          }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          debug.error("Failed to fetch long description from Nostr:", error);
+        }
+      }
+    };
+
+    loadLongDescription();
+    return () => {
+      cancelled = true;
+    };
+  }, [longDescriptionNeventId, longDescriptionDirty, fetchSubmission]);
 
   // Runtime type guard for draft quests payload -> QuestDataLike
   const isQuestDataLike = (val: unknown): val is QuestDataLike => {
@@ -192,6 +284,47 @@ export default function CampaignAdminPage() {
     verificationLevel: "none",
     rules: [""],
   });
+
+  const handleCampaignDataChange = (data: CampaignFormData) => {
+    if (data.longDescription !== campaignData.longDescription) {
+      setLongDescriptionDirty(true);
+    }
+    setCampaignData(data);
+  };
+
+  const handleCoverImageChange = (dataUrl: string | null) => {
+    if (dataUrl) {
+      setCoverImage({
+        dataUrl,
+        neventId: coverImage.neventId,
+        dirty: true,
+        isLoading: false,
+      });
+    } else {
+      setCoverImage({
+        dataUrl: undefined,
+        neventId: undefined,
+        dirty: true,
+        isLoading: false,
+      });
+    }
+  };
+
+  const handleCoverImageClear = () => {
+    setCoverImage({
+      dataUrl: undefined,
+      neventId: undefined,
+      dirty: true,
+      isLoading: false,
+    });
+  };
+
+  const getNostrService = () => {
+    if (!nostrServiceRef.current) {
+      nostrServiceRef.current = new NostrStorageService();
+    }
+    return nostrServiceRef.current;
+  };
 
   // Keep latest values in refs for interval to read, without re-creating interval
   const campaignDataRef = useRef(campaignData);
@@ -371,14 +504,10 @@ export default function CampaignAdminPage() {
   };
 
   // Quest form management
-  const [isAddingQuest, setIsAddingQuest] = useState(false);
-  const [editingQuestIndex, setEditingQuestIndex] = useState<number | null>(
-    null
-  );
-  const [questForm, setQuestForm] = useState<
-    QuestDataLike & { initial_quota: number }
-  >({
-    quest_id: 1,
+  const createEmptyQuestForm = (
+    questId: number
+  ): QuestDataLike & { initial_quota: number } => ({
+    quest_id: questId,
     metadata: {
       title: "",
       short_description: "",
@@ -398,6 +527,14 @@ export default function CampaignAdminPage() {
     completion_count: 0,
     initial_quota: 10,
   });
+
+  const [isAddingQuest, setIsAddingQuest] = useState(false);
+  const [editingQuestIndex, setEditingQuestIndex] = useState<number | null>(
+    null
+  );
+  const [questForm, setQuestForm] = useState<
+    QuestDataLike & { initial_quota: number }
+  >(createEmptyQuestForm(1));
 
   // Helper functions
   const getVerificationBitmask = (level: string): number => {
@@ -472,11 +609,17 @@ export default function CampaignAdminPage() {
         if (campaignData) {
           setCampaign(campaignData);
 
+          const rawLongDescription =
+            campaignData.metadata?.long_description || "";
+          const isLongFromNostr = rawLongDescription.startsWith("nevent1");
+          const rawImageUrl = campaignData.metadata?.image_url || "";
+          const isImageFromNostr = rawImageUrl.startsWith("nevent1");
+
           // Populate form data
           setCampaignData({
             title: campaignData.metadata?.title || "",
             shortDescription: campaignData.metadata?.short_description || "",
-            longDescription: campaignData.metadata?.long_description || "",
+            longDescription: isLongFromNostr ? "" : rawLongDescription,
             categories: campaignData.metadata?.categories || [],
             startDate: campaignData.starting_time
               ? new Date(Number(campaignData.starting_time) * 1000)
@@ -494,6 +637,24 @@ export default function CampaignAdminPage() {
             ),
             rules: campaignData?.rules || [""],
           });
+
+          setLongDescriptionNeventId(
+            isLongFromNostr ? rawLongDescription : null
+          );
+          setLongDescriptionDirty(false);
+
+          setCoverImage({
+            dataUrl: isImageFromNostr ? undefined : rawImageUrl || undefined,
+            neventId: isImageFromNostr ? rawImageUrl : undefined,
+            dirty: false,
+            isLoading: isImageFromNostr,
+          });
+
+          const staffHashes =
+            campaignData.staff_lock_hash_vec?.map((hash) =>
+              ccc.hexFrom(hash as ccc.BytesLike)
+            ) || [];
+          setStaffLockHashes(staffHashes);
 
           // Also populate local quests if they exist
           if (campaignData.quests && campaignData.quests.length > 0) {
@@ -574,13 +735,96 @@ export default function CampaignAdminPage() {
             }))
           : []; // Explicitly return empty array
 
+      const campaignReference =
+        !isCreateMode && campaignTypeId && campaignTypeId !== "new"
+          ? (campaignTypeId as string)
+          : `draft-${Date.now()}`;
+
+      let imageUrlToStore =
+        coverImage.neventId || campaign?.metadata?.image_url || "";
+      if (coverImage.dirty) {
+        if (coverImage.dataUrl) {
+          try {
+            const storedImageId = await getNostrService().storeCampaignContent({
+              campaignTypeId: campaignReference,
+              contentType: "cover_image",
+              content: coverImage.dataUrl,
+              metadata: {
+                encoding: "base64",
+              },
+            });
+            imageUrlToStore = storedImageId;
+            setCoverImage({
+              dataUrl: coverImage.dataUrl,
+              neventId: storedImageId,
+              dirty: false,
+              isLoading: false,
+            });
+          } catch (error) {
+            debug.error("Failed to store cover image on Nostr:", error);
+            alert(
+              "Failed to store cover image on Nostr. Please try again before saving."
+            );
+            setIsSaving(false);
+            return;
+          }
+        } else {
+          imageUrlToStore = "";
+          setCoverImage({
+            dataUrl: undefined,
+            neventId: undefined,
+            dirty: false,
+            isLoading: false,
+          });
+        }
+      }
+
+      const longDescriptionContent = campaignData.longDescription || "";
+      const hasLongDescription = longDescriptionContent.trim().length > 0;
+      let longDescriptionToStore =
+        longDescriptionNeventId && longDescriptionNeventId.startsWith("nevent1")
+          ? longDescriptionNeventId
+          : longDescriptionContent;
+      const shouldStoreLongDescription =
+        hasLongDescription &&
+        (longDescriptionDirty ||
+          !longDescriptionNeventId ||
+          !longDescriptionNeventId.startsWith("nevent1"));
+
+      if (shouldStoreLongDescription) {
+        try {
+          const storedLongId = await getNostrService().storeCampaignContent({
+            campaignTypeId: campaignReference,
+            contentType: "long_description",
+            content: longDescriptionContent,
+            metadata: {
+              format: "html",
+            },
+          });
+          longDescriptionToStore = storedLongId;
+          setLongDescriptionNeventId(storedLongId);
+          setLongDescriptionDirty(false);
+        } catch (error) {
+          debug.error("Failed to store long description on Nostr:", error);
+          alert(
+            "Failed to store the long description on Nostr. Please try again."
+          );
+          setIsSaving(false);
+          return;
+        }
+      } else if (!hasLongDescription) {
+        longDescriptionToStore = "";
+        setLongDescriptionNeventId(null);
+        setLongDescriptionDirty(false);
+      }
+
       // Build campaign data - ensure all arrays and nested structures are properly typed
       const admin_lock_hash = (
         await signer.getRecommendedAddressObj()
       ).script.hash();
       const updatedCampaign: CampaignDataLike = {
         endorser_lock_hash: admin_lock_hash,
-        staff_lock_hash_vec: campaign?.staff_lock_hash_vec || [],
+        staff_lock_hash_vec: (staffLockHashes || []) as ccc.Hex[],
         created_at:
           campaign?.created_at || BigInt(Math.floor(Date.now() / 1000)),
         starting_time: campaignData.startDate
@@ -596,7 +840,7 @@ export default function CampaignAdminPage() {
         metadata: {
           title: (campaignData.title || "") as string,
           short_description: (campaignData.shortDescription || "") as string,
-          long_description: (campaignData.longDescription || "") as string,
+          long_description: longDescriptionToStore as string,
           total_rewards: campaign?.metadata?.total_rewards || {
             points_amount: BigInt(0) as ccc.NumLike,
             ckb_amount: BigInt(0) as ccc.NumLike,
@@ -609,7 +853,7 @@ export default function CampaignAdminPage() {
           last_updated: BigInt(Math.floor(Date.now() / 1000)),
           categories: (campaignData.categories || []) as string[],
           difficulty: (Number(campaignData.difficulty) || 0) as ccc.NumLike,
-          image_url: (campaign?.metadata?.image_url || "") as string,
+          image_url: imageUrlToStore as string,
         },
         status: (Number(campaign?.status) || 0) as ccc.NumLike,
         quests: validatedQuests,
@@ -876,6 +1120,49 @@ export default function CampaignAdminPage() {
       if (campaignData) {
         setCampaign(campaignData);
         setLocalQuests(campaignData.quests || []);
+        const rawLongDescription =
+          campaignData.metadata?.long_description || "";
+        const isLongFromNostr = rawLongDescription.startsWith("nevent1");
+        const rawImageUrl = campaignData.metadata?.image_url || "";
+        const isImageFromNostr = rawImageUrl.startsWith("nevent1");
+
+        setCampaignData({
+          title: campaignData.metadata?.title || "",
+          shortDescription: campaignData.metadata?.short_description || "",
+          longDescription: isLongFromNostr ? "" : rawLongDescription,
+          categories: campaignData.metadata?.categories || [],
+          startDate: campaignData.starting_time
+            ? new Date(Number(campaignData.starting_time) * 1000)
+                .toISOString()
+                .slice(0, 16)
+            : "",
+          endDate: campaignData.ending_time
+            ? new Date(Number(campaignData.ending_time) * 1000)
+                .toISOString()
+                .slice(0, 16)
+            : "",
+          difficulty: Number(campaignData.metadata?.difficulty) || 0,
+          verificationLevel: getVerificationLevelFromBitmask(
+            campaignData.metadata?.verification_requirements || []
+          ),
+          rules: campaignData?.rules || [""],
+        });
+
+        setLongDescriptionNeventId(isLongFromNostr ? rawLongDescription : null);
+        setLongDescriptionDirty(false);
+
+        setCoverImage({
+          dataUrl: isImageFromNostr ? undefined : rawImageUrl || undefined,
+          neventId: isImageFromNostr ? rawImageUrl : undefined,
+          dirty: false,
+          isLoading: isImageFromNostr,
+        });
+
+        const staffHashes =
+          campaignData.staff_lock_hash_vec?.map((hash) =>
+            ccc.hexFrom(hash as ccc.BytesLike)
+          ) || [];
+        setStaffLockHashes(staffHashes);
       }
     } catch (error) {
       debug.error("Failed to refresh campaign:", error);
@@ -894,27 +1181,7 @@ export default function CampaignAdminPage() {
     debug.log("Added quest to local state:", newQuest);
 
     // Reset form for next quest
-    setQuestForm({
-      quest_id: localQuests.length + 2,
-      metadata: {
-        title: "",
-        short_description: "",
-        long_description: "",
-        requirements: "",
-        difficulty: 1,
-        time_estimate: 30,
-      },
-      points: 100,
-      rewards_on_completion: [],
-      accepted_submission_user_type_ids: [],
-      completion_deadline: BigInt(
-        Math.floor(Date.now() / 1000 + 30 * 24 * 60 * 60)
-      ),
-      status: 0,
-      sub_tasks: [],
-      completion_count: 0,
-      initial_quota: 10,
-    });
+    setQuestForm(createEmptyQuestForm(localQuests.length + 2));
     setIsAddingQuest(false);
   };
 
@@ -924,10 +1191,28 @@ export default function CampaignAdminPage() {
 
     setQuestForm({
       ...quest,
-      initial_quota: 10,
+      initial_quota:
+        (quest as QuestDataLike & { initial_quota?: number }).initial_quota ||
+        10,
     });
     setEditingQuestIndex(questIndex);
     setIsAddingQuest(true);
+  };
+
+  const handleClearQuestForm = () => {
+    if (editingQuestIndex !== null) {
+      const original = localQuests[editingQuestIndex];
+      if (original) {
+        setQuestForm({
+          ...original,
+          initial_quota:
+            (original as QuestDataLike & { initial_quota?: number })
+              .initial_quota || 10,
+        });
+      }
+    } else {
+      setQuestForm(createEmptyQuestForm(localQuests.length + 1));
+    }
   };
 
   const handleSaveEditedQuest = () => {
@@ -946,27 +1231,7 @@ export default function CampaignAdminPage() {
     // Reset form and close edit mode
     setEditingQuestIndex(null);
     setIsAddingQuest(false);
-    setQuestForm({
-      quest_id: localQuests.length + 1,
-      metadata: {
-        title: "",
-        short_description: "",
-        long_description: "",
-        requirements: "",
-        difficulty: 1,
-        time_estimate: 30,
-      },
-      points: 100,
-      rewards_on_completion: [],
-      accepted_submission_user_type_ids: [],
-      completion_deadline: BigInt(
-        Math.floor(Date.now() / 1000 + 30 * 24 * 60 * 60)
-      ),
-      status: 0,
-      sub_tasks: [],
-      completion_count: 0,
-      initial_quota: 10,
-    });
+    setQuestForm(createEmptyQuestForm(localQuests.length + 1));
   };
 
   const handleDeleteQuest = (questIndex: number) => {
@@ -1121,7 +1386,9 @@ export default function CampaignAdminPage() {
 
               <Button
                 onClick={handleSaveCampaign}
-                disabled={isSaving || !signer}
+                disabled={
+                  isSaving || !signer || (!isCreateMode && isDetailsReadOnly)
+                }
               >
                 {isSaving
                   ? "Saving..."
@@ -1185,14 +1452,44 @@ export default function CampaignAdminPage() {
           {/* Campaign Details Tab */}
           <TabsContent value="details">
             <Card>
-              <CardHeader>
-                <CardTitle>Campaign Information</CardTitle>
+              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>Campaign Information</CardTitle>
+                  {!isCreateMode && isDetailsReadOnly && (
+                    <p className="text-sm text-muted-foreground">
+                      Viewing campaign details in read-only mode. Enable editing
+                      to make changes.
+                    </p>
+                  )}
+                </div>
+                {!isCreateMode && (
+                  <Button
+                    variant={isDetailsReadOnly ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setIsDetailsReadOnly((prev) => !prev)}
+                  >
+                    {isDetailsReadOnly
+                      ? "Enable Editing"
+                      : "Switch to Read Only"}
+                  </Button>
+                )}
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
                 <CampaignForm
                   campaignData={campaignData}
-                  onChange={setCampaignData}
+                  onChange={handleCampaignDataChange}
                   isCreateMode={isCreateMode}
+                  readOnly={!isCreateMode && isDetailsReadOnly}
+                  coverImage={coverImage}
+                  onCoverImageChange={handleCoverImageChange}
+                  onCoverImageClear={handleCoverImageClear}
+                  longDescriptionNeventId={longDescriptionNeventId}
+                />
+                <StaffManagement
+                  staffLockHashes={staffLockHashes}
+                  onChange={setStaffLockHashes}
+                  signer={signer!}
+                  disabled={!isCreateMode && isDetailsReadOnly}
                 />
               </CardContent>
             </Card>
@@ -1296,31 +1593,9 @@ export default function CampaignAdminPage() {
       <QuestDialog
         open={isAddingQuest}
         onOpenChange={(open) => {
+          setIsAddingQuest(open);
           if (!open) {
-            setIsAddingQuest(false);
             setEditingQuestIndex(null);
-            // Reset form
-            setQuestForm({
-              quest_id: localQuests.length + 1,
-              metadata: {
-                title: "",
-                short_description: "",
-                long_description: "",
-                requirements: "",
-                difficulty: 1,
-                time_estimate: 30,
-              },
-              points: 100,
-              rewards_on_completion: [],
-              accepted_submission_user_type_ids: [],
-              completion_deadline: BigInt(
-                Math.floor(Date.now() / 1000 + 30 * 24 * 60 * 60)
-              ),
-              status: 0,
-              sub_tasks: [],
-              completion_count: 0,
-              initial_quota: 10,
-            });
           }
         }}
         questForm={questForm}
@@ -1330,6 +1605,7 @@ export default function CampaignAdminPage() {
         }
         editMode={editingQuestIndex !== null}
         localQuestsLength={localQuests.length}
+        onClear={handleClearQuestForm}
       />
     </div>
   );

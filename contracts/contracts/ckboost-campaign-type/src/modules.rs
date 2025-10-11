@@ -116,7 +116,11 @@ impl CKBoostCampaign for CKBoostCampaignType {
                         debug_info!("ERROR finding campaign cell: {:?}", e);
                         e
                     })?;
-                debug_info!("Found campaign at index: {}", campaign_outpoint.index());
+                debug_info!(
+                    "Found campaign at index: {} at outpoint: {}",
+                    campaign_outpoint.index(),
+                    campaign_outpoint.tx_hash()
+                );
 
                 // The campaign cell will be added at the current end of inputs
                 campaign_input_index = tx.as_ref().map(|t| t.raw().inputs().len()).unwrap_or(0);
@@ -126,29 +130,34 @@ impl CKBoostCampaign for CKBoostCampaignType {
                     .previous_output(campaign_outpoint.clone())
                     .build();
                 cell_input_vec_builder = cell_input_vec_builder.push(campaign_input);
-
-                // Get the current campaign cell to preserve lock script
-                let current_campaign_cell =
-                    find_cell_by_out_point(campaign_outpoint).map_err(|e| {
-                        debug_info!("ERROR loading campaign cell: {:?}", e);
-                        Error::CampaignCellNotFound
-                    })?;
-
-                // Track that we're adding a campaign output at the current output count
                 campaign_output_index =
                     Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
 
-                // Create output campaign cell with updated data
-                let new_campaign_output = CellOutputBuilder::default()
-                    .type_(
-                        ScriptOptBuilder::default()
-                            .set(Some(current_script))
-                            .build(),
-                    )
-                    .lock(current_campaign_cell.lock())
-                    .capacity(0u64.pack())
-                    .build();
-                cell_output_vec_builder = cell_output_vec_builder.push(new_campaign_output);
+                debug_trace!("Trying to find campaign cell by out point");
+                // Get the current campaign cell to preserve lock script
+                // TODO: find_cell_by_out_point here fails for memory. Skipping
+                // let current_campaign_cell =
+                //     find_cell_by_out_point(campaign_outpoint).map_err(|e| {
+                //         debug_info!("ERROR loading campaign cell: {:?}", e);
+                //         Error::CampaignCellNotFound
+                //     })?;
+                // debug_info!("Loaded campaign cell: {}", current_campaign_cell);
+
+                // // Track that we're adding a campaign output at the current output count
+                // campaign_output_index =
+                //     Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
+                // debug_info!("Campaign output index: {:?}", campaign_output_index);
+                // // Create output campaign cell with updated data
+                // let new_campaign_output = CellOutputBuilder::default()
+                //     .type_(
+                //         ScriptOptBuilder::default()
+                //             .set(Some(current_script))
+                //             .build(),
+                //     )
+                //     .lock(current_campaign_cell.lock())
+                //     .capacity(0u64.pack())
+                //     .build();
+                // cell_output_vec_builder = cell_output_vec_builder.push(new_campaign_output);
             }
             Err(_) => {
                 debug_trace!("No campaign cell found. Creating a new campaign cell.");
