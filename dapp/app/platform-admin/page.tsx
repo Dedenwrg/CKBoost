@@ -1324,8 +1324,7 @@ export default function PlatformAdminDashboard() {
                                   Created by
                                 </div>
                                 <div className="font-medium">
-                                  {campaignData.endorser.endorser_name ||
-                                    "Unknown"}
+                                  {campaignData.endorser_lock_hash || "Unknown"}
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1">
                                   ID: {campaignTypeId.slice(0, 10)}...

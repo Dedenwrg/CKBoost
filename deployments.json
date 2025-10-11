@@ -77,12 +77,12 @@
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
       "ckboostProtocolLock": {
-        "transactionHash": "0xad00ea3f5c83e189e7b5419e7008ebb013aa42ce5624778e793be8a58d76f540",
+        "transactionHash": "0xefcd522277bb48bf6866219ee1ec161617b7b8d9807a073fe998aa6ffdabf65a",
         "index": 0,
-        "deployedAt": "2025-10-11T13:31:44.948Z",
+        "deployedAt": "2025-10-11T14:06:13.444Z",
         "contractName": "ckboost-protocol-lock",
-        "tag": "m2-v20250930-0913-new-new-new-new-new",
-        "dataHash": "0x387464e15df64971cfc5a236c9eb2bfb1b54e31f60daca3e42dd5a7791389142",
+        "tag": "m2-v20250930-0913-new-new-new-new-new-new",
+        "dataHash": "0x682798197bfe213dd63147a14375997aaad37d5802d6544cc3321fdc894f4c24",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -4879,6 +4879,30 @@
           "index": 0,
           "deployedAt": "2025-10-10T22:57:33.826Z",
           "tag": "m2-v20250930-0913-new-new-new-new"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0x150d5f80b524d4ca6655494a9158629cfff63736c9812441c8cca8672fea7064"
+        },
+        "isTypeId": true,
+        "typeHash": "0x8e777244ddbd0c77ca788a1bfc8ccdf1712f7ececca954c2466b847c42af5252"
+      },
+      {
+        "contractName": "ckboost-protocol-lock",
+        "transactionHash": "0xefcd522277bb48bf6866219ee1ec161617b7b8d9807a073fe998aa6ffdabf65a",
+        "index": 0,
+        "deployedAt": "2025-10-11T14:06:13.444Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0x682798197bfe213dd63147a14375997aaad37d5802d6544cc3321fdc894f4c24",
+        "contractSize": 270528,
+        "tag": "m2-v20250930-0913-new-new-new-new-new-new",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0xad00ea3f5c83e189e7b5419e7008ebb013aa42ce5624778e793be8a58d76f540",
+          "index": 0,
+          "deployedAt": "2025-10-11T13:31:44.948Z",
+          "tag": "m2-v20250930-0913-new-new-new-new-new"
         },
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",

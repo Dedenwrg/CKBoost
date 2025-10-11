@@ -74,55 +74,6 @@ export class NostrStorageService {
     return neventId;
   }
 
-  async storeCampaignContent(payload: {
-    campaignTypeId: string;
-    contentType: "cover_image" | "long_description";
-    content: string;
-    metadata?: Record<string, string>;
-  }): Promise<string> {
-    const secretKey = generateSecretKey();
-    const pubkey = getPublicKey(secretKey);
-    const timestamp = Date.now();
-
-    const tags: string[][] = [
-      [
-        "d",
-        `ckboost-campaign-${payload.campaignTypeId}-${payload.contentType}-${timestamp}`,
-      ],
-      ["campaign", payload.campaignTypeId],
-      ["type", payload.contentType],
-      ["client", "ckboost-dapp"],
-      ["timestamp", timestamp.toString() ],
-    ];
-
-    if (payload.metadata) {
-      for (const [key, value] of Object.entries(payload.metadata)) {
-        tags.push([key, value]);
-      }
-    }
-
-    const event: NostrEvent = {
-      kind: CKBOOST_SUBMISSION_KIND,
-      content: payload.content,
-      tags,
-      created_at: Math.floor(Date.now() / 1000),
-      pubkey,
-      id: "",
-      sig: "",
-    };
-
-    event.id = getEventHash(event as Parameters<typeof getEventHash>[0]);
-    const signer = new NSecSigner(secretKey);
-    const signedEvent = await signer.signEvent(event);
-
-    const neventId = nip19.neventEncode({
-      id: signedEvent.id,
-      relays: this.relays.slice(0, 3),
-    });
-
-    return neventId;
-  }
-
   /**
    * Parse a nevent ID to get the event data
    */

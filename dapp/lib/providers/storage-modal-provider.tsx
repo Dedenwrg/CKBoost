@@ -10,6 +10,13 @@ type OpenArgs = {
   onConfirm: () => Promise<string | void>
   onClose?: () => void
   mode?: Mode
+  label?: string
+  contentHint?: "image" | "html" | "text"
+  queuePosition?: number
+  queueTotal?: number
+  queueItems?: Array<{ neventId: string; label?: string }>
+  queueIndex?: number
+  cachedPayloads?: Record<string, { content: string; metadata: Record<string, string> }>
 }
 
 type StorageModalContextType = {
@@ -30,6 +37,13 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
   const [isOpen, setIsOpen] = useState(false)
   const [neventId, setNeventId] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode>("verifying")
+  const [label, setLabel] = useState<string | undefined>(undefined)
+  const [contentHint, setContentHint] = useState<"image" | "html" | "text" | undefined>(undefined)
+  const [queuePosition, setQueuePosition] = useState<number | undefined>(undefined)
+  const [queueTotal, setQueueTotal] = useState<number | undefined>(undefined)
+  const [queueItems, setQueueItems] = useState<Array<{ neventId: string; label?: string }>>([])
+  const [queueIndex, setQueueIndex] = useState<number | undefined>(undefined)
+  const [cachedPayloads, setCachedPayloads] = useState<Record<string, { content: string; metadata: Record<string, string> }>>({})
   const onConfirmRef = useRef<(() => Promise<string | void>) | null>(null)
   const onCloseRef = useRef<(() => void) | null>(null)
 
@@ -38,6 +52,13 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
     onConfirmRef.current = args.onConfirm
     onCloseRef.current = args.onClose ?? null
     setMode(args.mode || "verifying")
+    setLabel(args.label)
+    setContentHint(args.contentHint)
+    setQueuePosition(args.queuePosition)
+    setQueueTotal(args.queueTotal)
+    setQueueItems(args.queueItems || [])
+    setQueueIndex(args.queueIndex)
+    setCachedPayloads(args.cachedPayloads || {})
     setIsOpen(true)
   }, [])
 
@@ -50,6 +71,13 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
     // fire last provided onClose
     try { onCloseRef.current?.() } catch {}
     // do not clear refs immediately to allow finishing renders
+    setLabel(undefined)
+    setContentHint(undefined)
+    setQueuePosition(undefined)
+    setQueueTotal(undefined)
+    setQueueItems([])
+    setQueueIndex(undefined)
+    setCachedPayloads({})
   }, [])
 
   const handleConfirm = useCallback(async () => {
@@ -68,6 +96,13 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
         neventId={neventId}
         onConfirm={handleConfirm}
         mode={mode}
+        label={label}
+        contentHint={contentHint}
+        queuePosition={queuePosition}
+        queueTotal={queueTotal}
+        queueItems={queueItems}
+        queueIndex={queueIndex}
+        cachedPayloads={cachedPayloads}
       />
     </StorageModalContext.Provider>
   )

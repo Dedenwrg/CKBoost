@@ -57,7 +57,8 @@ import { InitialFunding } from "@/components/campaign-admin/funding/initial-fund
 import { udtRegistry } from "@/lib/services/udt-registry";
 import DraftHistory from "@/components/draft-history";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
-import { NostrStorageService } from "@/lib/services/nostr-storage-service";
+import { useNostrStorage } from "@/hooks/use-nostr-storage";
+import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 
 // Type for simplified campaign form data
 interface CampaignFormData {
@@ -77,6 +78,21 @@ interface CoverImageState {
   neventId?: string;
   dirty: boolean;
   isLoading?: boolean;
+}
+
+interface NostrQueueItem {
+  neventId: string;
+  label?: string;
+  contentHint?: "image" | "html" | "text";
+}
+
+interface PendingCampaignSave {
+  updatedCampaign: CampaignDataLike;
+  udtFunding?: Array<{ scriptHash: string; amount: bigint }>;
+  ckbFunding?: bigint;
+  isCreate: boolean;
+  campaignTypeId?: ccc.Hex;
+  initialFundingEntries?: Array<{ scriptHash: string; amount: bigint }>;
 }
 
 export default function CampaignAdminPage() {
@@ -109,6 +125,8 @@ export default function CampaignAdminPage() {
   );
   const [ckbInitialFunding, setCkbInitialFunding] = useState<bigint>(0n);
   const { fetchSubmission } = useNostrFetch();
+  const { storeCampaignContent } = useNostrStorage();
+  const storageModal = useStorageModal();
   const [staffLockHashes, setStaffLockHashes] = useState<string[]>([]);
   const [coverImage, setCoverImage] = useState<CoverImageState>({
     dirty: false,
@@ -117,8 +135,18 @@ export default function CampaignAdminPage() {
     string | null
   >(null);
   const [longDescriptionDirty, setLongDescriptionDirty] = useState(false);
-  const nostrServiceRef = useRef<NostrStorageService | null>(null);
   const [isDetailsReadOnly, setIsDetailsReadOnly] = useState(!isCreateMode);
+  const [pendingCampaignSave, setPendingCampaignSave] =
+    useState<PendingCampaignSave | null>(null);
+  const pendingCampaignSaveRef = useRef<PendingCampaignSave | null>(null);
+  const [pendingNostrQueue, setPendingNostrQueue] = useState<NostrQueueItem[]>(
+    []
+  );
+  const [pendingNostrItems, setPendingNostrItems] = useState<NostrQueueItem[]>([]);
+  const [pendingNostrPayloads, setPendingNostrPayloads] =
+    useState<Record<string, { content: string; metadata: Record<string, string> }>>({});
+  const [pendingNostrTotal, setPendingNostrTotal] = useState(0);
+  const [pendingNostrIndex, setPendingNostrIndex] = useState(0);
 
   useEffect(() => {
     setIsDetailsReadOnly(!isCreateMode);
@@ -317,13 +345,6 @@ export default function CampaignAdminPage() {
       dirty: true,
       isLoading: false,
     });
-  };
-
-  const getNostrService = () => {
-    if (!nostrServiceRef.current) {
-      nostrServiceRef.current = new NostrStorageService();
-    }
-    return nostrServiceRef.current;
   };
 
   // Keep latest values in refs for interval to read, without re-creating interval
@@ -707,6 +728,17 @@ export default function CampaignAdminPage() {
     setCampaignData(testData);
   };
 
+  const handleCampaignModalClose = () => {
+    debug.log("handleCampaignModalClose invoked, resetting pending state");
+    setPendingCampaignSave(null);
+    pendingCampaignSaveRef.current = null;
+    setPendingNostrQueue([]);
+    setPendingNostrItems([]);
+    setPendingNostrTotal(0);
+    setPendingNostrIndex(0);
+    setIsSaving(false);
+  };
+
   // Campaign save handler
   const handleSaveCampaign = async () => {
     if (!signer || !protocolCell) {
@@ -717,8 +749,6 @@ export default function CampaignAdminPage() {
     try {
       setIsSaving(true);
 
-      // Create properly typed quest array
-      // When there are no quests, we need to ensure the array is properly initialized
       const validatedQuests: QuestDataLike[] =
         localQuests.length > 0
           ? localQuests.map((quest) => ({
@@ -733,27 +763,39 @@ export default function CampaignAdminPage() {
               sub_tasks: quest.sub_tasks || [],
               completion_count: quest.completion_count,
             }))
-          : []; // Explicitly return empty array
+          : [];
 
       const campaignReference =
         !isCreateMode && campaignTypeId && campaignTypeId !== "new"
           ? (campaignTypeId as string)
           : `draft-${Date.now()}`;
 
+      const nostrVerificationQueue: NostrQueueItem[] = [];
+
       let imageUrlToStore =
         coverImage.neventId || campaign?.metadata?.image_url || "";
       if (coverImage.dirty) {
         if (coverImage.dataUrl) {
           try {
-            const storedImageId = await getNostrService().storeCampaignContent({
+            const storedImageId = await storeCampaignContent.mutateAsync({
               campaignTypeId: campaignReference,
               contentType: "cover_image",
               content: coverImage.dataUrl,
-              metadata: {
-                encoding: "base64",
-              },
+              metadata: { encoding: "base64", type: "cover_image" },
             });
             imageUrlToStore = storedImageId;
+            nostrVerificationQueue.push({
+              neventId: storedImageId,
+              label: "Campaign Cover Image",
+              contentHint: "image",
+            });
+            setPendingNostrPayloads((prev) => ({
+              ...prev,
+              [storedImageId]: {
+                content: coverImage.dataUrl ?? "",
+                metadata: { encoding: "base64", type: "cover_image" },
+              },
+            }));
             setCoverImage({
               dataUrl: coverImage.dataUrl,
               neventId: storedImageId,
@@ -793,15 +835,25 @@ export default function CampaignAdminPage() {
 
       if (shouldStoreLongDescription) {
         try {
-          const storedLongId = await getNostrService().storeCampaignContent({
+          const storedLongId = await storeCampaignContent.mutateAsync({
             campaignTypeId: campaignReference,
             contentType: "long_description",
             content: longDescriptionContent,
-            metadata: {
-              format: "html",
-            },
+            metadata: { format: "html", type: "long_description" },
           });
           longDescriptionToStore = storedLongId;
+          nostrVerificationQueue.push({
+            neventId: storedLongId,
+            label: "Campaign Long Description",
+            contentHint: "html",
+          });
+          setPendingNostrPayloads((prev) => ({
+            ...prev,
+            [storedLongId]: {
+              content: longDescriptionContent,
+              metadata: { format: "html", type: "long_description" },
+            },
+          }));
           setLongDescriptionNeventId(storedLongId);
           setLongDescriptionDirty(false);
         } catch (error) {
@@ -818,7 +870,6 @@ export default function CampaignAdminPage() {
         setLongDescriptionDirty(false);
       }
 
-      // Build campaign data - ensure all arrays and nested structures are properly typed
       const admin_lock_hash = (
         await signer.getRecommendedAddressObj()
       ).script.hash();
@@ -863,7 +914,105 @@ export default function CampaignAdminPage() {
           0) as ccc.NumLike,
       };
 
-      // Get necessary code hashes from protocol data
+      const udtFunding =
+        isCreateMode && initialFunding.size > 0
+          ? Array.from(initialFunding.entries()).map(
+              ([scriptHash, amount]) => ({
+                scriptHash,
+                amount,
+              })
+            )
+          : undefined;
+
+      const pendingPayload: PendingCampaignSave = {
+        updatedCampaign,
+        udtFunding,
+        ckbFunding: isCreateMode ? ckbInitialFunding : undefined,
+        isCreate: isCreateMode,
+        campaignTypeId: !isCreateMode
+          ? ((campaignTypeId as string).startsWith("0x")
+              ? (campaignTypeId as ccc.Hex)
+              : (`0x${campaignTypeId}` as ccc.Hex))
+          : undefined,
+        initialFundingEntries: isCreateMode
+          ? Array.from(initialFunding.entries()).map(
+              ([scriptHash, amount]) => ({ scriptHash, amount })
+            )
+          : undefined,
+      };
+
+      if (nostrVerificationQueue.length > 0) {
+        setPendingCampaignSave(pendingPayload);
+        pendingCampaignSaveRef.current = pendingPayload;
+        debug.log("Pending campaign save stored for verification flow", {
+          queueLength: nostrVerificationQueue.length,
+          pendingCampaignSave: pendingCampaignSaveRef.current,
+        });
+        setPendingNostrQueue(nostrVerificationQueue);
+        setPendingNostrItems([...nostrVerificationQueue]);
+        setPendingNostrPayloads((prev) => ({
+          ...prev,
+          ...Object.fromEntries(
+            nostrVerificationQueue
+              .map((item) => {
+                if (!pendingNostrPayloads[item.neventId]) return null
+                return [item.neventId, pendingNostrPayloads[item.neventId]]
+              })
+              .filter(Boolean) as Array<[
+              string,
+              { content: string; metadata: Record<string, string> }
+            ]>
+          ),
+        }));
+        setPendingNostrTotal(nostrVerificationQueue.length);
+        setPendingNostrIndex(0);
+        const firstItem = nostrVerificationQueue[0];
+        debug.log("Opening storage modal for campaign verification queue", {
+          queueLength: nostrVerificationQueue.length,
+          firstItem,
+        });
+        storageModal.open({
+          neventId: firstItem.neventId,
+          label: firstItem.label,
+          contentHint: firstItem.contentHint,
+          mode: "verifying",
+          onConfirm: handleCampaignNostrConfirm,
+          onClose: handleCampaignModalClose,
+          queuePosition: 1,
+          queueTotal: nostrVerificationQueue.length,
+          queueItems: nostrVerificationQueue,
+          queueIndex: 0,
+          cachedPayloads: pendingNostrPayloads,
+        });
+        return;
+      }
+
+      await performCampaignUpdate(pendingPayload);
+    } catch (error) {
+      debug.error("Failed to save campaign:", error);
+      alert(
+        `Failed to save campaign: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+      setIsSaving(false);
+    }
+  };
+
+  const performCampaignUpdate = async (
+    payload: PendingCampaignSave
+  ): Promise<string> => {
+    try {
+      debug.log("performCampaignUpdate called", {
+        isCreate: payload.isCreate,
+        hasUdtFunding: !!payload.udtFunding?.length,
+        hasCkbFunding: !!payload.ckbFunding,
+        campaignTypeId: payload.campaignTypeId,
+      });
+      if (!signer || !protocolCell) {
+        throw new Error("Please connect your wallet first");
+      }
+
       const userCodeHash =
         protocolData?.protocol_config.script_code_hashes
           .ckb_boost_user_type_code_hash;
@@ -876,7 +1025,6 @@ export default function CampaignAdminPage() {
         throw new Error("Missing required protocol configuration");
       }
 
-      // Get campaign outpoint from deployment
       const network = deploymentManager.getCurrentNetwork();
       const campaignOutPoint = deploymentManager.getContractOutPoint(
         network,
@@ -886,20 +1034,18 @@ export default function CampaignAdminPage() {
         throw new Error("Campaign type contract not found in deployments");
       }
 
-      // Create Campaign SSRI instance for new or existing campaigns
-      let campaignInstance: Campaign | null = null;
+      const executorUrl =
+        process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+      const executor = new ssri.ExecutorJsonRpc(executorUrl);
 
-      if (isCreateMode) {
-        // For new campaigns, create with empty args (SSRI will calculate ConnectedTypeID)
+      let campaignInstance: Campaign;
+
+      if (payload.isCreate) {
         const campaignTypeScript = ccc.Script.from({
           codeHash: campaignCodeHash,
           hashType: "type" as const,
-          args: "0x", // Empty args - SSRI will calculate and fill the Connected Type ID
+          args: "0x",
         });
-
-        const executorUrl =
-          process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
-        const executor = new ssri.ExecutorJsonRpc(executorUrl);
 
         campaignInstance = new Campaign(
           campaignOutPoint,
@@ -908,13 +1054,12 @@ export default function CampaignAdminPage() {
           { executor }
         );
       } else {
-        // For existing campaigns, we need to fetch the cell first to get its type script
-        if (!signer) {
-          debug.error("Signer not found");
-          return;
+        if (!payload.campaignTypeId) {
+          throw new Error("Missing campaign type ID for update");
         }
+
         const existingCampaignCell = await fetchCampaignByTypeId(
-          campaignTypeId as ccc.Hex,
+          payload.campaignTypeId,
           campaignCodeHash as ccc.Hex,
           signer.client,
           protocolCell
@@ -925,10 +1070,6 @@ export default function CampaignAdminPage() {
             "Existing campaign cell not found or missing type script"
           );
         }
-
-        const executorUrl =
-          process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
-        const executor = new ssri.ExecutorJsonRpc(executorUrl);
 
         campaignInstance = new Campaign(
           campaignOutPoint,
@@ -947,52 +1088,27 @@ export default function CampaignAdminPage() {
         campaignInstance
       );
 
-      if (isCreateMode) {
-        // For creating new campaigns, we need to use updateCampaign with no campaignTypeId
-        debug.log("Creating campaign with initial funding:", {
-          campaign: campaignData.title,
-          fundingTokens: initialFunding.size,
-          totalFunding: Array.from(initialFunding.entries()).map(
-            ([scriptHash, amount]) => ({
-              scriptHash: scriptHash.slice(0, 10) + "...",
-              amount: amount.toString(),
-            })
-          ),
-        });
+      let txHash: ccc.Hex;
 
-        // Convert initialFunding Map to array format for updateCampaign
-        const udtFunding =
-          initialFunding.size > 0
-            ? Array.from(initialFunding.entries()).map(
-                ([scriptHash, amount]) => ({
-                  scriptHash,
-                  amount,
-                })
-              )
-            : undefined;
-
-        // Create the campaign with initial funding in the same transaction
-        const txHash = await adminService.updateCampaign(
-          updatedCampaign,
-          undefined, // no campaignTypeId for new campaigns
-          undefined, // no existing transaction
-          udtFunding, // pass the UDT funding array
-          ckbInitialFunding // pass CKB funding (shannons)
-        );
-        debug.log(
-          "Campaign created with funding in single transaction, txHash:",
-          txHash
+      if (payload.isCreate) {
+        txHash = await adminService.updateCampaign(
+          payload.updatedCampaign,
+          undefined,
+          undefined,
+          payload.udtFunding,
+          payload.ckbFunding
         );
 
-        // Clear local draft after successful on-chain creation
         try {
           clearCreateDraft();
         } catch {}
 
-        // Show success message with funding info if applicable
-        if (initialFunding.size > 0) {
-          const fundingInfo = Array.from(initialFunding.entries())
-            .map(([scriptHash, amount]) => {
+        if (
+          payload.initialFundingEntries &&
+          payload.initialFundingEntries.length > 0
+        ) {
+          const fundingInfo = payload.initialFundingEntries
+            .map(({ scriptHash, amount }) => {
               const token = udtRegistry.getTokenByScriptHash(scriptHash);
               return token
                 ? `${udtRegistry.formatAmount(Number(amount), token)}`
@@ -1009,23 +1125,85 @@ export default function CampaignAdminPage() {
 
         router.push("/campaign-admin");
       } else {
-        // For updating existing campaigns, don't pass campaignTypeId
-        // The campaign instance already has the campaign loaded
-        const txHash = await adminService.updateCampaign(updatedCampaign);
-        debug.log("Campaign updated successfully with txHash:", txHash);
+        txHash = await adminService.updateCampaign(payload.updatedCampaign);
         alert("Campaign updated successfully! Transaction: " + txHash);
         await refreshCampaign();
       }
+
+      return txHash;
     } catch (error) {
       debug.error("Failed to save campaign:", error);
-      alert(
-        `Failed to save campaign: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error("Failed to save campaign");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCampaignNostrConfirm = async (): Promise<string | void> => {
+    const activePendingCampaignSave =
+      pendingCampaignSave ?? pendingCampaignSaveRef.current;
+
+    if (!activePendingCampaignSave) {
+      debug.log("handleCampaignNostrConfirm called without pendingCampaignSave");
+      return;
+    }
+
+    const totalItems =
+      pendingNostrTotal ||
+      pendingNostrItems.length ||
+      pendingNostrQueue.length;
+
+    debug.log("handleCampaignNostrConfirm invoked", {
+      pendingNostrIndex,
+      totalItems,
+      pendingNostrItemsLength: pendingNostrItems.length,
+      pendingNostrQueueLength: pendingNostrQueue.length,
+    });
+
+    if (pendingNostrIndex < totalItems - 1) {
+      const nextIndex = pendingNostrIndex + 1;
+      const sourceItems = pendingNostrItems.length
+        ? pendingNostrItems
+        : pendingNostrQueue;
+      const nextItem = sourceItems[nextIndex];
+
+      if (nextItem) {
+        debug.log("Opening next queue item in storage modal", {
+          nextIndex,
+          nextItem,
+          totalItems,
+        });
+        setPendingNostrIndex(nextIndex);
+        storageModal.open({
+          neventId: nextItem.neventId,
+          label: nextItem.label,
+          contentHint: nextItem.contentHint,
+          mode: "verifying",
+          onConfirm: handleCampaignNostrConfirm,
+          onClose: handleCampaignModalClose,
+          queuePosition: nextIndex + 1,
+          queueTotal: totalItems,
+          queueItems: sourceItems,
+          queueIndex: nextIndex,
+          cachedPayloads: pendingNostrPayloads,
+        });
+        return;
+      }
+    }
+
+    debug.log("All queue items verified, performing campaign update");
+    const txHash = await performCampaignUpdate(activePendingCampaignSave);
+    setPendingCampaignSave(null);
+    pendingCampaignSaveRef.current = null;
+    setPendingNostrQueue([]);
+    setPendingNostrItems([]);
+    setPendingNostrPayloads({});
+    setPendingNostrTotal(0);
+    setPendingNostrIndex(0);
+    return txHash;
   };
 
   // Handle campaign approval

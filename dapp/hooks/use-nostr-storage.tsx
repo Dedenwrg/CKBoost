@@ -115,6 +115,96 @@ export function useNostrStorage() {
   });
 
   /**
+   * Store campaign content on Nostr with verification
+   */
+  const storeCampaignContent = useMutation({
+    mutationFn: async (payload: {
+      campaignTypeId: string;
+      contentType: "cover_image" | "long_description";
+      content: string;
+      metadata?: Record<string, string>;
+    }) => {
+      if (!nostr) {
+        throw new Error("Nostr not initialized");
+      }
+
+      const secretKey = generateSecretKey();
+      const pubkey = getPublicKey(secretKey);
+      const timestamp = Date.now();
+
+      const tags: string[][] = [
+        [
+          "d",
+          `ckboost-campaign-${payload.campaignTypeId}-${payload.contentType}-${timestamp}`,
+        ],
+        ["campaign", payload.campaignTypeId],
+        ["type", payload.contentType],
+        ["client", "ckboost-dapp"],
+        ["timestamp", timestamp.toString()],
+      ];
+
+      if (payload.metadata) {
+        for (const [key, value] of Object.entries(payload.metadata)) {
+          tags.push([`meta-${key}`, value]);
+        }
+      }
+
+      const event: NostrEvent = {
+        kind: CKBOOST_SUBMISSION_KIND,
+        content: payload.content,
+        tags,
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey,
+        id: "",
+        sig: "",
+      };
+
+      event.id = getEventHash(event as Parameters<typeof getEventHash>[0]);
+
+      const signer = new NSecSigner(secretKey);
+      const signedEvent = await signer.signEvent(event);
+
+      await nostr.event(signedEvent);
+
+      let verified = false;
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (!verified && retries < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        try {
+          const verification = await nostr.query([
+            {
+              ids: [signedEvent.id],
+              kinds: [CKBOOST_SUBMISSION_KIND],
+            },
+          ]);
+
+          if (verification.length > 0) {
+            verified = true;
+          } else {
+            retries += 1;
+          }
+        } catch (error) {
+          console.error("Verification error while storing campaign content:", error);
+          retries += 1;
+        }
+      }
+
+      if (!verified) {
+        throw new Error(
+          "Failed to verify Nostr storage for campaign content. Please try again."
+        );
+      }
+
+      return nip19.neventEncode({
+        id: signedEvent.id,
+        relays: ["wss://relay.damus.io", "wss://nos.lol", "wss://relay.nostr.band"],
+      });
+    },
+  });
+
+  /**
    * Retrieve submission from Nostr
    */
   const retrieveSubmission = useCallback(
@@ -254,6 +344,7 @@ export function useNostrStorage() {
   return {
     isConnected: !!nostr,
     storeSubmission,
+    storeCampaignContent,
     retrieveSubmission,
     checkSubmissionExists,
     useSubmission,

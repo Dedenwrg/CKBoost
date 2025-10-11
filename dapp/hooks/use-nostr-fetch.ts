@@ -18,6 +18,8 @@ interface ParsedSubmission {
   author: string;
   relays: string[];
   created_at: number;
+  metadata: Record<string, string>;
+  event?: NostrEvent;
 }
 
 export function useNostrFetch() {
@@ -151,7 +153,9 @@ export function useNostrFetch() {
         eventId: event.id,
         author: event.pubkey,
         relays: parsed.relays || [],
-        created_at: event.created_at
+        created_at: event.created_at,
+        metadata,
+        event
       };
 
       return submission;
