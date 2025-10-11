@@ -601,7 +601,13 @@ const PENDING_VERIFICATIONS = [
 ];
 
 export default function PlatformAdminDashboard() {
-  const { protocolData, protocolCell, signer, isAdmin } = useProtocol();
+  const {
+    protocolData,
+    protocolCell,
+    signer,
+    isAdmin,
+    isLoading: protocolLoading,
+  } = useProtocol();
   const [activeTab, setActiveTab] = useState("overview");
   const [isRewardDialogOpen, setIsRewardDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -617,27 +623,34 @@ export default function PlatformAdminDashboard() {
 
   // Fetch campaigns connected to the protocol
   useEffect(() => {
+    if (!signer) {
+      debug.warn("No signer available, skipping campaign fetch");
+      setIsLoadingCampaigns(false);
+      return;
+    }
+
+    if (protocolLoading) {
+      debug.log("Protocol context loading, waiting before fetching campaigns");
+      setIsLoadingCampaigns(true);
+      return;
+    }
+
+    if (!protocolCell || !protocolData) {
+      // Protocol context is still warming up; try again when it changes.
+      debug.log("Protocol context not ready yet, deferring campaign fetch");
+      setIsLoadingCampaigns(false);
+      return;
+    }
+
+    let isCancelled = false;
+
     const fetchCampaigns = async () => {
       debug.group("Platform Admin - Fetch Campaigns");
       debug.log("Signer status:", { signerPresent: !!signer });
 
-      if (!signer) {
-        debug.warn("No signer available, skipping campaign fetch");
-        debug.groupEnd();
-        return;
-      }
-
       setIsLoadingCampaigns(true);
       try {
-        // Use protocol cell and data from context
         debug.log("Using protocol cell from context...");
-
-        if (!protocolCell || !protocolData) {
-          debug.error("Protocol cell or data not found");
-          debug.groupEnd();
-          return;
-        }
-
         debug.log("Protocol cell found:", {
           typeHash: protocolCell.cellOutput.type?.hash(),
           dataLength: protocolCell.outputData.length,
@@ -662,6 +675,11 @@ export default function PlatformAdminDashboard() {
           campaignCodeHash as ccc.Hex,
           protocolTypeHash as ccc.Hex
         );
+
+        if (isCancelled) {
+          debug.warn("Component unmounted before campaign fetch completed");
+          return;
+        }
 
         debug.log(`Received ${campaigns.length} connected campaigns`);
 
@@ -695,15 +713,23 @@ export default function PlatformAdminDashboard() {
           debug.groupEnd();
         }
       } catch (error) {
-        debug.error("Failed to fetch campaigns:", error);
+        if (!isCancelled) {
+          debug.error("Failed to fetch campaigns:", error);
+        }
       } finally {
-        setIsLoadingCampaigns(false);
+        if (!isCancelled) {
+          setIsLoadingCampaigns(false);
+        }
         debug.groupEnd();
       }
     };
 
     fetchCampaigns();
-  }, [signer]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [signer, protocolCell, protocolData, protocolLoading]);
 
   const [newReward, setNewReward] = useState({
     period: "",
@@ -1260,7 +1286,7 @@ export default function PlatformAdminDashboard() {
                 )}
               </div>
 
-              {isLoadingCampaigns ? (
+              {protocolLoading || isLoadingCampaigns ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -1269,6 +1295,19 @@ export default function PlatformAdminDashboard() {
                     </p>
                   </div>
                 </div>
+              ) : !protocolCell || !protocolData ? (
+                <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+                  <CardContent className="text-center py-12 space-y-2">
+                    <Shield className="w-10 h-10 text-yellow-600 mx-auto" />
+                    <h3 className="text-lg font-semibold text-yellow-700">
+                      Protocol cell not available yet
+                    </h3>
+                    <p className="text-sm text-yellow-600">
+                      Once the protocol cell loads, connected campaign
+                      applications will appear here automatically.
+                    </p>
+                  </CardContent>
+                </Card>
               ) : connectedCampaigns.length === 0 ? (
                 <Card>
                   <CardContent className="text-center py-12">
