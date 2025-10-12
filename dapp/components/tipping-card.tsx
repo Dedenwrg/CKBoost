@@ -37,6 +37,8 @@ interface TippingCardProps {
   tipping: TippingInfo;
   canApprove?: boolean;
   viewerLockHash?: string | null;
+  isViewerAdmin?: boolean;
+  isViewerEndorser?: boolean;
   onApprove?: (tipping: TippingInfo) => Promise<void>;
   onLike?: (tippingId: string) => void;
   onComment?: (tippingId: string, comment: string) => void;
@@ -50,6 +52,8 @@ export function TippingCard({
   tipping,
   canApprove = false,
   viewerLockHash,
+  isViewerAdmin = false,
+  isViewerEndorser = false,
   onApprove,
   onLike,
   onComment,
@@ -170,15 +174,60 @@ export function TippingCard({
     [resolvedLongDescription]
   );
   const tipStatus = tipping.data.status?.toLowerCase?.() ?? "pending";
-  const hasViewerApproved = useMemo(() => {
+  const supportersCount = tipping.data.supporter_lock_hashes.length;
+  const viewerSupportIndex = useMemo(() => {
     if (!viewerLockHash) {
-      return false;
+      return -1;
     }
     const lockLower = viewerLockHash.toLowerCase();
-    return tipping.data.supporter_lock_hashes.some(
+    return tipping.data.supporter_lock_hashes.findIndex(
       (hash) => ccc.hexFrom(hash).toLowerCase() === lockLower
     );
   }, [tipping.data.supporter_lock_hashes, viewerLockHash]);
+  const hasViewerApproved = viewerSupportIndex !== -1;
+
+  const isAlreadyApproved = supportersCount > 0;
+  const viewerCanApprove = isViewerAdmin;
+  const viewerCanEndorse = isViewerEndorser && isAlreadyApproved;
+  const supportMode: "none" | "approve" | "endorse" = useMemo(() => {
+    if (
+      !canApprove ||
+      tipStatus === "granted" ||
+      tipStatus === "completed" ||
+      (!viewerCanApprove && !viewerCanEndorse)
+    ) {
+      return "none";
+    }
+
+    if (viewerCanApprove && !isAlreadyApproved) {
+      return "approve";
+    }
+
+    if (viewerCanApprove && isAlreadyApproved) {
+      return "endorse";
+    }
+
+    if (!viewerCanApprove && viewerCanEndorse) {
+      return "endorse";
+    }
+
+    return "none";
+  }, [
+    canApprove,
+    tipStatus,
+    viewerCanApprove,
+    viewerCanEndorse,
+    isAlreadyApproved,
+  ]);
+  const isEndorseAction = supportMode === "endorse";
+  const actionLabel = isEndorseAction ? "Endorse Proposal" : "Approve Proposal";
+  const actionInProgressLabel = isEndorseAction
+    ? "Endorsing..."
+    : "Approving...";
+  const viewerWasFirstApprover = viewerSupportIndex === 0;
+  const actionCompleteLabel = viewerWasFirstApprover
+    ? "You Approved"
+    : "You Endorsed";
 
   const handleApprove = async () => {
     if (!canApprove || !onApprove) {
@@ -558,38 +607,36 @@ export function TippingCard({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3 pt-2">
-          {canApprove &&
-            tipStatus !== "granted" &&
-            tipStatus !== "completed" && (
-              <Button
-                onClick={handleApprove}
-                disabled={isApproving || hasViewerApproved || !onApprove}
-                size="sm"
-                className={`${
-                  hasViewerApproved
-                    ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900"
-                    : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-                }`}
-                variant={hasViewerApproved ? "outline" : "default"}
-              >
-                {isApproving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Approving...
-                  </>
-                ) : hasViewerApproved ? (
-                  <>
-                    <ThumbsUp className="w-4 h-4 mr-2 fill-current" />
-                    You Approved
-                  </>
-                ) : (
-                  <>
-                    <ThumbsUp className="w-4 h-4 mr-2" />
-                    Approve Proposal
-                  </>
-                )}
-              </Button>
-            )}
+          {supportMode !== "none" && (
+            <Button
+              onClick={handleApprove}
+              disabled={isApproving || hasViewerApproved || !onApprove}
+              size="sm"
+              className={`${
+                hasViewerApproved
+                  ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900"
+                  : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
+              }`}
+              variant={hasViewerApproved ? "outline" : "default"}
+            >
+              {isApproving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {actionInProgressLabel}
+                </>
+              ) : hasViewerApproved ? (
+                <>
+                  <ThumbsUp className="w-4 h-4 mr-2 fill-current" />
+                  {actionCompleteLabel}
+                </>
+              ) : (
+                <>
+                  <ThumbsUp className="w-4 h-4 mr-2" />
+                  {actionLabel}
+                </>
+              )}
+            </Button>
+          )}
           {approveError && (
             <div className="text-xs text-red-500">{approveError}</div>
           )}

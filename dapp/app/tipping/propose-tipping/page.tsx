@@ -360,7 +360,7 @@ export default function ProposeTippingPage() {
 
   const fillTestData = () => {
     const randomSuffix = Math.floor(Math.random() * 1000);
-    const mockLockHash = `0x${"ab".repeat(32)}`;
+    const mockLockHash = `0x02c93173368ec56f72ec023f63148461b80e7698eddd62cbd9dbe31a13f2b330`;
 
     setFormData({
       targetLockHash: mockLockHash,
@@ -371,7 +371,7 @@ export default function ProposeTippingPage() {
         "Highlighting tangible outcomes from this week's CKBoost collaboration wave.",
       longDescription:
         "<p><strong>Summary:</strong> We delivered three high-impact assets that unblock new builders.</p><ul><li>Published a step-by-step SDK integration tutorial with code samples.</li><li>Drove a 60-person workshop where 70% shipped working demos.</li><li>Coordinated translation of onboarding docs into three new languages.</li></ul><p>Each deliverable includes reproducible references so the next cohort can ramp instantly.</p>",
-      ckbAmount: "64",
+      ckbAmount: "1000",
       pointsAmount: "250",
     });
   };

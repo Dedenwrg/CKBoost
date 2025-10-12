@@ -29,7 +29,7 @@ const parseBigInt = (value: ccc.NumLike | undefined | null): bigint => {
 export function Tippings() {
   const { tippings: contextTippings, isLoading, error } = useTippingsData();
   const { updateTipping, refreshTippings } = useTippingContext();
-  const { isAdmin, protocolData } = useProtocol();
+  const { isAdmin, isEndorser, protocolData } = useProtocol();
   const signer = ccc.useSigner();
   const { toast } = useToast();
 
@@ -131,33 +131,45 @@ export function Tippings() {
 
   const handleApprove = useCallback(
     async (tipping: TippingInfo) => {
-      if (!isAdmin) {
+      if (!isAdmin && !isEndorser) {
         toast({
-          title: "Admin access required",
-          description: "Only admins can approve tipping proposals.",
+          title: "Restricted action",
+          description:
+            "Only admins or authorized endorsers can support tipping proposals.",
           variant: "destructive",
         });
-        throw new Error("Admin access required");
+        throw new Error("Approval or endorsement not permitted");
       }
 
       if (!signer || !viewerLockHash) {
         toast({
           title: "Wallet required",
-          description: "Connect your admin wallet to approve proposals.",
+          description: "Connect your wallet to support this proposal.",
           variant: "destructive",
         });
-        throw new Error("Admin wallet required");
+        throw new Error("Wallet connection required");
       }
 
       const supporters = tipping.data.supporter_lock_hashes.map((hash) =>
         ccc.hexFrom(hash)
       );
       const supportersLower = supporters.map((hash) => hash.toLowerCase());
+      const alreadyApproved = supporters.length > 0;
+
+      if (!isAdmin && isEndorser && !alreadyApproved) {
+        toast({
+          title: "Awaiting admin approval",
+          description:
+            "An admin must record the first approval before endorsements are allowed.",
+          variant: "destructive",
+        });
+        throw new Error("Admin approval required before endorsement");
+      }
 
       if (supportersLower.includes(viewerLockHash.toLowerCase())) {
         toast({
-          title: "Already approved",
-          description: "Your approval is already recorded for this tipping.",
+          title: "Already recorded",
+          description: "Your support has already been recorded for this tip.",
         });
         return;
       }
@@ -193,8 +205,14 @@ export function Tippings() {
 
       try {
         const txHash = await updateTipping(updatedTipping);
+        const isEndorserAction = !isAdmin;
         toast({
-          title: status === "granted" ? "Tipping granted" : "Approval recorded",
+          title:
+            status === "granted"
+              ? "Tipping granted"
+              : isEndorserAction
+              ? "Endorsement recorded"
+              : "Approval recorded",
           description:
             status === "granted"
               ? "Required approvals reached. Distribution can proceed."
@@ -227,6 +245,7 @@ export function Tippings() {
     [
       getRequiredApprovals,
       isAdmin,
+      isEndorser,
       signer,
       toast,
       updateTipping,
@@ -340,8 +359,10 @@ export function Tippings() {
           <TippingCard
             key={tipping.typeId ?? ccc.hexFrom(tipping.data.target_lock_hash)}
             tipping={tipping}
-            canApprove={isAdmin}
+            canApprove={isAdmin || isEndorser}
             viewerLockHash={viewerLockHash}
+            isViewerAdmin={isAdmin}
+            isViewerEndorser={isEndorser}
             onApprove={handleApprove}
             onLike={handleLike}
             onComment={handleComment}

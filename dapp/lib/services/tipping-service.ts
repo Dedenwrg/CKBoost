@@ -150,18 +150,19 @@ export class TippingService {
         connected_key: protocolTypeHash,
       });
 
-      // Find the tipping cell and replace the lock with the protocol lock
-      const tippingCell = updateTippingTx.res.outputs.find(
+      // For new Find the tipping cell and replace the lock with the protocol lock
+      const outputTippingCell = updateTippingTx.res.outputs.find(
         (output) => output.type?.codeHash === this.tippingTypeCodeHash
       );
-      if (tippingCell) {
-        tippingCell.lock = ccc.Script.from({
+      const inputTippingCell = updateTippingTx.res.inputs.find(
+        (input) => input.cellOutput?.type?.codeHash === this.tippingTypeCodeHash
+      );
+      if (outputTippingCell && !inputTippingCell) {
+        outputTippingCell.lock = ccc.Script.from({
           codeHash: protocolLockCodeHash,
-          hashType: this.protocolCell.cellOutput.lock.hashType,
+          hashType: outputTippingCell.lock.hashType,
           args: ccc.hexFrom(connectedIDforProtocolLock),
         });
-      } else {
-        throw new Error("Tipping cell not found in transaction");
       }
 
       const txHash = await sendTransactionWithFeeRetry(
@@ -564,6 +565,19 @@ export class TippingService {
     tipping: Tipping,
     tippingData: TippingDataLike
   ): Promise<ccc.Transaction> {
+    const fundingLockOutPoint = deploymentManager.getContractOutPoint(
+      deploymentManager.getCurrentNetwork(),
+      "ckboostFundingLock"
+    );
+    if (!fundingLockOutPoint) {
+      throw new Error("Funding lock contract not found in deployments.json");
+    }
+
+    tx.addCellDeps({
+      outPoint: fundingLockOutPoint,
+      depType: "code",
+    });
+
     const targetLockScript = await this.resolveLockScript(
       ccc.hexFrom(tippingData.target_lock_hash)
     );
@@ -627,10 +641,6 @@ export class TippingService {
       await tx.addInput(cell);
     }
 
-    const totalCapacity = selectedCells.reduce<bigint>((acc, cell) => {
-      return acc + this.capacityToBigInt(cell.cellOutput.capacity);
-    }, 0n);
-
     await tx.addOutput(
       ccc.CellOutput.from({
         capacity: requiredCKB,
@@ -638,18 +648,6 @@ export class TippingService {
       }),
       "0x"
     );
-
-    const change = totalCapacity - requiredCKB;
-    if (change > 0n) {
-      const fundingLock = await this.getFundingLockScript();
-      await tx.addOutput(
-        ccc.CellOutput.from({
-          capacity: change,
-          lock: fundingLock,
-        }),
-        "0x"
-      );
-    }
 
     return tx;
   }

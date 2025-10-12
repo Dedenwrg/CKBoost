@@ -135,6 +135,41 @@ const buildPreviewPayload = (
   };
 };
 
+const hasHtmlTags = (value: string) => /<\/?[a-z][\s\S]*>/i.test(value);
+
+const escapePlainText = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const formatTippingContentHtml = (raw: string | undefined | null) => {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (hasHtmlTags(trimmed)) {
+    return trimmed;
+  }
+
+  const paragraphs = trimmed
+    .split(/\n\s*\n/g)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0);
+
+  if (paragraphs.length === 0) {
+    return `<p>${escapePlainText(trimmed).replace(/\n+/g, "<br />")}</p>`;
+  }
+
+  return paragraphs
+    .map((paragraph) => {
+      const escaped = escapePlainText(paragraph);
+      return `<p>${escaped.replace(/\n+/g, "<br />")}</p>`;
+    })
+    .join("");
+};
+
 type CachedPayloadMap = Record<
   string,
   { content: string; metadata: Record<string, string> }
@@ -460,71 +495,6 @@ export function NostrStorageModal({
     image: boolean,
     html: boolean
   ) {
-    if (image) {
-      return (
-        <div className="flex flex-col items-center gap-4">
-          <img
-            src={preview.content}
-            alt={preview.label || "Nostr image"}
-            className="max-h-[360px] w-auto rounded-lg border border-muted shadow"
-          />
-          <p className="text-xs text-muted-foreground">
-            {preview.metadata["meta-encoding"]
-              ? `Encoding: ${preview.metadata["meta-encoding"]}`
-              : "Image data loaded from Nostr."}
-          </p>
-        </div>
-      );
-    }
-
-    if (html) {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Rendered HTML content stored on Nostr.
-          </p>
-          <div
-            className="prose prose-sm dark:prose-invert max-w-none"
-            dangerouslySetInnerHTML={{ __html: preview.content }}
-          />
-        </div>
-      );
-    }
-
-    if (preview.quest) {
-      return (
-        <div className="space-y-4">
-          {preview.quest.subtasks.map((subtask, index) => (
-            <div
-              key={index}
-              className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800"
-            >
-              <div className="mb-2 pb-2 border-b">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  {subtask.title || `Subtask ${index + 1}`}
-                </span>
-                {subtask.description && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
-                    {subtask.description}
-                  </span>
-                )}
-              </div>
-              {subtask.response ? (
-                <div
-                  className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: subtask.response }}
-                />
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                  No response provided
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
     if (preview.tipping) {
       return (
         <div className="space-y-4">
@@ -564,7 +534,7 @@ export function NostrStorageModal({
             <div
               className="prose prose-sm dark:prose-invert max-w-none"
               dangerouslySetInnerHTML={{
-                __html: preview.tipping.contentHtml,
+                __html: formatTippingContentHtml(preview.tipping.contentHtml),
               }}
             />
           ) : (
@@ -572,6 +542,71 @@ export function NostrStorageModal({
               No detailed justification provided.
             </p>
           )}
+        </div>
+      );
+    }
+
+    if (preview.quest) {
+      return (
+        <div className="space-y-4">
+          {preview.quest.subtasks.map((subtask, index) => (
+            <div
+              key={index}
+              className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-800"
+            >
+              <div className="mb-2 pb-2 border-b">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  {subtask.title || `Subtask ${index + 1}`}
+                </span>
+                {subtask.description && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
+                    {subtask.description}
+                  </span>
+                )}
+              </div>
+              {subtask.response ? (
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: subtask.response }}
+                />
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                  No response provided
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (image) {
+      return (
+        <div className="flex flex-col items-center gap-4">
+          <img
+            src={preview.content}
+            alt={preview.label || "Nostr image"}
+            className="max-h-[360px] w-auto rounded-lg border border-muted shadow"
+          />
+          <p className="text-xs text-muted-foreground">
+            {preview.metadata["meta-encoding"]
+              ? `Encoding: ${preview.metadata["meta-encoding"]}`
+              : "Image data loaded from Nostr."}
+          </p>
+        </div>
+      );
+    }
+
+    if (html) {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Rendered HTML content stored on Nostr.
+          </p>
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: preview.content }}
+          />
         </div>
       );
     }
