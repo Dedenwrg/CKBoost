@@ -278,6 +278,15 @@ export default function ProposeTippingPage() {
         storageModal.open({
           neventId: longDescriptionForChain,
           mode: "verifying",
+          label: "Tipping Long Description",
+          contentHint: "html",
+          queueItems: [
+            {
+              neventId: longDescriptionForChain,
+              label: "Tipping Long Description",
+            },
+          ],
+          queueIndex: 0,
           onConfirm: async () =>
             finalizeTippingSubmission({
               data: tippingData,

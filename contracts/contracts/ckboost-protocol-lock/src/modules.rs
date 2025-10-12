@@ -194,20 +194,70 @@ impl CKBoostTipping for CKBoostProtocolLock {
     fn verify_update_tipping(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error> {
-        todo!()
-    }
+        debug_trace!("CKBoostProtocolLock::verify_update_tipping - Starting validation");
+        let args = load_script()?.args();
+        let connected_type_id = ConnectedTypeID::from_slice(&args.raw_data())
+            .map_err(|e| Error::InvalidConnectedTypeId)?;
+        let connected_key = connected_type_id.connected_key();
+        let mut connected_key_u832 = [0u8; 32];
+        connected_key_u832.copy_from_slice(&connected_key.raw_data());
+        let output_tipping_cell_vec = context
+            .output_cells
+            .get_custom("tipping")
+            .ok_or(Error::CellCountViolation)?;
+        if output_tipping_cell_vec.len() != 1 {
+            return Err(Error::CellCountViolation);
+        }
+        let output_tipping_cell = &output_tipping_cell_vec[0];
 
-    fn grant_tipping_reward(
-        tx: Option<Transaction>,
-        tipping_data: ckboost_shared::types::TippingData,
-    ) -> Result<Transaction, Error> {
-        todo!()
-    }
-
-    fn verify_grant_tipping_reward(
-        context: &TransactionContext<RuleBasedClassifier>,
-    ) -> Result<(), Error> {
-        todo!()
+        let input_tipping_cell_vec = context
+            .input_cells
+            .get_custom("tipping")
+            .ok_or(Error::CellCountViolation)?;
+        if input_tipping_cell_vec.len() == 1 {
+            let input_tipping_cell = &input_tipping_cell_vec[0];
+            if input_tipping_cell.type_hash != output_tipping_cell.type_hash {
+                return Err(Error::ProtocolCellNotFound);
+            }
+        } else if input_tipping_cell_vec.len() > 1 {
+            return Err(Error::CellCountViolation);
+        }
+        let protocol_data = get_protocol_data().map_err(|e| Error::InvalidProtocolData)?;
+        let tipping_data = TippingData::from_slice(&output_tipping_cell.data)
+            .map_err(|e| Error::InvalidTippingData)?;
+        let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
+        let endorser_whitelist = protocol_data.endorsers_whitelist();
+        let output_tipping_cell_connected_type_id =
+            ConnectedTypeID::from_slice(&output_tipping_cell.lock.args().raw_data())
+                .map_err(|e| Error::InvalidConnectedTypeId)?;
+        if output_tipping_cell_connected_type_id
+            .connected_key()
+            .as_slice()
+            != connected_key_u832.as_slice()
+        {
+            debug_trace!(
+                "Output tipping cell connected type id mismatch: {:?}",
+                output_tipping_cell_connected_type_id
+            );
+            debug_trace!("Connected key: {:?}", connected_key_u832);
+            return Err(Error::InvalidConnectedTypeId);
+        }
+        let proxy_ckb_cells = context.input_cells.get_simple_ckb();
+        // If any proxy ckb cell is the connectedTypeId.type_id or in the admin_lock_hash_vec, return Ok
+        for proxy_ckb_cell in proxy_ckb_cells {
+            if proxy_ckb_cell.lock_hash == connected_key_u832
+                || admin_lock_hash_vec
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.as_slice() == proxy_ckb_cell.lock_hash.as_slice())
+                || (endorser_whitelist.clone().into_iter().any(|h| {
+                    h.endorser_lock_hash().as_slice() == proxy_ckb_cell.lock_hash.as_slice()
+                } && tipping_data.supporter_lock_hashes().len() > 0))
+            {
+                return Ok(());
+            }
+        }
+        return Err(Error::InvalidConnectedTypeId);
     }
 }
 

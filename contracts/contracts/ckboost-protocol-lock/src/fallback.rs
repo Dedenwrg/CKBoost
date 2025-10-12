@@ -49,12 +49,6 @@ pub fn fallback() -> Result<(), Error> {
             debug_trace!("verify_update_tipping result: {:?}", verify_result);
             verify_result
         }
-        b"CKBoostTipping.grant_tipping_reward" => {
-            debug_trace!("Executing verify_grant_tipping_reward");
-            let verify_result = CKBoostProtocolLock::verify_grant_tipping_reward(&context);
-            debug_trace!("verify_grant_tipping_reward result: {:?}", verify_result);
-            verify_result
-        }
         b"CKBoostProtocol.update_protocol" => {
             debug_trace!("Executing verify_update_protocol");
             let verify_result = CKBoostProtocolLock::verify_update_protocol(&context);

@@ -131,35 +131,37 @@ impl CKBoostTipping for CKBoostTippingType {
 
                 // The tipping cell will be added at the current end of inputs
                 tipping_input_index = tx.as_ref().map(|t| t.raw().inputs().len()).unwrap_or(0);
-
-                // Add tipping cell as input
-                let tipping_input = CellInput::new_builder()
-                    .previous_output(tipping_outpoint.clone())
-                    .build();
-                cell_input_vec_builder = cell_input_vec_builder.push(tipping_input);
-
-                // Get the current tipping cell to preserve lock script
-                let current_tipping_cell =
-                    find_cell_by_out_point(tipping_outpoint).map_err(|e| {
-                        debug_info!("ERROR loading tipping cell: {:?}", e);
-                        Error::TippingCellNotFound
-                    })?;
-
-                // Track that we're adding a tipping output at the current output count
                 tipping_output_index =
                     Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
+                // TODO: find_cell_by_out_point here fails for memory. Skipping
+                // // Add tipping cell as input
+                // let tipping_input = CellInput::new_builder()
+                //     .previous_output(tipping_outpoint.clone())
+                //     .build();
+                // cell_input_vec_builder = cell_input_vec_builder.push(tipping_input);
 
-                // Create output tipping cell with updated data
-                let new_tipping_output = CellOutputBuilder::default()
-                    .type_(
-                        ScriptOptBuilder::default()
-                            .set(Some(current_script))
-                            .build(),
-                    )
-                    .lock(current_tipping_cell.lock())
-                    .capacity(0u64.pack())
-                    .build();
-                cell_output_vec_builder = cell_output_vec_builder.push(new_tipping_output);
+                // // Get the current tipping cell to preserve lock script
+                // let current_tipping_cell =
+                //     find_cell_by_out_point(tipping_outpoint).map_err(|e| {
+                //         debug_info!("ERROR loading tipping cell: {:?}", e);
+                //         Error::TippingCellNotFound
+                //     })?;
+
+                // Track that we're adding a tipping output at the current output count
+                // tipping_output_index =
+                //     Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
+
+                // // Create output tipping cell with updated data
+                // let new_tipping_output = CellOutputBuilder::default()
+                //     .type_(
+                //         ScriptOptBuilder::default()
+                //             .set(Some(current_script))
+                //             .build(),
+                //     )
+                //     .lock(current_tipping_cell.lock())
+                //     .capacity(0u64.pack())
+                //     .build();
+                // cell_output_vec_builder = cell_output_vec_builder.push(new_tipping_output);
             }
             None => {
                 debug_trace!("No tipping cell found. Creating a new tipping cell.");

@@ -88,7 +88,48 @@ export class Tipping extends ssri.Trait {
       resTx.res.addCellDeps({
         outPoint: this.code,
         depType: "code",
+      }); // SSRI Method might fail to find the tipping cell by out point, so we need to find it manually for both input and output
+      console.log("Finding tipping cell by type:", {
+        codeHash: this.script.codeHash,
+        hashType: "type",
+        args: this.script.args,
       });
+      for await (const cell of signer.client.findCellsByType({
+        codeHash: this.script.codeHash,
+        hashType: "type",
+        args: this.script.args, // Empty args to match any args
+      })) {
+        console.log("Found tipping cell:", cell.outPoint);
+        // Check if the cell is in the inputs of the transaction. If none, add it as an input.
+        if (
+          !resTx.res.inputs.some(
+            (input) =>
+              input.previousOutput.txHash === cell.outPoint.txHash &&
+              input.previousOutput.index === cell.outPoint.index
+          )
+        ) {
+          console.log("Adding tipping cell as input:", cell.outPoint);
+          resTx.res.addInput(cell);
+        }
+        // Check if the cell is in the outputs of the transaction. If none, add it as an output.
+        if (
+          !resTx.res.outputs.some(
+            (output) =>
+              output.type?.codeHash === cell.cellOutput.type?.codeHash &&
+              output.type?.args === cell.cellOutput.type?.args
+          )
+        ) {
+          console.log("Adding new tipping cell as output:", cell.outPoint);
+          const tippingCellOutput = ccc.CellOutput.from({
+            lock: cell.cellOutput.lock,
+            type: cell.cellOutput.type,
+          });
+          resTx.res.addOutput(
+            tippingCellOutput,
+            ccc.hexFrom(TippingData.encode(tippingData))
+          );
+        }
+      }
 
       // Find the tipping cell output (should be the first output with the tipping type script)
       const tippingCellOutputIndex = resTx.res.outputs.findIndex(
@@ -96,6 +137,10 @@ export class Tipping extends ssri.Trait {
       );
 
       if (tippingCellOutputIndex === -1) {
+        console.log(
+          "Tipping cell output not found in transaction. TxHex:",
+          ccc.hexFrom(resTx.res.toBytes())
+        );
         throw new Error("Tipping cell output not found in transaction");
       }
 

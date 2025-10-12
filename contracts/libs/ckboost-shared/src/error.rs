@@ -147,6 +147,7 @@ pub enum Error {
 
     // Tipping specific errors
     TippingCellNotFound,
+    InvalidTippingData,
 
     // Unknown error
     Unknown,
