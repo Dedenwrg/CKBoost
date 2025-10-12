@@ -301,6 +301,10 @@ export class Tipping extends ssri.Trait {
   async collectFundingPool(signer: ccc.Signer): Promise<FundingPoolSummary> {
     const chainClient = signer.client;
     const fundingLockScript = await this.getFundingLockScript();
+    console.log(
+      "ssri-ckboost: collectFundingPool: fundingLockScript",
+      fundingLockScript
+    );
 
     const collector = chainClient.findCells({
       script: fundingLockScript,
@@ -324,6 +328,7 @@ export class Tipping extends ssri.Trait {
         const previous = udtTotalsByType.get(typeHash) ?? 0n;
         udtTotalsByType.set(typeHash, previous + amount);
       } else {
+        console.log("ssri-ckboost: collectFundingPool: pushing ckbCell", cell);
         ckbCells.push(cell);
         totalCapacity += ccc.numFrom(cell.cellOutput.capacity);
       }

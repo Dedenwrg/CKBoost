@@ -196,9 +196,11 @@ impl CKBoostTipping for CKBoostProtocolLock {
     ) -> Result<(), Error> {
         debug_trace!("CKBoostProtocolLock::verify_update_tipping - Starting validation");
         let args = load_script()?.args();
+        debug_trace!("Args: {:?}. Parsing as ConnectedTypeID", args.raw_data());
         let connected_type_id = ConnectedTypeID::from_slice(&args.raw_data())
             .map_err(|e| Error::InvalidConnectedTypeId)?;
         let connected_key = connected_type_id.connected_key();
+        debug_trace!("Connected key: {:?}", connected_key);
         let mut connected_key_u832 = [0u8; 32];
         connected_key_u832.copy_from_slice(&connected_key.raw_data());
         let output_tipping_cell_vec = context
@@ -227,9 +229,17 @@ impl CKBoostTipping for CKBoostProtocolLock {
             .map_err(|e| Error::InvalidTippingData)?;
         let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
         let endorser_whitelist = protocol_data.endorsers_whitelist();
+        debug_trace!(
+            "Output tipping cell lock args: {:?}. Parsing as ConnectedTypeID",
+            output_tipping_cell.lock.args()
+        );
         let output_tipping_cell_connected_type_id =
             ConnectedTypeID::from_slice(&output_tipping_cell.lock.args().raw_data())
                 .map_err(|e| Error::InvalidConnectedTypeId)?;
+        debug_trace!(
+            "Output tipping cell lock connected type id: {:?}",
+            output_tipping_cell_connected_type_id
+        );
         if output_tipping_cell_connected_type_id
             .connected_key()
             .as_slice()
@@ -245,18 +255,62 @@ impl CKBoostTipping for CKBoostProtocolLock {
         let proxy_ckb_cells = context.input_cells.get_simple_ckb();
         // If any proxy ckb cell is the connectedTypeId.type_id or in the admin_lock_hash_vec, return Ok
         for proxy_ckb_cell in proxy_ckb_cells {
-            if proxy_ckb_cell.lock_hash == connected_key_u832
-                || admin_lock_hash_vec
-                    .clone()
-                    .into_iter()
-                    .any(|h| h.as_slice() == proxy_ckb_cell.lock_hash.as_slice())
-                || (endorser_whitelist.clone().into_iter().any(|h| {
-                    h.endorser_lock_hash().as_slice() == proxy_ckb_cell.lock_hash.as_slice()
-                } && tipping_data.supporter_lock_hashes().len() > 0))
+            // Either the owner, an admin, or an endorser
+            debug_trace!(
+                "Current Proxy ckb cell lock hash: {:?}",
+                proxy_ckb_cell.lock_hash.to_vec()
+            );
+            if proxy_ckb_cell.lock_hash.to_vec() == connected_type_id.type_id().raw_data().to_vec()
             {
                 return Ok(());
+            } else {
+                debug_trace!(
+                    "Not the owner {:?}",
+                    connected_type_id.type_id().raw_data().to_vec()
+                );
+            }
+
+            if admin_lock_hash_vec.clone().into_iter().any(|h| {
+                debug_trace!("Admin lock hash: {:?}", h.raw_data().to_vec());
+                if h.raw_data().to_vec() == proxy_ckb_cell.lock_hash.to_vec() {
+                    debug_trace!("Found admin lock hash");
+                    return true;
+                } else {
+                    debug_trace!("Not Admin {:?}", h.raw_data().to_vec());
+                    return false;
+                }
+            }) {
+                return Ok(());
+            } else {
+                debug_trace!("Not Admin");
+            }
+
+            if endorser_whitelist.clone().into_iter().any(|h| {
+                debug_trace!(
+                    "Endorser lock hash: {:?}",
+                    h.endorser_lock_hash().raw_data().to_vec()
+                );
+                if h.endorser_lock_hash().raw_data().to_vec() == proxy_ckb_cell.lock_hash.to_vec() {
+                    debug_trace!("Found endorser lock hash");
+                    return true;
+                } else {
+                    debug_trace!(
+                        "Not Endorser {:?}",
+                        h.endorser_lock_hash().raw_data().to_vec()
+                    );
+                    return false;
+                }
+            }) {
+                return Ok(());
+            } else {
+                debug_trace!("Not Endorser");
             }
         }
+        debug_trace!("No proxy ckb cell found for lock connected type id");
+        debug_trace!("Connected key: {:?}", connected_key_u832);
+        debug_trace!("Admin lock hash vec: {:?}", admin_lock_hash_vec);
+        debug_trace!("Endorser whitelist: {:?}", endorser_whitelist);
+        debug_trace!("Proxy ckb cells: {:?}", proxy_ckb_cells);
         return Err(Error::InvalidConnectedTypeId);
     }
 }

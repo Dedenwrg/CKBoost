@@ -649,6 +649,32 @@ export class TippingService {
       "0x"
     );
 
+    const fundingLockCellsInputCapacity = selectedCells.reduce(
+      (acc, cell) => acc + ccc.numFrom(cell.cellOutput.capacity),
+      0n
+    );
+    console.log(
+      "ssri-ckboost: addCkbRewardFunding: fundingLockCellsInputCapacity",
+      fundingLockCellsInputCapacity
+    );
+
+    const changeAmount = fundingLockCellsInputCapacity - requiredCKB;
+    console.log(
+      "ssri-ckboost: addCkbRewardFunding: changeAmount",
+      changeAmount
+    );
+
+    if (changeAmount > 0n) {
+      const fundingLockScript = await this.getFundingLockScript();
+      await tx.addOutput(
+        ccc.CellOutput.from({
+          capacity: changeAmount,
+          lock: fundingLockScript,
+        }),
+        "0x"
+      );
+    }
+
     return tx;
   }
 

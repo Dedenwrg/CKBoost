@@ -125,9 +125,23 @@ pub trait ProtocolDataExt {
                                                 }
                                                 Err(e) => {
                                                     debug_trace!(
-                                                            "Failed to load protocol data from Output: {:?}",
+                                                            "Failed to load protocol data from Output: {:?}. Could be tipping funding cell bounded to protocol cell in CellDep",
                                                             e
                                                         );
+                                                    match find_bounded_protocol_cell_for_data(
+                                                        args_u832,
+                                                        Source::CellDep,
+                                                    ) {
+                                                        Ok(protocol_data) => {
+                                                            return Ok(protocol_data);
+                                                        }
+                                                        Err(e) => {
+                                                            debug_trace!(
+                                                                "Failed to load protocol data from CellDep: {:?}",
+                                                                e
+                                                            );
+                                                        }
+                                                    }
                                                     return Err(
                                                         crate::error::Error::ProtocolDataInvalid,
                                                     );

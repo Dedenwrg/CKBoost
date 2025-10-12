@@ -3,7 +3,10 @@ extern crate alloc;
 use ckb_deterministic::{debug_trace, transaction_recipe::TransactionRecipeExt};
 use ckboost_shared::{error::Error, transaction_context::create_transaction_context};
 
-use crate::{modules::CKBoostFundingLock, ssri::CKBoostCampaign};
+use crate::{
+    modules::CKBoostFundingLock,
+    ssri::{CKBoostCampaign, CKBoostTipping},
+};
 
 /// Fallback validation implementation for CKBoost Funding Lock
 /// This executes when the lock is being validated on-chain
@@ -40,6 +43,12 @@ pub fn fallback() -> Result<(), Error> {
             debug_trace!("Executing verify_approve_completion");
             let verify_result = CKBoostFundingLock::verify_approve_completion(&context);
             debug_trace!("verify_approve_completion result: {:?}", verify_result);
+            verify_result
+        }
+        b"CKBoostTipping.update_tipping" => {
+            debug_trace!("Executing verify_update_tipping");
+            let verify_result = CKBoostFundingLock::verify_update_tipping(&context);
+            debug_trace!("verify_update_tipping result: {:?}", verify_result);
             verify_result
         }
         _ => {

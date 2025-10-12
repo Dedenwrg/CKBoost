@@ -122,7 +122,7 @@ pub mod update_tipping {
                     match tipping_data {
                         Ok(tipping_data) => {
                             let status = tipping_data.status().to_entity();
-                            if status.as_slice() == b"granted" {
+                            if status.raw_data().to_vec() == b"granted" {
                                 debug_trace!("Tipping status is granted - update is invalid");
                                 return Err(DeterministicError::BusinessRuleViolation);
                             }
@@ -152,8 +152,11 @@ pub mod update_tipping {
                     match tipping_data {
                         Ok(output_tipping_data) => {
                             let status = output_tipping_data.status().to_entity();
-                            if status.as_slice() != b"granted" {
+                            if status.raw_data().to_vec() != b"granted" {
                                 debug_trace!("Tipping status is not granted - update is invalid");
+                                debug_trace!("  Status Hex: {:?}", status.raw_data());
+                                debug_trace!("  Expected Status String: {:?}", b"granted");
+
                                 return Err(DeterministicError::BusinessRuleViolation);
                             }
                             // Check rewards distribution

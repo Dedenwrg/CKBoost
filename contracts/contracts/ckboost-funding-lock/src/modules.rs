@@ -78,7 +78,9 @@ impl CKBoostTipping for CKBoostFundingLock {
     fn verify_update_tipping(
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error> {
-        todo!()
+        debug_trace!("CKBoostFundingLock::verify_update_tipping - Starting validation");
+
+        recipes::update_tipping::validate_update_tipping(context).map_err(|e| e.into())
     }
 }
 
