@@ -318,6 +318,7 @@ table UserData {
     total_points_earned: Uint128,  // Changed to Uint128 for consistency with quest points
     last_activity_timestamp: Uint64,
     submission_records: UserSubmissionRecordVec,
+    profile_data: BytesVec,
 }
 
 

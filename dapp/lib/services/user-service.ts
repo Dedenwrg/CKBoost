@@ -682,7 +682,8 @@ export class UserService {
       total_points_earned: currentUserData.total_points_earned,
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: updatedSubmissions,
-    };
+      profile_data: currentUserData.profile_data,
+    } as UserDataLike;
 
     // Create executor for SSRI operations
     const executorUrl =
@@ -889,7 +890,8 @@ export class UserService {
       total_points_earned: 0,
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: [newSubmission],
-    };
+      profile_data: [],
+    } as UserDataLike;
 
     // Now that the contract's submit_quest handles both creation and update,
     // we can use it for creation too. We just need to pass empty args
@@ -1114,6 +1116,7 @@ export class UserService {
       total_points_earned: 0,
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: [],
+      profile_data: [],
     } as UserDataLike;
 
     const { res: createTx } = await creatorInstance.updateVerificationData(

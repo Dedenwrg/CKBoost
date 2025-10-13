@@ -170,7 +170,8 @@ export const UserData = mol.table({
   verification_data: UserVerificationData,
   total_points_earned: mol.Uint128,
   last_activity_timestamp: mol.Uint64,
-  submission_records: UserSubmissionRecordVec
+  submission_records: UserSubmissionRecordVec,
+  profile_data: mol.BytesVec
 });
 export const ConnectedTypeID = mol.table({
   type_id: mol.Byte32,
@@ -359,6 +360,7 @@ export interface UserDataLike {
   total_points_earned: ccc.NumLike;
   last_activity_timestamp: ccc.NumLike;
   submission_records: UserSubmissionRecordLike[];
+  profile_data: ccc.BytesLike[];
 }
 
 export interface ConnectedTypeIDLike {

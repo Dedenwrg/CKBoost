@@ -975,6 +975,10 @@
         {
           "name": "submission_records",
           "type": "UserSubmissionRecordVec"
+        },
+        {
+          "name": "profile_data",
+          "type": "BytesVec"
         }
       ]
     },
