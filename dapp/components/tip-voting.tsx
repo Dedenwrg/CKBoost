@@ -1,28 +1,28 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Progress } from "@/components/ui/progress"
-import { ThumbsUp, Coins, Users, Clock } from "lucide-react"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { ThumbsUp, Coins, Users, Clock } from "lucide-react";
 
 interface Approval {
-  username: string
-  timestamp: string
-  avatar?: string
+  username: string;
+  timestamp: string;
+  avatar?: string;
 }
 
 interface TipVotingProps {
-  recipientName: string
-  recipientAddress: string
-  contributionId: string
-  initiatedBy: string
-  approvals: Approval[]
-  requiredApprovals: number
-  currentUserApproved?: boolean
-  onApprove?: (contributionId: string) => void
+  recipientName: string;
+  recipientAddress: string;
+  contributionId: string;
+  initiatedBy: string;
+  approvals: Approval[];
+  requiredApprovals: number;
+  currentUserApproved?: boolean;
+  onApprove?: (contributionId: string) => void;
 }
 
 export function TipVoting({
@@ -35,32 +35,44 @@ export function TipVoting({
   currentUserApproved = false,
   onApprove,
 }: TipVotingProps) {
-  const [isApproving, setIsApproving] = useState(false)
+  const [isApproving, setIsApproving] = useState(false);
 
-  const approvalsNeeded = requiredApprovals - approvals.length
-  const progressPercentage = (approvals.length / requiredApprovals) * 100
-  const isCompleted = approvals.length >= requiredApprovals
+  const approvalsNeeded = requiredApprovals - approvals.length;
+  const progressPercentage = (approvals.length / requiredApprovals) * 100;
+  const isCompleted = approvals.length >= requiredApprovals;
 
   const handleApprove = async () => {
-    if (currentUserApproved || isCompleted) return
+    if (currentUserApproved || isCompleted) return;
 
-    setIsApproving(true)
+    setIsApproving(true);
     // Simulate approval process
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsApproving(false)
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    setIsApproving(false);
 
-    onApprove?.(contributionId)
-  }
+    onApprove?.(contributionId);
+  };
 
   return (
-    <Card className={`border-2 ${isCompleted ? "border-green-200 bg-green-50" : "border-yellow-200 bg-yellow-50"}`}>
+    <Card
+      className={`border-2 ${
+        isCompleted
+          ? "border-green-200 bg-green-50"
+          : "border-yellow-200 bg-yellow-50"
+      }`}
+    >
       <CardContent className="p-4">
         <div className="space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Coins className={`w-5 h-5 ${isCompleted ? "text-green-600" : "text-yellow-600"}`} />
-              <span className="font-semibold">{isCompleted ? "🎉 Tip Approved!" : "⏳ Tip in Progress"}</span>
+              <Coins
+                className={`w-5 h-5 ${
+                  isCompleted ? "text-green-600" : "text-yellow-600"
+                }`}
+              />
+              <span className="font-semibold">
+                {isCompleted ? "🎉 Tip Approved!" : "⏳ Tip in Progress"}
+              </span>
             </div>
             <Badge
               variant={isCompleted ? "default" : "secondary"}
@@ -76,7 +88,9 @@ export function TipVoting({
               <span className="text-muted-foreground">
                 {isCompleted
                   ? `Tip approved for ${recipientName}`
-                  : `Needs ${approvalsNeeded} more approval${approvalsNeeded !== 1 ? "s" : ""}`}
+                  : `Needs ${approvalsNeeded} more approval${
+                      approvalsNeeded !== 1 ? "s" : ""
+                    }`}
               </span>
               <span className="font-medium">
                 {approvals.length}/{requiredApprovals}
@@ -96,7 +110,9 @@ export function TipVoting({
                 {recipientAddress.slice(0, 8)}...{recipientAddress.slice(-6)}
               </div>
             </div>
-            <div className="text-xs text-muted-foreground">Initiated by {initiatedBy}</div>
+            <div className="text-xs text-muted-foreground">
+              Initiated by {initiatedBy}
+            </div>
           </div>
 
           {/* Approvals List */}
@@ -104,11 +120,14 @@ export function TipVoting({
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Users className="w-4 h-4" />
-                Approved by:
+                Endorsed by:
               </div>
               <div className="flex flex-wrap gap-2">
                 {approvals.map((approval, index) => (
-                  <div key={index} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border text-sm">
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border text-sm"
+                  >
                     <Avatar className="w-5 h-5">
                       <AvatarFallback className="text-xs bg-gradient-to-br from-green-200 to-blue-200">
                         {approval.username.charAt(0).toUpperCase()}
@@ -151,7 +170,8 @@ export function TipVoting({
                   </>
                 ) : (
                   <>
-                    <ThumbsUp className="w-4 h-4 mr-2" />👍 Approve Tip
+                    <ThumbsUp className="w-4 h-4 mr-2" />
+                    👍 Approve Tip
                   </>
                 )}
               </Button>
@@ -160,12 +180,16 @@ export function TipVoting({
 
           {isCompleted && (
             <div className="text-center p-3 bg-green-100 rounded-lg border border-green-200">
-              <div className="text-green-800 font-medium">🎉 Tip has been sent to {recipientName}!</div>
-              <div className="text-sm text-green-600 mt-1">50 CKB tokens have been transferred</div>
+              <div className="text-green-800 font-medium">
+                🎉 Tip has been sent to {recipientName}!
+              </div>
+              <div className="text-sm text-green-600 mt-1">
+                50 CKB tokens have been transferred
+              </div>
             </div>
           )}
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

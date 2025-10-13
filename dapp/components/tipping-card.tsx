@@ -193,7 +193,6 @@ export function TippingCard({
     if (
       !canApprove ||
       tipStatus === "granted" ||
-      tipStatus === "completed" ||
       (!viewerCanApprove && !viewerCanEndorse)
     ) {
       return "none";
@@ -229,15 +228,39 @@ export function TippingCard({
     ? "You Approved"
     : "You Endorsed";
 
+  const grantingTxHash = (() => {
+    const txHash = tipping.cell?.outPoint?.txHash;
+    if (!txHash) {
+      return null;
+    }
+    try {
+      return ccc.hexFrom(txHash);
+    } catch {
+      return typeof txHash === "string" ? txHash : null;
+    }
+  })();
+
+  const getExplorerUrl = (hash: string | null) => {
+    if (!hash) return null;
+    const network = process.env.NEXT_PUBLIC_CKB_NETWORK || "mainnet";
+    const base =
+      network === "testnet"
+        ? "https://pudge.explorer.nervos.org/transaction/"
+        : "https://explorer.nervos.org/transaction/";
+    return `${base}${hash}`;
+  };
+
+  const formatTxHash = (hash: string | null) => {
+    if (!hash) return null;
+    if (hash.length <= 18) return hash;
+    return `${hash.slice(0, 10)}…${hash.slice(-6)}`;
+  };
+
   const handleApprove = async () => {
     if (!canApprove || !onApprove) {
       return;
     }
-    if (
-      tipStatus === "granted" ||
-      tipStatus === "completed" ||
-      hasViewerApproved
-    ) {
+    if (tipStatus === "granted" || hasViewerApproved) {
       return;
     }
 
@@ -292,7 +315,7 @@ export function TippingCard({
       case "granted":
         return (
           <Badge className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 whitespace-nowrap">
-            🎉 Completed
+            🎉 Granted
           </Badge>
         );
       default:
@@ -356,6 +379,22 @@ export function TippingCard({
     }
   };
 
+  const formatPointsAmount = (
+    points: ccc.NumLike | undefined | null
+  ): string => {
+    try {
+      const value = points ? BigInt(ccc.numFrom(points)) : 0n;
+      return value.toString();
+    } catch {
+      return "0";
+    }
+  };
+
+  const basePointsAmount = formatPointsAmount(
+    tipping.data.rewards.points_amount
+  );
+  const hasGrantedStatus = tipStatus === "granted" || tipStatus === "completed";
+
   const matchedThresholds =
     tippingConfig?.approval_requirement_thresholds.filter(
       (threshold) => threshold <= ccc.numFrom(tipping.data.rewards.ckb_amount)
@@ -378,7 +417,7 @@ export function TippingCard({
       return "";
     }
 
-    return new Date(ccc.stringify(ccc.numFrom(timestamp))).toLocaleDateString();
+    return new Date(Number(ccc.numFrom(timestamp))).toLocaleDateString();
   }, [tipping.data.metadata.creation_timestamp]);
 
   return (
@@ -479,7 +518,7 @@ export function TippingCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Users className="w-4 h-4" />
-              Community Approval Progress
+              Community Tipping Progress
             </div>
             <Button
               variant="ghost"
@@ -538,7 +577,7 @@ export function TippingCard({
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
-                    Approved by:
+                    Endorsed by:
                   </span>
                   <div className="flex gap-1">
                     {tipping.data.supporter_lock_hashes
@@ -559,6 +598,21 @@ export function TippingCard({
                 </div>
               )}
             </div>
+          )}
+        </div>
+
+        {/* Points Summary */}
+        <div className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-3">
+          <p className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-300">
+            {hasGrantedStatus ? "Granted Points" : "Pending Points"}
+          </p>
+          <p className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">
+            {basePointsAmount}
+          </p>
+          {!hasGrantedStatus && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Points will be distributed once the tip is granted.
+            </p>
           )}
         </div>
 
@@ -653,7 +707,7 @@ export function TippingCard({
         </div>
 
         {/* Completion Status */}
-        {tipping.data.status === "completed" && (
+        {tipStatus === "granted" && (
           <div className="text-center p-4 bg-green-100 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
             <div className="text-green-800 dark:text-green-200 font-medium">
               🎉 Community tip of{" "}
@@ -668,10 +722,33 @@ export function TippingCard({
             )}
             {tipping.data.granted_at && (
               <div className="text-sm text-green-600 dark:text-green-300 mt-1">
-                Completed on{" "}
+                Granted on{" "}
                 {new Date(
-                  ccc.stringify(ccc.numFrom(tipping.data.granted_at))
+                  Number(ccc.numFrom(tipping.data.granted_at))
                 ).toLocaleDateString()}
+              </div>
+            )}
+            {grantingTxHash && (
+              <div className="text-xs text-muted-foreground mt-3">
+                Granting Tx:{" "}
+                {(() => {
+                  const url = getExplorerUrl(grantingTxHash);
+                  const label = formatTxHash(grantingTxHash) ?? grantingTxHash;
+                  return url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-green-600 dark:hover:text-green-400 break-all"
+                    >
+                      {label}
+                    </a>
+                  ) : (
+                    <span className="font-mono break-all">
+                      {grantingTxHash}
+                    </span>
+                  );
+                })()}
               </div>
             )}
           </div>
