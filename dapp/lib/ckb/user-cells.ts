@@ -108,6 +108,102 @@ export async function getLatestUserCellByLock(
 }
 
 /**
+ * Get the latest user cell for an arbitrary address using a read-only client
+ */
+export async function getLatestUserCellByAddress(
+  address: string,
+  client: ccc.Client,
+  userTypeCodeHash: ccc.Hex,
+  protocolTypeHash?: ccc.Hex
+): Promise<ccc.Cell | undefined> {
+  const addressObj = await ccc.Address.fromString(address, client);
+  const lockScript = addressObj.script;
+  return getLatestUserCellByLockWithClient(
+    lockScript,
+    client,
+    userTypeCodeHash,
+    protocolTypeHash
+  );
+}
+
+async function getLatestUserCellByLockWithClient(
+  lockScript: ccc.Script,
+  client: ccc.Client,
+  userTypeCodeHash: ccc.Hex,
+  protocolTypeHash?: ccc.Hex
+): Promise<ccc.Cell | undefined> {
+  let cells = await getAllUserCellsByLockWithClient(
+    lockScript,
+    client,
+    userTypeCodeHash
+  );
+
+  if (protocolTypeHash) {
+    cells = cells.filter((cell) =>
+      isUserCellConnectedToProtocol(cell, protocolTypeHash)
+    );
+  }
+
+  if (cells.length === 0) {
+    return undefined;
+  }
+
+  if (cells.length === 1) {
+    return cells[0];
+  }
+
+  let latestCell = cells[0];
+  let latestBlockNumber = 0n;
+
+  for (const cell of cells) {
+    try {
+      const txInfo = await client.getTransaction(cell.outPoint.txHash);
+      if (txInfo?.blockNumber) {
+        const blockNumber = BigInt(txInfo.blockNumber);
+        if (blockNumber > latestBlockNumber) {
+          latestBlockNumber = blockNumber;
+          latestCell = cell;
+        }
+      }
+    } catch (error) {
+      console.error(
+        "[getLatestUserCellByAddress] Failed to load transaction info",
+        error
+      );
+    }
+  }
+
+  return latestCell;
+}
+
+async function getAllUserCellsByLockWithClient(
+  lockScript: ccc.Script,
+  client: ccc.Client,
+  userTypeCodeHash: ccc.Hex
+): Promise<ccc.Cell[]> {
+  const cells: ccc.Cell[] = [];
+  const searchKey = {
+    script: lockScript,
+    scriptType: "lock" as const,
+    scriptSearchMode: "exact" as const,
+    withData: true,
+  };
+
+  for await (const cell of client.findCells(searchKey)) {
+    const typeScript = cell.cellOutput.type;
+    if (
+      !typeScript ||
+      typeScript.codeHash.toLowerCase() !== userTypeCodeHash.toLowerCase()
+    ) {
+      continue;
+    }
+    cells.push(cell);
+  }
+
+  return cells;
+}
+
+/**
  * Fetch all user cells in the system (for debugging/admin purposes)
  * This searches ALL cells with the user type, regardless of owner
  */

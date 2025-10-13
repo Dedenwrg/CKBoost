@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { WalletConnect } from "@/components/wallet-connect"
 import { cn } from "@/lib/utils"
-import { Home, Trophy, MessageSquare, Menu, X } from "lucide-react"
+import { Home, Trophy, MessageSquare, Menu, X, User } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { PointsBalance } from "@/components/points-balance"
 
@@ -26,6 +26,11 @@ const NAVIGATION_ITEMS = [
     name: "Tipping",
     href: "/tipping",
     icon: MessageSquare,
+  },
+  {
+    name: "Profile",
+    href: "/profile",
+    icon: User,
   },
   {
     name: "Dashboard",
