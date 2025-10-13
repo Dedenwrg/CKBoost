@@ -5,8 +5,8 @@ import { urlStrToAuthDataMap } from "@telegram-auth/server/utils";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { UserData } from "ssri-ckboost/types";
-import { VerificationDataEntries } from "@/lib/types/verify";
-import { TelegramVerificationData } from "../../lib/types/verify";
+import { VerificationDataEntries } from "@/lib/types/identity";
+import { TelegramVerificationData } from "../../lib/types/identity";
 import { log } from "console";
 import { bytesFrom } from "../../../../ccc/packages/core/src/bytes/index";
 import { stringify } from "../../../../ccc/packages/core/src/utils/index";
@@ -164,7 +164,7 @@ export const handler: Handler = async (event) => {
           case "telegram":
             const telegramVerificationData =
               verificationData.data as TelegramVerificationData;
-            const url = `https://feature-identity-verification--ckboost.netlify.app/verify?id=${telegramVerificationData.id}&first_name=${telegramVerificationData.first_name}&username=${telegramVerificationData.username}&photo_url=${telegramVerificationData.photo_url}&auth_date=${telegramVerificationData.auth_date}&hash=${telegramVerificationData.hash}`;
+            const url = `https://feature-identity-verification--ckboost.netlify.app/identity?id=${telegramVerificationData.id}&first_name=${telegramVerificationData.first_name}&username=${telegramVerificationData.username}&photo_url=${telegramVerificationData.photo_url}&auth_date=${telegramVerificationData.auth_date}&hash=${telegramVerificationData.hash}`;
             await validateTelegramAuth(url);
             break;
           default:

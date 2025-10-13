@@ -18,7 +18,7 @@ import {
   UserVerificationData,
 } from "ssri-ckboost/types";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
-import { TelegramVerificationData } from "../types/verify";
+import { TelegramVerificationData } from "../types/identity";
 import { ClientPublicTestnet } from "@ckb-ccc/connector-react";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 

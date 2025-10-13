@@ -25,10 +25,10 @@ import {
   Twitter,
   MessageSquare,
 } from "lucide-react";
-import { StatusAlert } from "@/components/verify/StatusAlert";
-import { TelegramWidgetSection } from "@/components/verify/TelegramWidgetSection";
-import { VerificationMethodCard } from "@/components/verify/VerificationMethodCard";
-import { TelegramVerificationData } from "@/lib/types/verify";
+import { StatusAlert } from "@/components/identity/StatusAlert";
+import { TelegramWidgetSection } from "@/components/identity/TelegramWidgetSection";
+import { VerificationMethodCard } from "@/components/identity/VerificationMethodCard";
+import { TelegramVerificationData } from "@/lib/types/identity";
 import { useUser } from "@/lib/providers/user-provider";
 
 const VERIFICATION_METHODS = [
