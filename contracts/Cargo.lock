@@ -960,6 +960,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ckboost-achievement-type"
+version = "0.1.0"
+dependencies = [
+ "blake2b-ref",
+ "ckb-ssri-std",
+ "ckb-ssri-std-proc-macro",
+ "ckb-std",
+ "ckb_deterministic",
+ "ckboost-shared",
+ "molecule 0.8.0",
+]
+
+[[package]]
 name = "ckboost-campaign-type"
 version = "0.1.0"
 dependencies = [

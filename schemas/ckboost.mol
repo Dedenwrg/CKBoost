@@ -288,6 +288,9 @@ table ScriptCodeHashes {
 table ProtocolConfig {
     admin_lock_hash_vec: Byte32Vec,
     script_code_hashes: ScriptCodeHashes,
+    streak_bonus_interval: Uint64,
+    streak_bonus_amount: Uint128,
+    achievements_type_hashes: Byte32Vec,
 }
 
 table ProtocolData {
@@ -298,6 +301,21 @@ table ProtocolData {
     last_updated: Uint64,
     protocol_config: ProtocolConfig,
 }
+
+table AchievementRecord {
+    receiver_user_type_hash: Byte32,
+    granted_at: Uint64,
+}
+
+vector AchievementRecordVec <AchievementRecord>;
+
+table AchievementData {
+    achievement_title: String,
+    achievement_metadata: String,
+    receiver_user_record_vec: AchievementRecordVec,
+}
+
+vector AchievementDataVec <AchievementData>;
 
 table UserVerificationData {
     telegram_personal_chat_id: Uint128,

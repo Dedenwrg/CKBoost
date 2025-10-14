@@ -13,6 +13,7 @@ members = [
   "contracts/ckboost-campaign-type",
   "contracts/ckboost-points-udt",
   "contracts/ckboost-tipping-type",
+  "contracts/ckboost-achievement-type",
   "tests",
 ]
 
