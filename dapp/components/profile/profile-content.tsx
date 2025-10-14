@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCampaigns } from "@/lib/providers/campaign-provider";
 import { CampaignData } from "ssri-ckboost/types";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
+import { extractIdentityDisplayName } from "@/lib/utils/identity";
 
 type UserDataType = ReturnType<typeof ckboost.types.UserData.decode>;
 
@@ -86,91 +87,6 @@ const decodeSubmissionContent = (content: unknown): string | null => {
       return null;
     }
   }
-  return null;
-};
-
-const identityCandidateKeys = [
-  "displayName",
-  "display_name",
-  "name",
-  "first_name",
-  "username",
-  "handle",
-] as const;
-
-const extractIdentityDisplayName = (identityData: unknown): string | null => {
-  if (!identityData) return null;
-
-  let decoded: string | null = null;
-  if (typeof identityData === "string") {
-    try {
-      decoded = identityData.startsWith("0x")
-        ? new TextDecoder().decode(ccc.bytesFrom(identityData))
-        : identityData;
-    } catch {
-      decoded = identityData;
-    }
-  } else if (
-    typeof identityData === "object" &&
-    ArrayBuffer.isView(identityData as ArrayBufferView)
-  ) {
-    try {
-      decoded = new TextDecoder().decode(identityData as Uint8Array);
-    } catch {
-      decoded = null;
-    }
-  }
-
-  if (!decoded) return null;
-  const trimmed = decoded.trim();
-  if (!trimmed) return null;
-
-  const tryExtractFromParsed = (value: unknown): string | null => {
-    const candidates: string[] = [];
-    const visit = (input: unknown) => {
-      if (!input) return;
-      if (Array.isArray(input)) {
-        input.forEach(visit);
-        return;
-      }
-      if (typeof input === "object") {
-        const record = input as Record<string, unknown>;
-        for (const key of identityCandidateKeys) {
-          const candidate = record[key];
-          if (typeof candidate === "string" && candidate.trim()) {
-            candidates.push(candidate.trim());
-          }
-        }
-        for (const value of Object.values(record)) {
-          visit(value);
-        }
-      }
-    };
-
-    visit(value);
-    return candidates.length > 0 ? candidates[0] : null;
-  };
-
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      const candidate = tryExtractFromParsed(parsed);
-      if (candidate) {
-        return candidate;
-      }
-    } catch {
-      // fall through to non-JSON handling
-    }
-  }
-
-  if (
-    !trimmed.startsWith("{") &&
-    !trimmed.startsWith("[") &&
-    !trimmed.startsWith('"')
-  ) {
-    return trimmed;
-  }
-
   return null;
 };
 

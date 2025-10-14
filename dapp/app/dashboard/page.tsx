@@ -33,6 +33,7 @@ import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
 import type { UserSubmissionRecordLike } from "ssri-ckboost/types";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { debug } from "@/lib/utils/debug";
+import { extractIdentityDisplayName } from "@/lib/utils/identity";
 
 interface SubmissionDisplayEntry {
   key: string;
@@ -203,47 +204,20 @@ export default function Dashboard() {
   const [tokenBalancesLoading, setTokenBalancesLoading] = useState(false);
 
   const displayName = useMemo(() => {
-    const identityData =
-      currentUserData?.verification_data?.identity_verification_data;
-    if (
-      typeof identityData === "string" &&
-      identityData.length > 0 &&
-      identityData !== "0x"
-    ) {
-      try {
-        const decoded = identityData.startsWith("0x")
-          ? new TextDecoder().decode(ccc.bytesFrom(identityData))
-          : identityData;
-        const trimmed = decoded.trim();
-        if (trimmed) {
-          if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-            try {
-              const parsed = JSON.parse(trimmed);
-              const candidates = [
-                parsed.name,
-                parsed.displayName,
-                parsed.username,
-                parsed.handle,
-                parsed.twitter,
-              ];
-              const named = candidates.find(
-                (value) => typeof value === "string" && value.trim().length > 0
-              );
-              if (named) {
-                return named.trim();
-              }
-            } catch (error) {
-              debug.warn("Failed to parse identity JSON", error);
-            }
-          }
-          return trimmed;
-        }
-      } catch (error) {
-        debug.warn("Failed to decode verification identity", error);
-      }
+    const identityName = extractIdentityDisplayName(
+      currentUserData?.verification_data?.identity_verification_data
+    );
+    if (identityName) {
+      return identityName;
     }
-    return shorten(userAddress, 12, 6);
-  }, [currentUserData, userAddress]);
+    if (userAddress) {
+      return userAddress;
+    }
+    if (currentUserTypeId) {
+      return currentUserTypeId;
+    }
+    return "Unknown user";
+  }, [currentUserData, userAddress, currentUserTypeId]);
 
   const isVerified = useMemo(() => {
     if (!currentUserData) return false;
