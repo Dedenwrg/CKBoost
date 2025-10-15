@@ -468,15 +468,16 @@ impl CKBoostCampaign for CKBoostCampaignType {
         debug_info!("connected_type_id: {:?}", connected_type_id);
 
         // Find and add existing campaign cell as input
-        let campaign_outpoint = find_out_point_by_type(current_script.clone())?;
-        let campaign_input = CellInput::new_builder()
-            .previous_output(campaign_outpoint.clone())
-            .build();
-        cell_input_vec_builder = cell_input_vec_builder.push(campaign_input);
+        // TODO: SSRI may fail in find_out_point_by_type for memory. Skipping
+        // let campaign_outpoint = find_out_point_by_type(current_script.clone())?;
+        // let campaign_input = CellInput::new_builder()
+        //     .previous_output(campaign_outpoint.clone())
+        //     .build();
+        // cell_input_vec_builder = cell_input_vec_builder.push(campaign_input);
 
         // Get the current campaign cell to preserve lock script
-        let current_campaign_cell =
-            find_cell_by_out_point(campaign_outpoint).map_err(|_| Error::CampaignCellNotFound)?;
+        // let current_campaign_cell =
+        //     find_cell_by_out_point(campaign_outpoint).map_err(|_| Error::CampaignCellNotFound)?;
 
         // TODO: Not handling this for now
         // // Verify campaign is active (status = 4)
@@ -637,16 +638,16 @@ impl CKBoostCampaign for CKBoostCampaignType {
             tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0) as u32;
 
         // Create output campaign cell with proper type script and lock script
-        let campaign_output = CellOutputBuilder::default()
-            .type_(
-                ScriptOptBuilder::default()
-                    .set(Some(current_script))
-                    .build(),
-            )
-            .lock(current_campaign_cell.lock())
-            .capacity(0u64.pack()) // Placeholder capacity
-            .build();
-        cell_output_vec_builder = cell_output_vec_builder.push(campaign_output);
+        // let campaign_output = CellOutputBuilder::default()
+        //     .type_(
+        //         ScriptOptBuilder::default()
+        //             .set(Some(current_script))
+        //             .build(),
+        //     )
+        //     .lock(current_campaign_cell.lock())
+        //     .capacity(0u64.pack()) // Placeholder capacity
+        //     .build();
+        // cell_output_vec_builder = cell_output_vec_builder.push(campaign_output);
 
         // Serialize and add updated campaign data
         let updated_campaign_data_bytes = updated_campaign_data.as_bytes();

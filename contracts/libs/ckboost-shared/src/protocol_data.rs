@@ -219,6 +219,9 @@ pub trait ProtocolDataExt {
     /// Get tipping type code hash
     fn tipping_type_code_hash(&self) -> [u8; 32];
 
+    /// Get achievements type code hash
+    fn achievements_type_code_hash(&self) -> [u8; 32];
+
     /// Get accepted UDT type scripts
     fn accepted_udt_type_scripts(&self) -> Vec<Script>;
 
@@ -280,6 +283,17 @@ impl ProtocolDataExt for ProtocolData {
             .protocol_config()
             .script_code_hashes()
             .ckb_boost_tipping_type_code_hash();
+        let mut result = [0u8; 32];
+        result.copy_from_slice(hash.as_slice());
+        result
+    }
+
+    /// Get achievements type code hash
+    fn achievements_type_code_hash(&self) -> [u8; 32] {
+        let hash = self
+            .protocol_config()
+            .script_code_hashes()
+            .ckb_boost_achievements_type_code_hash();
         let mut result = [0u8; 32];
         result.copy_from_slice(hash.as_slice());
         result
@@ -538,6 +552,7 @@ mod tests {
             .ckb_boost_campaign_type_code_hash(Byte32::from([2u8; 32]))
             .ckb_boost_funding_lock_code_hash(Byte32::from([12u8; 32]))
             .ckb_boost_user_type_code_hash(Byte32::from([3u8; 32]))
+            .ckb_boost_achievements_type_code_hash(Byte32::from([4u8; 32]))
             .accepted_udt_type_scripts(ScriptVec::new_builder().build())
             .accepted_dob_type_scripts(ScriptVec::new_builder().build())
             .build();

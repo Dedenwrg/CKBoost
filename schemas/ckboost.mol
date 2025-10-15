@@ -281,6 +281,7 @@ table ScriptCodeHashes {
     ckb_boost_user_type_code_hash: Byte32,
     ckb_boost_points_udt_type_code_hash: Byte32,
     ckb_boost_tipping_type_code_hash: Byte32,
+    ckb_boost_achievements_type_code_hash: Byte32,
     accepted_udt_type_scripts: ScriptVec,
     accepted_dob_type_scripts: ScriptVec,
 }
@@ -337,6 +338,7 @@ table UserData {
     last_activity_timestamp: Uint64,
     submission_records: UserSubmissionRecordVec,
     profile_data: BytesVec,
+    last_bonus_streak_at: Uint64,
 }
 
 
