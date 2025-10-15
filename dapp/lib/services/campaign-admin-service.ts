@@ -844,6 +844,20 @@ export class CampaignAdminService {
         depType: "code",
       });
 
+      const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
+        deploymentManager.getCurrentNetwork(),
+        "ckboostProtocolLock"
+      );
+
+      if (!protocolLockCodeOutPoint) {
+        throw new Error("Protocol lock code hash not found");
+      }
+
+      tx.addCellDeps({
+        outPoint: protocolLockCodeOutPoint,
+        depType: "code",
+      });
+
       // Add CellDeps for UDT
       const quest = campaignData.quests.find((q) => q.quest_id === questId);
       if (!quest) {

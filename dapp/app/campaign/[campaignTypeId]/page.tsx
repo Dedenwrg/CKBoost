@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Trophy,
@@ -31,6 +32,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { isCampaignApproved } from "@/lib/ckb/campaign-cells";
 import { CampaignData, CampaignDataLike } from "ssri-ckboost/types";
@@ -40,6 +42,55 @@ import { getDifficultyString } from "@/lib";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { QuestSubmissionForm } from "@/components/quest-submission-form";
 import { useUser } from "@/lib/providers/user-provider";
+
+const extractHtmlFromContent = (raw: string): string => {
+  if (!raw) return "";
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      format?: string;
+      contentHtml?: string;
+      content?: string;
+    } | null;
+
+    if (parsed && typeof parsed === "object") {
+      if (
+        parsed.format === "ckboost-campaign-long-description" &&
+        typeof parsed.contentHtml === "string"
+      ) {
+        return parsed.contentHtml;
+      }
+      if (parsed.format === "html" && typeof parsed.content === "string") {
+        return parsed.content;
+      }
+    }
+  } catch {
+    // Not JSON, fall back to raw string
+  }
+
+  return raw;
+};
+
+const formatLongDescriptionHtml = (content: string): string => {
+  if (!content) {
+    return "";
+  }
+
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+  if (hasHtmlTags) {
+    return content;
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  return `<p>${escapeHtml(content).replace(/\n/g, "<br />")}</p>`;
+};
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -53,6 +104,12 @@ export default function CampaignDetailPage() {
     isLoading: userLoading,
     refreshUserData,
   } = useUser();
+  const { fetchSubmission } = useNostrFetch();
+  const [resolvedDescription, setResolvedDescription] = useState<string | null>(
+    null
+  );
+  const [descriptionLoading, setDescriptionLoading] = useState(false);
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [campaign, setCampaign] = useState<
     (CampaignDataLike & { typeHash: ccc.Hex; cell: ccc.Cell }) | null
   >(null);
@@ -206,6 +263,8 @@ export default function CampaignDetailPage() {
             typeHash: cell.cellOutput.type?.hash() || "0x",
             cell,
           });
+          setResolvedDescription(null);
+          setDescriptionError(null);
         } else {
           setCampaign(null);
         }
@@ -219,6 +278,74 @@ export default function CampaignDetailPage() {
 
     fetchCampaign();
   }, [client, campaignTypeId, protocolData, protocolCell]);
+
+  useEffect(() => {
+    const rawDescription = campaign?.metadata?.long_description;
+
+    if (!rawDescription) {
+      setResolvedDescription(null);
+      setDescriptionError(null);
+      setDescriptionLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveDescription = async () => {
+      setDescriptionLoading(true);
+      setDescriptionError(null);
+
+      try {
+        let decodedContent = rawDescription;
+
+        if (rawDescription.startsWith("nevent1")) {
+          const submission = await fetchSubmission(rawDescription);
+          if (!submission?.content) {
+            throw new Error("Unable to load description from Nostr.");
+          }
+          decodedContent = submission.content;
+        } else if (rawDescription.startsWith("0x")) {
+          try {
+            decodedContent = new TextDecoder().decode(
+              ccc.bytesFrom(rawDescription)
+            );
+          } catch (error) {
+            console.warn("Failed to decode hex long description", error);
+            decodedContent = "";
+          }
+        }
+
+        const html = formatLongDescriptionHtml(
+          extractHtmlFromContent(decodedContent)
+        );
+
+        if (!cancelled) {
+          setResolvedDescription(html);
+          setDescriptionError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to resolve campaign description", error);
+          setResolvedDescription(null);
+          setDescriptionError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load campaign description."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setDescriptionLoading(false);
+        }
+      }
+    };
+
+    resolveDescription();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign?.metadata?.long_description, fetchSubmission]);
 
   // Check submission statuses for all quests
   useEffect(() => {
@@ -333,11 +460,11 @@ export default function CampaignDetailPage() {
   const startTimestamp =
     typeof campaign.starting_time === "bigint"
       ? Number(campaign.starting_time) * 1000
-      : Number(campaign.starting_time) * 1000;
+      : Number(campaign.starting_time || 0) * 1000;
   const endTimestamp =
     typeof campaign.ending_time === "bigint"
       ? Number(campaign.ending_time) * 1000
-      : Number(campaign.ending_time) * 1000;
+      : Number(campaign.ending_time || 0) * 1000;
 
   // Check if campaign is approved using helper function
   const isApproved = isCampaignApproved(
@@ -582,18 +709,34 @@ export default function CampaignDetailPage() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Campaign Description</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground whitespace-pre-wrap">
-                    {campaign.metadata?.long_description ||
-                      campaign.metadata?.short_description ||
-                      "No detailed description available."}
-                  </p>
-                </CardContent>
-              </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Description</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {descriptionLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-2/3" />
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-5/6" />
+                </div>
+              ) : descriptionError ? (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {descriptionError}
+                </p>
+              ) : resolvedDescription ? (
+                <div
+                  className="prose prose-sm sm:prose dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: resolvedDescription }}
+                />
+              ) : (
+                <p className="text-muted-foreground whitespace-pre-wrap">
+                  {campaign.metadata?.short_description ||
+                    "No detailed description available."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
               <Card>
                 <CardHeader>

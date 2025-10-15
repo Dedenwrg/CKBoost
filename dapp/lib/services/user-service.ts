@@ -891,6 +891,7 @@ export class UserService {
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: [newSubmission],
       profile_data: [],
+      last_bonus_streak_at: BigInt(0),
     } as UserDataLike;
 
     // Now that the contract's submit_quest handles both creation and update,
@@ -1117,6 +1118,7 @@ export class UserService {
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: [],
       profile_data: [],
+      last_bonus_streak_at: BigInt(0),
     } as UserDataLike;
 
     const { res: createTx } = await creatorInstance.updateVerificationData(

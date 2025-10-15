@@ -212,6 +212,12 @@ export class Protocol extends ssri.Trait {
               config.script_code_hashes.ckb_boost_tipping_type_code_hash
             )
           : ccc.hexFrom("0x" + "0".repeat(64)),
+        ckb_boost_achievements_type_code_hash: config.script_code_hashes
+          ?.ckb_boost_achievements_type_code_hash
+          ? ccc.hexFrom(
+              config.script_code_hashes.ckb_boost_achievements_type_code_hash
+            )
+          : ccc.hexFrom("0x" + "0".repeat(64)),
         accepted_udt_type_scripts: (
           config.script_code_hashes?.accepted_udt_type_scripts || []
         ).map((script) => ccc.Script.from(script)),
@@ -219,6 +225,11 @@ export class Protocol extends ssri.Trait {
           config.script_code_hashes?.accepted_dob_type_scripts || []
         ).map((script) => ccc.Script.from(script)),
       },
+      streak_bonus_interval: ccc.numFrom(config.streak_bonus_interval),
+      streak_bonus_amount: ccc.numFrom(config.streak_bonus_amount),
+      achievements_type_hashes: (config.achievements_type_hashes || []).map(
+        (hash) => ccc.hexFrom(hash)
+      ),
     };
   }
 

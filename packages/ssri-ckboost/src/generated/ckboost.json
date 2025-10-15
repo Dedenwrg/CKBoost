@@ -862,6 +862,10 @@
           "type": "Byte32"
         },
         {
+          "name": "ckb_boost_achievements_type_code_hash",
+          "type": "Byte32"
+        },
+        {
           "name": "accepted_udt_type_scripts",
           "type": "ScriptVec"
         },
@@ -882,6 +886,18 @@
         {
           "name": "script_code_hashes",
           "type": "ScriptCodeHashes"
+        },
+        {
+          "name": "streak_bonus_interval",
+          "type": "Uint64"
+        },
+        {
+          "name": "streak_bonus_amount",
+          "type": "Uint128"
+        },
+        {
+          "name": "achievements_type_hashes",
+          "type": "Byte32Vec"
         }
       ]
     },
@@ -914,6 +930,48 @@
           "type": "ProtocolConfig"
         }
       ]
+    },
+    {
+      "type": "table",
+      "name": "AchievementRecord",
+      "fields": [
+        {
+          "name": "receiver_user_type_hash",
+          "type": "Byte32"
+        },
+        {
+          "name": "granted_at",
+          "type": "Uint64"
+        }
+      ]
+    },
+    {
+      "type": "dynvec",
+      "name": "AchievementRecordVec",
+      "item": "AchievementRecord"
+    },
+    {
+      "type": "table",
+      "name": "AchievementData",
+      "fields": [
+        {
+          "name": "achievement_title",
+          "type": "String"
+        },
+        {
+          "name": "achievement_metadata",
+          "type": "String"
+        },
+        {
+          "name": "receiver_user_record_vec",
+          "type": "AchievementRecordVec"
+        }
+      ]
+    },
+    {
+      "type": "dynvec",
+      "name": "AchievementDataVec",
+      "item": "AchievementData"
     },
     {
       "type": "table",
@@ -979,6 +1037,10 @@
         {
           "name": "profile_data",
           "type": "BytesVec"
+        },
+        {
+          "name": "last_bonus_streak_at",
+          "type": "Uint64"
         }
       ]
     },

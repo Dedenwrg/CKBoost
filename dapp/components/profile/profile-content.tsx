@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
 import {
@@ -8,6 +8,7 @@ import {
   Calendar,
   ExternalLink,
   Medal,
+  Coins,
   ShieldCheck,
   Star,
 } from "lucide-react";
@@ -30,6 +31,23 @@ import { useCampaigns } from "@/lib/providers/campaign-provider";
 import { CampaignData } from "ssri-ckboost/types";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
+
+type PointsMintTransactionPayload = {
+  txHash: string;
+  blockNumber: string | null;
+  txIndex: string | null;
+  netPoints: string;
+  outputs: Array<{ index: number; amount: string }>;
+  inputs: Array<{ index: number; amount: string }>;
+};
+
+type PointsMintTransaction = PointsMintTransactionPayload & {
+  timestamp: number | null;
+};
+
+type PointsMintResponse = {
+  transactions: PointsMintTransactionPayload[];
+};
 
 type UserDataType = ReturnType<typeof ckboost.types.UserData.decode>;
 
@@ -109,6 +127,19 @@ const formatPointsAmount = (points: ccc.NumLike | undefined | null): string => {
   }
 };
 
+const formatStringPointsAmount = (value: string): string => {
+  try {
+    return BigInt(value).toLocaleString();
+  } catch {
+    return value;
+  }
+};
+
+const formatTimestampFromMillis = (value: number | null): string | null => {
+  if (!value || Number.isNaN(value) || value <= 0) return null;
+  return new Date(value).toLocaleString();
+};
+
 export function ProfileContent({
   context,
   isLoading: externalLoading,
@@ -117,6 +148,7 @@ export function ProfileContent({
   userTypeId,
   fallbackAddress,
 }: ProfileContentProps) {
+  const { client } = ccc.useCcc();
   const {
     campaigns,
     isLoading: campaignsLoading,
@@ -126,6 +158,15 @@ export function ProfileContent({
   const isLoading = externalLoading || campaignsLoading;
   const loadError = externalError || campaignsError;
   const normalizedFallbackAddress = fallbackAddress || null;
+  const [pointsTransactions, setPointsTransactions] = useState<
+    PointsMintTransaction[]
+  >([]);
+  const [pointsLoading, setPointsLoading] = useState(false);
+  const [pointsError, setPointsError] = useState<string | null>(null);
+  const explorerBaseUrl =
+    process.env.NEXT_PUBLIC_CKB_NETWORK === "mainnet"
+      ? "https://explorer.nervos.org/transaction/"
+      : "https://pudge.explorer.nervos.org/transaction/";
 
   const campaignMap = useMemo(() => {
     const map = new Map<
@@ -228,6 +269,146 @@ export function ProfileContent({
       })
       .sort((a, b) => b.submissionTimestamp - a.submissionTimestamp);
   }, [userData, campaignMap]);
+
+  useEffect(() => {
+    if (!normalizedFallbackAddress) {
+      setPointsTransactions([]);
+      setPointsError(null);
+      setPointsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTransactions = async () => {
+      setPointsLoading(true);
+      setPointsError(null);
+
+      try {
+        const params = new URLSearchParams({
+          address: normalizedFallbackAddress,
+          limit: "50",
+        });
+
+        const response = await fetch(
+          `/.netlify/functions/points-mints?${params.toString()}`
+        );
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || "Failed to load reward transactions");
+        }
+
+        const data = (await response.json()) as PointsMintResponse;
+        const transactions = data.transactions ?? [];
+
+        if (transactions.length === 0) {
+          if (!cancelled) {
+            setPointsTransactions([]);
+          }
+          return;
+        }
+
+        let timestampMap = new Map<string, number>();
+
+        if (client) {
+          const blocks = Array.from(
+            new Set(
+              transactions
+                .map((tx) => tx.blockNumber)
+                .filter((bn): bn is string => Boolean(bn))
+            )
+          );
+
+          if (blocks.length > 0) {
+            const results = await Promise.all(
+              blocks.map(async (bn) => {
+                try {
+                  const header = await client.getHeaderByNumber(BigInt(bn));
+                  if (!header || header.timestamp === undefined) {
+                    return null;
+                  }
+                  const rawTimestamp =
+                    typeof header.timestamp === "bigint"
+                      ? header.timestamp
+                      : ccc.numFrom(header.timestamp ?? 0);
+                  const numeric =
+                    typeof rawTimestamp === "bigint"
+                      ? Number(rawTimestamp)
+                      : Number(rawTimestamp ?? 0);
+                  return { block: bn, timestamp: numeric } as const;
+                } catch (error) {
+                  console.warn(
+                    "Failed to load block header for reward transaction",
+                    bn,
+                    error
+                  );
+                  return null;
+                }
+              })
+            );
+
+            timestampMap = new Map(
+              results
+                .filter((item): item is { block: string; timestamp: number } =>
+                  Boolean(item && item.timestamp)
+                )
+                .map((item) => [item.block, item.timestamp])
+            );
+          }
+        }
+
+        const withTimestamps: PointsMintTransaction[] = transactions.map(
+          (tx) => ({
+            ...tx,
+            timestamp: tx.blockNumber
+              ? timestampMap.get(tx.blockNumber) ?? null
+              : null,
+          })
+        );
+
+        if (!cancelled) {
+          setPointsTransactions(withTimestamps);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to fetch reward transactions", error);
+          setPointsTransactions([]);
+          setPointsError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load reward transactions"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setPointsLoading(false);
+        }
+      }
+    };
+
+    loadTransactions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedFallbackAddress, client]);
+
+  const rewardEntries = useMemo(() => {
+    return [...pointsTransactions]
+      .sort((a, b) => {
+        const aTime = a.timestamp ?? (a.blockNumber ? Number(a.blockNumber) : 0);
+        const bTime = b.timestamp ?? (b.blockNumber ? Number(b.blockNumber) : 0);
+        return bTime - aTime;
+      })
+      .map((entry) => ({
+        ...entry,
+        formattedTimestamp:
+          formatTimestampFromMillis(entry.timestamp ?? null) ??
+          (entry.blockNumber ? `Block #${entry.blockNumber}` : "Unknown"),
+        formattedPoints: formatStringPointsAmount(entry.netPoints),
+      }));
+  }, [pointsTransactions]);
 
   const totalPoints = formatPointsAmount(userData?.total_points_earned ?? 0);
   const totalSubmissions = userData?.submission_records?.length ?? 0;
@@ -567,6 +748,89 @@ export function ProfileContent({
                         For raw submission payloads, view the associated user
                         cell history on a block explorer.
                       </TableCaption>
+                    </Table>
+                  </CardContent>
+                )}
+              </Card>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-amber-500" />
+                  Reward Transactions
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {rewardEntries.length} reward
+                  {rewardEntries.length === 1 ? "" : "s"} detected on-chain.
+                </p>
+              </div>
+
+              <Card className="overflow-hidden border-gray-200 dark:border-gray-800">
+                {pointsLoading ? (
+                  <CardContent className="space-y-4 p-6">
+                    <Skeleton className="h-6 w-1/3" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-2/3" />
+                  </CardContent>
+                ) : pointsError ? (
+                  <CardContent className="py-6 text-sm text-red-600 dark:text-red-400">
+                    {pointsError}
+                  </CardContent>
+                ) : rewardEntries.length === 0 ? (
+                  <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    No reward transactions recorded yet. Complete quests or
+                    receive tips to start earning on-chain points.
+                  </CardContent>
+                ) : (
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[220px]">Earned</TableHead>
+                          <TableHead>Transaction</TableHead>
+                          <TableHead className="text-right w-[160px]">
+                            Net Points
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rewardEntries.map((tx) => {
+                          const explorerUrl = `${explorerBaseUrl}${tx.txHash}`;
+                          return (
+                            <TableRow key={tx.txHash}>
+                              <TableCell className="font-medium">
+                                {tx.formattedTimestamp}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col gap-1">
+                                  <a
+                                    href={explorerUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline break-all"
+                                  >
+                                    <span>{tx.txHash}</span>
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                  {tx.blockNumber && (
+                                    <span className="text-xs text-muted-foreground">
+                                      Block #{tx.blockNumber}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Badge variant="outline" className="px-3 py-1">
+                                  +{tx.formattedPoints}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
                     </Table>
                   </CardContent>
                 )}

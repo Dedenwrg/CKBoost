@@ -223,9 +223,13 @@ export class ProtocolService {
               ckb_boost_user_type_code_hash: defaultByte32,
               ckb_boost_points_udt_type_code_hash: defaultByte32,
               ckb_boost_tipping_type_code_hash: defaultByte32,
+              ckb_boost_achievements_type_code_hash: defaultByte32,
               accepted_udt_type_scripts: [],
               accepted_dob_type_scripts: [],
             },
+            streak_bonus_interval: BigInt(7 * 24 * 60 * 60), // 7 days in seconds
+            streak_bonus_amount: 100n, // 100 Points
+            achievements_type_hashes: [],
           },
         };
 

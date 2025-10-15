@@ -140,12 +140,16 @@ export const ScriptCodeHashes = mol.table({
   ckb_boost_user_type_code_hash: mol.Byte32,
   ckb_boost_points_udt_type_code_hash: mol.Byte32,
   ckb_boost_tipping_type_code_hash: mol.Byte32,
+  ckb_boost_achievements_type_code_hash: mol.Byte32,
   accepted_udt_type_scripts: mol.vector(ccc.Script),
   accepted_dob_type_scripts: mol.vector(ccc.Script)
 });
 export const ProtocolConfig = mol.table({
   admin_lock_hash_vec: mol.Byte32Vec,
-  script_code_hashes: ScriptCodeHashes
+  script_code_hashes: ScriptCodeHashes,
+  streak_bonus_interval: mol.Uint64,
+  streak_bonus_amount: mol.Uint128,
+  achievements_type_hashes: mol.Byte32Vec
 });
 export const ProtocolData = mol.table({
   campaigns_approved: mol.Byte32Vec,
@@ -155,6 +159,17 @@ export const ProtocolData = mol.table({
   last_updated: mol.Uint64,
   protocol_config: ProtocolConfig
 });
+export const AchievementRecord = mol.table({
+  receiver_user_type_hash: mol.Byte32,
+  granted_at: mol.Uint64
+});
+export const AchievementRecordVec = mol.vector(AchievementRecord);
+export const AchievementData = mol.table({
+  achievement_title: mol.String,
+  achievement_metadata: mol.String,
+  receiver_user_record_vec: AchievementRecordVec
+});
+export const AchievementDataVec = mol.vector(AchievementData);
 export const UserVerificationData = mol.table({
   telegram_personal_chat_id: mol.Uint128,
   identity_verification_data: mol.Bytes
@@ -171,7 +186,8 @@ export const UserData = mol.table({
   total_points_earned: mol.Uint128,
   last_activity_timestamp: mol.Uint64,
   submission_records: UserSubmissionRecordVec,
-  profile_data: mol.BytesVec
+  profile_data: mol.BytesVec,
+  last_bonus_streak_at: mol.Uint64
 });
 export const ConnectedTypeID = mol.table({
   type_id: mol.Byte32,
@@ -325,6 +341,7 @@ export interface ScriptCodeHashesLike {
   ckb_boost_user_type_code_hash: ccc.HexLike;
   ckb_boost_points_udt_type_code_hash: ccc.HexLike;
   ckb_boost_tipping_type_code_hash: ccc.HexLike;
+  ckb_boost_achievements_type_code_hash: ccc.HexLike;
   accepted_udt_type_scripts: ccc.ScriptLike[];
   accepted_dob_type_scripts: ccc.ScriptLike[];
 }
@@ -332,6 +349,9 @@ export interface ScriptCodeHashesLike {
 export interface ProtocolConfigLike {
   admin_lock_hash_vec: ccc.HexLike[];
   script_code_hashes: ScriptCodeHashesLike;
+  streak_bonus_interval: ccc.NumLike;
+  streak_bonus_amount: ccc.NumLike;
+  achievements_type_hashes: ccc.HexLike[];
 }
 
 export interface ProtocolDataLike {
@@ -341,6 +361,17 @@ export interface ProtocolDataLike {
   endorsers_whitelist: EndorserInfoLike[];
   last_updated: ccc.NumLike;
   protocol_config: ProtocolConfigLike;
+}
+
+export interface AchievementRecordLike {
+  receiver_user_type_hash: ccc.HexLike;
+  granted_at: ccc.NumLike;
+}
+
+export interface AchievementDataLike {
+  achievement_title: string;
+  achievement_metadata: string;
+  receiver_user_record_vec: AchievementRecordLike[];
 }
 
 export interface UserVerificationDataLike {
@@ -361,6 +392,7 @@ export interface UserDataLike {
   last_activity_timestamp: ccc.NumLike;
   submission_records: UserSubmissionRecordLike[];
   profile_data: ccc.BytesLike[];
+  last_bonus_streak_at: ccc.NumLike;
 }
 
 export interface ConnectedTypeIDLike {

@@ -188,6 +188,26 @@ export function ScriptCodeHashes({
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="ckb_boost_achievements_type_code_hash"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Achievements Type Code Hash</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="0x..."
+                      {...field}
+                      value={field.value ? String(field.value) : ""}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    The code hash of the Achievements type script
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             {/* UDT Script Manager for accepted UDT and DOB scripts */}
             <div className="space-y-4 border-t pt-4">

@@ -113,6 +113,9 @@ const updateScriptCodeHashesSchema = z.object({
   ckb_boost_tipping_type_code_hash: z
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
+  ckb_boost_achievements_type_code_hash: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
   accepted_udt_type_code_hashes: z
     .array(z.string().regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"))
     .default([]),
@@ -233,6 +236,9 @@ export function ProtocolManagement() {
       ckb_boost_tipping_type_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
           .ckb_boost_tipping_type_code_hash,
+      ckb_boost_achievements_type_code_hash:
+        deploymentTemplate.protocol_config.script_code_hashes
+          .ckb_boost_achievements_type_code_hash,
       accepted_udt_type_scripts: [],
       accepted_dob_type_scripts: [],
     },
@@ -385,6 +391,9 @@ export function ProtocolManagement() {
               ckb_boost_tipping_type_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .ckb_boost_tipping_type_code_hash,
+              ckb_boost_achievements_type_code_hash:
+                deploymentTemplate.protocol_config.script_code_hashes
+                  .ckb_boost_achievements_type_code_hash,
               accepted_udt_type_scripts:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .accepted_udt_type_scripts || [],
@@ -440,6 +449,9 @@ export function ProtocolManagement() {
         ckb_boost_tipping_type_code_hash:
           protocolData.protocol_config.script_code_hashes
             .ckb_boost_tipping_type_code_hash,
+        ckb_boost_achievements_type_code_hash:
+          protocolData.protocol_config.script_code_hashes
+            .ckb_boost_achievements_type_code_hash,
         accepted_udt_type_scripts: [],
         accepted_dob_type_scripts: [],
       };
@@ -1067,6 +1079,9 @@ export function ProtocolManagement() {
           ckb_boost_tipping_type_code_hash:
             protocolData.protocol_config.script_code_hashes
               .ckb_boost_tipping_type_code_hash,
+          ckb_boost_achievements_type_code_hash:
+            protocolData.protocol_config.script_code_hashes
+              .ckb_boost_achievements_type_code_hash,
           accepted_udt_type_scripts:
             protocolData.protocol_config.script_code_hashes
               .accepted_udt_type_scripts || [],
@@ -1104,6 +1119,9 @@ export function ProtocolManagement() {
           ckb_boost_tipping_type_code_hash:
             deploymentTemplate.protocol_config.script_code_hashes
               .ckb_boost_tipping_type_code_hash,
+          ckb_boost_achievements_type_code_hash:
+            deploymentTemplate.protocol_config.script_code_hashes
+              .ckb_boost_achievements_type_code_hash,
           accepted_udt_type_scripts: [],
           accepted_dob_type_scripts: [],
         });
@@ -1265,6 +1283,13 @@ export function ProtocolManagement() {
         protocol_config: {
           admin_lock_hash_vec: finalAdminLockHashes || [],
           script_code_hashes: scriptCodeHashesValues,
+          streak_bonus_interval: ccc.numFrom(
+            deploymentTemplate.protocol_config.streak_bonus_interval
+          ),
+          streak_bonus_amount: ccc.numFrom(
+            deploymentTemplate.protocol_config.streak_bonus_amount
+          ),
+          achievements_type_hashes: [],
         },
       };
 
