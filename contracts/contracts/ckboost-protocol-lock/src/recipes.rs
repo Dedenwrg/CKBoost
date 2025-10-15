@@ -60,14 +60,18 @@ pub mod approve_completion {
     use ckb_deterministic::cell_classifier::RuleBasedClassifier;
     use ckb_deterministic::debug_trace;
     use ckb_deterministic::errors::Error as DeterministicError;
+    use ckb_std::ckb_types::prelude::ShouldBeOk;
     use ckb_std::high_level::load_script;
     use ckboost_shared::transaction_context::TransactionContext;
+    use ckboost_shared::types::ConnectedTypeID;
+    use ckboost_shared::Error;
+    use molecule::prelude::Entity;
 
     /// Validate that the campaign admin is unlocking funds
     /// This is valid when the campaign cell itself is being spent
     pub fn validate_approve_completion(
         context: &TransactionContext<RuleBasedClassifier>,
-    ) -> Result<(), DeterministicError> {
+    ) -> Result<(), Error> {
         debug_trace!("Validating admin unlock");
 
         // Check that a campaign cell exists in inputs
@@ -75,21 +79,29 @@ pub mod approve_completion {
         let input_campaign_cells = context.input_cells.get_custom("campaign");
         let script = load_script()?;
         let args = script.args().raw_data();
-        let mut args_u832 = [0u8; 32];
-        args_u832.copy_from_slice(args.as_ref());
+        let connected_type_id = ConnectedTypeID::from_slice(&args.as_ref())
+            .map_err(|e| Error::InvalidConnectedTypeId)?;
+        let connected_key = connected_type_id.connected_key();
 
         match input_campaign_cells {
             Some(cells) => {
                 debug_trace!("Campaign cell found in inputs - admin unlock is valid");
                 debug_trace!("Campaign cell count: {}", cells.len());
                 let campaign_cell = &cells[0];
-                let campaign_cell_type_hash = campaign_cell.type_hash.as_ref().unwrap();
-                expect(campaign_cell_type_hash).to_equal(&args_u832)?;
+                let campaign_cell_type_script = campaign_cell.type_script.as_ref().should_be_ok();
+                let campaign_cell_connected_type_id =
+                    ConnectedTypeID::from_slice(&campaign_cell_type_script.args().raw_data())
+                        .map_err(|e| Error::InvalidConnectedTypeId)?;
+                if campaign_cell_connected_type_id.connected_key().as_slice()
+                    != connected_key.as_slice()
+                {
+                    return Err(Error::InvalidConnectedTypeId);
+                }
                 Ok(())
             }
             None => {
                 debug_trace!("No campaign cell in inputs - admin unlock is invalid");
-                Err(DeterministicError::CellRelationshipRuleViolation)
+                Err(Error::CellRelationshipRuleViolation)
             }
         }
     }
