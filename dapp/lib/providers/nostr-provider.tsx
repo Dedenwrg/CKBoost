@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { NostrContext } from '@nostrify/react';
 import { NPool, NRelay1 } from '@nostrify/nostrify'
 
-const DEFAULT_RELAYS = [
+export const DEFAULT_NOSTR_RELAYS = [
   'wss://relay.damus.io',     // Most reliable
   'wss://nos.lol',             // Good uptime  
   'wss://relay.nostr.band',    // Comprehensive
@@ -30,11 +30,11 @@ export function NostrProvider({ children }: NostrProviderProps) {
       },
       reqRouter(filters) {
         // Route all filters to all relays
-        return new Map(DEFAULT_RELAYS.map((url) => [url, filters]));
+        return new Map(DEFAULT_NOSTR_RELAYS.map((url) => [url, filters]));
       },
       eventRouter() {
         // Send events to all relays
-        return DEFAULT_RELAYS;
+        return DEFAULT_NOSTR_RELAYS;
       },
     });
   }

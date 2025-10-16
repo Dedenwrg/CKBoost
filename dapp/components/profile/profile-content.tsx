@@ -492,7 +492,7 @@ export function ProfileContent({
         });
 
         const response = await fetch(
-          `/.netlify/functions/points-mints?${params.toString()}`
+          `/.netlify/functions/reward-history?${params.toString()}`
         );
 
         if (!response.ok) {
@@ -1189,11 +1189,18 @@ export function ProfileContent({
                                 )}
                                 {row.totalTokens.map((token) => (
                                   <Badge
-                                    key={`${row.txHash}-${token.scriptHash ?? token.symbol}`}
+                                    key={`${row.txHash}-${
+                                      token.scriptHash ?? token.symbol
+                                    }`}
                                     variant="secondary"
                                     className="px-3 py-1"
                                   >
-                                    +{formatTokenAmount(token.amount, token.token)} {token.symbol}
+                                    +
+                                    {formatTokenAmount(
+                                      token.amount,
+                                      token.token
+                                    )}{" "}
+                                    {token.symbol}
                                   </Badge>
                                 ))}
                               </div>
