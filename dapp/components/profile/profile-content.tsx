@@ -31,6 +31,7 @@ import { useCampaigns } from "@/lib/providers/campaign-provider";
 import { CampaignData } from "ssri-ckboost/types";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
+import { udtRegistry, type UDTToken } from "@/lib/services/udt-registry";
 
 type PointsMintTransactionPayload = {
   txHash: string;
@@ -127,17 +128,150 @@ const formatPointsAmount = (points: ccc.NumLike | undefined | null): string => {
   }
 };
 
-const formatStringPointsAmount = (value: string): string => {
-  try {
-    return BigInt(value).toLocaleString();
-  } catch {
-    return value;
-  }
-};
-
 const formatTimestampFromMillis = (value: number | null): string | null => {
   if (!value || Number.isNaN(value) || value <= 0) return null;
   return new Date(value).toLocaleString();
+};
+
+const numToBigInt = (value: unknown): bigint => {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return 0n;
+    return BigInt(Math.trunc(value));
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return 0n;
+    try {
+      if (trimmed.startsWith("0x") || trimmed.startsWith("-0x")) {
+        return BigInt(trimmed);
+      }
+      return BigInt(trimmed);
+    } catch {
+      const numeric = Number(trimmed);
+      if (Number.isFinite(numeric)) {
+        return BigInt(Math.trunc(numeric));
+      }
+      return 0n;
+    }
+  }
+
+  try {
+    const numeric = ccc.numFrom(value as ccc.NumLike);
+    if (typeof numeric === "bigint") return numeric;
+    if (typeof numeric === "number") {
+      if (!Number.isFinite(numeric)) return 0n;
+      return BigInt(Math.trunc(numeric));
+    }
+    const maybeToString = (numeric as unknown as { toString?: () => string })
+      ?.toString;
+    if (typeof maybeToString === "function") {
+      return numToBigInt(maybeToString.call(numeric));
+    }
+  } catch {
+    if (
+      value &&
+      typeof value === "object" &&
+      "toString" in (value as Record<string, unknown>) &&
+      typeof (value as { toString: () => string }).toString === "function"
+    ) {
+      try {
+        return numToBigInt((value as { toString: () => string }).toString());
+      } catch {
+        return 0n;
+      }
+    }
+  }
+
+  return 0n;
+};
+
+const formatBigIntAmount = (value: bigint): string => {
+  try {
+    return value.toLocaleString();
+  } catch {
+    return value.toString();
+  }
+};
+
+const formatNumberStringWithSeparators = (value: string): string => {
+  const [wholePart, fractionalPart] = value.split(".");
+  const hasNegative = wholePart.startsWith("-");
+  const numericWhole = hasNegative ? wholePart.slice(1) : wholePart;
+  const withSeparators = numericWhole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const formattedWhole = hasNegative ? `-${withSeparators}` : withSeparators;
+  return fractionalPart && fractionalPart.length > 0
+    ? `${formattedWhole}.${fractionalPart}`
+    : formattedWhole;
+};
+
+const formatTokenAmount = (value: bigint, token: UDTToken | null): string => {
+  if (token) {
+    try {
+      const formatted = udtRegistry.formatAmount(value, token);
+      return formatNumberStringWithSeparators(formatted);
+    } catch (error) {
+      console.warn("Failed to format token amount", token.symbol, error);
+    }
+  }
+
+  return formatBigIntAmount(value);
+};
+
+type RewardCategory = "quest" | "tipping" | "achievement" | "other";
+
+type TokenRewardDetail = {
+  symbol: string;
+  amount: bigint;
+  scriptHash: string | null;
+  token: UDTToken | null;
+};
+
+type RewardEventDetail = {
+  id: string;
+  type: RewardCategory;
+  title: string;
+  subtitle?: string | null;
+  link?: string | null;
+  points: bigint;
+  tokenRewards: TokenRewardDetail[];
+};
+
+type RewardTableRow = {
+  txHash: string;
+  blockNumber: string | null;
+  formattedTimestamp: string;
+  explorerUrl: string;
+  events: RewardEventDetail[];
+  totalPoints: bigint;
+  totalTokens: TokenRewardDetail[];
+  timestampValue: number;
+};
+
+const rewardCategoryStyles: Record<
+  RewardCategory,
+  { label: string; className: string }
+> = {
+  quest: {
+    label: "Quest",
+    className:
+      "bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200",
+  },
+  tipping: {
+    label: "Tipping",
+    className:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
+  },
+  achievement: {
+    label: "Achievement",
+    className:
+      "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200",
+  },
+  other: {
+    label: "Reward",
+    className:
+      "bg-slate-100 text-slate-700 dark:bg-slate-600/30 dark:text-slate-200",
+  },
 };
 
 export function ProfileContent({
@@ -173,7 +307,14 @@ export function ProfileContent({
       string,
       {
         title: string;
-        quests: Record<number, { title: string; points: number }>;
+        quests: Record<
+          number,
+          {
+            title: string;
+            points: bigint;
+            tokens: TokenRewardDetail[];
+          }
+        >;
       }
     >();
 
@@ -182,14 +323,74 @@ export function ProfileContent({
         const typeId = extractTypeIdFromCampaignCell(cell);
         if (!typeId) return;
         const data = CampaignData.decode(cell.outputData);
-        const quests: Record<number, { title: string; points: number }> = {};
+        const quests: Record<
+          number,
+          {
+            title: string;
+            points: bigint;
+            tokens: TokenRewardDetail[];
+          }
+        > = {};
+
         (data.quests || []).forEach((quest) => {
           const questId = Number(quest.quest_id);
-          quests[questId] = {
-            title: quest.metadata?.title || `Quest #${questId}`,
-            points: Number(quest.points ?? 0),
-          };
+          try {
+            const questPoints = numToBigInt(quest.points ?? 0);
+            const tokenRewards: TokenRewardDetail[] = [];
+
+            (quest.rewards_on_completion || []).forEach((assetList) => {
+              (assetList?.udt_assets || []).forEach((udtAsset) => {
+                const amount = numToBigInt(udtAsset.amount ?? 0);
+                if (amount === 0n) {
+                  return;
+                }
+
+                try {
+                  const script = ccc.Script.from(udtAsset.udt_script);
+                  const scriptHash = script.hash().toLowerCase();
+                  const tokenInfo =
+                    udtRegistry.getTokenByScriptHash(scriptHash) ?? null;
+                  const symbol = tokenInfo?.symbol ?? "UDT";
+
+                  tokenRewards.push({
+                    symbol,
+                    amount,
+                    scriptHash,
+                    token: tokenInfo,
+                  });
+                } catch (tokenError) {
+                  console.warn(
+                    "Failed to derive UDT reward for profile",
+                    tokenError
+                  );
+                  tokenRewards.push({
+                    symbol: "UDT",
+                    amount,
+                    scriptHash: null,
+                    token: null,
+                  });
+                }
+              });
+            });
+
+            quests[questId] = {
+              title: quest.metadata?.title || `Quest #${questId}`,
+              points: questPoints,
+              tokens: tokenRewards,
+            };
+          } catch (questError) {
+            console.warn(
+              "Failed to derive quest rewards for profile",
+              questError
+            );
+            quests[questId] = {
+              title: quest.metadata?.title || `Quest #${questId}`,
+              points: numToBigInt(quest.points ?? 0),
+              tokens: [],
+            };
+          }
         });
+
         map.set(typeId.toLowerCase(), {
           title: data.metadata?.title || "Unknown campaign",
           quests,
@@ -264,7 +465,7 @@ export function ProfileContent({
           questTitle: questInfo?.title || `Quest #${questId}`,
           submissionTimestamp,
           submissionContent,
-          points: questInfo?.points ?? 0,
+          points: questInfo?.points ?? 0n,
         };
       })
       .sort((a, b) => b.submissionTimestamp - a.submissionTimestamp);
@@ -394,21 +595,133 @@ export function ProfileContent({
     };
   }, [normalizedFallbackAddress, client]);
 
-  const rewardEntries = useMemo(() => {
-    return [...pointsTransactions]
-      .sort((a, b) => {
-        const aTime = a.timestamp ?? (a.blockNumber ? Number(a.blockNumber) : 0);
-        const bTime = b.timestamp ?? (b.blockNumber ? Number(b.blockNumber) : 0);
-        return bTime - aTime;
-      })
-      .map((entry) => ({
-        ...entry,
-        formattedTimestamp:
-          formatTimestampFromMillis(entry.timestamp ?? null) ??
-          (entry.blockNumber ? `Block #${entry.blockNumber}` : "Unknown"),
-        formattedPoints: formatStringPointsAmount(entry.netPoints),
-      }));
-  }, [pointsTransactions]);
+  const rewardRows = useMemo<RewardTableRow[]>(() => {
+    if (pointsTransactions.length === 0) return [];
+
+    const transactionsAscending = [...pointsTransactions].sort((a, b) => {
+      const aTime = a.timestamp ?? (a.blockNumber ? Number(a.blockNumber) : 0);
+      const bTime = b.timestamp ?? (b.blockNumber ? Number(b.blockNumber) : 0);
+      return aTime - bTime;
+    });
+
+    const submissionsAscending = [...submissionEntries].sort(
+      (a, b) => a.submissionTimestamp - b.submissionTimestamp
+    );
+
+    let submissionCursor = 0;
+    const rows: RewardTableRow[] = [];
+
+    transactionsAscending.forEach((tx) => {
+      const events: RewardEventDetail[] = [];
+      const tokenTotals = new Map<string, TokenRewardDetail>();
+      let remainingPoints = numToBigInt(tx.netPoints);
+
+      const timestampLabel =
+        formatTimestampFromMillis(tx.timestamp ?? null) ??
+        (tx.blockNumber ? `Block #${tx.blockNumber}` : "Unknown");
+
+      while (
+        submissionCursor < submissionsAscending.length &&
+        remainingPoints > 0n
+      ) {
+        const submission = submissionsAscending[submissionCursor];
+        const campaignKey = submission.campaignTypeId?.toLowerCase();
+        const questDetails = campaignKey
+          ? campaignMap.get(campaignKey)?.quests?.[submission.questId]
+          : undefined;
+
+        const questPoints = questDetails?.points ?? submission.points ?? 0n;
+
+        if (questPoints <= 0n) {
+          submissionCursor += 1;
+          continue;
+        }
+
+        if (questPoints > remainingPoints) {
+          break;
+        }
+
+        const questTokens = questDetails?.tokens ?? [];
+        questTokens.forEach((token) => {
+          const key = (token.scriptHash ?? `symbol:${token.symbol}`)
+            .toLowerCase()
+            .trim();
+          const existing = tokenTotals.get(key);
+          if (existing) {
+            const shouldReplaceSymbol =
+              existing.symbol === "UDT" && token.symbol !== "UDT";
+            tokenTotals.set(key, {
+              ...existing,
+              symbol: shouldReplaceSymbol ? token.symbol : existing.symbol,
+              amount: existing.amount + token.amount,
+              token: existing.token ?? token.token ?? null,
+            });
+          } else {
+            tokenTotals.set(key, {
+              symbol: token.symbol,
+              amount: token.amount,
+              scriptHash: token.scriptHash,
+              token: token.token ?? null,
+            });
+          }
+        });
+
+        events.push({
+          id: `${tx.txHash}:${submission.key}`,
+          type: "quest",
+          title: questDetails?.title ?? submission.questTitle,
+          subtitle: submission.campaignTitle,
+          link: submission.campaignTypeId
+            ? `/campaign/${submission.campaignTypeId}?quest=${submission.questId}`
+            : null,
+          points: questPoints,
+          tokenRewards: questTokens.map((token) => ({ ...token })),
+        });
+
+        remainingPoints -= questPoints;
+        submissionCursor += 1;
+      }
+
+      if (events.length === 0) {
+        events.push({
+          id: `${tx.txHash}:fallback`,
+          type: "other",
+          title: "Reward distribution",
+          subtitle: null,
+          link: null,
+          points: remainingPoints,
+          tokenRewards: [],
+        });
+      } else if (remainingPoints > 0n) {
+        events.push({
+          id: `${tx.txHash}:residual`,
+          type: "other",
+          title: "Additional reward",
+          subtitle: null,
+          link: null,
+          points: remainingPoints,
+          tokenRewards: [],
+        });
+      }
+
+      const totalPoints = numToBigInt(tx.netPoints);
+      const totalTokens = Array.from(tokenTotals.values());
+
+      rows.push({
+        txHash: tx.txHash,
+        blockNumber: tx.blockNumber ?? null,
+        formattedTimestamp: timestampLabel,
+        explorerUrl: `${explorerBaseUrl}${tx.txHash}`,
+        events,
+        totalPoints,
+        totalTokens,
+        timestampValue:
+          tx.timestamp ?? (tx.blockNumber ? Number(tx.blockNumber) : 0),
+      });
+    });
+
+    return rows.sort((a, b) => b.timestampValue - a.timestampValue);
+  }, [pointsTransactions, submissionEntries, campaignMap, explorerBaseUrl]);
 
   const totalPoints = formatPointsAmount(userData?.total_points_earned ?? 0);
   const totalSubmissions = userData?.submission_records?.length ?? 0;
@@ -668,8 +981,8 @@ export function ProfileContent({
 
             <Separator />
 
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
+            {/* <section className="space-y-3"> */}
+            {/* <div className="flex items-center justify-between">
                 <h3 className="text-xl font-semibold flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-purple-500" />
                   Contribution Log
@@ -726,7 +1039,7 @@ export function ProfileContent({
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="px-3 py-1">
-                                {entry.points.toLocaleString()}
+                                {formatBigIntAmount(entry.points)}
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -749,10 +1062,10 @@ export function ProfileContent({
                         cell history on a block explorer.
                       </TableCaption>
                     </Table>
-                  </CardContent>
-                )}
-              </Card>
-            </section>
+                  </CardContent> */}
+            {/* )} */}
+            {/* </Card> */}
+            {/* </section> */}
 
             <Separator />
 
@@ -763,8 +1076,8 @@ export function ProfileContent({
                   Reward Transactions
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {rewardEntries.length} reward
-                  {rewardEntries.length === 1 ? "" : "s"} detected on-chain.
+                  {rewardRows.length} reward
+                  {rewardRows.length === 1 ? "" : "s"} detected on-chain.
                 </p>
               </div>
 
@@ -779,7 +1092,7 @@ export function ProfileContent({
                   <CardContent className="py-6 text-sm text-red-600 dark:text-red-400">
                     {pointsError}
                   </CardContent>
-                ) : rewardEntries.length === 0 ? (
+                ) : rewardRows.length === 0 ? (
                   <CardContent className="py-10 text-center text-sm text-muted-foreground">
                     No reward transactions recorded yet. Complete quests or
                     receive tips to start earning on-chain points.
@@ -789,47 +1102,104 @@ export function ProfileContent({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[220px]">Earned</TableHead>
+                          <TableHead className="w-[180px]">Earned</TableHead>
+                          <TableHead className="min-w-[220px]">Event</TableHead>
                           <TableHead>Transaction</TableHead>
-                          <TableHead className="text-right w-[160px]">
-                            Net Points
+                          <TableHead className="text-right min-w-[200px]">
+                            Rewards
                           </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rewardEntries.map((tx) => {
-                          const explorerUrl = `${explorerBaseUrl}${tx.txHash}`;
-                          return (
-                            <TableRow key={tx.txHash}>
-                              <TableCell className="font-medium">
-                                {tx.formattedTimestamp}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-col gap-1">
-                                  <a
-                                    href={explorerUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline break-all"
+                        {rewardRows.map((row) => (
+                          <TableRow key={row.txHash}>
+                            <TableCell className="font-medium">
+                              {row.formattedTimestamp}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-2">
+                                {row.events.map((event) => {
+                                  const meta =
+                                    rewardCategoryStyles[event.type] ??
+                                    rewardCategoryStyles.other;
+
+                                  return (
+                                    <div
+                                      key={event.id}
+                                      className="flex items-start gap-2"
+                                    >
+                                      <Badge
+                                        variant="secondary"
+                                        className={`px-2 py-0.5 text-xs font-medium ${meta.className}`}
+                                      >
+                                        {meta.label}
+                                      </Badge>
+                                      <div className="flex flex-col text-sm">
+                                        {event.link ? (
+                                          <Link
+                                            href={event.link}
+                                            className="font-medium text-indigo-600 hover:underline dark:text-indigo-300"
+                                          >
+                                            {event.title}
+                                          </Link>
+                                        ) : (
+                                          <span className="font-medium">
+                                            {event.title}
+                                          </span>
+                                        )}
+                                        {event.subtitle && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {event.subtitle}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <a
+                                  href={row.explorerUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline break-all"
+                                >
+                                  <span>{row.txHash}</span>
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                                {row.blockNumber && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Block #{row.blockNumber}
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex flex-wrap justify-end gap-2">
+                                {row.totalPoints > 0n && (
+                                  <Badge
+                                    variant="outline"
+                                    className="px-3 py-1"
                                   >
-                                    <span>{tx.txHash}</span>
-                                    <ExternalLink className="w-4 h-4" />
-                                  </a>
-                                  {tx.blockNumber && (
-                                    <span className="text-xs text-muted-foreground">
-                                      Block #{tx.blockNumber}
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Badge variant="outline" className="px-3 py-1">
-                                  +{tx.formattedPoints}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
+                                    +{formatBigIntAmount(row.totalPoints)}{" "}
+                                    Points
+                                  </Badge>
+                                )}
+                                {row.totalTokens.map((token) => (
+                                  <Badge
+                                    key={`${row.txHash}-${token.scriptHash ?? token.symbol}`}
+                                    variant="secondary"
+                                    className="px-3 py-1"
+                                  >
+                                    +{formatTokenAmount(token.amount, token.token)} {token.symbol}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </CardContent>
