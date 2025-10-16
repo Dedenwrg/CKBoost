@@ -4,7 +4,10 @@ use ckb_std::{
     debug,
     high_level::{load_cell_data, load_cell_type_hash, load_input, load_script, QueryIter},
 };
-use ckboost_shared::{types::ConnectedTypeID, Error};
+use ckboost_shared::{
+    types::{ConnectedTypeID, UserData},
+    Error,
+};
 use core::result::Result;
 
 /// Check if this is a minting operation by comparing input and output amounts
@@ -62,6 +65,85 @@ pub fn is_minting_operation() -> Result<bool, Error> {
         input_amount, output_amount
     );
 
+    if output_amount > input_amount {
+        // Check total points earned
+        let mut index = 0;
+        let mut input_user_data: Option<UserData> = None;
+        let mut user_type_hash: [u8; 32] = [0; 32];
+        loop {
+            match load_input(index, Source::Input) {
+                Ok(_) => {
+                    // Check if this is a user cell by validating ConnectedTypeID
+                    if let Ok(Some(type_hash)) = load_cell_type_hash(index, Source::Input) {
+                        // Load cell data to distinguish user cells
+                        if let Ok(data) = load_cell_data(index, Source::Input) {
+                            match UserData::from_slice(&data) {
+                                Ok(user_data) => {
+                                    input_user_data = Some(user_data);
+                                    user_type_hash = type_hash.as_slice().try_into().unwrap();
+                                }
+                                Err(_) => {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(ckb_std::error::SysError::IndexOutOfBound) => break,
+                Err(_) => {}
+            }
+            index += 1;
+        }
+        if input_user_data.is_none() {
+            return Err(Error::InvalidUserCell);
+        }
+        let input_user_data = input_user_data.unwrap();
+        // Get output user data
+        index = 0;
+        loop {
+            match load_input(index, Source::Output) {
+                Ok(_) => {
+                    // Check if this is a user cell by validating ConnectedTypeID
+                    if let Ok(Some(type_hash)) = load_cell_type_hash(index, Source::Output) {
+                        if type_hash.as_slice() == user_type_hash.as_slice() {
+                            let data = load_cell_data(index, Source::Output)
+                                .map_err(|_| Error::ItemMissing)?;
+                            match UserData::from_slice(&data) {
+                                Ok(user_data) => {
+                                    let input_total_points_earned_bytes =
+                                        input_user_data.total_points_earned().raw_data();
+                                    let user_total_points_earned_bytes =
+                                        user_data.total_points_earned().raw_data();
+                                    let mut input_total_points_earned = [0u8; 16];
+                                    input_total_points_earned
+                                        .copy_from_slice(&input_total_points_earned_bytes.to_vec());
+                                    let mut user_total_points_earned = [0u8; 16];
+                                    user_total_points_earned
+                                        .copy_from_slice(&user_total_points_earned_bytes.to_vec());
+                                    if u128::from_le_bytes(input_total_points_earned)
+                                        + output_amount
+                                        - input_amount
+                                        != u128::from_le_bytes(user_total_points_earned)
+                                    {
+                                        debug!(
+                                            "Invalid user cell: input_total_points_earned + output_amount - input_amount != user_total_points_earned"
+                                        );
+                                        return Err(Error::InvalidUserCell);
+                                    }
+                                }
+                                Err(_) => {
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(ckb_std::error::SysError::IndexOutOfBound) => break,
+                Err(_) => {}
+            }
+            index += 1;
+        }
+    }
     // If output > input, it's a minting operation
     Ok(output_amount > input_amount)
 }
@@ -155,20 +237,31 @@ fn find_and_validate_campaign_cell(protocol_type_hash: &[u8]) -> Result<bool, Er
 fn find_and_validate_user_cells(protocol_type_hash: &[u8]) -> Result<bool, Error> {
     let mut found_any = false;
     let mut index = 0;
+    let mut user_type_hash: [u8; 32] = [0; 32];
+    let mut input_user_data: UserData;
 
     loop {
         match load_input(index, Source::Input) {
             Ok(_) => {
                 // Check if this is a user cell by validating ConnectedTypeID
-                if let Ok(Some(_type_hash)) = load_cell_type_hash(index, Source::Input) {
+                if let Ok(Some(type_hash)) = load_cell_type_hash(index, Source::Input) {
                     // Load cell data to distinguish user cells
                     if let Ok(data) = load_cell_data(index, Source::Input) {
-                        // User cells have moderate data size (UserData structure)
-                        if data.len() > 50 && data.len() < 10000 {
-                            if validate_connected_type_id(index, Source::Input, protocol_type_hash)?
-                            {
-                                debug!("Found valid user cell at index {}", index);
-                                found_any = true;
+                        match UserData::from_slice(&data) {
+                            Ok(user_data) => {
+                                input_user_data = user_data;
+                                user_type_hash = type_hash.as_slice().try_into().unwrap();
+                                if validate_connected_type_id(
+                                    index,
+                                    Source::Input,
+                                    protocol_type_hash,
+                                )? {
+                                    debug!("Found valid user cell at index {}", index);
+                                    found_any = true;
+                                }
+                            }
+                            Err(_) => {
+                                continue;
                             }
                         }
                     }
@@ -179,7 +272,7 @@ fn find_and_validate_user_cells(protocol_type_hash: &[u8]) -> Result<bool, Error
         }
         index += 1;
     }
-
+    // Get output user data
     Ok(found_any)
 }
 
