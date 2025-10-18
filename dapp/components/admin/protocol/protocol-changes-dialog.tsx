@@ -18,6 +18,7 @@ interface PendingChanges {
   admins: boolean;
   scriptCodeHashes: boolean;
   tippingConfig: boolean;
+  streakConfig: boolean;
   endorsers: boolean;
 }
 
@@ -54,6 +55,7 @@ export function ProtocolChangesDialog({
     pendingChanges.admins ||
     pendingChanges.scriptCodeHashes ||
     pendingChanges.tippingConfig ||
+    pendingChanges.streakConfig ||
     pendingChanges.endorsers;
 
   return (
@@ -172,6 +174,41 @@ export function ProtocolChangesDialog({
                           </div>
                           <div className="text-green-600">
                             + New: {protocolChanges.tippingConfig.expirationDuration.newValue} seconds
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Streak Bonus Configuration Changes */}
+              {pendingChanges.streakConfig && protocolChanges && (
+                <div className="border rounded p-4">
+                  <h4 className="font-medium mb-3">Streak Bonus Configuration Changes</h4>
+                  <div className="space-y-2 text-sm">
+                    {protocolChanges.streakConfig.streakBonusInterval.hasChanged && (
+                      <div>
+                        <span className="font-medium">Bonus Interval (seconds):</span>
+                        <div className="mt-1 space-y-1">
+                          <div className="text-red-600">
+                            - Previous: {protocolChanges.streakConfig.streakBonusInterval.oldValue}
+                          </div>
+                          <div className="text-green-600">
+                            + New: {protocolChanges.streakConfig.streakBonusInterval.newValue}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {protocolChanges.streakConfig.streakBonusAmount.hasChanged && (
+                      <div>
+                        <span className="font-medium">Bonus Amount (points):</span>
+                        <div className="mt-1 space-y-1">
+                          <div className="text-red-600">
+                            - Previous: {protocolChanges.streakConfig.streakBonusAmount.oldValue}
+                          </div>
+                          <div className="text-green-600">
+                            + New: {protocolChanges.streakConfig.streakBonusAmount.newValue}
                           </div>
                         </div>
                       </div>

@@ -2,6 +2,8 @@ export { ProtocolDeployment } from "./protocol-deployment";
 export { ProtocolStats } from "./protocol-stats";
 export { AdminManagement } from "./admin-management";
 export { TippingConfig } from "./tipping-config";
+export { StreakConfig } from "./streak-config";
+export type { StreakConfigFormValues } from "./streak-config";
 export { ScriptCodeHashes } from "./script-code-hashes";
 export { EndorserManagement } from "./endorser-management";
 export { ProtocolDeploymentSection } from "./protocol-deployment-section";

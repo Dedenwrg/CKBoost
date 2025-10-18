@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -53,6 +53,8 @@ import {
   ProtocolStats,
   AdminManagement,
   TippingConfig,
+  StreakConfig,
+  type StreakConfigFormValues,
   ScriptCodeHashes,
   EndorserManagement,
   ProtocolDeploymentSection,
@@ -259,6 +261,17 @@ export function ProtocolManagement() {
     },
   });
 
+  const streakConfigForm = useForm<StreakConfigFormValues>({
+    defaultValues: {
+      streak_bonus_interval: ccc.numFrom(
+        deploymentTemplate.protocol_config.streak_bonus_interval ?? 0n
+      ),
+      streak_bonus_amount: ccc.numFrom(
+        deploymentTemplate.protocol_config.streak_bonus_amount ?? 0n
+      ),
+    },
+  });
+
   const endorserForm = useForm<
     EndorserInfoLike & {
       inputMode: "address" | "script";
@@ -310,20 +323,24 @@ export function ProtocolManagement() {
   const [baselineValues, setBaselineValues] = useState<{
     scriptCodeHashes: ScriptCodeHashesLike | null;
     tippingConfig: TippingConfigLike | null;
+    streakConfig: StreakConfigFormValues | null;
   }>({
     scriptCodeHashes: null,
     tippingConfig: null,
+    streakConfig: null,
   });
 
   const [pendingChanges, setPendingChanges] = useState<{
     admins: boolean;
     scriptCodeHashes: boolean;
     tippingConfig: boolean;
+    streakConfig: boolean;
     endorsers: boolean;
   }>({
     admins: false,
     scriptCodeHashes: false,
     tippingConfig: false,
+    streakConfig: false,
     endorsers: false,
   });
 
@@ -410,6 +427,14 @@ export function ProtocolManagement() {
                 deploymentTemplate.tipping_config.expiration_duration
               ),
             },
+            streakConfig: {
+              streak_bonus_interval: ccc.numFrom(
+                deploymentTemplate.protocol_config.streak_bonus_interval ?? 0n
+              ),
+              streak_bonus_amount: ccc.numFrom(
+                deploymentTemplate.protocol_config.streak_bonus_amount ?? 0n
+              ),
+            },
           });
         } catch (error) {
           console.error("Failed to initialize deployment forms:", error);
@@ -472,6 +497,14 @@ export function ProtocolManagement() {
             .accepted_dob_type_scripts || [],
       });
       tippingConfigForm.reset(tippingValues);
+      streakConfigForm.reset({
+        streak_bonus_interval: ccc.numFrom(
+          protocolData.protocol_config.streak_bonus_interval ?? 0n
+        ),
+        streak_bonus_amount: ccc.numFrom(
+          protocolData.protocol_config.streak_bonus_amount ?? 0n
+        ),
+      });
 
       // Set baseline values to prevent false change detection
       setBaselineValues({
@@ -485,13 +518,36 @@ export function ProtocolManagement() {
               .accepted_dob_type_scripts || [],
         },
         tippingConfig: tippingValues,
+        streakConfig: {
+          streak_bonus_interval: ccc.numFrom(
+            protocolData.protocol_config.streak_bonus_interval ?? 0n
+          ),
+          streak_bonus_amount: ccc.numFrom(
+            protocolData.protocol_config.streak_bonus_amount ?? 0n
+          ),
+        },
       });
     }
-  }, [protocolData, configStatus, scriptCodeHashesForm, tippingConfigForm]);
+  }, [
+    protocolData,
+    configStatus,
+    scriptCodeHashesForm,
+    tippingConfigForm,
+    streakConfigForm,
+  ]);
 
   // Watch form changes to track modifications
   const scriptCodeHashesValues = scriptCodeHashesForm.watch();
   const tippingConfigValues = tippingConfigForm.watch();
+  const rawStreakConfigValues = streakConfigForm.watch();
+  const streakConfigValues: StreakConfigFormValues = {
+    streak_bonus_interval:
+      rawStreakConfigValues?.streak_bonus_interval ?? 0n,
+    streak_bonus_amount:
+      rawStreakConfigValues?.streak_bonus_amount ?? 0n,
+  };
+
+  const hasPromptedInvalidStreak = useRef(false);
 
   // Watch endorser form for preview lock hash computation
   const watchedInputMode = endorserForm.watch("inputMode");
@@ -530,8 +586,14 @@ export function ProtocolManagement() {
       adminLockHashes: finalAdminLockHashes,
       scriptCodeHashes: scriptCodeHashesValues,
       tippingConfig: tippingConfigValues,
+      streakConfig: streakConfigValues,
     }),
-    [finalAdminLockHashes, scriptCodeHashesValues, tippingConfigValues]
+    [
+      finalAdminLockHashes,
+      scriptCodeHashesValues,
+      tippingConfigValues,
+      streakConfigValues,
+    ]
   );
 
   // Calculate changes with proper dependency management
@@ -591,7 +653,8 @@ export function ProtocolManagement() {
     if (
       !protocolData ||
       !baselineValues.scriptCodeHashes ||
-      !baselineValues.tippingConfig
+      !baselineValues.tippingConfig ||
+      !baselineValues.streakConfig
     )
       return;
 
@@ -638,6 +701,14 @@ export function ProtocolManagement() {
         typeof value === "bigint" ? value.toString() : value
       );
 
+    const streakEqual =
+      JSON.stringify(streakConfigValues, (_, value) =>
+        typeof value === "bigint" ? value.toString() : value
+      ) ===
+      JSON.stringify(baselineValues.streakConfig, (_, value) =>
+        typeof value === "bigint" ? value.toString() : value
+      );
+
     // Check if admins have changed
     const currentAdmins =
       protocolData?.protocol_config.admin_lock_hash_vec.map((hash) =>
@@ -646,13 +717,14 @@ export function ProtocolManagement() {
     const adminsEqual =
       JSON.stringify(currentAdmins) === JSON.stringify(finalAdminLockHashes);
 
-    if (scriptHashesEqual && tippingEqual && adminsEqual) {
+    if (scriptHashesEqual && tippingEqual && streakEqual && adminsEqual) {
       // No changes detected, clear pending changes
       setPendingChanges((prev) => ({
         ...prev,
         admins: false,
         scriptCodeHashes: false,
         tippingConfig: false,
+        streakConfig: false,
       }));
       setProtocolChanges(null);
       return;
@@ -670,12 +742,14 @@ export function ProtocolManagement() {
           adminLockHashes: finalAdminLockHashes,
           scriptCodeHashes: scriptCodeHashesValues,
           tippingConfig: tippingConfigValues,
+          streakConfig: streakConfigValues,
         };
 
         if (
           !currentFormData.adminLockHashes ||
           !currentFormData.scriptCodeHashes ||
-          !currentFormData.tippingConfig
+          !currentFormData.tippingConfig ||
+          !currentFormData.streakConfig
         ) {
           return;
         }
@@ -701,7 +775,13 @@ export function ProtocolManagement() {
             tippingConfig: Object.values(changes.tippingConfig).some(
               (change) => change.hasChanged
             ),
+            streakConfig: changes.streakConfig
+              ? Object.values(changes.streakConfig).some(
+                  (change) => change.hasChanged
+                )
+              : false,
           }));
+          hasPromptedInvalidStreak.current = false;
         }
       } catch (error) {
         if (isActive) {
@@ -712,8 +792,45 @@ export function ProtocolManagement() {
             admins: false,
             scriptCodeHashes: false,
             tippingConfig: false,
+            streakConfig: false,
             endorsers: false,
           });
+
+          if (!hasPromptedInvalidStreak.current && typeof window !== "undefined") {
+            hasPromptedInvalidStreak.current = true;
+
+            const intervalPrompt = window.prompt(
+              "Enter a valid streak bonus interval in seconds:",
+              streakConfigValues.streak_bonus_interval.toString()
+            );
+            if (intervalPrompt !== null) {
+              const intervalNumber = Number(intervalPrompt);
+              if (!Number.isNaN(intervalNumber)) {
+                const sanitizedInterval = Math.max(0, Math.floor(intervalNumber));
+                streakConfigForm.setValue(
+                  "streak_bonus_interval",
+                  BigInt(sanitizedInterval),
+                  { shouldDirty: true }
+                );
+              }
+            }
+
+            const amountPrompt = window.prompt(
+              "Enter a valid streak bonus amount in points:",
+              streakConfigValues.streak_bonus_amount.toString()
+            );
+            if (amountPrompt !== null) {
+              const amountNumber = Number(amountPrompt);
+              if (!Number.isNaN(amountNumber)) {
+                const sanitizedAmount = Math.max(0, Math.floor(amountNumber));
+                streakConfigForm.setValue(
+                  "streak_bonus_amount",
+                  BigInt(sanitizedAmount),
+                  { shouldDirty: true }
+                );
+              }
+            }
+          }
         }
       }
     }, 100); // 100ms debounce
@@ -732,6 +849,9 @@ export function ProtocolManagement() {
       typeof value === "bigint" ? value.toString() : value
     ),
     JSON.stringify(tippingConfigValues, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    ),
+    JSON.stringify(streakConfigValues, (_, value) =>
       typeof value === "bigint" ? value.toString() : value
     ),
     JSON.stringify(baselineValues, (_, value) =>
@@ -910,6 +1030,7 @@ export function ProtocolManagement() {
       pendingChanges.admins ||
       pendingChanges.scriptCodeHashes ||
       pendingChanges.tippingConfig ||
+      pendingChanges.streakConfig ||
       pendingChanges.endorsers;
 
     if (!hasChanges) {
@@ -922,7 +1043,8 @@ export function ProtocolManagement() {
     const hasFormChanges =
       pendingChanges.admins ||
       pendingChanges.scriptCodeHashes ||
-      pendingChanges.tippingConfig;
+      pendingChanges.tippingConfig ||
+      pendingChanges.streakConfig;
     if (hasFormChanges && !protocolChanges) {
       console.error("No protocol changes available for form modifications");
       alert("Unable to process form changes. Please try again.");
@@ -961,6 +1083,13 @@ export function ProtocolManagement() {
         updatedData.tipping_config = formData.tippingConfig;
       }
 
+      if (pendingChanges.streakConfig && formData.streakConfig) {
+        updatedData.protocol_config.streak_bonus_interval =
+          formData.streakConfig.streak_bonus_interval;
+        updatedData.protocol_config.streak_bonus_amount =
+          formData.streakConfig.streak_bonus_amount;
+      }
+
       // Handle endorser changes
       if (pendingChanges.endorsers) {
         // Start with current endorsers
@@ -995,6 +1124,7 @@ export function ProtocolManagement() {
         admins: false,
         scriptCodeHashes: false,
         tippingConfig: false,
+        streakConfig: false,
         endorsers: false,
       });
       setPendingEndorserChanges({
@@ -1032,6 +1162,7 @@ export function ProtocolManagement() {
       setBaselineValues({
         scriptCodeHashes: null,
         tippingConfig: null,
+        streakConfig: null,
       });
 
       // Reset all pending change states
@@ -1039,6 +1170,7 @@ export function ProtocolManagement() {
         admins: false,
         scriptCodeHashes: false,
         tippingConfig: false,
+        streakConfig: false,
         endorsers: false,
       });
 
@@ -1095,6 +1227,14 @@ export function ProtocolManagement() {
             protocolData.tipping_config.approval_requirement_thresholds,
           expiration_duration: protocolData.tipping_config.expiration_duration,
         });
+        streakConfigForm.reset({
+          streak_bonus_interval: ccc.numFrom(
+            protocolData.protocol_config.streak_bonus_interval ?? 0n
+          ),
+          streak_bonus_amount: ccc.numFrom(
+            protocolData.protocol_config.streak_bonus_amount ?? 0n
+          ),
+        });
       } else if (configStatus === "partial") {
         // For deployment mode, reset to template defaults but don't mark as changed
         scriptCodeHashesForm.reset({
@@ -1131,6 +1271,14 @@ export function ProtocolManagement() {
             deploymentTemplate.tipping_config.approval_requirement_thresholds,
           expiration_duration:
             deploymentTemplate.tipping_config.expiration_duration,
+        });
+        streakConfigForm.reset({
+          streak_bonus_interval: ccc.numFrom(
+            deploymentTemplate.protocol_config.streak_bonus_interval ?? 0n
+          ),
+          streak_bonus_amount: ccc.numFrom(
+            deploymentTemplate.protocol_config.streak_bonus_amount ?? 0n
+          ),
         });
       }
 
@@ -1283,12 +1431,8 @@ export function ProtocolManagement() {
         protocol_config: {
           admin_lock_hash_vec: finalAdminLockHashes || [],
           script_code_hashes: scriptCodeHashesValues,
-          streak_bonus_interval: ccc.numFrom(
-            deploymentTemplate.protocol_config.streak_bonus_interval
-          ),
-          streak_bonus_amount: ccc.numFrom(
-            deploymentTemplate.protocol_config.streak_bonus_amount
-          ),
+          streak_bonus_interval: streakConfigValues.streak_bonus_interval,
+          streak_bonus_amount: streakConfigValues.streak_bonus_amount,
           achievements_type_hashes: [],
         },
       };
@@ -1387,6 +1531,7 @@ export function ProtocolManagement() {
           {(pendingChanges.admins ||
             pendingChanges.scriptCodeHashes ||
             pendingChanges.tippingConfig ||
+            pendingChanges.streakConfig ||
             pendingChanges.endorsers) && (
             <p className="text-orange-600 text-sm font-medium mt-1">
               ⚠️ You have unsaved changes
@@ -1412,6 +1557,7 @@ export function ProtocolManagement() {
                   !pendingChanges.admins &&
                   !pendingChanges.scriptCodeHashes &&
                   !pendingChanges.tippingConfig &&
+                  !pendingChanges.streakConfig &&
                   !pendingChanges.endorsers
                 }
                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -1425,6 +1571,7 @@ export function ProtocolManagement() {
                   !pendingChanges.admins &&
                   !pendingChanges.scriptCodeHashes &&
                   !pendingChanges.tippingConfig &&
+                  !pendingChanges.streakConfig &&
                   !pendingChanges.endorsers
                 }
                 className="bg-green-600 hover:bg-green-700"
@@ -1709,6 +1856,15 @@ export function ProtocolManagement() {
             <TippingConfig
               form={tippingConfigForm}
               pendingChanges={pendingChanges.tippingConfig}
+              ChangeIndicator={ChangeIndicator}
+            />
+          )}
+
+          {/* Streak Bonus Configuration */}
+          {shouldShowSection(pendingChanges.streakConfig) && (
+            <StreakConfig
+              form={streakConfigForm}
+              pendingChanges={pendingChanges.streakConfig}
               ChangeIndicator={ChangeIndicator}
             />
           )}

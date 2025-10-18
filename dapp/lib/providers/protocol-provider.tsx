@@ -378,6 +378,10 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         approval_requirement_thresholds: string[];
         expiration_duration: number | bigint;
       };
+      streakConfig: {
+        streak_bonus_interval: ccc.NumLike;
+        streak_bonus_amount: ccc.NumLike;
+      };
     };
 
     // Helper function to compare Script arrays
@@ -444,6 +448,18 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
 
     // Calculate script code hash changes
     const scriptCodeHashes = protocolData.protocol_config.script_code_hashes;
+    const currentStreakInterval = ccc.numFrom(
+      protocolData.protocol_config.streak_bonus_interval ?? 0n
+    );
+    const currentStreakAmount = ccc.numFrom(
+      protocolData.protocol_config.streak_bonus_amount ?? 0n
+    );
+    const newStreakInterval = ccc.numFrom(
+      data.streakConfig?.streak_bonus_interval ?? 0n
+    );
+    const newStreakAmount = ccc.numFrom(
+      data.streakConfig?.streak_bonus_amount ?? 0n
+    );
 
     // Calculate changes
     const changes: ProtocolChanges = {
@@ -508,6 +524,18 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
           "tippingConfig.expirationDuration",
           Number(protocolData.tipping_config.expiration_duration),
           Number(data.tippingConfig.expiration_duration)
+        ),
+      },
+      streakConfig: {
+        streakBonusInterval: createFieldChange(
+          "streakConfig.streakBonusInterval",
+          currentStreakInterval.toString(),
+          newStreakInterval.toString()
+        ),
+        streakBonusAmount: createFieldChange(
+          "streakConfig.streakBonusAmount",
+          currentStreakAmount.toString(),
+          newStreakAmount.toString()
         ),
       },
       endorsers: {

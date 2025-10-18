@@ -79,6 +79,10 @@ export interface ProtocolChanges {
     approvalRequirementThresholds: FieldChange<string[]>;
     expirationDuration: FieldChange<number>;
   };
+  streakConfig: {
+    streakBonusInterval: FieldChange<string>;
+    streakBonusAmount: FieldChange<string>;
+  };
   endorsers: {
     added: EndorserInfoLike[];
     updated: Array<{ index: ccc.Num; endorser: EndorserInfoLike }>;
