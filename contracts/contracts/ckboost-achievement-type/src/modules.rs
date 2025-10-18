@@ -1,7 +1,8 @@
 use alloc::{vec, vec::Vec};
 use ckb_deterministic::{
-    cell_classifier::RuleBasedClassifier, create_recipe_with_args, create_recipe_with_reference,
-    debug_trace, serialize_transaction_recipe, transaction_context::TransactionContext,
+    cell_classifier::RuleBasedClassifier, create_inline_argument, create_recipe_with_args,
+    create_recipe_with_reference, debug_trace, serialize_transaction_recipe,
+    transaction_context::TransactionContext,
 };
 use ckb_ssri_std::utils::high_level::{
     find_cell_by_out_point, find_cell_data_by_out_point, find_out_point_by_type,
@@ -65,75 +66,7 @@ impl CKBoostAchievement for CKBoostAchievementType {
         debug_trace!("current_script: {:?}", current_script);
 
         // Ensure arguments contain a valid ConnectedTypeID reference
-        ConnectedTypeID::from_slice(&current_script.args().raw_data())
-            .map_err(|_| Error::InvalidConnectedTypeId)?;
-
-        // Locate the existing user cell connected to this achievement type
-        let user_outpoint =
-            find_out_point_by_type(current_script.clone()).map_err(|_| Error::UserCellNotFound)?;
-        debug_trace!("Found user outpoint: {:?}", user_outpoint);
-
-        let user_input = CellInput::new_builder()
-            .previous_output(user_outpoint.clone())
-            .build();
-        cell_input_vec_builder = cell_input_vec_builder.push(user_input);
-
-        let current_user_cell =
-            find_cell_by_out_point(user_outpoint.clone()).map_err(|_| Error::UserCellNotFound)?;
-        let current_user_data_bytes =
-            find_cell_data_by_out_point(user_outpoint).map_err(|_| Error::UserCellNotFound)?;
-        let current_user_data =
-            UserData::from_slice(&current_user_data_bytes).map_err(|_| Error::InvalidUserData)?;
-
-        // Prepare updated profile data with the claimed achievement
-        let profile_data = current_user_data.profile_data();
-        let raw_achievement = achievement_type.raw_data();
-        let raw_slice = raw_achievement.as_ref();
-        debug_trace!(
-            "Claiming achievement payload (len={}): {:?}",
-            raw_slice.len(),
-            raw_slice
-        );
-
-        let mut already_present = false;
-        for idx in 0..profile_data.len() {
-            if let Some(existing) = profile_data.get(idx) {
-                if existing.raw_data().as_ref() == raw_slice {
-                    already_present = true;
-                    break;
-                }
-            }
-        }
-
-        let mut profile_data_builder = profile_data.as_builder();
-        if !already_present {
-            let mut encoded = Vec::with_capacity(4 + raw_slice.len());
-            encoded.extend_from_slice(&(raw_slice.len() as u32).to_le_bytes());
-            encoded.extend_from_slice(raw_slice);
-            let achievement_bytes =
-                Bytes::from_slice(&encoded).map_err(|_| Error::InvalidUserData)?;
-            profile_data_builder = profile_data_builder.push(achievement_bytes);
-        } else {
-            debug_trace!("Achievement already present; skipping duplicate append");
-        }
-
-        let updated_user_data = current_user_data
-            .as_builder()
-            .profile_data(profile_data_builder.build())
-            .build();
-
-        let new_user_output = CellOutputBuilder::default()
-            .type_(
-                ScriptOptBuilder::default()
-                    .set(Some(current_script.clone()))
-                    .build(),
-            )
-            .lock(current_user_cell.lock())
-            .capacity(0u64.pack())
-            .build();
-        cell_output_vec_builder = cell_output_vec_builder.push(new_user_output);
-
-        outputs_data_builder = outputs_data_builder.push(updated_user_data.as_bytes().pack());
+        // TODO: Get the input and output achievement cell. At the moment it's failing for memory issue
 
         let output_data_index = tx
             .as_ref()
@@ -142,10 +75,7 @@ impl CKBoostAchievement for CKBoostAchievementType {
 
         let recipe = create_recipe_with_args(
             "CKBoostAchievement.claim_achievement",
-            vec![create_recipe_with_reference(
-                Source::Output,
-                output_data_index,
-            )],
+            vec![create_inline_argument(&achievement_type.as_bytes())],
         )?;
         let recipe_bytes = serialize_transaction_recipe(&recipe);
 

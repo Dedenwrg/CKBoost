@@ -103,10 +103,11 @@ pub mod claim_achievement {
 
     pub mod business_logic {
         use ckb_deterministic::cell_classifier::RuleBasedClassifier;
+        use ckb_deterministic::debug_trace;
         use ckb_deterministic::errors::Error as DeterministicError;
         use ckboost_shared::protocol_data::get_protocol_data;
         use ckboost_shared::transaction_context::TransactionContext;
-        use ckboost_shared::types::String;
+        use ckboost_shared::types::{AchievementData, AchievementDataVec, String};
         use molecule::prelude::Entity;
 
         // **Verification update validation**: Ensure only authorized verification updates
@@ -114,38 +115,142 @@ pub mod claim_achievement {
             context: &TransactionContext<RuleBasedClassifier>,
         ) -> Result<(), DeterministicError> {
             // Rule: There must be a simple CKB cell locked by admin.
-            let protocol_data = match get_protocol_data() {
-                Ok(pd) => pd,
-                Err(_) => return Err(DeterministicError::BusinessRuleViolation),
-            };
-            let input_achievement_cells = context
+            let input_achievement_cell_data_raw = &context
                 .input_cells
                 .get_custom("achievement")
-                .ok_or(DeterministicError::CellCountViolation)?;
-            let output_achievement_cells = context
+                .ok_or_else(|| return DeterministicError::CellCountViolation)?
+                .first()
+                .ok_or_else(|| return DeterministicError::CellCountViolation)?
+                .data;
+
+            let output_achievement_cell_data_raw = &context
                 .output_cells
                 .get_custom("achievement")
-                .ok_or(DeterministicError::CellCountViolation)?;
-            let input_achievement_cell = &input_achievement_cells[0];
-            let output_achievement_cell = &output_achievement_cells[0];
+                .ok_or_else(|| return DeterministicError::CellCountViolation)?
+                .first()
+                .ok_or_else(|| return DeterministicError::CellCountViolation)?
+                .data;
 
-            match context.recipe.arguments().get(0) {
-                Some(arg) => {
-                    let achievement_type = String::from_slice(&arg.data().raw_data().to_vec())
-                        .map_err(|_| DeterministicError::BusinessRuleViolation)?;
-                    if achievement_type.raw_data().to_vec() == b"FirstPointsReward" {
-                        return Ok(());
-                    }
-                    if achievement_type.raw_data().to_vec() == b"FirstQuestSubmission" {
-                        return Ok(());
-                    }
+            let input_achievement_vec_data =
+                AchievementDataVec::from_slice(input_achievement_cell_data_raw)
+                    .map_err(|_| DeterministicError::Encoding)?;
+            let output_achievement_vec_data =
+                AchievementDataVec::from_slice(&output_achievement_cell_data_raw)
+                    .map_err(|_| DeterministicError::Encoding)?;
+            let achievement_string_in_bytes = context
+                .recipe
+                .arguments()
+                .get(1)
+                .ok_or_else(|| DeterministicError::InvalidArgumentCount)?
+                .data()
+                .raw_data();
+
+            let input_first_submission_achievement_data = input_achievement_vec_data
+                .into_iter()
+                .find(|achievement_data| {
+                    achievement_data
+                        .achievement_title()
+                        .raw_data()
+                        .to_vec()
+                        .as_slice()
+                        == achievement_string_in_bytes.to_vec().as_slice()
+                })
+                .ok_or_else(|| DeterministicError::ItemMissing)?;
+            let output_first_submission_achievement_data = output_achievement_vec_data
+                .into_iter()
+                .find(|achievement_data| {
+                    achievement_data
+                        .achievement_title()
+                        .raw_data()
+                        .to_vec()
+                        .as_slice()
+                        == achievement_string_in_bytes.to_vec().as_slice()
+                })
+                .ok_or_else(|| DeterministicError::ItemMissing)?;
+            let input_receiver_user_record_vec =
+                input_first_submission_achievement_data.receiver_user_record_vec();
+            let output_receiver_user_record_vec =
+                output_first_submission_achievement_data.receiver_user_record_vec();
+            // Check if each input receiver user record is present in output
+            for input_receiver_user_record in input_receiver_user_record_vec.into_iter() {
+                let _ = output_receiver_user_record_vec
+                    .clone()
+                    .into_iter()
+                    .find(|receiver_user_record| {
+                        receiver_user_record
+                            .receiver_user_type_hash()
+                            .as_slice()
+                            .to_vec()
+                            == input_receiver_user_record
+                                .receiver_user_type_hash()
+                                .as_slice()
+                                .to_vec()
+                    })
+                    .ok_or_else(|| {
+                        debug_trace!(
+                            "Receiver user record with lock hash {:?} not found in output",
+                            input_receiver_user_record.receiver_user_type_hash()
+                        );
+                        DeterministicError::ItemMissing
+                    })?;
+            }
+            // Check if the receivers of points in the output is also added to the output receiver user record vec
+            let reward_point_cells = context
+                .output_cells
+                .get_custom("points")
+                .ok_or_else(|| DeterministicError::CellCountViolation)?;
+            let celldep_user_cells = context
+                .cell_deps
+                .get_custom("user")
+                .ok_or_else(|| DeterministicError::CellCountViolation)?;
+            for reward_point_cell in reward_point_cells.into_iter() {
+                let matching_user_cell = celldep_user_cells
+                    .into_iter()
+                    .find(|user_cell| user_cell.lock_hash == reward_point_cell.lock_hash)
+                    .ok_or_else(|| DeterministicError::ItemMissing)?;
+                let _ = output_receiver_user_record_vec
+                    .clone()
+                    .into_iter()
+                    .find(|receiver_user_record| {
+                        receiver_user_record
+                            .receiver_user_type_hash()
+                            .as_slice()
+                            .to_vec()
+                            == matching_user_cell
+                                .type_hash
+                                .ok_or_else(|| {
+                                    debug_trace!("User cell type hash not found");
+                                    DeterministicError::ItemMissing
+                                })
+                                .unwrap()
+                                .as_slice()
+                                .to_vec()
+                    })
+                    .ok_or_else(|| {
+                        debug_trace!("Receiver user record not found in output");
+                        DeterministicError::ItemMissing
+                    })?;
+            }
+            // NOTE: Achievement specific validations should be done in netlify function with admin proxy.
+            let potential_admin_proxy_cells = context
+                .input_cells
+                .get_custom("admin_proxy")
+                .ok_or_else(|| DeterministicError::CellCountViolation)?;
+            let protocol_data = get_protocol_data().map_err(|_| DeterministicError::DataError)?;
+            for potential_admin_proxy_cell in potential_admin_proxy_cells.into_iter() {
+                let matching_admin_lock_hash = protocol_data
+                    .protocol_config()
+                    .admin_lock_hash_vec()
+                    .into_iter()
+                    .find(|lock_hash| {
+                        lock_hash.raw_data().to_vec().as_slice()
+                            == potential_admin_proxy_cell.lock_hash.to_vec().as_slice()
+                    });
+                if matching_admin_lock_hash.is_some() {
                     return Ok(());
                 }
-                None => {
-                    return Err(DeterministicError::BusinessRuleViolation);
-                }
             }
-            Err(DeterministicError::BusinessRuleViolation)
+            return Err(DeterministicError::BusinessRuleViolation);
         }
     }
 }

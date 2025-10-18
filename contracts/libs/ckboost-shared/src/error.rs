@@ -149,6 +149,10 @@ pub enum Error {
     TippingCellNotFound,
     InvalidTippingData,
 
+    // Achievement Error
+    MissingAchievementCell,
+    InvalidAchievementData,
+
     // Unknown error
     Unknown,
 }
