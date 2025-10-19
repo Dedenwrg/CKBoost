@@ -16,6 +16,7 @@ export {
   type ClaimAchievementResponse,
   type FailedClaimResponse,
 } from './services/achievement-service'
+export type { AchievementQueryResponse } from '@/netlify/lib/achievement/types'
 
 // Utils (campaign utilities)
 export * from './utils/campaign-utils'

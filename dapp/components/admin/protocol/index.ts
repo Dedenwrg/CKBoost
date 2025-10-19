@@ -11,3 +11,4 @@ export { ProtocolSummarySection } from "./protocol-summary-section";
 export { ProtocolChangesDialog } from "./protocol-changes-dialog";
 export { LoadingState } from "./loading-state";
 export { ErrorState } from "./error-state";
+export { AchievementsConfig } from "./achievements-config";

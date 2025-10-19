@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { ProtocolManagement } from "@/components/admin/protocol-management";
+import { AchievementsManagement } from "@/components/admin/achievements-management";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 
 // Hub Admin configuration
@@ -1143,12 +1144,13 @@ export default function PlatformAdminDashboard() {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="campaigns">Campaign Reviews</TabsTrigger>
               <TabsTrigger value="users">User Management</TabsTrigger>
               <TabsTrigger value="tips">Tip Proposals</TabsTrigger>
               <TabsTrigger value="rewards">Leaderboard Rewards</TabsTrigger>
+              <TabsTrigger value="achievements">Achievements</TabsTrigger>
               <TabsTrigger value="protocol">Protocol Management</TabsTrigger>
             </TabsList>
 
@@ -2433,6 +2435,10 @@ export default function PlatformAdminDashboard() {
                   </Card>
                 ))}
               </div>
+            </TabsContent>
+
+            <TabsContent value="achievements" className="space-y-6">
+              <AchievementsManagement />
             </TabsContent>
 
             <TabsContent value="protocol" className="space-y-6">

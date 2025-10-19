@@ -20,6 +20,7 @@ interface PendingChanges {
   tippingConfig: boolean;
   streakConfig: boolean;
   endorsers: boolean;
+  achievements: boolean;
 }
 
 interface PendingAdminChanges {
@@ -56,7 +57,8 @@ export function ProtocolChangesDialog({
     pendingChanges.scriptCodeHashes ||
     pendingChanges.tippingConfig ||
     pendingChanges.streakConfig ||
-    pendingChanges.endorsers;
+    pendingChanges.endorsers ||
+    pendingChanges.achievements;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,6 +148,29 @@ export function ProtocolChangesDialog({
                   </div>
                 </div>
               )}
+
+              {/* Achievement Cell Changes */}
+              {pendingChanges.achievements &&
+                protocolChanges?.achievements.typeHashes.hasChanged && (
+                  <div className="border rounded p-4">
+                    <h4 className="font-medium mb-3">Achievement Cells</h4>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="font-medium">Registered type hashes:</span>
+                        <div className="mt-1 space-y-1">
+                          <div className="text-red-600 font-mono text-xs break-all">
+                            - Previous:{" "}
+                            {protocolChanges.achievements.typeHashes.oldValue.join(", ")}
+                          </div>
+                          <div className="text-green-600 font-mono text-xs break-all">
+                            + New:{" "}
+                            {protocolChanges.achievements.typeHashes.newValue.join(", ")}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               {/* Tipping Configuration Changes */}
               {pendingChanges.tippingConfig && protocolChanges && (

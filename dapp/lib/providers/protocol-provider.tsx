@@ -382,6 +382,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         streak_bonus_interval: ccc.NumLike;
         streak_bonus_amount: ccc.NumLike;
       };
+      achievements: string[];
     };
 
     // Helper function to compare Script arrays
@@ -461,6 +462,15 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
       data.streakConfig?.streak_bonus_amount ?? 0n
     );
 
+    const normalizeHashes = (list: string[]) =>
+      [...list].map((hash) => hash.toLowerCase()).sort();
+    const currentAchievements = normalizeHashes(
+      (protocolData.protocol_config.achievements_type_hashes || []).map(
+        (hash) => ccc.hexFrom(hash as ccc.BytesLike)
+      )
+    );
+    const newAchievements = normalizeHashes(data.achievements || []);
+
     // Calculate changes
     const changes: ProtocolChanges = {
       protocolConfig: {
@@ -536,6 +546,13 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
           "streakConfig.streakBonusAmount",
           currentStreakAmount.toString(),
           newStreakAmount.toString()
+        ),
+      },
+      achievements: {
+        typeHashes: createFieldChange(
+          "achievements.typeHashes",
+          currentAchievements,
+          newAchievements
         ),
       },
       endorsers: {

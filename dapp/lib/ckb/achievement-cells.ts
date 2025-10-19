@@ -27,23 +27,6 @@ export interface AchievementEntry {
 }
 
 /**
- * Fetch the deployed achievements type script definition from
- * `deployments.json` for the active network.
- *
- * @param network - Target network, resolved from {@link deploymentManager}.
- * @returns Type script reference for the achievements contract.
- */
-export function getAchievementTypeScript(
-  network: Network
-): ccc.ScriptLike | null {
-  const script = deploymentManager.getContractTypeScript(
-    network,
-    "ckboostAchievementsType"
-  );
-  return script ? { ...script } : null;
-}
-
-/**
  * Locate the first achievements cell on-chain by querying with the deployed
  * type script. The CKBoost deployment assumes a single achievements cell per
  * protocol, therefore this helper returns the first match.
@@ -54,12 +37,16 @@ export function getAchievementTypeScript(
  */
 export async function fetchAchievementCell(
   client: ccc.Client,
-  achievementCellTypeScript: ccc.ScriptLike
+  achievementCellTypeCodeHash: ccc.Hex
 ): Promise<ccc.Cell | null> {
   const iterator = client.findCells({
-    script: achievementCellTypeScript,
+    script: {
+      codeHash: achievementCellTypeCodeHash,
+      hashType: "type",
+      args: "0x",
+    },
     scriptType: "type",
-    scriptSearchMode: "exact",
+    scriptSearchMode: "prefix",
   });
 
   const { value } = await iterator.next();

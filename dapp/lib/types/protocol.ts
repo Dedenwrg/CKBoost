@@ -83,6 +83,9 @@ export interface ProtocolChanges {
     streakBonusInterval: FieldChange<string>;
     streakBonusAmount: FieldChange<string>;
   };
+  achievements: {
+    typeHashes: FieldChange<string[]>;
+  };
   endorsers: {
     added: EndorserInfoLike[];
     updated: Array<{ index: ccc.Num; endorser: EndorserInfoLike }>;

@@ -12,6 +12,7 @@ import type {
   AchievementDataLike,
   ProtocolDataLike,
 } from "ssri-ckboost/types";
+import type { AchievementQueryResponse } from "@/netlify/lib/achievement/types";
 
 /**
  * Shape of an achievement enriched with completion status for a particular
@@ -209,6 +210,40 @@ export class AchievementService {
     });
 
     const payload = (await response.json()) as ClaimAchievementResult;
+    if (!response.ok) {
+      return payload;
+    }
+    return payload;
+  }
+
+  /**
+   * Preview which achievements would be granted by submitting the provided
+   * transaction without mutating anything on-chain. Leverages the Netlify
+   * `achievement-query` function which performs the same validation checks as
+   * the signing endpoint.
+   *
+   * @param params - Request parameters.
+   * @param params.tx - Transaction instance or hex string representing the claim attempt.
+   * @param params.userAddress - Address of the claimant.
+   * @param params.endpoint - Optional relative endpoint. Defaults to `/api/achievement-query`.
+   * @returns Server evaluation describing potential grants or validation errors.
+   */
+  async previewClaim(params: {
+    tx: ccc.Transaction | string;
+    userAddress: string;
+    endpoint?: string;
+  }): Promise<AchievementQueryResponse> {
+    const { tx, userAddress } = params;
+    const endpoint = params.endpoint ?? "/api/achievement-query";
+    const txHex = typeof tx === "string" ? tx : ccc.hexFrom(tx.toBytes());
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ txHex, userAddress }),
+    });
+
+    const payload = (await response.json()) as AchievementQueryResponse;
     if (!response.ok) {
       return payload;
     }

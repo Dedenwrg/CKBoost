@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
 import { CampaignData, type CampaignDataLike } from "ssri-ckboost/types";
 import { Navigation } from "@/components/navigation";
+import { AchievementsSection } from "@/components/dashboard/achievements-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -940,6 +941,10 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <AchievementsSection />
           </div>
         </div>
       </main>

@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -60,6 +60,7 @@ import {
   ProtocolDeploymentSection,
   ProtocolSummarySection,
   ProtocolChangesDialog,
+  AchievementsConfig,
 } from "./protocol";
 // Note: Byte32, Uint128, Uint64 are now represented as ccc.Hex, bigint, bigint respectively
 
@@ -297,6 +298,13 @@ export function ProtocolManagement() {
     },
   });
 
+  const [achievementsTypeHashes, setAchievementsTypeHashes] = useState<string[]>(
+    () =>
+      (
+        deploymentTemplate.protocol_config.achievements_type_hashes || []
+      ).map((hash) => ccc.hexFrom(hash as ccc.BytesLike))
+  );
+
   // State for managing change tracking
   const [showChangesOnly, setShowChangesOnly] = useState(false);
   const [protocolChanges, setProtocolChanges] =
@@ -324,10 +332,12 @@ export function ProtocolManagement() {
     scriptCodeHashes: ScriptCodeHashesLike | null;
     tippingConfig: TippingConfigLike | null;
     streakConfig: StreakConfigFormValues | null;
+    achievements: string[] | null;
   }>({
     scriptCodeHashes: null,
     tippingConfig: null,
     streakConfig: null,
+    achievements: null,
   });
 
   const [pendingChanges, setPendingChanges] = useState<{
@@ -336,13 +346,23 @@ export function ProtocolManagement() {
     tippingConfig: boolean;
     streakConfig: boolean;
     endorsers: boolean;
+    achievements: boolean;
   }>({
     admins: false,
     scriptCodeHashes: false,
     tippingConfig: false,
     streakConfig: false,
     endorsers: false,
+    achievements: false,
   });
+
+  const updateAchievementsTypeHashes = useCallback(
+    (next: string[]) => {
+      setAchievementsTypeHashes(next);
+      setPendingChanges((prev) => ({ ...prev, achievements: true }));
+    },
+    [setPendingChanges]
+  );
 
   // State for admin management - moved up to be available in useEffect
   const [pendingAdminChanges, setPendingAdminChanges] = useState<{
@@ -435,7 +455,16 @@ export function ProtocolManagement() {
                 deploymentTemplate.protocol_config.streak_bonus_amount ?? 0n
               ),
             },
+            achievements:
+              deploymentTemplate.protocol_config.achievements_type_hashes?.map(
+                (hash) => ccc.hexFrom(hash as ccc.BytesLike)
+              ) || [],
           });
+          setAchievementsTypeHashes(
+            deploymentTemplate.protocol_config.achievements_type_hashes?.map(
+              (hash) => ccc.hexFrom(hash as ccc.BytesLike)
+            ) || []
+          );
         } catch (error) {
           console.error("Failed to initialize deployment forms:", error);
         }
@@ -506,6 +535,12 @@ export function ProtocolManagement() {
         ),
       });
 
+      const achievementHashes =
+        protocolData.protocol_config.achievements_type_hashes?.map((hash) =>
+          ccc.hexFrom(hash as ccc.BytesLike)
+        ) || [];
+      setAchievementsTypeHashes(achievementHashes);
+
       // Set baseline values to prevent false change detection
       setBaselineValues({
         scriptCodeHashes: {
@@ -526,6 +561,7 @@ export function ProtocolManagement() {
             protocolData.protocol_config.streak_bonus_amount ?? 0n
           ),
         },
+        achievements: achievementHashes,
       });
     }
   }, [
@@ -587,12 +623,14 @@ export function ProtocolManagement() {
       scriptCodeHashes: scriptCodeHashesValues,
       tippingConfig: tippingConfigValues,
       streakConfig: streakConfigValues,
+      achievements: achievementsTypeHashes,
     }),
     [
       finalAdminLockHashes,
       scriptCodeHashesValues,
       tippingConfigValues,
       streakConfigValues,
+      achievementsTypeHashes,
     ]
   );
 
@@ -717,7 +755,20 @@ export function ProtocolManagement() {
     const adminsEqual =
       JSON.stringify(currentAdmins) === JSON.stringify(finalAdminLockHashes);
 
-    if (scriptHashesEqual && tippingEqual && streakEqual && adminsEqual) {
+    const normalizeHashes = (list: string[]) =>
+      [...list].map((hash) => hash.toLowerCase()).sort();
+    const baselineAchievements = baselineValues.achievements || [];
+    const achievementsEqual =
+      JSON.stringify(normalizeHashes(achievementsTypeHashes)) ===
+      JSON.stringify(normalizeHashes(baselineAchievements));
+
+    if (
+      scriptHashesEqual &&
+      tippingEqual &&
+      streakEqual &&
+      adminsEqual &&
+      achievementsEqual
+    ) {
       // No changes detected, clear pending changes
       setPendingChanges((prev) => ({
         ...prev,
@@ -725,6 +776,7 @@ export function ProtocolManagement() {
         scriptCodeHashes: false,
         tippingConfig: false,
         streakConfig: false,
+        achievements: false,
       }));
       setProtocolChanges(null);
       return;
@@ -743,13 +795,15 @@ export function ProtocolManagement() {
           scriptCodeHashes: scriptCodeHashesValues,
           tippingConfig: tippingConfigValues,
           streakConfig: streakConfigValues,
+          achievements: achievementsTypeHashes,
         };
 
         if (
           !currentFormData.adminLockHashes ||
           !currentFormData.scriptCodeHashes ||
           !currentFormData.tippingConfig ||
-          !currentFormData.streakConfig
+          !currentFormData.streakConfig ||
+          !currentFormData.achievements
         ) {
           return;
         }
@@ -780,6 +834,9 @@ export function ProtocolManagement() {
                   (change) => change.hasChanged
                 )
               : false,
+            achievements: changes.achievements
+              ? changes.achievements.typeHashes.hasChanged
+              : false,
           }));
           hasPromptedInvalidStreak.current = false;
         }
@@ -794,6 +851,7 @@ export function ProtocolManagement() {
             tippingConfig: false,
             streakConfig: false,
             endorsers: false,
+            achievements: false,
           });
 
           if (!hasPromptedInvalidStreak.current && typeof window !== "undefined") {
@@ -852,6 +910,9 @@ export function ProtocolManagement() {
       typeof value === "bigint" ? value.toString() : value
     ),
     JSON.stringify(streakConfigValues, (_, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    ),
+    JSON.stringify(achievementsTypeHashes, (_, value) =>
       typeof value === "bigint" ? value.toString() : value
     ),
     JSON.stringify(baselineValues, (_, value) =>
@@ -1114,6 +1175,11 @@ export function ProtocolManagement() {
         updatedData.endorsers_whitelist = updatedEndorsers;
       }
 
+      if (pendingChanges.achievements) {
+        updatedData.protocol_config.achievements_type_hashes =
+          achievementsTypeHashes as ccc.Hex[];
+      }
+
       // Use the provider's update method with the complete ProtocolData
       const txHash = await updateProtocol(updatedData);
       console.log("Protocol updated:", txHash);
@@ -1126,6 +1192,7 @@ export function ProtocolManagement() {
         tippingConfig: false,
         streakConfig: false,
         endorsers: false,
+        achievements: false,
       });
       setPendingEndorserChanges({
         toAdd: [],
@@ -1235,6 +1302,11 @@ export function ProtocolManagement() {
             protocolData.protocol_config.streak_bonus_amount ?? 0n
           ),
         });
+        setAchievementsTypeHashes(
+          protocolData.protocol_config.achievements_type_hashes?.map((hash) =>
+            ccc.hexFrom(hash as ccc.BytesLike)
+          ) || []
+        );
       } else if (configStatus === "partial") {
         // For deployment mode, reset to template defaults but don't mark as changed
         scriptCodeHashesForm.reset({
@@ -1280,6 +1352,11 @@ export function ProtocolManagement() {
             deploymentTemplate.protocol_config.streak_bonus_amount ?? 0n
           ),
         });
+        setAchievementsTypeHashes(
+          deploymentTemplate.protocol_config.achievements_type_hashes?.map(
+            (hash) => ccc.hexFrom(hash as ccc.BytesLike)
+          ) || []
+        );
       }
 
       // Reset admin form
@@ -1875,6 +1952,17 @@ export function ProtocolManagement() {
               form={scriptCodeHashesForm}
               pendingChanges={pendingChanges.scriptCodeHashes}
               ChangeIndicator={ChangeIndicator}
+            />
+          )}
+
+          {/* Achievements Configuration */}
+          {shouldShowSection(pendingChanges.achievements) && (
+            <AchievementsConfig
+              typeHashes={achievementsTypeHashes}
+              onChange={updateAchievementsTypeHashes}
+              pendingChanges={pendingChanges.achievements}
+              ChangeIndicator={ChangeIndicator}
+              disabled={!isWalletConnected}
             />
           )}
 
