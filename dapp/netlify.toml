@@ -29,6 +29,16 @@ to = "/.netlify/functions/resolve-lock-script"
 status = 200
 
 [[redirects]]
+from = "/api/achievement-validate"
+to = "/.netlify/functions/achievement-validate"
+status = 200
+
+[[redirects]]
+from = "/api/achievement-query"
+to = "/.netlify/functions/achievement-query"
+status = 200
+
+[[redirects]]
 from = "/api/verification/*"
 to = "/.netlify/functions/verification-api/:splat"
 status = 200

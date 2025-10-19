@@ -9,6 +9,13 @@ export { CampaignProvider, useCampaigns, useCampaign } from './providers/campaig
 
 // Services  
 export { CampaignService } from './services/campaign-service'
+export {
+  AchievementService,
+  type UserAchievement,
+  type ClaimAchievementResult,
+  type ClaimAchievementResponse,
+  type FailedClaimResponse,
+} from './services/achievement-service'
 
 // Utils (campaign utilities)
 export * from './utils/campaign-utils'

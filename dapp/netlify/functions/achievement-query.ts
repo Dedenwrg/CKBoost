@@ -5,11 +5,12 @@ import {
   getGrantableAchievements,
   type CkbClient,
 } from "@/netlify/lib/achievement/utils";
+import type { AchievementQueryResponse } from "@/netlify/lib/achievement/types";
 
 export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
   const log = (...args: unknown[]) =>
-    console.log(`[achievement-validate][${reqId}]`, ...args);
+    console.log(`[achievement-query][${reqId}]`, ...args);
 
   if (event.httpMethod !== "POST") {
     log("method_not_allowed");
@@ -50,16 +51,10 @@ export const handler: Handler = async (event) => {
       );
     }
 
-    const serverKey = process.env.ACHIEVEMENT_PROXY_PRIVATE_KEY;
-    if (!serverKey) {
-      throw new Error("Missing ACHIEVEMENT_PROXY_PRIVATE_KEY in environment.");
-    }
-
     const network = deploymentManager.getCurrentNetwork();
     const rpcUrl =
       process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
     const client = createClient(network, rpcUrl);
-    const signer = new ccc.SignerCkbPrivateKey(client, serverKey);
     const userTypeCodeHash = deploymentManager.getContractCodeHash(
       network,
       "ckboostUserType"
@@ -81,32 +76,35 @@ export const handler: Handler = async (event) => {
       userAddress,
       userTypeCodeHash,
       achievementTypeCodeHash,
+      requireNew: false,
     });
 
-    const signedTx = await signer.signTransaction(tx);
-    const completedCount = evaluation.outputAchievementIds.size;
+    const response: AchievementQueryResponse = {
+      success: true,
+      completedAchievements: evaluation.outputAchievementIds.size,
+      grantable: evaluation.newAchievementIds,
+      alreadyClaimed: Array.from(evaluation.inputAchievementIds),
+    };
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        success: true,
-        txHex: ccc.hexFrom(signedTx.toBytes()),
-        completedAchievements: completedCount,
-        newlyGranted: evaluation.newAchievementIds,
-      }),
+      body: JSON.stringify(response),
     };
   } catch (error) {
     const err = error as Error;
-    console.error("[achievement-validate] validation_failed", err);
+    console.error("[achievement-query] validation_failed", err);
+
+    const response: AchievementQueryResponse = {
+      success: false,
+      error: "achievement_validation_failed",
+      message: err.message,
+    };
+
     return {
       statusCode: 400,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        success: false,
-        error: "achievement_validation_failed",
-        message: err.message,
-      }),
+      body: JSON.stringify(response),
     };
   }
 };
