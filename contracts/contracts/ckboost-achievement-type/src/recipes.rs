@@ -145,7 +145,7 @@ pub mod claim_achievement {
                 .data()
                 .raw_data();
 
-            let input_first_submission_achievement_data = input_achievement_vec_data
+            let input_achievement_data = input_achievement_vec_data
                 .into_iter()
                 .find(|achievement_data| {
                     achievement_data
@@ -156,7 +156,7 @@ pub mod claim_achievement {
                         == achievement_string_in_bytes.to_vec().as_slice()
                 })
                 .ok_or_else(|| DeterministicError::ItemMissing)?;
-            let output_first_submission_achievement_data = output_achievement_vec_data
+            let output_achievement_data = output_achievement_vec_data
                 .into_iter()
                 .find(|achievement_data| {
                     achievement_data
@@ -167,10 +167,9 @@ pub mod claim_achievement {
                         == achievement_string_in_bytes.to_vec().as_slice()
                 })
                 .ok_or_else(|| DeterministicError::ItemMissing)?;
-            let input_receiver_user_record_vec =
-                input_first_submission_achievement_data.receiver_user_record_vec();
+            let input_receiver_user_record_vec = input_achievement_data.receiver_user_record_vec();
             let output_receiver_user_record_vec =
-                output_first_submission_achievement_data.receiver_user_record_vec();
+                output_achievement_data.receiver_user_record_vec();
             // Check if each input receiver user record is present in output
             for input_receiver_user_record in input_receiver_user_record_vec.into_iter() {
                 let _ = output_receiver_user_record_vec
