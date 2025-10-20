@@ -66,7 +66,7 @@ export const handler: Handler = async (event) => {
     );
     const achievementTypeCodeHash = deploymentManager.getContractCodeHash(
       network,
-      "ckboostAchievementsType"
+      "ckboostAchievementType"
     );
 
     if (!userTypeCodeHash || !achievementTypeCodeHash) {

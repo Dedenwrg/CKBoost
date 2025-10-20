@@ -199,7 +199,7 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
   );
   const achievementsTypeHash = deploymentManager.getContractCodeHash(
     network,
-    "ckboostAchievementsType"
+    "ckboostAchievementType"
   );
 
   return {

@@ -15,7 +15,7 @@ export type ContractType =
   | "ckboostUserLock"
   | "ckboostPointsUdt"
   | "ckboostTippingType"
-  | "ckboostAchievementsType";
+  | "ckboostAchievementType";
 
 export interface DeploymentRecord {
   transactionHash: ccc.Hex;
@@ -49,7 +49,7 @@ export interface DeploymentHistory {
       ckboostUserLock: DeploymentRecord | null;
       ckboostPointsUdt: DeploymentRecord | null;
       ckboostTippingType: DeploymentRecord | null;
-      ckboostAchievementsType: DeploymentRecord | null;
+      ckboostAchievementType: DeploymentRecord | null;
       // Add other contract types as needed
     };
     mainnet: {
@@ -61,7 +61,7 @@ export interface DeploymentHistory {
       ckboostUserLock?: DeploymentRecord | null;
       ckboostPointsUdt?: DeploymentRecord | null;
       ckboostTippingType?: DeploymentRecord | null;
-      ckboostAchievementsType?: DeploymentRecord | null;
+      ckboostAchievementType?: DeploymentRecord | null;
       // Add other contract types as needed
     };
   };
