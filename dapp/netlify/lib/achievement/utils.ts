@@ -17,8 +17,10 @@ type HashType = "data" | "type" | "data1";
 type ParsedAchievementMetadata = {
   /** Unique identifier for the achievement (e.g. telegram_validation). */
   id: string;
-  /** Optional human friendly title kept for completeness. */
-  title?: string;
+  /** Human friendly title mirrored from the on-chain entry. */
+  title: string;
+  /** Referenced Nostr nevent ID carrying extended metadata. */
+  neventId: string;
 };
 
 /**
@@ -139,7 +141,7 @@ const decodeMolString = (value: unknown): string => {
 
 /**
  * Parse achievement metadata from on-chain data.
- * Metadata is expected to be JSON containing at least an `id` field.
+ * Metadata is expected to be a Nostr nevent ID referencing extended payloads.
  */
 const parseAchievementMetadata = (
   rawMetadata: unknown,
@@ -151,29 +153,31 @@ const parseAchievementMetadata = (
     throw new Error(`Achievement "${achievementTitle}" has empty metadata.`);
   }
 
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(metadataString) as Record<string, unknown>;
-  } catch (error) {
+  const neventId = metadataString.trim();
+
+  if (!neventId.startsWith("nevent")) {
     throw new Error(
-      `Achievement "${achievementTitle}" metadata must be valid JSON: ${
-        (error as Error).message
-      }`
+      `Achievement "${achievementTitle}" metadata must be a Nostr nevent ID.`
     );
   }
 
-  const idRaw = parsed.id ?? parsed.key ?? parsed.slug;
-  if (!idRaw || typeof idRaw !== "string") {
+  const normalizedTitle = achievementTitle.trim();
+  const rule = ACHIEVEMENT_RULES.find(
+    (candidate) =>
+      candidate.id.toLowerCase() === normalizedTitle.toLowerCase() ||
+      candidate.title.toLowerCase() === normalizedTitle.toLowerCase()
+  );
+
+  if (!rule) {
     throw new Error(
-      `Achievement "${achievementTitle}" metadata missing string 'id'.`
+      `Unsupported achievement title "${achievementTitle}". Ensure a matching rule is registered.`
     );
   }
-
-  const titleRaw = parsed.title;
 
   return {
-    id: idRaw.trim(),
-    title: typeof titleRaw === "string" ? titleRaw.trim() : undefined,
+    id: rule.id,
+    title: rule.title,
+    neventId,
   };
 };
 

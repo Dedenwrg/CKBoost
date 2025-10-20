@@ -312,7 +312,7 @@ vector AchievementRecordVec <AchievementRecord>;
 
 table AchievementData {
     achievement_title: String,
-    achievement_metadata: String,
+    achievement_metadata: String, // Nostr nevent ID referencing off-chain metadata
     receiver_user_record_vec: AchievementRecordVec,
 }
 
@@ -346,5 +346,4 @@ table ConnectedTypeID {
     type_id: Byte32,
     connected_key: Byte32,
 }
-
 

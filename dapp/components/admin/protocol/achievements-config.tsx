@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
-import type { Network } from "@/lib/ckb/deployment-manager";
 import {
   CheckCircle2,
   Info,
@@ -59,7 +58,7 @@ export function AchievementsConfig({
     try {
       return deploymentManager.getCurrentDeployment(
         network,
-        "ckboostAchievementsType"
+        "ckboostAchievementType"
       );
     } catch (error) {
       console.warn("Failed to read achievements deployment", error);
@@ -117,7 +116,7 @@ export function AchievementsConfig({
               </div>
               {deployment.typeScript && (
                 <div className="mt-2 text-xs font-mono break-words">
-                  Args: {ccc.hexFrom(deployment.typeScript.args) || "0x"}
+                  Args: {ccc.Script.from(deployment.typeScript).args ?? "0x"}
                 </div>
               )}
             </div>

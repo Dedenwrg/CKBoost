@@ -309,6 +309,68 @@ export function useNostrStorage() {
     },
   });
 
+  const storeAchievementMetadata = useMutation({
+    mutationFn: async (payload: {
+      achievementId: string;
+      title: string;
+      content: string;
+      metadata?: Record<string, string>;
+    }) => {
+      if (!nostr) {
+        throw new Error("Nostr not initialized");
+      }
+
+      const secretKey = generateSecretKey();
+      const pubkey = getPublicKey(secretKey);
+      const timestamp = Date.now();
+
+      const tags: string[][] = [
+        ["d", `ckboost-achievement-${payload.achievementId}-${timestamp}`],
+        ["achievement_id", payload.achievementId],
+        ["title", payload.title],
+        ["type", "achievement_metadata"],
+        ["client", "ckboost-dapp"],
+        ["timestamp", timestamp.toString()],
+      ];
+
+      if (payload.metadata) {
+        for (const [key, value] of Object.entries(payload.metadata)) {
+          tags.push([`meta-${key}`, value]);
+        }
+      }
+
+      const event: NostrEvent = {
+        kind: CKBOOST_SUBMISSION_KIND,
+        content: payload.content,
+        tags,
+        created_at: Math.floor(Date.now() / 1000),
+        pubkey,
+        id: "",
+        sig: "",
+      };
+
+      event.id = getEventHash(event as Parameters<typeof getEventHash>[0]);
+
+      const signer = new NSecSigner(secretKey);
+      const signedEvent = await signer.signEvent(event);
+
+      const verificationRelays = await publishAndVerifyEvent(
+        nostr,
+        signedEvent,
+        "Failed to verify Nostr storage for achievement metadata. Please try again.",
+      );
+
+      const recommendedRelays = verificationRelays.length
+        ? verificationRelays.slice(0, 3)
+        : DEFAULT_NOSTR_RELAYS.slice(0, 3);
+
+      return nip19.neventEncode({
+        id: signedEvent.id,
+        relays: recommendedRelays,
+      });
+    },
+  });
+
   /**
    * Retrieve submission from Nostr
    */
@@ -450,6 +512,7 @@ export function useNostrStorage() {
     isConnected: !!nostr,
     storeSubmission,
     storeCampaignContent,
+    storeAchievementMetadata,
     retrieveSubmission,
     checkSubmissionExists,
     useSubmission,

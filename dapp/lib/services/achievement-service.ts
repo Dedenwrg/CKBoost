@@ -2,11 +2,9 @@ import { ccc } from "@ckb-ccc/connector-react";
 import {
   fetchAchievementCell,
   toAchievementEntries,
-  decodeMoleculeString,
   type AchievementEntry,
 } from "../ckb/achievement-cells";
 import { getLatestUserCellByAddress } from "../ckb/user-cells";
-import { deploymentManager, type Network } from "../ckb/deployment-manager";
 import type {
   AchievementRecordLike,
   AchievementDataLike,
@@ -23,10 +21,8 @@ export interface UserAchievement {
   id: string;
   /** Human readable title. */
   title: string;
-  /** Raw metadata string stored on-chain. */
-  metadataRaw: string;
-  /** Parsed metadata object, when JSON decoding succeeds. */
-  metadata: Record<string, unknown> | null;
+  /** Nostr nevent ID referencing the off-chain metadata payload. */
+  metadataNeventId: string;
   /** Underlying Molecule data for advanced consumers. */
   raw: AchievementDataLike;
   /** Whether the referenced user already completed this achievement. */
@@ -74,19 +70,19 @@ export type ClaimAchievementResult =
  */
 export class AchievementService {
   private readonly client: ccc.Client;
-  private readonly network: Network;
-  private readonly achievementCellTypeScript: ccc.ScriptLike;
+  private readonly achievementTypeCodeHash: ccc.Hex;
 
   /**
    * Instantiate an achievement service.
    *
    * @param client - CCC client used for chain queries.
    */
-  constructor(client: ccc.Client, achievementCellTypeScript: ccc.ScriptLike) {
+  constructor(client: ccc.Client, achievementTypeCodeHash: ccc.Hex) {
     this.client = client;
-    this.network = deploymentManager.getCurrentNetwork();
 
-    this.achievementCellTypeScript = achievementCellTypeScript;
+    this.achievementTypeCodeHash = ccc.hexFrom(
+      achievementTypeCodeHash
+    ) as ccc.Hex;
   }
 
   /**
@@ -95,10 +91,13 @@ export class AchievementService {
    * @returns The achievements cell.
    * @throws Error when the cell is missing to surface misconfiguration early.
    */
-  async getAchievementCell(): Promise<ccc.Cell> {
+  async getAchievementCell(protocolTypeHash?: ccc.Hex): Promise<ccc.Cell> {
     const cell = await fetchAchievementCell(
       this.client,
-      this.achievementCellTypeScript
+      this.achievementTypeCodeHash,
+      {
+        protocolTypeHash,
+      }
     );
     if (!cell) {
       throw new Error(
@@ -113,8 +112,10 @@ export class AchievementService {
    *
    * @returns Achievements with metadata and raw Molecule structures.
    */
-  async listAchievements(): Promise<AchievementEntry[]> {
-    const cell = await this.getAchievementCell();
+  async listAchievements(
+    protocolTypeHash?: ccc.Hex
+  ): Promise<AchievementEntry[]> {
+    const cell = await this.getAchievementCell(protocolTypeHash);
     return toAchievementEntries(cell);
   }
 
@@ -126,9 +127,10 @@ export class AchievementService {
    */
   async getUserAchievements(
     userAddress: string,
-    protocol_data: ProtocolDataLike
+    protocol_data: ProtocolDataLike,
+    protocolTypeHash: ccc.Hex
   ): Promise<UserAchievement[]> {
-    const achievementCell = await this.getAchievementCell();
+    const achievementCell = await this.getAchievementCell(protocolTypeHash);
     const entries = toAchievementEntries(achievementCell);
 
     const userCell = await getLatestUserCellByAddress(
@@ -148,8 +150,7 @@ export class AchievementService {
       return entries.map((entry) => ({
         id: this.extractAchievementId(entry),
         title: entry.title,
-        metadata: entry.metadata,
-        metadataRaw: entry.metadataRaw,
+        metadataNeventId: entry.metadataNeventId,
         raw: entry.raw,
         completed: false,
       }));
@@ -170,8 +171,7 @@ export class AchievementService {
       status.push({
         id,
         title: entry.title,
-        metadata: entry.metadata,
-        metadataRaw: entry.metadataRaw,
+        metadataNeventId: entry.metadataNeventId,
         raw: entry.raw,
         completed: Boolean(record),
         grantedAt: record ? BigInt(ccc.numFrom(record.granted_at)) : undefined,
@@ -251,26 +251,23 @@ export class AchievementService {
   }
 
   /**
-   * Extract the canonical achievement identifier from metadata or fallback to
-   * a normalized title when metadata lacks an `id` field.
+   * Extract the canonical achievement identifier prioritising the stored nevent
+   * reference and falling back to a normalized title when absent.
    *
    * @param entry - Achievement entry produced by {@link toAchievementEntries}.
    * @returns Stable identifier useful for React keys or state management.
    */
   private extractAchievementId(entry: AchievementEntry): string {
-    const meta = entry.metadata;
-    const metaId =
-      typeof meta?.["id"] === "string"
-        ? (meta["id"] as string)
-        : typeof meta?.["key"] === "string"
-        ? (meta["key"] as string)
-        : typeof meta?.["slug"] === "string"
-        ? (meta["slug"] as string)
-        : undefined;
-    if (metaId && typeof metaId === "string") {
-      return metaId.trim();
+    const nevent = entry.metadataNeventId?.trim();
+    if (nevent) {
+      return nevent;
     }
-    const title = decodeMoleculeString(entry.raw.achievement_title);
-    return title.toLowerCase().replace(/\s+/g, "-");
+
+    const title = entry.title.trim();
+    if (title.length > 0) {
+      return title.toLowerCase().replace(/\s+/g, "-");
+    }
+
+    return `achievement-${entry.raw.achievement_title.toString()}`;
   }
 }

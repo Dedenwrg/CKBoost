@@ -22,7 +22,7 @@ import {
   type AchievementQueryResponse,
   type UserAchievement,
 } from "@/lib";
-import { getAchievementTypeScript } from "@/lib/ckb/achievement-cells";
+import { getAchievementTypeCodeHash } from "@/lib/ckb/achievement-cells";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,15 +45,13 @@ const EMPTY_PREVIEW: PreviewState = {
 };
 
 const summarizeAchievement = (achievement: UserAchievement): string => {
-  const metaTitle =
-    typeof achievement.metadata?.title === "string"
-      ? achievement.metadata.title
-      : undefined;
-  if (metaTitle && metaTitle.trim().length > 0) {
-    return metaTitle.trim();
+  const title = achievement.title?.trim();
+  if (title && title.length > 0) {
+    return title;
   }
-  if (achievement.title && achievement.title.trim().length > 0) {
-    return achievement.title.trim();
+  const nevent = achievement.metadataNeventId?.trim();
+  if (nevent && nevent.length > 0) {
+    return nevent;
   }
   return achievement.id;
 };
@@ -76,6 +74,7 @@ export function AchievementsSection(): React.JSX.Element {
   const {
     userAddress,
     protocolData,
+    protocolCell,
     isLoading: protocolLoading,
     error: protocolError,
   } = useProtocol();
@@ -83,19 +82,18 @@ export function AchievementsSection(): React.JSX.Element {
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [serviceError, setServiceError] = useState<string | null>(null);
-  const [previewState, setPreviewState] =
-    useState<PreviewState>(EMPTY_PREVIEW);
+  const [previewState, setPreviewState] = useState<PreviewState>(EMPTY_PREVIEW);
   const [txHexInput, setTxHexInput] = useState("");
 
   const achievementService = useMemo(() => {
     if (!client) return null;
     const network = deploymentManager.getCurrentNetwork();
-    const typeScript = getAchievementTypeScript(network);
-    if (!typeScript) {
+    const typeCodeHash = getAchievementTypeCodeHash(network);
+    if (!typeCodeHash) {
       return null;
     }
     try {
-      return new AchievementService(client, typeScript);
+      return new AchievementService(client, typeCodeHash);
     } catch (error) {
       console.warn("[AchievementsSection] Failed to init service", error);
       return null;
@@ -103,29 +101,32 @@ export function AchievementsSection(): React.JSX.Element {
   }, [client]);
 
   const loadAchievements = useCallback(async () => {
-    if (!achievementService || !userAddress || !protocolData) {
+    if (!achievementService || !userAddress || !protocolData || !protocolCell) {
       return;
     }
     setIsLoading(true);
     setServiceError(null);
     try {
+      const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+      if (!protocolTypeHash) {
+        throw new Error("Protocol cell missing type hash.");
+      }
       const result = await achievementService.getUserAchievements(
         userAddress,
-        protocolData
+        protocolData,
+        protocolTypeHash
       );
       setAchievements(result);
     } catch (error) {
       console.error("[AchievementsSection] Failed to load achievements", error);
       const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to load achievements.";
+        error instanceof Error ? error.message : "Unable to load achievements.";
       setServiceError(message);
       setAchievements([]);
     } finally {
       setIsLoading(false);
     }
-  }, [achievementService, protocolData, userAddress]);
+  }, [achievementService, protocolCell, protocolData, userAddress]);
 
   useEffect(() => {
     if (!client) return;
@@ -143,16 +144,12 @@ export function AchievementsSection(): React.JSX.Element {
     loadAchievements().catch((error) =>
       console.error("[AchievementsSection] load failed", error)
     );
-  }, [
-    achievementService,
-    client,
-    loadAchievements,
-    protocolData,
-    userAddress,
-  ]);
+  }, [achievementService, client, loadAchievements, protocolData, userAddress]);
 
   const achievementsById = useMemo(() => {
-    return new Map(achievements.map((achievement) => [achievement.id, achievement]));
+    return new Map(
+      achievements.map((achievement) => [achievement.id, achievement])
+    );
   }, [achievements]);
 
   const claimedAchievements = useMemo(
@@ -455,7 +452,7 @@ export function AchievementsSection(): React.JSX.Element {
                     </Badge>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground break-all font-mono">
-                    {achievement.id}
+                    {achievement.metadataNeventId || achievement.id}
                   </div>
                   {formatGrantedAt(achievement) && (
                     <div className="mt-2 text-xs text-muted-foreground">
@@ -492,13 +489,8 @@ export function AchievementsSection(): React.JSX.Element {
                     <Badge variant="outline">Awaiting claim</Badge>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground break-all font-mono">
-                    {achievement.id}
+                    {achievement.metadataNeventId || achievement.id}
                   </div>
-                  {achievement.metadata?.description && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {String(achievement.metadata.description)}
-                    </p>
-                  )}
                 </div>
               ))}
             </div>
@@ -508,4 +500,3 @@ export function AchievementsSection(): React.JSX.Element {
     </Card>
   );
 }
-
