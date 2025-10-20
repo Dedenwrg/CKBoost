@@ -228,7 +228,7 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
         ckb_boost_tipping_type_code_hash:
           tippingTypeHash ||
           "0x0000000000000000000000000000000000000000000000000000000000000000",
-        ckb_boost_achievements_type_code_hash:
+        ckb_boost_achievement_type_code_hash:
           achievementsTypeHash ||
           "0x0000000000000000000000000000000000000000000000000000000000000000",
         accepted_udt_type_scripts: [],
@@ -236,7 +236,7 @@ export function getProtocolDeploymentTemplate(): ProtocolDataLike {
       },
       streak_bonus_interval: 0,
       streak_bonus_amount: 0,
-      achievements_type_hashes: [],
+      achievement_type_hashes: [],
     },
     campaigns_approved: [],
     tippings_approved: [],
@@ -709,7 +709,7 @@ export function validateDeploymentParams(
     "ckb_boost_user_type_code_hash",
     "ckb_boost_points_udt_type_code_hash",
     "ckb_boost_tipping_type_code_hash",
-    "ckb_boost_achievements_type_code_hash",
+    "ckb_boost_achievement_type_code_hash",
   ] as const;
 
   scriptFields.forEach((field) => {

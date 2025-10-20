@@ -63,8 +63,8 @@ pub fn create_ckboost_classifier(
         )
         .add_type_code_hash(data.tipping_type_code_hash(), CellClass::custom("tipping"))
         .add_type_code_hash(
-            data.achievements_type_code_hash(),
-            CellClass::custom("achievements"),
+            data.achievement_type_code_hash(),
+            CellClass::custom("achievement"),
         );
 
     for script in accepted_udt_type_script.iter() {

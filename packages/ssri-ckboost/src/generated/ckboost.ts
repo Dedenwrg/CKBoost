@@ -140,7 +140,7 @@ export const ScriptCodeHashes = mol.table({
   ckb_boost_user_type_code_hash: mol.Byte32,
   ckb_boost_points_udt_type_code_hash: mol.Byte32,
   ckb_boost_tipping_type_code_hash: mol.Byte32,
-  ckb_boost_achievements_type_code_hash: mol.Byte32,
+  ckb_boost_achievement_type_code_hash: mol.Byte32,
   accepted_udt_type_scripts: mol.vector(ccc.Script),
   accepted_dob_type_scripts: mol.vector(ccc.Script)
 });
@@ -149,7 +149,7 @@ export const ProtocolConfig = mol.table({
   script_code_hashes: ScriptCodeHashes,
   streak_bonus_interval: mol.Uint64,
   streak_bonus_amount: mol.Uint128,
-  achievements_type_hashes: mol.Byte32Vec
+  achievement_type_hashes: mol.Byte32Vec
 });
 export const ProtocolData = mol.table({
   campaigns_approved: mol.Byte32Vec,
@@ -341,7 +341,7 @@ export interface ScriptCodeHashesLike {
   ckb_boost_user_type_code_hash: ccc.HexLike;
   ckb_boost_points_udt_type_code_hash: ccc.HexLike;
   ckb_boost_tipping_type_code_hash: ccc.HexLike;
-  ckb_boost_achievements_type_code_hash: ccc.HexLike;
+  ckb_boost_achievement_type_code_hash: ccc.HexLike;
   accepted_udt_type_scripts: ccc.ScriptLike[];
   accepted_dob_type_scripts: ccc.ScriptLike[];
 }
@@ -351,7 +351,7 @@ export interface ProtocolConfigLike {
   script_code_hashes: ScriptCodeHashesLike;
   streak_bonus_interval: ccc.NumLike;
   streak_bonus_amount: ccc.NumLike;
-  achievements_type_hashes: ccc.HexLike[];
+  achievement_type_hashes: ccc.HexLike[];
 }
 
 export interface ProtocolDataLike {

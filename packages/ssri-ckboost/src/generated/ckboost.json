@@ -862,7 +862,7 @@
           "type": "Byte32"
         },
         {
-          "name": "ckb_boost_achievements_type_code_hash",
+          "name": "ckb_boost_achievement_type_code_hash",
           "type": "Byte32"
         },
         {
@@ -896,7 +896,7 @@
           "type": "Uint128"
         },
         {
-          "name": "achievements_type_hashes",
+          "name": "achievement_type_hashes",
           "type": "Byte32Vec"
         }
       ]

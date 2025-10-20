@@ -72,6 +72,8 @@ export interface ProtocolChanges {
     ckbBoostFundingLockCodeHash: FieldChange<string>;
     ckbBoostUserTypeCodeHash: FieldChange<string>;
     ckbBoostPointsUdtTypeCodeHash: FieldChange<string>;
+    ckbBoostTippingTypeCodeHash: FieldChange<string>;
+    ckbBoostAchievementTypeCodeHash: FieldChange<string>;
     acceptedUdtTypeScripts: FieldChange<ScriptLike[]>;
     acceptedDobTypeScripts: FieldChange<ScriptLike[]>;
   };

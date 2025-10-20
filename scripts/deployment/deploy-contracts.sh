@@ -66,7 +66,7 @@ show_usage() {
     echo "       $0 --all [options]"
     echo ""
     echo "Contract names:"
-    echo "  protocol-type, protocol-lock, campaign-type, funding-lock, user-type, points-udt, tipping"
+    echo "  protocol-type, protocol-lock, campaign-type, funding-lock, user-type, points-udt, tipping-type, achievement-type"
     echo ""
     echo "Options:"
     echo "  --network <network>     Network to deploy to (testnet|mainnet|devnet) [default: testnet]"
@@ -115,7 +115,7 @@ while [[ $# -gt 0 ]]; do
         --help|-h)
             show_usage
             ;;
-        protocol-type|protocol-lock|campaign-type|funding-lock|user-type|points-udt|tipping-type)
+        protocol-type|protocol-lock|campaign-type|funding-lock|user-type|points-udt|tipping-type|achievement-type)
             if [ -z "$CONTRACT_NAME" ]; then
                 CONTRACT_NAME="$1"
             else
@@ -280,7 +280,7 @@ check_contract_binaries() {
     local BINARIES_MISSING=false
     local MISSING_BINARIES=""
     
-    for contract in "protocol-type" "protocol-lock" "campaign-type" "funding-lock" "user-type" "points-udt" "tipping-type"; do
+    for contract in "protocol-type" "protocol-lock" "campaign-type" "funding-lock" "user-type" "points-udt" "tipping-type" "achievement-type"; do
         local binary_path="contracts/build/release/ckboost-${contract}"
         if [ ! -f "$binary_path" ]; then
             BINARIES_MISSING=true
@@ -350,6 +350,7 @@ get_contract_name() {
         "user-type") echo "user-type" ;;
         "points-udt") echo "points-udt" ;;
         "tipping-type") echo "tipping-type" ;;
+        "achievement-type") echo "achievement-type" ;;
         *) echo "" ;;
     esac
 }
@@ -363,6 +364,7 @@ get_contract_path() {
         "user-type") echo "./contracts/build/release/ckboost-user-type" ;;
         "points-udt") echo "./contracts/build/release/ckboost-points-udt" ;;
         "tipping-type") echo "./contracts/build/release/ckboost-tipping-type" ;;
+        "achievement-type") echo "./contracts/build/release/ckboost-achievement-type" ;;
         *) echo "" ;;
     esac
 }
@@ -376,6 +378,7 @@ get_contract_type_id() {
         "user-type") echo "true" ;;
         "points-udt") echo "true" ;;
         "tipping-type") echo "true" ;;
+        "achievement-type") echo "true" ;;
         *) echo "true" ;;
     esac
 }
@@ -389,7 +392,7 @@ if [ "$DEPLOY_ALL" = true ]; then
     
     echo -e "${YELLOW}Deploying all contracts...${NC}\n"
     
-    for contract in "protocol-type" "protocol-lock" "campaign-type" "funding-lock" "user-type" "points-udt" "tipping-type"; do
+    for contract in "protocol-type" "protocol-lock" "campaign-type" "funding-lock" "user-type" "points-udt" "tipping-type" "achievement-type"; do
         deploy_contract "$(get_contract_name "$contract")" "$(get_contract_path "$contract")" "$(get_contract_type_id "$contract")"
     done
     

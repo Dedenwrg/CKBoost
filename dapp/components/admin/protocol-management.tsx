@@ -1,7 +1,13 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -116,7 +122,7 @@ const updateScriptCodeHashesSchema = z.object({
   ckb_boost_tipping_type_code_hash: z
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
-  ckb_boost_achievements_type_code_hash: z
+  ckb_boost_achievement_type_code_hash: z
     .string()
     .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid code hash format"),
   accepted_udt_type_code_hashes: z
@@ -239,9 +245,9 @@ export function ProtocolManagement() {
       ckb_boost_tipping_type_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
           .ckb_boost_tipping_type_code_hash,
-      ckb_boost_achievements_type_code_hash:
+      ckb_boost_achievement_type_code_hash:
         deploymentTemplate.protocol_config.script_code_hashes
-          .ckb_boost_achievements_type_code_hash,
+          .ckb_boost_achievement_type_code_hash,
       accepted_udt_type_scripts: [],
       accepted_dob_type_scripts: [],
     },
@@ -298,11 +304,12 @@ export function ProtocolManagement() {
     },
   });
 
-  const [achievementsTypeHashes, setAchievementsTypeHashes] = useState<string[]>(
-    () =>
-      (
-        deploymentTemplate.protocol_config.achievements_type_hashes || []
-      ).map((hash) => ccc.hexFrom(hash as ccc.BytesLike))
+  const [achievementsTypeHashes, setAchievementsTypeHashes] = useState<
+    string[]
+  >(() =>
+    (deploymentTemplate.protocol_config.achievement_type_hashes || []).map(
+      (hash) => ccc.hexFrom(hash as ccc.BytesLike)
+    )
   );
 
   // State for managing change tracking
@@ -428,9 +435,9 @@ export function ProtocolManagement() {
               ckb_boost_tipping_type_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .ckb_boost_tipping_type_code_hash,
-              ckb_boost_achievements_type_code_hash:
+              ckb_boost_achievement_type_code_hash:
                 deploymentTemplate.protocol_config.script_code_hashes
-                  .ckb_boost_achievements_type_code_hash,
+                  .ckb_boost_achievement_type_code_hash,
               accepted_udt_type_scripts:
                 deploymentTemplate.protocol_config.script_code_hashes
                   .accepted_udt_type_scripts || [],
@@ -456,12 +463,12 @@ export function ProtocolManagement() {
               ),
             },
             achievements:
-              deploymentTemplate.protocol_config.achievements_type_hashes?.map(
+              deploymentTemplate.protocol_config.achievement_type_hashes?.map(
                 (hash) => ccc.hexFrom(hash as ccc.BytesLike)
               ) || [],
           });
           setAchievementsTypeHashes(
-            deploymentTemplate.protocol_config.achievements_type_hashes?.map(
+            deploymentTemplate.protocol_config.achievement_type_hashes?.map(
               (hash) => ccc.hexFrom(hash as ccc.BytesLike)
             ) || []
           );
@@ -503,9 +510,9 @@ export function ProtocolManagement() {
         ckb_boost_tipping_type_code_hash:
           protocolData.protocol_config.script_code_hashes
             .ckb_boost_tipping_type_code_hash,
-        ckb_boost_achievements_type_code_hash:
+        ckb_boost_achievement_type_code_hash:
           protocolData.protocol_config.script_code_hashes
-            .ckb_boost_achievements_type_code_hash,
+            .ckb_boost_achievement_type_code_hash,
         accepted_udt_type_scripts: [],
         accepted_dob_type_scripts: [],
       };
@@ -536,7 +543,7 @@ export function ProtocolManagement() {
       });
 
       const achievementHashes =
-        protocolData.protocol_config.achievements_type_hashes?.map((hash) =>
+        protocolData.protocol_config.achievement_type_hashes?.map((hash) =>
           ccc.hexFrom(hash as ccc.BytesLike)
         ) || [];
       setAchievementsTypeHashes(achievementHashes);
@@ -577,10 +584,8 @@ export function ProtocolManagement() {
   const tippingConfigValues = tippingConfigForm.watch();
   const rawStreakConfigValues = streakConfigForm.watch();
   const streakConfigValues: StreakConfigFormValues = {
-    streak_bonus_interval:
-      rawStreakConfigValues?.streak_bonus_interval ?? 0n,
-    streak_bonus_amount:
-      rawStreakConfigValues?.streak_bonus_amount ?? 0n,
+    streak_bonus_interval: rawStreakConfigValues?.streak_bonus_interval ?? 0n,
+    streak_bonus_amount: rawStreakConfigValues?.streak_bonus_amount ?? 0n,
   };
 
   const hasPromptedInvalidStreak = useRef(false);
@@ -720,6 +725,8 @@ export function ProtocolManagement() {
         baselineValues.scriptCodeHashes.ckb_boost_points_udt_type_code_hash &&
       scriptCodeHashesValues.ckb_boost_tipping_type_code_hash ===
         baselineValues.scriptCodeHashes.ckb_boost_tipping_type_code_hash &&
+      scriptCodeHashesValues.ckb_boost_achievement_type_code_hash ===
+        baselineValues.scriptCodeHashes.ckb_boost_achievement_type_code_hash &&
       compareScriptArrays(
         scriptCodeHashesValues.accepted_udt_type_scripts,
         baselineValues.scriptCodeHashes.accepted_udt_type_scripts,
@@ -854,7 +861,10 @@ export function ProtocolManagement() {
             achievements: false,
           });
 
-          if (!hasPromptedInvalidStreak.current && typeof window !== "undefined") {
+          if (
+            !hasPromptedInvalidStreak.current &&
+            typeof window !== "undefined"
+          ) {
             hasPromptedInvalidStreak.current = true;
 
             const intervalPrompt = window.prompt(
@@ -864,7 +874,10 @@ export function ProtocolManagement() {
             if (intervalPrompt !== null) {
               const intervalNumber = Number(intervalPrompt);
               if (!Number.isNaN(intervalNumber)) {
-                const sanitizedInterval = Math.max(0, Math.floor(intervalNumber));
+                const sanitizedInterval = Math.max(
+                  0,
+                  Math.floor(intervalNumber)
+                );
                 streakConfigForm.setValue(
                   "streak_bonus_interval",
                   BigInt(sanitizedInterval),
@@ -1176,7 +1189,7 @@ export function ProtocolManagement() {
       }
 
       if (pendingChanges.achievements) {
-        updatedData.protocol_config.achievements_type_hashes =
+        updatedData.protocol_config.achievement_type_hashes =
           achievementsTypeHashes as ccc.Hex[];
       }
 
@@ -1230,6 +1243,7 @@ export function ProtocolManagement() {
         scriptCodeHashes: null,
         tippingConfig: null,
         streakConfig: null,
+        achievements: null,
       });
 
       // Reset all pending change states
@@ -1239,6 +1253,7 @@ export function ProtocolManagement() {
         tippingConfig: false,
         streakConfig: false,
         endorsers: false,
+        achievements: false,
       });
 
       // Reset admin changes
@@ -1278,9 +1293,9 @@ export function ProtocolManagement() {
           ckb_boost_tipping_type_code_hash:
             protocolData.protocol_config.script_code_hashes
               .ckb_boost_tipping_type_code_hash,
-          ckb_boost_achievements_type_code_hash:
+          ckb_boost_achievement_type_code_hash:
             protocolData.protocol_config.script_code_hashes
-              .ckb_boost_achievements_type_code_hash,
+              .ckb_boost_achievement_type_code_hash,
           accepted_udt_type_scripts:
             protocolData.protocol_config.script_code_hashes
               .accepted_udt_type_scripts || [],
@@ -1303,7 +1318,7 @@ export function ProtocolManagement() {
           ),
         });
         setAchievementsTypeHashes(
-          protocolData.protocol_config.achievements_type_hashes?.map((hash) =>
+          protocolData.protocol_config.achievement_type_hashes?.map((hash) =>
             ccc.hexFrom(hash as ccc.BytesLike)
           ) || []
         );
@@ -1331,9 +1346,9 @@ export function ProtocolManagement() {
           ckb_boost_tipping_type_code_hash:
             deploymentTemplate.protocol_config.script_code_hashes
               .ckb_boost_tipping_type_code_hash,
-          ckb_boost_achievements_type_code_hash:
+          ckb_boost_achievement_type_code_hash:
             deploymentTemplate.protocol_config.script_code_hashes
-              .ckb_boost_achievements_type_code_hash,
+              .ckb_boost_achievement_type_code_hash,
           accepted_udt_type_scripts: [],
           accepted_dob_type_scripts: [],
         });
@@ -1353,7 +1368,7 @@ export function ProtocolManagement() {
           ),
         });
         setAchievementsTypeHashes(
-          deploymentTemplate.protocol_config.achievements_type_hashes?.map(
+          deploymentTemplate.protocol_config.achievement_type_hashes?.map(
             (hash) => ccc.hexFrom(hash as ccc.BytesLike)
           ) || []
         );
@@ -1510,7 +1525,7 @@ export function ProtocolManagement() {
           script_code_hashes: scriptCodeHashesValues,
           streak_bonus_interval: streakConfigValues.streak_bonus_interval,
           streak_bonus_amount: streakConfigValues.streak_bonus_amount,
-          achievements_type_hashes: [],
+          achievement_type_hashes: [],
         },
       };
 

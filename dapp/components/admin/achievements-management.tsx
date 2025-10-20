@@ -70,8 +70,7 @@ export function AchievementsManagement(): React.JSX.Element {
   const [statusLoading, setStatusLoading] = useState(false);
 
   const baselineTypeHashes = useMemo(() => {
-    const hashes =
-      protocolData?.protocol_config?.achievements_type_hashes || [];
+    const hashes = protocolData?.protocol_config?.achievement_type_hashes || [];
     return hashes.map((hash) => ccc.hexFrom(hash as ccc.HexLike));
   }, [protocolData]);
 
@@ -168,7 +167,7 @@ export function AchievementsManagement(): React.JSX.Element {
         last_updated: BigInt(Date.now()),
       } as unknown as ProtocolDataLike;
 
-      updatedData.protocol_config.achievements_type_hashes = typeHashes.map(
+      updatedData.protocol_config.achievement_type_hashes = typeHashes.map(
         (hash) => ccc.hexFrom(hash) as ccc.Hex
       );
 

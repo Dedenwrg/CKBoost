@@ -281,7 +281,7 @@ table ScriptCodeHashes {
     ckb_boost_user_type_code_hash: Byte32,
     ckb_boost_points_udt_type_code_hash: Byte32,
     ckb_boost_tipping_type_code_hash: Byte32,
-    ckb_boost_achievements_type_code_hash: Byte32,
+    ckb_boost_achievement_type_code_hash: Byte32,
     accepted_udt_type_scripts: ScriptVec,
     accepted_dob_type_scripts: ScriptVec,
 }
@@ -291,7 +291,7 @@ table ProtocolConfig {
     script_code_hashes: ScriptCodeHashes,
     streak_bonus_interval: Uint64,
     streak_bonus_amount: Uint128,
-    achievements_type_hashes: Byte32Vec,
+    achievement_type_hashes: Byte32Vec,
 }
 
 table ProtocolData {

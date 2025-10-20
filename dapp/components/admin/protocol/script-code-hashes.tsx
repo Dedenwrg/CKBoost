@@ -190,10 +190,10 @@ export function ScriptCodeHashes({
             />
             <FormField
               control={form.control}
-              name="ckb_boost_achievements_type_code_hash"
+              name="ckb_boost_achievement_type_code_hash"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Achievements Type Code Hash</FormLabel>
+                  <FormLabel>Achievement Type Code Hash</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="0x..."

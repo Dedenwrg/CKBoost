@@ -371,6 +371,8 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         ckb_boost_funding_lock_code_hash: string;
         ckb_boost_user_type_code_hash: string;
         ckb_boost_points_udt_type_code_hash: string;
+        ckb_boost_tipping_type_code_hash: string;
+        ckb_boost_achievement_type_code_hash: string;
         accepted_udt_type_scripts: ccc.ScriptLike[];
         accepted_dob_type_scripts: ccc.ScriptLike[];
       };
@@ -465,8 +467,8 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     const normalizeHashes = (list: string[]) =>
       [...list].map((hash) => hash.toLowerCase()).sort();
     const currentAchievements = normalizeHashes(
-      (protocolData.protocol_config.achievements_type_hashes || []).map(
-        (hash) => ccc.hexFrom(hash as ccc.BytesLike)
+      (protocolData.protocol_config.achievement_type_hashes || []).map((hash) =>
+        ccc.hexFrom(hash as ccc.BytesLike)
       )
     );
     const newAchievements = normalizeHashes(data.achievements || []);
@@ -510,6 +512,16 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
           "scriptCodeHashes.ckbBoostPointsUdtTypeCodeHash",
           scriptCodeHashes.ckb_boost_points_udt_type_code_hash,
           data.scriptCodeHashes.ckb_boost_points_udt_type_code_hash
+        ),
+        ckbBoostTippingTypeCodeHash: createFieldChange(
+          "scriptCodeHashes.ckbBoostTippingTypeCodeHash",
+          scriptCodeHashes.ckb_boost_tipping_type_code_hash,
+          data.scriptCodeHashes.ckb_boost_tipping_type_code_hash
+        ),
+        ckbBoostAchievementTypeCodeHash: createFieldChange(
+          "scriptCodeHashes.ckbBoostAchievementTypeCodeHash",
+          scriptCodeHashes.ckb_boost_achievement_type_code_hash,
+          data.scriptCodeHashes.ckb_boost_achievement_type_code_hash
         ),
         acceptedUdtTypeScripts: createFieldChange(
           "scriptCodeHashes.acceptedUdtTypeScripts",
