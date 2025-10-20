@@ -12,7 +12,7 @@ use ckb_std::debug;
 use ckb_std::high_level::load_script;
 use ckb_std::syscalls::{pipe, write};
 use ckboost_shared::type_id::validate_type_id;
-use ckboost_shared::types::{ConnectedTypeID, String};
+use ckboost_shared::types::{AchievementDataVec, ConnectedTypeID, String};
 use ckboost_shared::Error;
 use molecule::prelude::Entity;
 
@@ -56,6 +56,36 @@ fn program_entry_wrap() -> Result<(), Error> {
         argv: &argv,
         invalid_method: Error::SSRIMethodsNotFound,
         invalid_args: Error::SSRIMethodsArgsInvalid,
+
+        "CKBoostAchievement.update_achievement" => {
+            debug_trace!("Entered CKBoostAchievement.update_achievement");
+
+            let tx: Option<ckb_std::ckb_types::packed::Transaction> = if argv[1].is_empty()
+                || argv[1].as_ref().to_str().map_err(|_| Error::Utf8Error)? == ""
+            {
+                None
+            } else {
+                let parsed_tx = ckb_std::ckb_types::packed::Transaction::from_compatible_slice(
+                    &ckb_std::high_level::decode_hex(argv[1].as_ref())?,
+                )
+                .map_err(|_| Error::InvalidBaseTransactionForSSRI)?;
+                Some(parsed_tx)
+            };
+
+            let achievement_vec_bytes = ckb_std::high_level::decode_hex(argv[2].as_ref())?;
+            if achievement_vec_bytes.is_empty() {
+                return Err(Error::SSRIMethodsArgsInvalid);
+            }
+
+            let achievement_vec = AchievementDataVec::from_slice(&achievement_vec_bytes)
+                .map_err(|_| Error::InvalidAchievementData)?;
+
+            let result_tx = crate::modules::CKBoostAchievementType::update_achievement(
+                tx,
+                achievement_vec,
+            )?;
+            Ok(Cow::from(result_tx.as_bytes().to_vec()))
+        },
 
         "CKBoostAchievement.claim_achievement" => {
             debug_trace!("Entered CKBoostAchievement.claim_achievement");

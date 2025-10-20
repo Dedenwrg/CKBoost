@@ -22,6 +22,12 @@ pub fn fallback() -> Result<(), Error> {
     );
 
     match method_path.as_slice() {
+        b"CKBoostAchievement.update_achievement" => {
+            debug_trace!(
+                "Matched CKBoostAchievement.update_achievement - calling verify_update_achievement"
+            );
+            CKBoostAchievementType::verify_update_achievement(&context)
+        }
         b"CKBoostAchievement.claim_achievement" => {
             debug_trace!(
                 "Matched CKBoostAchievement.claim_achievement - calling verify_claim_achievement"
@@ -30,7 +36,9 @@ pub fn fallback() -> Result<(), Error> {
         }
         _ => {
             debug_trace!("No matching validation rules found for method path");
-            debug_trace!("Expected one of: CKBoostAchievement.claim_achievement");
+            debug_trace!(
+                "Expected one of: CKBoostAchievement.update_achievement, CKBoostAchievement.claim_achievement"
+            );
             Err(Error::WrongMethodPath)
         }
     }

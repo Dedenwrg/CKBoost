@@ -254,6 +254,23 @@ pub mod claim_achievement {
     }
 }
 
+pub mod update_achievement {
+    use ckb_deterministic::{
+        cell_classifier::RuleBasedClassifier,
+        validation::{CellCountConstraint, TransactionValidationRules},
+    };
+
+    pub fn get_rules() -> TransactionValidationRules<RuleBasedClassifier> {
+        TransactionValidationRules::new(b"CKBoostAchievement.update_achievement".to_vec())
+            .with_arguments(1)
+            .with_custom_cell(
+                "achievement",
+                CellCountConstraint::at_most(1),
+                CellCountConstraint::exactly(1),
+            )
+    }
+}
+
 /// Get all validation rules for user type
 pub fn get_all_rules() -> Vec<TransactionValidationRules<RuleBasedClassifier>> {
     vec![claim_achievement::get_rules()]
