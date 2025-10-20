@@ -9,6 +9,7 @@ import {
 import { deploymentManager } from "./deployment-manager";
 import type { Network } from "./deployment-manager";
 import { sendTransactionWithFeeRetry } from "./transaction-wrapper";
+import { useProtocol } from "../providers/protocol-provider";
 
 /**
  * Structured representation of an achievement entry stored inside the
@@ -293,6 +294,14 @@ export async function deployAchievementCell(params: {
     },
     outputDataHex
   );
+
+  tx.addCellDeps({
+    outPoint: {
+      txHash: protocolCell.outPoint.txHash,
+      index: protocolCell.outPoint.index,
+    },
+    depType: "code" as const,
+  });
 
   const txHash = await sendTransactionWithFeeRetry(signer, tx);
 
