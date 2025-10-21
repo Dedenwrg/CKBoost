@@ -596,7 +596,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         removed: [],
       },
     };
-
+    console.log("Changes:", changes);
     return changes;
   };
 

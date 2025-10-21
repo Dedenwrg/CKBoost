@@ -542,11 +542,11 @@ export function ProtocolManagement() {
         ),
       });
 
-      const achievementHashes =
+      const achievementCellTypeHashes =
         protocolData.protocol_config.achievement_type_hashes?.map((hash) =>
           ccc.hexFrom(hash as ccc.BytesLike)
         ) || [];
-      setAchievementsTypeHashes(achievementHashes);
+      setAchievementsTypeHashes(achievementCellTypeHashes);
 
       // Set baseline values to prevent false change detection
       setBaselineValues({
@@ -568,7 +568,7 @@ export function ProtocolManagement() {
             protocolData.protocol_config.streak_bonus_amount ?? 0n
           ),
         },
-        achievements: achievementHashes,
+        achievements: achievementCellTypeHashes,
       });
     }
   }, [
@@ -1105,7 +1105,8 @@ export function ProtocolManagement() {
       pendingChanges.scriptCodeHashes ||
       pendingChanges.tippingConfig ||
       pendingChanges.streakConfig ||
-      pendingChanges.endorsers;
+      pendingChanges.endorsers ||
+      pendingChanges.achievements;
 
     if (!hasChanges) {
       console.warn("No pending changes detected");
@@ -1664,7 +1665,8 @@ export function ProtocolManagement() {
                   !pendingChanges.scriptCodeHashes &&
                   !pendingChanges.tippingConfig &&
                   !pendingChanges.streakConfig &&
-                  !pendingChanges.endorsers
+                  !pendingChanges.endorsers &&
+                  !pendingChanges.achievements
                 }
                 className="bg-green-600 hover:bg-green-700"
               >
