@@ -146,6 +146,58 @@ export function AchievementsSection(): React.JSX.Element {
     );
   }, [achievementService, client, loadAchievements, protocolData, userAddress]);
 
+  useEffect(() => {
+    if (!achievementService || !userAddress) {
+      setPreviewState(EMPTY_PREVIEW);
+      return;
+    }
+
+    let cancelled = false;
+
+    setPreviewState((prev) => ({
+      result: prev.result,
+      error: null,
+      isLoading: true,
+    }));
+
+    achievementService
+      .previewClaim({ userAddress })
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.success) {
+          setPreviewState({
+            result,
+            error:
+              result.message ||
+              "Unable to determine grantable achievements at this time.",
+            isLoading: false,
+          });
+          return;
+        }
+        setPreviewState({
+          result,
+          error: null,
+          isLoading: false,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("[AchievementsSection] Automatic preview failed", error);
+        setPreviewState({
+          result: null,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Failed to load grantable achievements.",
+          isLoading: false,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [achievementService, userAddress]);
+
   const achievementsById = useMemo(() => {
     return new Map(
       achievements.map((achievement) => [achievement.id, achievement])
@@ -154,11 +206,6 @@ export function AchievementsSection(): React.JSX.Element {
 
   const claimedAchievements = useMemo(
     () => achievements.filter((achievement) => achievement.completed),
-    [achievements]
-  );
-
-  const pendingAchievements = useMemo(
-    () => achievements.filter((achievement) => !achievement.completed),
     [achievements]
   );
 
@@ -301,20 +348,8 @@ export function AchievementsSection(): React.JSX.Element {
             </div>
             <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Award className="h-4 w-4 text-blue-500" />
-                Available
-              </div>
-              <div className="mt-2 text-2xl font-semibold">
-                {pendingAchievements.length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Achievements still waiting to be earned.
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Sparkles className="h-4 w-4 text-amber-500" />
-                Grantable (Draft)
+                Grantable
               </div>
               <div className="mt-2 text-2xl font-semibold">
                 {grantableAchievements.length}
@@ -325,177 +360,6 @@ export function AchievementsSection(): React.JSX.Element {
             </div>
           </div>
         )}
-
-        <div className="space-y-4">
-          <h3 className="text-base font-semibold flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-amber-500" />
-            Preview a Claim Transaction
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Paste a draft achievement claim transaction to let the server verify
-            what would be granted. Use the response to confirm your draft before
-            requesting a signature.
-          </p>
-          <form className="space-y-3" onSubmit={handlePreview}>
-            <Textarea
-              value={txHexInput}
-              onChange={(event) => setTxHexInput(event.target.value)}
-              placeholder="0x..."
-              className="min-h-[120px] font-mono text-xs"
-              disabled={isDisabled || previewState.isLoading}
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="submit"
-                disabled={isDisabled || previewState.isLoading}
-              >
-                {previewState.isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
-                )}
-                Preview via Netlify
-              </Button>
-              {previewState.error && (
-                <span className="text-sm text-red-500">
-                  {previewState.error}
-                </span>
-              )}
-              {previewState.result && previewState.result.success && (
-                <Badge variant="secondary">
-                  {previewState.result.grantable.length > 0
-                    ? `${previewState.result.grantable.length} achievements can be granted`
-                    : "No new grants detected"}
-                </Badge>
-              )}
-            </div>
-          </form>
-        </div>
-
-        {previewState.result && previewState.result.success && (
-          <div className="space-y-3">
-            <h3 className="text-base font-semibold flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-green-500" />
-              Preview Results
-            </h3>
-            {grantableAchievements.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                The provided transaction does not grant any new achievements.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {grantableAchievements.map((id) => {
-                  const achievement = achievementsById.get(id);
-                  return (
-                    <div
-                      key={`grantable-${id}`}
-                      className="rounded-lg border border-green-200/70 bg-green-50/70 p-3 dark:border-green-900/60 dark:bg-green-900/20"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-medium">
-                            {achievement
-                              ? summarizeAchievement(achievement)
-                              : id}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Achievement ID: {id}
-                          </div>
-                        </div>
-                        <Badge variant="secondary">Grantable</Badge>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {previewState.result.alreadyClaimed.length > 0 && (
-              <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-                <div className="text-sm font-medium mb-2">
-                  Already claimed in current state
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {previewState.result.alreadyClaimed.map((id) => (
-                    <Badge key={`claimed-${id}`} variant="outline">
-                      {id}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <h3 className="text-base font-semibold flex items-center gap-2">
-            <Award className="h-4 w-4 text-blue-500" />
-            Claimed Achievements
-          </h3>
-          {claimedAchievements.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No achievements recorded yet. Complete verification steps or
-              quests to start collecting milestones.
-            </p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {claimedAchievements.map((achievement) => (
-                <div
-                  key={`claimed-${achievement.id}`}
-                  className="rounded-lg border border-border/60 bg-background p-3 shadow-sm"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium">
-                      {summarizeAchievement(achievement)}
-                    </div>
-                    <Badge variant="default" className="bg-green-500/90">
-                      Claimed
-                    </Badge>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground break-all font-mono">
-                    {achievement.metadataNeventId || achievement.id}
-                  </div>
-                  {formatGrantedAt(achievement) && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Granted at {formatGrantedAt(achievement)}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-base font-semibold flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-purple-500" />
-            Available Achievements
-          </h3>
-          {pendingAchievements.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              All currently configured achievements are already claimed. Keep an
-              eye on new campaign releases for more opportunities.
-            </p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {pendingAchievements.map((achievement) => (
-                <div
-                  key={`pending-${achievement.id}`}
-                  className="rounded-lg border border-dashed border-border/60 bg-muted/30 p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium">
-                      {summarizeAchievement(achievement)}
-                    </div>
-                    <Badge variant="outline">Awaiting claim</Badge>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground break-all font-mono">
-                    {achievement.metadataNeventId || achievement.id}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </CardContent>
     </Card>
   );

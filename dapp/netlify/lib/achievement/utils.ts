@@ -1,7 +1,11 @@
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { getProtocolTypeScript } from "@/lib/ckb/protocol-cells";
+import { getLatestUserCellByLock } from "@/lib/ckb/user-cells";
 import { ccc } from "@ckb-ccc/shell";
 import {
   AchievementDataVec,
   UserData,
+  UserDataLike,
   type AchievementDataLike,
 } from "ssri-ckboost/types";
 
@@ -24,16 +28,6 @@ type ParsedAchievementMetadata = {
 };
 
 /**
- * Context passed to individual achievement rule validators.
- */
-export interface AchievementRuleContext {
-  /** User data prior to applying the transaction. */
-  userPre: ReturnType<typeof UserData.decode>;
-  /** User data after applying the transaction. */
-  userPost: ReturnType<typeof UserData.decode>;
-}
-
-/**
  * Minimal definition for an achievement validation rule.
  */
 export interface AchievementRule {
@@ -45,7 +39,7 @@ export interface AchievementRule {
    * Validate whether the user satisfies the achievement requirements.
    * Should throw an error describing the invalid state when requirements fail.
    */
-  validate: (context: AchievementRuleContext) => void;
+  validate: (userData: UserDataLike) => void;
 }
 
 /**
@@ -56,9 +50,9 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
   {
     id: "telegram_validation",
     title: "Telegram Verification",
-    validate: ({ userPost }) => {
+    validate: (userData: UserDataLike) => {
       const verificationData =
-        userPost.verification_data.identity_verification_data;
+        userData.verification_data.identity_verification_data;
       const hasVerification =
         verificationData !== undefined &&
         verificationData !== null &&
@@ -74,19 +68,11 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
   {
     id: "first_submission",
     title: "First Submission",
-    validate: ({ userPre, userPost }) => {
-      const beforeCount = userPre.submission_records.length;
-      const afterCount = userPost.submission_records.length;
-
-      if (beforeCount > 0) {
+    validate: (userData: UserDataLike) => {
+      const submissionCount = userData.submission_records.length;
+      if (submissionCount === 0) {
         throw new Error(
-          "First submission achievement can only be claimed when the user has no prior submissions."
-        );
-      }
-
-      if (afterCount <= beforeCount) {
-        throw new Error(
-          "First submission achievement requires at least one submission in the updated user cell."
+          "First submission achievement requires at least one submission."
         );
       }
     },
@@ -181,275 +167,151 @@ const parseAchievementMetadata = (
   };
 };
 
-/**
- * Extract the set of achievement ids the target user already holds from a decoded AchievementDataVec.
- */
-const collectUserAchievementIds = (
-  achievementVec: AchievementDataLike[],
-  userTypeHash: ccc.Hex
-): Set<string> => {
-  const ids = new Set<string>();
+export const getGrantableAchievements = async (
+  signer: ccc.Signer,
+  userAddress: string,
+  achievementTypeCodeHash: ccc.Hex
+): Promise<string[]> => {
+  // Verify user lock matches the provided address.
+  const addressObj = await ccc.Address.fromString(userAddress, signer.client);
+  const addressLockScript = addressObj.script;
 
-  for (const achievement of achievementVec) {
-    const title = decodeMolString(achievement.achievement_title);
-    const metadata = parseAchievementMetadata(
-      achievement.achievement_metadata,
-      title
-    );
-
-    const receivers = achievement.receiver_user_record_vec ?? [];
-    const hasUser = receivers.some((record) => {
-      const receiverHash = ccc
-        .hexFrom(record.receiver_user_type_hash)
-        .toLowerCase();
-      return receiverHash === userTypeHash.toLowerCase();
-    });
-
-    if (hasUser) {
-      ids.add(metadata.id);
-    }
-  }
-
-  return ids;
-};
-
-/**
- * Identify newly claimed achievement ids by diffing the output and input vectors.
- */
-const determineNewAchievementIds = (
-  inputIds: Set<string>,
-  outputIds: Set<string>
-): string[] => {
-  const ids: string[] = [];
-
-  for (const id of outputIds) {
-    if (!inputIds.has(id)) {
-      ids.push(id);
-    }
-  }
-
-  return ids;
-};
-
-/**
- * Decode the user cell data into the strongly typed molecule representation.
- */
-const decodeUserData = (data: ccc.HexLike): ReturnType<typeof UserData.decode> => {
-  const hex = ccc.hexFrom(data);
-  if (!hex || hex === "0x") {
-    throw new Error("User cell data is empty.");
-  }
-  return UserData.decode(hex);
-};
-
-/**
- * Resolve the first cell found for a given lock script and optional type script.
- */
-const resolveLatestCellByLock = async (
-  client: CkbClient,
-  lock: ccc.Script,
-  type: ccc.Script | null
-): Promise<ccc.Cell | null> => {
-  const iterator = client.findCellsByLock(lock, type);
-  const result = await iterator.next();
-  return result.value ?? null;
-};
-
-/**
- * Retrieve the most suitable achievement rule for a given id.
- */
-const lookupAchievementRule = (id: string): AchievementRule => {
-  const rule = ACHIEVEMENT_RULE_MAP.get(id);
-  if (!rule) {
-    throw new Error(`Unsupported achievement id "${id}".`);
-  }
-  return rule;
-};
-
-export interface GetGrantableAchievementsInput {
-  tx: ccc.Transaction;
-  client: CkbClient;
-  userAddress: string;
-  userTypeCodeHash: string;
-  achievementTypeCodeHash: string;
-  /**
-   * When true (default), require the transaction to grant at least one new achievement.
-   * View-only flows can disable this to surface state without enforcing a grant.
-   */
-  requireNew?: boolean;
-}
-
-export interface GetGrantableAchievementsResult {
-  userPre: ReturnType<typeof UserData.decode>;
-  userPost: ReturnType<typeof UserData.decode>;
-  inputAchievementIds: Set<string>;
-  outputAchievementIds: Set<string>;
-  newAchievementIds: string[];
-}
-
-/**
- * Inspect a transaction attempting to claim achievements for a user.
- * Throws on invalid state; otherwise returns decoded data and identifiers, including
- * achievements that could be granted if the transaction is submitted.
- */
-export const getGrantableAchievements = async ({
-  tx,
-  client,
-  userAddress,
-  userTypeCodeHash,
-  achievementTypeCodeHash,
-  requireNew = true,
-}: GetGrantableAchievementsInput): Promise<GetGrantableAchievementsResult> => {
-  const userOutputIndex = tx.outputs.findIndex(
-    (output) =>
-      output.type?.codeHash === userTypeCodeHash &&
-      output.type?.hashType === ("type" as HashType)
+  const network = deploymentManager.getCurrentNetwork();
+  const userTypeCodeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostUserType"
   );
 
-  if (userOutputIndex < 0) {
-    throw new Error("Transaction must include an updated user cell output.");
+  if (!userTypeCodeHash) {
+    throw new Error("User type code hash not found.");
   }
 
-  const userOutput = tx.outputs[userOutputIndex];
-  const userOutputData = tx.outputsData[userOutputIndex];
-  const userTypeHash = userOutput.type?.hash();
-
-  if (!userTypeHash) {
-    throw new Error("User output type hash is missing.");
-  }
-
-  // Verify user lock matches the provided address.
-  const addressObj = await ccc.Address.fromString(userAddress, client);
-  const addressLockScript = addressObj.script;
-  const addressLockHash = addressLockScript.hash();
-  if (addressLockHash !== userOutput.lock.hash()) {
-    throw new Error(
-      "Provided address does not match the user cell lock in the transaction."
-    );
-  }
+  const protocolTypeScript = ccc.Script.from(getProtocolTypeScript());
 
   // Resolve on-chain user cell using lock hash + type script for additional certainty.
-  const resolvedUserCell = await resolveLatestCellByLock(
-    client,
+  const userCell = await getLatestUserCellByLock(
     addressLockScript,
-    userOutput.type || null
+    userTypeCodeHash,
+    signer,
+    protocolTypeScript.hash()
   );
 
-  if (!resolvedUserCell) {
+  if (!userCell) {
     throw new Error(
       "Unable to locate existing on-chain user cell for the supplied address."
     );
   }
+  // TODO: Here we assume only one achievement cell exists.
+  const achievementCell = await findAchievementCell(
+    signer.client,
+    achievementTypeCodeHash
+  );
 
-  if (
-    resolvedUserCell.cellOutput.type?.hash() &&
-    resolvedUserCell.cellOutput.type.hash() !== userTypeHash
-  ) {
-    throw new Error(
-      "Resolved user cell type hash differs from the transaction output."
-    );
+  if (!achievementCell) {
+    throw new Error("Unable to locate existing on-chain achievement cell.");
   }
 
-  // Find the user input cell inside the transaction.
-  let userInputCell: ccc.Cell | null = null;
-  for (const input of tx.inputs) {
-    const cell = await input.getCell(client);
+  const achievementDataVec = AchievementDataVec.decode(
+    ccc.hexFrom(achievementCell.outputData)
+  ) as AchievementDataLike[];
+
+  const availableAchievements = achievementDataVec.filter((achievement) => {
+    const achivementReceiverHashes = achievement.receiver_user_record_vec?.map(
+      (record) => {
+        return record.receiver_user_type_hash;
+      }
+    );
+    return !achivementReceiverHashes?.includes(
+      userCell.cellOutput.type?.hash() ?? ""
+    );
+  });
+
+  const userData = UserData.decode(userCell.outputData);
+
+  const grantableAchievements: string[] = availableAchievements
+    .filter((achievement) => {
+      return ACHIEVEMENT_RULE_MAP.get(achievement.achievement_title)?.validate(
+        userData
+      );
+    })
+    .map((achievement) => achievement.achievement_title);
+
+  return grantableAchievements;
+};
+
+export interface EvaluateUserAchievementsInput {
+  client: CkbClient;
+  userAddress: string;
+  userTypeCodeHash: string;
+  achievementTypeCodeHash: string;
+}
+
+export interface EvaluateUserAchievementsResult {
+  completedIds: Set<string>;
+  grantableIds: string[];
+}
+
+const findLatestUserCell = async (
+  client: CkbClient,
+  userAddress: string,
+  userTypeCodeHash: string
+): Promise<ccc.Cell | null> => {
+  const addressObj = await ccc.Address.fromString(userAddress, client);
+  const lockScript = addressObj.script;
+
+  const searchKey = {
+    script: lockScript,
+    scriptType: "lock" as const,
+    scriptSearchMode: "exact" as const,
+    withData: true,
+  };
+
+  const normalizedCodeHash = userTypeCodeHash.toLowerCase();
+
+  let latestCell: ccc.Cell | null = null;
+  let latestBlockNumber = -1n;
+
+  for await (const cell of client.findCells(searchKey)) {
+    const typeScript = cell.cellOutput.type;
     if (
-      cell &&
-      cell.cellOutput.type?.codeHash === userTypeCodeHash &&
-      cell.cellOutput.type?.hashType === ("type" as HashType) &&
-      cell.cellOutput.type?.hash() === userTypeHash
+      !typeScript ||
+      typeScript.hashType !== ("type" as HashType) ||
+      typeScript.codeHash.toLowerCase() !== normalizedCodeHash
     ) {
-      userInputCell = cell;
-      break;
+      continue;
+    }
+
+    const txInfo = await client.getTransaction(cell.outPoint.txHash);
+    const blockNumber =
+      txInfo?.blockNumber !== undefined ? BigInt(txInfo.blockNumber) : 0n;
+
+    if (!latestCell || blockNumber > latestBlockNumber) {
+      latestCell = cell;
+      latestBlockNumber = blockNumber;
     }
   }
 
-  if (!userInputCell) {
-    throw new Error("Transaction must consume the existing user cell.");
-  }
+  return latestCell;
+};
 
-  // Locate achievement input and output cells.
-  let achievementInputCell: ccc.Cell | null = null;
-  for (const input of tx.inputs) {
-    const cell = await input.getCell(client);
-    if (
-      cell &&
-      cell.cellOutput.type?.codeHash === achievementTypeCodeHash &&
-      cell.cellOutput.type?.hashType === ("type" as HashType)
-    ) {
-      achievementInputCell = cell;
-      break;
-    }
-  }
-
-  if (!achievementInputCell) {
-    throw new Error("Transaction is missing the achievement input cell.");
-  }
-
-  const achievementOutputIndex = tx.outputs.findIndex(
-    (output) =>
-      output.type?.codeHash === achievementTypeCodeHash &&
-      output.type?.hashType === ("type" as HashType)
-  );
-
-  if (achievementOutputIndex < 0) {
-    throw new Error("Transaction must include an updated achievement output.");
-  }
-
-  // Decode user data (pre/post).
-  const userPre = decodeUserData(userInputCell.outputData);
-  const userPost = decodeUserData(userOutputData);
-
-  // Decode achievement data (pre/post).
-  let achievementInputVec: AchievementDataLike[];
-  let achievementOutputVec: AchievementDataLike[];
-  try {
-    achievementInputVec = AchievementDataVec.decode(
-      ccc.hexFrom(achievementInputCell.outputData)
-    ) as AchievementDataLike[];
-    achievementOutputVec = AchievementDataVec.decode(
-      ccc.hexFrom(tx.outputsData[achievementOutputIndex])
-    ) as AchievementDataLike[];
-  } catch (error) {
-    throw new Error(
-      `Failed to decode achievement cell data: ${(error as Error).message}`
-    );
-  }
-
-  const inputAchievementIds = collectUserAchievementIds(
-    achievementInputVec,
-    userTypeHash
-  );
-  const outputAchievementIds = collectUserAchievementIds(
-    achievementOutputVec,
-    userTypeHash
-  );
-
-  const newAchievementIds = determineNewAchievementIds(
-    inputAchievementIds,
-    outputAchievementIds
-  );
-
-  if (requireNew && newAchievementIds.length === 0) {
-    throw new Error("No new achievements detected for this user.");
-  }
-
-  const ruleContext: AchievementRuleContext = {
-    userPre,
-    userPost,
+const findAchievementCell = async (
+  client: ccc.Client,
+  achievementTypeCodeHash: string
+): Promise<ccc.Cell | null> => {
+  const searchKey = {
+    script: {
+      codeHash: achievementTypeCodeHash,
+      hashType: "type" as HashType,
+      args: "0x",
+    },
+    scriptType: "type" as const,
+    scriptSearchMode: "prefix" as const,
+    withData: true,
   };
 
-  for (const id of newAchievementIds) {
-    const rule = lookupAchievementRule(id);
-    rule.validate(ruleContext);
+  for await (const cell of client.findCells(searchKey)) {
+    return cell;
   }
 
-  return {
-    userPre,
-    userPost,
-    inputAchievementIds,
-    outputAchievementIds,
-    newAchievementIds,
-  };
+  return null;
 };

@@ -252,18 +252,24 @@ export class AchievementService {
    * @returns Server evaluation describing potential grants or validation errors.
    */
   async previewClaim(params: {
-    tx: ccc.Transaction | string;
+    tx?: ccc.Transaction | string;
     userAddress: string;
     endpoint?: string;
   }): Promise<AchievementQueryResponse> {
     const { tx, userAddress } = params;
     const endpoint = params.endpoint ?? "/api/achievement-query";
-    const txHex = typeof tx === "string" ? tx : ccc.hexFrom(tx.toBytes());
+    const body: Record<string, unknown> = { userAddress };
+    if (typeof tx !== "undefined") {
+      const txHex = typeof tx === "string" ? tx : ccc.hexFrom(tx.toBytes());
+      if (txHex && txHex.trim().length > 0) {
+        body.txHex = txHex;
+      }
+    }
 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ txHex, userAddress }),
+      body: JSON.stringify(body),
     });
 
     const payload = (await response.json()) as AchievementQueryResponse;

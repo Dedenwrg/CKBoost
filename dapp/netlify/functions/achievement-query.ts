@@ -11,6 +11,21 @@ export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
   const log = (...args: unknown[]) =>
     console.log(`[achievement-query][${reqId}]`, ...args);
+  const serverKey = process.env.NETLIFY_PRIVATE_KEY;
+  const rpcUrl =
+    process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
+  if (!serverKey) {
+    log("config_error_post", { hasServerKey: !!serverKey });
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ success: false, error: "missing_private_key" }),
+    };
+  }
+  const client = new ccc.ClientPublicTestnet({ url: rpcUrl });
+  const serverSigner = new ccc.SignerCkbPrivateKey(
+    client,
+    serverKey as ccc.Hex
+  );
 
   if (event.httpMethod !== "POST") {
     log("method_not_allowed");
@@ -32,23 +47,10 @@ export const handler: Handler = async (event) => {
       throw new Error(`Invalid JSON payload: ${(error as Error).message}`);
     }
 
-    const txHex = payload.txHex;
     const userAddress = payload.userAddress;
 
-    if (!txHex || typeof txHex !== "string") {
-      throw new Error("Expected string field 'txHex'.");
-    }
     if (!userAddress || typeof userAddress !== "string") {
       throw new Error("Expected string field 'userAddress'.");
-    }
-
-    let tx: ccc.Transaction;
-    try {
-      tx = ccc.Transaction.fromBytes(txHex);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse transaction bytes: ${(error as Error).message}`
-      );
     }
 
     const network = deploymentManager.getCurrentNetwork();
@@ -70,26 +72,19 @@ export const handler: Handler = async (event) => {
       );
     }
 
-    const evaluation = await getGrantableAchievements({
-      tx,
-      client,
+    const grantableAchievements = await getGrantableAchievements(
+      serverSigner,
       userAddress,
-      userTypeCodeHash,
-      achievementTypeCodeHash,
-      requireNew: false,
-    });
-
-    const response: AchievementQueryResponse = {
-      success: true,
-      completedAchievements: evaluation.outputAchievementIds.size,
-      grantable: evaluation.newAchievementIds,
-      alreadyClaimed: Array.from(evaluation.inputAchievementIds),
-    };
+      achievementTypeCodeHash
+    );
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(response),
+      body: JSON.stringify({
+        success: true,
+        grantable: grantableAchievements,
+      }),
     };
   } catch (error) {
     const err = error as Error;
