@@ -14,14 +14,14 @@ use ckb_std::{
         packed::{
             Byte32Vec, BytesOpt, BytesVecBuilder, CellDepVecBuilder, CellInput,
             CellInputVecBuilder, CellOutputBuilder, CellOutputVecBuilder, RawTransactionBuilder,
-            ScriptOptBuilder, Transaction, TransactionBuilder, WitnessArgsBuilder,
+            ScriptBuilder, ScriptOptBuilder, Transaction, TransactionBuilder, WitnessArgsBuilder,
         },
         prelude::*,
     },
     high_level::load_script,
 };
 use ckboost_shared::{
-    types::{AchievementDataVec, ConnectedTypeID, String},
+    types::{AchievementDataVec, Byte32 as SharedByte32, ConnectedTypeID, String},
     Error,
 };
 
@@ -128,10 +128,15 @@ impl CKBoostAchievement for CKBoostAchievementType {
                 let mut type_id = [0u8; 32];
                 blake2b.finalize(&mut type_id);
 
+                let new_connected_type_id = ConnectedTypeID::new_builder()
+                    .type_id(SharedByte32::from_slice(&type_id).unwrap())
+                    .connected_key(SharedByte32::from_slice(&[0u8; 32]).unwrap())
+                    .build();
+
                 let new_type_script = ScriptBuilder::default()
                     .code_hash(current_script.code_hash())
                     .hash_type(current_script.hash_type())
-                    .args(type_id.to_vec().pack())
+                    .args(new_connected_type_id.as_bytes().pack())
                     .build();
 
                 let first_input_cell = find_cell_by_out_point(first_input.previous_output())

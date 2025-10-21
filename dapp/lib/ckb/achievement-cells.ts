@@ -8,8 +8,8 @@ import {
 } from "ssri-ckboost/types";
 import { deploymentManager } from "./deployment-manager";
 import type { Network } from "./deployment-manager";
-import { sendTransactionWithFeeRetry } from "./transaction-wrapper";
-import { useProtocol } from "../providers/protocol-provider";
+import { ssri } from "@ckb-ccc/connector-react";
+import { Achievement } from "ssri-ckboost";
 
 /**
  * Structured representation of an achievement entry stored inside the
@@ -28,9 +28,10 @@ export interface AchievementEntry {
   records: AchievementRecordLike[];
 }
 
-export type AchievementDefinitionInput = {
-  achievement_title: string;
-  achievement_metadata: string;
+export type AchievementDefinitionInput = Omit<
+  AchievementDataLike,
+  "receiver_user_record_vec"
+> & {
   receiver_user_record_vec?: AchievementRecordLike[];
 };
 
@@ -40,8 +41,6 @@ export interface AchievementCellDeploymentResult {
   outputIndex: number;
   connectedTypeId: ConnectedTypeIDLike;
 }
-
-const ZERO_TYPE_ID = ("0x" + "00".repeat(32)) as ccc.Hex;
 
 const normalizeHex = (value: ccc.HexLike | undefined): ccc.Hex | null =>
   value ? (ccc.hexFrom(value) as ccc.Hex) : null;
@@ -72,23 +71,6 @@ const matchesProtocol = (
     ccc.hexFrom(decoded.connected_key).toLowerCase() ===
     ccc.hexFrom(protocolTypeHash).toLowerCase()
   );
-};
-
-const calculateTypeIdFromTx = (
-  tx: ccc.Transaction,
-  outputIndex: number
-): ccc.Hex => {
-  const firstInput = tx.inputs[0];
-  if (!firstInput) {
-    throw new Error(
-      "Unable to calculate type ID: transaction is missing inputs."
-    );
-  }
-
-  const hasher = new ccc.HasherCkb();
-  hasher.update(firstInput.toBytes());
-  hasher.update(ccc.numToBytes(outputIndex, 8));
-  return hasher.digest();
 };
 
 /**
@@ -154,166 +136,6 @@ export async function fetchAchievementCell(
   }
 
   return null;
-}
-
-/**
- * Deploy a new achievements cell tied to the provided protocol cell and populated
- * with the supplied achievement definitions.
- */
-export async function deployAchievementCell(params: {
-  signer: ccc.Signer;
-  protocolCell: ccc.Cell;
-  achievements?: AchievementDefinitionInput[];
-}): Promise<AchievementCellDeploymentResult> {
-  const { signer, protocolCell } = params;
-  const achievements = params.achievements ?? [];
-
-  const protocolTypeHash = normalizeHex(protocolCell.cellOutput.type?.hash());
-  if (!protocolTypeHash) {
-    throw new Error("Protocol cell is missing a type script hash.");
-  }
-
-  const network = deploymentManager.getCurrentNetwork();
-  const achievementTypeCodeHash = getAchievementTypeCodeHash(network);
-  if (!achievementTypeCodeHash) {
-    throw new Error(
-      "Achievement type contract not registered in deployments.json."
-    );
-  }
-
-  const achievementTypeCodeOutPoint = getAchievementTypeCodeOutPoint(network);
-  if (!achievementTypeCodeOutPoint) {
-    throw new Error(
-      "Achievement type contract out-point missing in deployments.json."
-    );
-  }
-
-  const protocolLockCodeHash = normalizeHex(
-    deploymentManager.getContractCodeHash(network, "ckboostProtocolLock") ??
-      undefined
-  );
-  if (!protocolLockCodeHash) {
-    throw new Error(
-      "Protocol lock contract not registered in deployments.json."
-    );
-  }
-  const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
-    network,
-    "ckboostProtocolLock"
-  );
-  if (!protocolLockCodeHash || !protocolLockCodeOutPoint) {
-    throw new Error(
-      "Protocol lock contract not registered in deployments.json."
-    );
-  }
-
-  const signerLock = (await signer.getRecommendedAddressObj()).script;
-  const signerLockHash = signerLock.hash();
-
-  const lockConnectedTypeId: ConnectedTypeIDLike = {
-    type_id: signerLockHash,
-    connected_key: protocolTypeHash,
-  };
-
-  const typeConnectedTypeId: ConnectedTypeIDLike = {
-    type_id: ZERO_TYPE_ID,
-    connected_key: protocolTypeHash,
-  };
-
-  const achievementTypeScript = ccc.Script.from({
-    codeHash: achievementTypeCodeHash,
-    hashType: "type" as const,
-    args: ccc.hexFrom(ConnectedTypeID.encode(typeConnectedTypeId)),
-  });
-
-  const protocolLockScript = ccc.Script.from({
-    codeHash: protocolLockCodeHash,
-    hashType: protocolCell.cellOutput.lock.hashType,
-    args: ccc.hexFrom(ConnectedTypeID.encode(lockConnectedTypeId)),
-  });
-
-  const encodedAchievements = AchievementDataVec.encode(
-    achievements.map((achievement) => ({
-      achievement_title: achievement.achievement_title,
-      achievement_metadata: achievement.achievement_metadata,
-      receiver_user_record_vec:
-        achievement.receiver_user_record_vec ?? ([] as AchievementRecordLike[]),
-    })) as AchievementDataLike[]
-  );
-  const outputDataHex = ccc.hexFrom(encodedAchievements);
-
-  const tx = ccc.Transaction.from({});
-  const achievementOutputIndex =
-    tx.addOutput(
-      {
-        lock: protocolLockScript,
-        type: achievementTypeScript,
-      },
-      outputDataHex
-    ) - 1;
-
-  tx.addCellDeps(
-    {
-      outPoint: {
-        txHash: achievementTypeCodeOutPoint.txHash,
-        index: achievementTypeCodeOutPoint.index,
-      },
-      depType: "code" as const,
-    },
-    {
-      outPoint: {
-        txHash: protocolLockCodeOutPoint.txHash,
-        index: protocolLockCodeOutPoint.index,
-      },
-      depType: "code" as const,
-    }
-  );
-
-  await tx.completeInputsAtLeastOne(signer);
-  await tx.completeInputsByCapacity(signer);
-  await tx.completeFeeBy(signer);
-
-  const typeId = calculateTypeIdFromTx(tx, achievementOutputIndex);
-  typeConnectedTypeId.type_id = typeId;
-
-  const achievementOutput = tx.outputs[achievementOutputIndex];
-  if (!achievementOutput.type) {
-    throw new Error(
-      "Achievement output unexpectedly missing type script after construction."
-    );
-  }
-  achievementOutput.type.args = ccc.hexFrom(
-    ConnectedTypeID.encode(typeConnectedTypeId)
-  );
-
-  tx.outputs[achievementOutputIndex] = ccc.CellOutput.from(
-    {
-      capacity: achievementOutput.capacity,
-      lock: achievementOutput.lock,
-      type: achievementOutput.type,
-    },
-    outputDataHex
-  );
-
-  tx.addCellDeps({
-    outPoint: {
-      txHash: protocolCell.outPoint.txHash,
-      index: protocolCell.outPoint.index,
-    },
-    depType: "code" as const,
-  });
-
-  const txHash = await sendTransactionWithFeeRetry(signer, tx);
-
-  return {
-    txHash,
-    typeId,
-    outputIndex: achievementOutputIndex,
-    connectedTypeId: {
-      type_id: typeId,
-      connected_key: protocolTypeHash,
-    },
-  };
 }
 
 /**

@@ -33,7 +33,6 @@ import {
   toAchievementEntries,
   getAchievementTypeCodeHash,
   getAchievementTypeCodeOutPoint,
-  deployAchievementCell,
   type AchievementEntry,
   type AchievementDefinitionInput,
 } from "@/lib/ckb/achievement-cells";
@@ -104,10 +103,10 @@ const createDraft = (): AchievementDraft => ({
 
 export function AchievementsManagement(): React.JSX.Element {
   const { client } = ccc.useCcc();
-  const { protocolCell, signer, isWalletConnected } = useProtocol();
+  const { protocolCell, signer, isWalletConnected, achievementService } =
+    useProtocol();
   const { toast } = useToast();
   const storageModal = useStorageModal();
-
   const network = deploymentManager.getCurrentNetwork();
   const achievementTypeCodeHash = useMemo(
     () => getAchievementTypeCodeHash(network),
@@ -558,7 +557,17 @@ export function AchievementsManagement(): React.JSX.Element {
 
       setDrafts(updatedDrafts);
 
-      const result = await deployAchievementCell({
+      if (!achievementService) {
+        toast({
+          title: "Achievement service not available",
+          description:
+            "Achievement service is not available. Please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const result = await achievementService.deployAchievementCell({
         signer,
         protocolCell,
         achievements: achievementsPayload,
@@ -566,9 +575,9 @@ export function AchievementsManagement(): React.JSX.Element {
 
       toast({
         title: "Achievement cell deployed",
-        description: `Tx: ${formatHash(result.txHash)} · Type ID: ${formatHash(
-          result.typeId
-        )}`,
+        description: `Tx: ${formatHash(
+          result?.txHash ?? ""
+        )} · Type ID: ${formatHash(result?.typeId ?? "")}`,
       });
 
       await loadStatus();

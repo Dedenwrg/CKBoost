@@ -22,6 +22,8 @@ import {
   FieldChange,
 } from "../types/protocol";
 import { ProtocolService } from "../services/protocol-service";
+import { AchievementService } from "../services/achievement-service";
+import { deploymentManager } from "../ckb/deployment-manager";
 
 // Types for protocol provider
 interface ProtocolContextType {
@@ -55,6 +57,9 @@ interface ProtocolContextType {
 
   // Signer for blockchain operations
   signer: ccc.Signer | undefined;
+
+  // Achievement service for achievement operations
+  achievementService: AchievementService | null;
 }
 
 // Create context
@@ -75,6 +80,8 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [protocolService, setProtocolService] =
     useState<ProtocolService | null>(null);
+  const [achievementService, setAchievementService] =
+    useState<AchievementService | null>(null);
 
   // User state
   const [userAddress, setUserAddress] = useState<string | null>(null);
@@ -107,6 +114,22 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         // Pass signer if available for write operations
         const protocolService = new ProtocolService(signer || client);
         setProtocolService(protocolService);
+
+        // Create achievement service with client for read operations
+        // Pass signer if available for write operations
+        const network = deploymentManager.getCurrentNetwork();
+        const achievementTypeCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostAchievementType"
+        );
+        if (!achievementTypeCodeHash) {
+          throw new Error("Achievement type contract not deployed");
+        }
+        const achievementService = new AchievementService(
+          client,
+          achievementTypeCodeHash
+        );
+        setAchievementService(achievementService);
 
         setIsLoading(true);
         setError(null);
@@ -627,6 +650,9 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
 
     // Signer for blockchain operations
     signer,
+
+    // Achievement service for achievement operations
+    achievementService,
   };
 
   return (

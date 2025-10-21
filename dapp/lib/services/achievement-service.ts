@@ -1,9 +1,12 @@
-import { ccc } from "@ckb-ccc/connector-react";
+import { ccc, ssri } from "@ckb-ccc/connector-react";
 import {
   fetchAchievementCell,
   toAchievementEntries,
   type AchievementEntry,
+  type AchievementDefinitionInput,
+  type AchievementCellDeploymentResult,
 } from "../ckb/achievement-cells";
+import { deploymentManager } from "../ckb/deployment-manager";
 import { getLatestUserCellByAddress } from "../ckb/user-cells";
 import type {
   AchievementRecordLike,
@@ -11,6 +14,14 @@ import type {
   ProtocolDataLike,
 } from "ssri-ckboost/types";
 import type { AchievementQueryResponse } from "@/netlify/lib/achievement/types";
+import { Achievement } from "ssri-ckboost";
+import { AchievementDataVec, ConnectedTypeID } from "ssri-ckboost/types";
+import { getAchievementTypeCodeOutPoint } from "../ckb/achievement-cells";
+import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
+
+const ZERO_TYPE_ID = ccc.hexFrom(
+  "0x0000000000000000000000000000000000000000000000000000000000000000"
+) as ccc.Hex;
 
 /**
  * Shape of an achievement enriched with completion status for a particular
@@ -71,18 +82,30 @@ export type ClaimAchievementResult =
 export class AchievementService {
   private readonly client: ccc.Client;
   private readonly achievementTypeCodeHash: ccc.Hex;
+  private signer?: ccc.Signer;
+  private achievementExecutor: Achievement | null = null;
 
   /**
    * Instantiate an achievement service.
    *
    * @param client - CCC client used for chain queries.
    */
-  constructor(client: ccc.Client, achievementTypeCodeHash: ccc.Hex) {
+  constructor(
+    client: ccc.Client,
+    achievementTypeCodeHash: ccc.Hex,
+    signer?: ccc.Signer
+  ) {
     this.client = client;
 
     this.achievementTypeCodeHash = ccc.hexFrom(
       achievementTypeCodeHash
     ) as ccc.Hex;
+    this.signer = signer;
+  }
+
+  setSigner(signer: ccc.Signer | undefined): void {
+    this.signer = signer;
+    this.achievementExecutor = null;
   }
 
   /**
@@ -250,6 +273,161 @@ export class AchievementService {
     return payload;
   }
 
+  async deployAchievementCell(params: {
+    signer?: ccc.Signer;
+    protocolCell: ccc.Cell;
+    achievements: AchievementDefinitionInput[];
+  }): Promise<AchievementCellDeploymentResult> {
+    const signer = params.signer ?? this.requireSigner();
+    const protocolTypeScript = params.protocolCell.cellOutput.type;
+    if (!protocolTypeScript) {
+      throw new Error("Protocol cell is missing a type script hash.");
+    }
+
+    const protocolTypeHash = ccc.hexFrom(protocolTypeScript.hash()) as ccc.Hex;
+    const network = deploymentManager.getCurrentNetwork();
+    const codeOutPoint = getAchievementTypeCodeOutPoint(network);
+    if (!codeOutPoint) {
+      throw new Error(
+        "Achievement type contract out-point missing in deployments.json."
+      );
+    }
+
+    const executorUrl =
+      process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+    const executor = new ssri.ExecutorJsonRpc(executorUrl);
+
+    const achievementTypeScript = ccc.Script.from({
+      codeHash: this.achievementTypeCodeHash,
+      hashType: "type" as const,
+      args: "0x",
+    });
+
+    const achievementInstance = new Achievement(
+      codeOutPoint,
+      achievementTypeScript,
+      params.protocolCell,
+      { executor }
+    );
+
+    const dataLike = this.normalizeDefinitions(params.achievements);
+
+    const response = await achievementInstance.updateAchievement(
+      signer,
+      dataLike
+    );
+
+    const tx = response.res;
+    await tx.completeInputsByCapacity(signer);
+    await tx.completeFeeBy(signer);
+    const achievementCellIndex = tx.outputs.findIndex(
+      (output) => output.type?.codeHash === this.achievementTypeCodeHash
+    );
+    if (achievementCellIndex === -1) {
+      throw new Error("Achievement cell output not found in transaction");
+    }
+    const rawConnectedTypeId = tx.outputs[achievementCellIndex].type?.args;
+    if (!rawConnectedTypeId) {
+      throw new Error("Raw connected type id not found in transaction");
+    }
+    const connectedTypeId = ConnectedTypeID.decode(rawConnectedTypeId);
+    connectedTypeId.connected_key = protocolTypeHash;
+    const updatedConnectedTypeIdBytes = ConnectedTypeID.encode(connectedTypeId);
+    const updatedConnectedTypeIdArgs = ccc.hexFrom(updatedConnectedTypeIdBytes);
+    if (tx.outputs[achievementCellIndex].type) {
+      tx.outputs[achievementCellIndex].type.args = updatedConnectedTypeIdArgs;
+    }
+
+    tx.addCellDeps({
+      outPoint: params.protocolCell.outPoint,
+      depType: "code",
+    });
+
+    // Implement protocol lock for achievement cell
+    const protocolLockCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostProtocolLock"
+    );
+    if (!protocolLockCodeHash) {
+      throw new Error("Protocol lock code hash not found");
+    }
+    const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
+      network,
+      "ckboostProtocolLock"
+    );
+    if (!protocolLockCodeOutPoint) {
+      throw new Error("Protocol lock code out point not found");
+    }
+    tx.addCellDeps({
+      outPoint: {
+        txHash: protocolLockCodeOutPoint.txHash,
+        index: protocolLockCodeOutPoint.index,
+      },
+      depType: "code",
+    });
+    const currentUserLock = (await signer.getRecommendedAddressObj()).script;
+    const protocolLockConnectedTypeId = ConnectedTypeID.encode({
+      type_id: currentUserLock.hash(),
+      connected_key: protocolTypeHash,
+    });
+    const protocolLockConnectedTypeIdArgs = ccc.hexFrom(
+      protocolLockConnectedTypeId
+    );
+    const protocolLockTypeScript = ccc.Script.from({
+      codeHash: protocolLockCodeHash,
+      hashType: "type",
+      args: protocolLockConnectedTypeIdArgs,
+    });
+    tx.outputs[achievementCellIndex].lock = protocolLockTypeScript;
+    const txHash = await sendTransactionWithFeeRetry(signer, tx);
+
+    this.achievementExecutor = null;
+    return {
+      txHash,
+      typeId: connectedTypeId.type_id,
+      outputIndex: tx.outputs.length - 1,
+      connectedTypeId: {
+        type_id: connectedTypeId.type_id,
+        connected_key: connectedTypeId.connected_key,
+      },
+    };
+  }
+
+  async updateAchievementCell(params: {
+    signer?: ccc.Signer;
+    protocolCell: ccc.Cell;
+    protocolTypeHash: ccc.Hex;
+    achievements: AchievementDefinitionInput[];
+  }): Promise<string> {
+    const signer = params.signer ?? this.requireSigner();
+    const achievementCell = await this.getAchievementCell(
+      params.protocolTypeHash
+    );
+
+    const achievementExecutor = await this.ensureAchievementExecutor(
+      params.protocolCell,
+      achievementCell
+    );
+
+    const dataLike = this.normalizeDefinitions(params.achievements);
+    const txDraft = await this.buildAchievementUpdateTransaction(
+      achievementCell,
+      dataLike
+    );
+
+    const response = await achievementExecutor.updateAchievement(
+      signer,
+      dataLike,
+      txDraft
+    );
+
+    const tx = response.res;
+    await tx.completeInputsByCapacity(signer);
+    await tx.completeFeeBy(signer);
+    const txHash = await sendTransactionWithFeeRetry(signer, tx);
+    return txHash;
+  }
+
   /**
    * Extract the canonical achievement identifier prioritising the stored nevent
    * reference and falling back to a normalized title when absent.
@@ -269,5 +447,79 @@ export class AchievementService {
     }
 
     return `achievement-${entry.raw.achievement_title.toString()}`;
+  }
+
+  private requireSigner(): ccc.Signer {
+    if (!this.signer) {
+      throw new Error("Wallet connection required");
+    }
+    return this.signer;
+  }
+
+  private normalizeDefinitions(
+    defs: AchievementDefinitionInput[]
+  ): AchievementDataLike[] {
+    return defs.map((definition) => ({
+      achievement_title: definition.achievement_title,
+      achievement_metadata: definition.achievement_metadata,
+      receiver_user_record_vec: definition.receiver_user_record_vec ?? [],
+    }));
+  }
+
+  private async ensureAchievementExecutor(
+    protocolCell: ccc.Cell,
+    achievementCell: ccc.Cell
+  ): Promise<Achievement> {
+    if (this.achievementExecutor) {
+      return this.achievementExecutor;
+    }
+
+    const network = deploymentManager.getCurrentNetwork();
+    const codeOutPoint = getAchievementTypeCodeOutPoint(network);
+    if (!codeOutPoint) {
+      throw new Error(
+        "Achievement type contract out-point missing in deployments.json."
+      );
+    }
+
+    const typeScript = achievementCell.cellOutput.type;
+    if (!typeScript) {
+      throw new Error("Achievement cell is missing type script");
+    }
+
+    const executorUrl =
+      process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+    const executor = new ssri.ExecutorJsonRpc(executorUrl);
+
+    this.achievementExecutor = new Achievement(
+      codeOutPoint,
+      typeScript,
+      protocolCell,
+      { executor }
+    );
+
+    return this.achievementExecutor;
+  }
+
+  private async buildAchievementUpdateTransaction(
+    achievementCell: ccc.Cell,
+    data: AchievementDataLike[]
+  ): Promise<ccc.Transaction> {
+    const tx = ccc.Transaction.from({});
+    await tx.addInput(achievementCell);
+
+    const encoded = AchievementDataVec.encode(data);
+    const hex = ccc.hexFrom(encoded);
+
+    await tx.addOutput(
+      ccc.CellOutput.from({
+        capacity: achievementCell.cellOutput.capacity,
+        lock: achievementCell.cellOutput.lock,
+        type: achievementCell.cellOutput.type,
+      }),
+      hex
+    );
+
+    return tx;
   }
 }
