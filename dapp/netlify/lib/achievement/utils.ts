@@ -9,37 +9,17 @@ import {
   type AchievementDataLike,
 } from "ssri-ckboost/types";
 
-export type TestnetClient = InstanceType<typeof ccc.ClientPublicTestnet>;
-export type MainnetClient = InstanceType<typeof ccc.ClientPublicMainnet>;
-export type CkbClient = TestnetClient | MainnetClient;
-
-type HashType = "data" | "type" | "data1";
-
-/**
- * Parsed achievement metadata payload. Metadata is expected to be JSON that includes a stable id.
- */
-type ParsedAchievementMetadata = {
-  /** Unique identifier for the achievement (e.g. telegram_validation). */
-  id: string;
-  /** Human friendly title mirrored from the on-chain entry. */
-  title: string;
-  /** Referenced Nostr nevent ID carrying extended metadata. */
-  neventId: string;
-};
-
 /**
  * Minimal definition for an achievement validation rule.
  */
 export interface AchievementRule {
-  /** Unique identifier that must match the achievement metadata id. */
-  id: string;
   /** Human readable title, also expected to match the achievement title stored on-chain. */
   title: string;
   /**
    * Validate whether the user satisfies the achievement requirements.
    * Should throw an error describing the invalid state when requirements fail.
    */
-  validate: (userData: UserDataLike) => void;
+  validate: (userData: UserDataLike) => boolean;
 }
 
 /**
@@ -48,7 +28,6 @@ export interface AchievementRule {
  */
 export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
   {
-    id: "telegram_validation",
     title: "Telegram Verification",
     validate: (userData: UserDataLike) => {
       const verificationData =
@@ -59,22 +38,25 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
         ccc.hexFrom(verificationData).toLowerCase() !== "0x";
 
       if (!hasVerification) {
-        throw new Error(
+        console.log(
           "Telegram verification achievement requires completed identity verification data."
         );
+        return false;
       }
+      return true;
     },
   },
   {
-    id: "first_submission",
     title: "First Submission",
     validate: (userData: UserDataLike) => {
+      console.log("Validating first submission");
       const submissionCount = userData.submission_records.length;
       if (submissionCount === 0) {
-        throw new Error(
+        console.log(
           "First submission achievement requires at least one submission."
         );
       }
+      return true;
     },
   },
 ] as const;
@@ -83,89 +65,8 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
  * Create a quick lookup map for achievement rules by id.
  */
 const ACHIEVEMENT_RULE_MAP = new Map(
-  ACHIEVEMENT_RULES.map((rule) => [rule.id, rule])
+  ACHIEVEMENT_RULES.map((rule) => [rule.title, rule])
 );
-
-/**
- * Convert a Molecule string or hex-like field into a trimmed UTF-8 string.
- */
-const decodeMolString = (value: unknown): string => {
-  if (!value) return "";
-
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "raw_data" in value &&
-    typeof (value as { raw_data: () => unknown }).raw_data === "function"
-  ) {
-    const raw = (value as { raw_data: () => unknown }).raw_data();
-    if (typeof raw === "string") {
-      const bytes = ccc.bytesFrom(raw);
-      return Buffer.from(bytes).toString("utf8").trim();
-    }
-  }
-
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    "raw" in value &&
-    typeof (value as { raw: () => unknown }).raw === "function"
-  ) {
-    const raw = (value as { raw: () => unknown }).raw();
-    if (typeof raw === "string") {
-      const bytes = ccc.bytesFrom(raw);
-      return Buffer.from(bytes).toString("utf8").trim();
-    }
-  }
-
-  return "";
-};
-
-/**
- * Parse achievement metadata from on-chain data.
- * Metadata is expected to be a Nostr nevent ID referencing extended payloads.
- */
-const parseAchievementMetadata = (
-  rawMetadata: unknown,
-  achievementTitle: string
-): ParsedAchievementMetadata => {
-  const metadataString = decodeMolString(rawMetadata);
-
-  if (!metadataString) {
-    throw new Error(`Achievement "${achievementTitle}" has empty metadata.`);
-  }
-
-  const neventId = metadataString.trim();
-
-  if (!neventId.startsWith("nevent")) {
-    throw new Error(
-      `Achievement "${achievementTitle}" metadata must be a Nostr nevent ID.`
-    );
-  }
-
-  const normalizedTitle = achievementTitle.trim();
-  const rule = ACHIEVEMENT_RULES.find(
-    (candidate) =>
-      candidate.id.toLowerCase() === normalizedTitle.toLowerCase() ||
-      candidate.title.toLowerCase() === normalizedTitle.toLowerCase()
-  );
-
-  if (!rule) {
-    throw new Error(
-      `Unsupported achievement title "${achievementTitle}". Ensure a matching rule is registered.`
-    );
-  }
-
-  return {
-    id: rule.id,
-    title: rule.title,
-    neventId,
-  };
-};
 
 export const getGrantableAchievements = async (
   signer: ccc.Signer,
@@ -214,33 +115,42 @@ export const getGrantableAchievements = async (
   const achievementDataVec = AchievementDataVec.decode(
     ccc.hexFrom(achievementCell.outputData)
   ) as AchievementDataLike[];
-
+  console.log("achievementDataVec", achievementDataVec);
   const availableAchievements = achievementDataVec.filter((achievement) => {
-    const achivementReceiverHashes = achievement.receiver_user_record_vec?.map(
+    const achievementReceiverHashes = achievement.receiver_user_record_vec?.map(
       (record) => {
         return record.receiver_user_type_hash;
       }
     );
-    return !achivementReceiverHashes?.includes(
+    return !achievementReceiverHashes?.includes(
       userCell.cellOutput.type?.hash() ?? ""
     );
   });
+  console.log("availableAchievements", availableAchievements);
 
   const userData = UserData.decode(userCell.outputData);
 
   const grantableAchievements: string[] = availableAchievements
     .filter((achievement) => {
-      return ACHIEVEMENT_RULE_MAP.get(achievement.achievement_title)?.validate(
-        userData
-      );
+      console.log("Checking achievement", achievement.achievement_title);
+      const rule = ACHIEVEMENT_RULE_MAP.get(achievement.achievement_title);
+      if (!rule) {
+        console.log(
+          "Rule not found for achievement",
+          achievement.achievement_title
+        );
+        return false;
+      }
+      console.log("Validating achievement", achievement.achievement_title);
+      return rule.validate(userData);
     })
     .map((achievement) => achievement.achievement_title);
-
+  console.log("grantableAchievements", grantableAchievements);
   return grantableAchievements;
 };
 
 export interface EvaluateUserAchievementsInput {
-  client: CkbClient;
+  client: ccc.Client;
   userAddress: string;
   userTypeCodeHash: string;
   achievementTypeCodeHash: string;
@@ -251,65 +161,20 @@ export interface EvaluateUserAchievementsResult {
   grantableIds: string[];
 }
 
-const findLatestUserCell = async (
-  client: CkbClient,
-  userAddress: string,
-  userTypeCodeHash: string
-): Promise<ccc.Cell | null> => {
-  const addressObj = await ccc.Address.fromString(userAddress, client);
-  const lockScript = addressObj.script;
-
-  const searchKey = {
-    script: lockScript,
-    scriptType: "lock" as const,
-    scriptSearchMode: "exact" as const,
-    withData: true,
-  };
-
-  const normalizedCodeHash = userTypeCodeHash.toLowerCase();
-
-  let latestCell: ccc.Cell | null = null;
-  let latestBlockNumber = -1n;
-
-  for await (const cell of client.findCells(searchKey)) {
-    const typeScript = cell.cellOutput.type;
-    if (
-      !typeScript ||
-      typeScript.hashType !== ("type" as HashType) ||
-      typeScript.codeHash.toLowerCase() !== normalizedCodeHash
-    ) {
-      continue;
-    }
-
-    const txInfo = await client.getTransaction(cell.outPoint.txHash);
-    const blockNumber =
-      txInfo?.blockNumber !== undefined ? BigInt(txInfo.blockNumber) : 0n;
-
-    if (!latestCell || blockNumber > latestBlockNumber) {
-      latestCell = cell;
-      latestBlockNumber = blockNumber;
-    }
-  }
-
-  return latestCell;
-};
-
 const findAchievementCell = async (
   client: ccc.Client,
   achievementTypeCodeHash: string
 ): Promise<ccc.Cell | null> => {
-  const searchKey = {
+  for await (const cell of client.findCells({
     script: {
       codeHash: achievementTypeCodeHash,
-      hashType: "type" as HashType,
+      hashType: "type" as ccc.HashType,
       args: "0x",
     },
-    scriptType: "type" as const,
-    scriptSearchMode: "prefix" as const,
+    scriptType: "type",
+    scriptSearchMode: "prefix",
     withData: true,
-  };
-
-  for await (const cell of client.findCells(searchKey)) {
+  })) {
     return cell;
   }
 
