@@ -54,7 +54,7 @@ export const handler: Handler = async (event) => {
       );
     }
 
-    const serverKey = process.env.NETLIFY_PRIVATE_KEY;
+    const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
     if (!serverKey) {
       throw new Error("Missing ACHIEVEMENT_PROXY_PRIVATE_KEY in environment.");
     }

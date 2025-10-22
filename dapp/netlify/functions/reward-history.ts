@@ -192,7 +192,7 @@ const findProxyAuthenticationCell = async (
 ): Promise<ccc.Cell | null> => {
   const proxyAddress =
     process.env.STREAK_BONUS_PROXY_ADDRESS ||
-    process.env.NEXT_PUBLIC_TELEGRAM_AUTHENTICATOR_ADDRESS;
+    process.env.NEXT_PUBLIC_API_AUTHENTICATOR_ADDRESS;
 
   if (!proxyAddress) {
     console.warn(

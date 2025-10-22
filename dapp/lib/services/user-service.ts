@@ -61,7 +61,7 @@ export class UserService {
     baseDraftTx: ccc.Transaction
   ): Promise<void> {
     const authenticatorAddress =
-      process.env.NEXT_PUBLIC_TELEGRAM_AUTHENTICATOR_ADDRESS;
+      process.env.NEXT_PUBLIC_API_AUTHENTICATOR_ADDRESS;
 
     const authenticatorLock = await ccc.Address.fromString(
       authenticatorAddress as string,

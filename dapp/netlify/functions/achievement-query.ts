@@ -8,7 +8,7 @@ export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
   const log = (...args: unknown[]) =>
     console.log(`[achievement-query][${reqId}]`, ...args);
-  const serverKey = process.env.NETLIFY_PRIVATE_KEY;
+  const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
   const rpcUrl =
     process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
   if (!serverKey) {

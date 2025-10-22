@@ -81,7 +81,9 @@ export const handler: Handler = async (event) => {
     }
 
     // Derive authenticator lock to locate the data cell
-    const serverKey = process.env.NETLIFY_PRIVATE_KEY as Hex | undefined;
+    const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY as
+      | Hex
+      | undefined;
     const rpcUrl =
       process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
     if (!serverKey) {
