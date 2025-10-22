@@ -5,6 +5,8 @@ import { getGrantableAchievements } from "@/netlify/lib/achievement/utils";
 import type { AchievementQueryResponse } from "@/netlify/lib/achievement/types";
 
 export const handler: Handler = async (event) => {
+  console.log("Achievement query handler");
+  console.log("event", event);
   const reqId = Math.random().toString(36).slice(2, 8);
   const log = (...args: unknown[]) =>
     console.log(`[achievement-query][${reqId}]`, ...args);

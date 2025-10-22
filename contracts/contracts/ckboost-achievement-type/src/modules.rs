@@ -246,10 +246,7 @@ impl CKBoostAchievement for CKBoostAchievementType {
             .build())
     }
 
-    fn claim_achievement(
-        tx: Option<Transaction>,
-        achievement_type: String,
-    ) -> Result<Transaction, Error> {
+    fn claim_achievement(tx: Option<Transaction>) -> Result<Transaction, Error> {
         debug_trace!("CKBoostAchievementType::claim_achievement - start");
 
         // Initialize transaction builders
@@ -290,10 +287,7 @@ impl CKBoostAchievement for CKBoostAchievementType {
             .map(|t| t.raw().outputs_data().len())
             .unwrap_or(0) as u32;
 
-        let recipe = create_recipe_with_args(
-            "CKBoostAchievement.claim_achievement",
-            vec![create_inline_argument(&achievement_type.as_bytes())],
-        )?;
+        let recipe = create_recipe_with_args("CKBoostAchievement.claim_achievement", vec![])?;
         let recipe_bytes = serialize_transaction_recipe(&recipe);
 
         let witness_args = WitnessArgsBuilder::default()

@@ -18,6 +18,7 @@ import { Achievement } from "ssri-ckboost";
 import { AchievementDataVec, ConnectedTypeID } from "ssri-ckboost/types";
 import { getAchievementTypeCodeOutPoint } from "../ckb/achievement-cells";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
+import { injectProxyAuthenticationCell } from "../utils/api";
 
 const ZERO_TYPE_ID = ccc.hexFrom(
   "0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -43,31 +44,6 @@ export interface UserAchievement {
   /** Receiver record that granted the achievement, if any. */
   record?: AchievementRecordLike;
 }
-
-/**
- * Response returned by the achievement validation Netlify function when a
- * claim attempt succeeds. Matches the structure produced by
- * `achievement-validate.ts`.
- */
-export interface ClaimAchievementResponse {
-  success: true;
-  txHex: string;
-  newlyGranted: string[];
-  completedAchievements: number;
-}
-
-/**
- * Variant returned when the server rejects the claim or when HTTP errors occur.
- */
-export interface FailedClaimResponse {
-  success: false;
-  error: string;
-  message?: string;
-}
-
-export type ClaimAchievementResult =
-  | ClaimAchievementResponse
-  | FailedClaimResponse;
 
 /**
  * High-level service that exposes achievement-centric operations:
@@ -217,26 +193,124 @@ export class AchievementService {
    * @param params.endpoint - Optional relative endpoint. Defaults to `/api/achievement-validate`.
    * @returns Validation outcome as returned by the serverless function.
    */
-  async claimAchievements(params: {
-    tx: ccc.Transaction | string;
-    userAddress: string;
-    endpoint?: string;
-  }): Promise<ClaimAchievementResult> {
-    const { tx, userAddress } = params;
-    const endpoint = params.endpoint ?? "/api/achievement-validate";
-    const txHex = typeof tx === "string" ? tx : ccc.hexFrom(tx.toBytes());
+  async claimAchievements(
+    grantableAchievements: string[],
+    userAddress: string,
+    protocolTypeHash: ccc.Hex,
+    signer: ccc.Signer
+  ): Promise<ccc.Hex> {
+    const achievementCell = await this.getAchievementCell(protocolTypeHash);
+    const achievementDataVec = AchievementDataVec.decode(
+      ccc.hexFrom(achievementCell.outputData)
+    ) as AchievementDataLike[];
+    const userTypeCodeHash = deploymentManager.getContractCodeHash(
+      deploymentManager.getCurrentNetwork(),
+      "ckboostUserType"
+    );
+    if (!userTypeCodeHash) {
+      throw new Error("User type code hash not found");
+    }
+    const userCell = await getLatestUserCellByAddress(
+      userAddress,
+      this.client,
+      userTypeCodeHash
+    );
+    if (!userCell || !userCell.cellOutput.type) {
+      throw new Error("User cell not found");
+    }
+    for (const achievement of achievementDataVec) {
+      if (grantableAchievements.includes(achievement.achievement_title)) {
+        achievement.receiver_user_record_vec.push({
+          receiver_user_type_hash: userCell.cellOutput.type?.hash() ?? "",
+          granted_at: ccc.numFrom(Date.now()),
+        });
+      }
+    }
+    const tx = ccc.Transaction.from({});
+    await tx.addInput(achievementCell);
+    await tx.addOutput(
+      ccc.CellOutput.from({
+        lock: achievementCell.cellOutput.lock,
+        type: achievementCell.cellOutput.type,
+      }),
+      ccc.hexFrom(AchievementDataVec.encode(achievementDataVec))
+    );
+    // TODO: Add cell deps contingently for corresponding signer.
+    await tx.addCellDepsOfKnownScripts(signer.client, ccc.KnownScript.JoyId);
+    await injectProxyAuthenticationCell(signer, tx);
+    await tx.completeInputsByCapacity(signer);
 
-    const response = await fetch(endpoint, {
+    for (let i = 0; i < tx.inputs.length; i++) {
+      const inputCell = await signer.client.getCell(
+        tx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found");
+      }
+      tx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell?.outPoint,
+        since: "0x0",
+        cellOutput: inputCell?.cellOutput,
+      });
+    }
+
+    for (let i = 0; i < tx.outputs.length; i++) {
+      const out = tx.outputs[i];
+      if (out.type) {
+        tx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          tx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+    await tx.completeFeeBy(signer);
+
+    console.log("Calling /api/achievement-validate");
+    console.log("txHex", ccc.hexFrom(tx.toBytes()));
+    console.log("userAddress", userAddress);
+    const resp = await fetch("/api/achievement-validate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ txHex, userAddress }),
+      body: JSON.stringify({ txHex: ccc.hexFrom(tx.toBytes()), userAddress }),
     });
-
-    const payload = (await response.json()) as ClaimAchievementResult;
-    if (!response.ok) {
-      return payload;
+    if (!resp.ok) {
+      console.error("Achievement validation failed at server");
+      throw new Error("Achievement validation failed at server");
     }
-    return payload;
+
+    const responseJson = await resp.json();
+    console.log("response from achievement-validate", responseJson);
+    const validatedTx = ccc.Transaction.fromBytes(responseJson.txHex);
+    console.log("validatedTx from bytes", ccc.stringify(validatedTx));
+    for (let i = 0; i < validatedTx.inputs.length; i++) {
+      const inputCell = await signer.client.getCell(
+        validatedTx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found");
+      }
+      validatedTx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell?.outPoint,
+        since: "0x0",
+        cellOutput: inputCell?.cellOutput,
+      });
+    }
+
+    for (let i = 0; i < validatedTx.outputs.length; i++) {
+      const out = validatedTx.outputs[i];
+      if (out.type) {
+        validatedTx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          validatedTx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+    console.log(
+      "validatedTx after modifying inputs and outputs",
+      ccc.stringify(validatedTx)
+    );
+    console.log("validatedTx after signing", ccc.stringify(validatedTx));
+    return await signer.sendTransaction(validatedTx);
   }
 
   /**

@@ -14,10 +14,7 @@ pub trait CKBoostAchievement {
         achievement_data: AchievementDataVec,
     ) -> Result<Transaction, Error>;
 
-    fn claim_achievement(
-        tx: Option<Transaction>,
-        achievement_type: String,
-    ) -> Result<Transaction, Error>;
+    fn claim_achievement(tx: Option<Transaction>) -> Result<Transaction, Error>;
 
     /// Verify verification data update transaction in Type Script
     /// This method is called automatically by the type script to validate transactions

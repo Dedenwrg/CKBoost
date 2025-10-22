@@ -71,6 +71,7 @@ const formatGrantedAt = (achievement: UserAchievement): string | null => {
 
 export function AchievementsSection(): React.JSX.Element {
   const { client } = ccc.useCcc();
+  const signer = ccc.useSigner();
   const {
     userAddress,
     protocolData,
@@ -100,6 +101,39 @@ export function AchievementsSection(): React.JSX.Element {
     }
   }, [client]);
 
+  const handleClaimAchievements = useCallback(async () => {
+    if (
+      !achievementService ||
+      !userAddress ||
+      !protocolData ||
+      !protocolCell ||
+      !signer
+    ) {
+      return;
+    }
+    if (!signer) {
+      throw new Error("Signer not found.");
+    }
+    const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+    if (!protocolTypeHash) {
+      throw new Error("Protocol cell missing type hash.");
+    }
+    const result = await achievementService.claimAchievements(
+      grantableAchievements,
+      userAddress,
+      protocolTypeHash,
+      signer
+    );
+    if (!result) {
+      throw new Error("Failed to claim achievements.");
+    }
+    console.log({
+      title: "Achievements claimed",
+      description: "Achievements claimed successfully.",
+      variant: "success",
+    });
+  }, [achievementService, userAddress, protocolData, protocolCell]);
+
   const loadAchievements = useCallback(async () => {
     if (!achievementService || !userAddress || !protocolData || !protocolCell) {
       return;
@@ -117,6 +151,17 @@ export function AchievementsSection(): React.JSX.Element {
         protocolTypeHash
       );
       setAchievements(result);
+      const previewResult = await achievementService.previewClaim({
+        userAddress,
+      });
+      if (!previewResult) {
+        throw new Error("Failed to preview claimable achievements.");
+      }
+      setPreviewState({
+        result: previewResult,
+        error: null,
+        isLoading: false,
+      });
     } catch (error) {
       console.error("[AchievementsSection] Failed to load achievements", error);
       const message =
@@ -306,13 +351,16 @@ export function AchievementsSection(): React.JSX.Element {
             )}
             Refresh
           </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/platform-admin">
-              <Wrench className="mr-2 h-4 w-4" />
-              Manage Protocol
-            </Link>
-          </Button>
         </div>
+        <div className="flex items-center gap-2"></div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleClaimAchievements()}
+          disabled={isDisabled || isLoading}
+        >
+          Claim Achievements
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         {!userAddress && (
@@ -359,6 +407,15 @@ export function AchievementsSection(): React.JSX.Element {
               </p>
             </div>
           </div>
+        )}
+        {previewState.result && (
+          <pre className="rounded-xl border border-border/60 bg-muted/40 p-4">
+            {JSON.stringify(
+              previewState.result.success ? previewState.result.grantable : [],
+              null,
+              2
+            )}
+          </pre>
         )}
       </CardContent>
     </Card>

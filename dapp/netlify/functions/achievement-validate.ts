@@ -2,15 +2,13 @@ import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
 import { getGrantableAchievements } from "@/netlify/lib/achievement/utils";
-import {
-  AchievementDataLike,
-  AchievementDataVec,
-  UserDataLike,
-} from "ssri-ckboost/types";
+import { AchievementDataLike, AchievementDataVec } from "ssri-ckboost/types";
 import { getProtocolTypeScript } from "@/lib/ckb/protocol-cells";
 import { getLatestUserCellByLock } from "@/lib/ckb/user-cells";
 
 export const handler: Handler = async (event) => {
+  console.log("Achievement validate handler");
+  console.log("event", event);
   const reqId = Math.random().toString(36).slice(2, 8);
   const log = (...args: unknown[]) =>
     console.log(`[achievement-validate][${reqId}]`, ...args);

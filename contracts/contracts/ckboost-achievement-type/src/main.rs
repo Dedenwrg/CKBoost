@@ -99,16 +99,8 @@ fn program_entry_wrap() -> Result<(), Error> {
                 Some(parsed_tx)
             };
 
-            // Parse user_data from molecule serialized bytes (argv[2])
-            let achievement_type_bytes = ckb_std::high_level::decode_hex(argv[2].as_ref())?;
-            if achievement_type_bytes.is_empty() {
-                return Err(Error::SSRIMethodsArgsInvalid);
-            }
-            let achievement_type = String::from_slice(&achievement_type_bytes)
-                .map_err(|_| Error::SSRIMethodsArgsInvalid)?;
-
             // Call the claim_achievement method and return the transaction
-            let result_tx = crate::modules::CKBoostAchievementType::claim_achievement(tx, achievement_type)?;
+            let result_tx = crate::modules::CKBoostAchievementType::claim_achievement(tx)?;
             Ok(Cow::from(result_tx.as_bytes().to_vec()))
         },
     )?;

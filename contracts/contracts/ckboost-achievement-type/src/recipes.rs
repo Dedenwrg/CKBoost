@@ -82,7 +82,7 @@ pub mod claim_achievement {
         TransactionValidationRules::new(b"CKBoostAchievement.claim_achievement".to_vec())
             .with_arguments(1)
             .with_custom_cell(
-                "user",
+                "achievement",
                 CellCountConstraint::at_least(0),
                 CellCountConstraint::exactly(1),
             )
@@ -94,7 +94,7 @@ pub mod claim_achievement {
                 common::script_immutability,
             )
             .with_business_rule(
-                "verification_update_validation".to_string(),
+                "claim_achievement_validation".to_string(),
                 "Validate user verification update permissions and data".to_string(),
                 vec!["user".to_string(), "protocol".to_string()],
                 business_logic::claim_achievement_validation,
