@@ -1,10 +1,14 @@
 import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
+import { getGrantableAchievements } from "@/netlify/lib/achievement/utils";
 import {
-  getGrantableAchievements,
-  type CkbClient,
-} from "@/netlify/lib/achievement/utils";
+  AchievementDataLike,
+  AchievementDataVec,
+  UserDataLike,
+} from "ssri-ckboost/types";
+import { getProtocolTypeScript } from "@/lib/ckb/protocol-cells";
+import { getLatestUserCellByLock } from "@/lib/ckb/user-cells";
 
 export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
@@ -21,11 +25,11 @@ export const handler: Handler = async (event) => {
       throw new Error("Missing request body.");
     }
 
-    let payload: { txHex?: string; userAddress?: string };
+    let payload: { txHex: string; userAddress: string };
     try {
       payload = JSON.parse(event.body) as {
-        txHex?: string;
-        userAddress?: string;
+        txHex: string;
+        userAddress: string;
       };
     } catch (error) {
       throw new Error(`Invalid JSON payload: ${(error as Error).message}`);
@@ -50,7 +54,7 @@ export const handler: Handler = async (event) => {
       );
     }
 
-    const serverKey = process.env.ACHIEVEMENT_PROXY_PRIVATE_KEY;
+    const serverKey = process.env.NETLIFY_PRIVATE_KEY;
     if (!serverKey) {
       throw new Error("Missing ACHIEVEMENT_PROXY_PRIVATE_KEY in environment.");
     }
@@ -64,6 +68,24 @@ export const handler: Handler = async (event) => {
       network,
       "ckboostUserType"
     );
+    if (!userTypeCodeHash) {
+      throw new Error("User type code hash not found.");
+    }
+    const addressObj = await ccc.Address.fromString(userAddress, signer.client);
+    const addressLockScript = addressObj.script;
+
+    const protocolTypeScript = ccc.Script.from(getProtocolTypeScript());
+
+    // Resolve on-chain user cell using lock hash + type script for additional certainty.
+    const userCell = await getLatestUserCellByLock(
+      addressLockScript,
+      userTypeCodeHash,
+      signer,
+      protocolTypeScript.hash()
+    );
+    if (!userCell) {
+      throw new Error("User cell not found.");
+    }
     const achievementTypeCodeHash = deploymentManager.getContractCodeHash(
       network,
       "ckboostAchievementType"
@@ -75,16 +97,23 @@ export const handler: Handler = async (event) => {
       );
     }
 
-    const evaluation = await getGrantableAchievements({
-      tx,
-      client,
+    const grantableAchievements = await getGrantableAchievements(
+      signer,
       userAddress,
-      userTypeCodeHash,
-      achievementTypeCodeHash,
-    });
+      achievementTypeCodeHash
+    );
+    if (
+      !validateAchievementClaims(
+        tx,
+        grantableAchievements,
+        userCell,
+        achievementTypeCodeHash
+      )
+    ) {
+      throw new Error("Achievement claims not valid.");
+    }
 
     const signedTx = await signer.signTransaction(tx);
-    const completedCount = evaluation.outputAchievementIds.size;
 
     return {
       statusCode: 200,
@@ -92,8 +121,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({
         success: true,
         txHex: ccc.hexFrom(signedTx.toBytes()),
-        completedAchievements: completedCount,
-        newlyGranted: evaluation.newAchievementIds,
+        newlyGranted: grantableAchievements,
       }),
     };
   } catch (error) {
@@ -116,9 +144,65 @@ export default handler;
 /**
  * Instantiate a public client for the current network.
  */
-const createClient = (network: Network, url: string): CkbClient => {
+const createClient = (network: Network, url: string): ccc.Client => {
   if (network === "mainnet") {
     return new ccc.ClientPublicMainnet({ url });
   }
   return new ccc.ClientPublicTestnet({ url });
+};
+
+const validateAchievementClaims = async (
+  tx: ccc.Transaction,
+  grantableAchievements: string[],
+  userCell: ccc.Cell,
+  achievementTypeCodeHash: string
+): Promise<boolean> => {
+  const achievementCellPre = tx.inputs.find(
+    (input) => input.cellOutput?.type?.codeHash === achievementTypeCodeHash
+  );
+  const achievementDataVecPre = AchievementDataVec.decode(
+    ccc.hexFrom(achievementCellPre?.outputData ?? "0x")
+  ) as AchievementDataLike[];
+  const achievementCellPostIndex = tx.outputs.findIndex(
+    (output) => output.type?.codeHash === achievementTypeCodeHash
+  );
+  const achievementDataVecPost = AchievementDataVec.decode(
+    ccc.hexFrom(tx.outputsData[achievementCellPostIndex] ?? "0x")
+  ) as AchievementDataLike[];
+  if (achievementDataVecPost.length !== achievementDataVecPre.length) {
+    console.log("Achievement data vector length mismatch.");
+    return false;
+  }
+  for (const achievementPost of achievementDataVecPost) {
+    const matchingAchievementPre = achievementDataVecPre.find(
+      (achievementPre) =>
+        achievementPre.achievement_title === achievementPost.achievement_title
+    );
+    if (!matchingAchievementPre) {
+      console.log("Matching achievement not found.");
+      return false;
+    }
+    for (const receiver of achievementPost.receiver_user_record_vec) {
+      const matchingReceiverPre =
+        matchingAchievementPre.receiver_user_record_vec.find(
+          (record) =>
+            receiver.receiver_user_type_hash === record.receiver_user_type_hash
+        );
+      if (!matchingReceiverPre) {
+        if (
+          !grantableAchievements.includes(achievementPost.achievement_title)
+        ) {
+          console.log("Grantable achievement not found.");
+          return false;
+        }
+        if (
+          receiver.receiver_user_type_hash !== userCell.cellOutput.type?.hash()
+        ) {
+          console.log("Receiver user type hash mismatch.");
+          return false;
+        }
+      }
+    }
+  }
+  return true;
 };
