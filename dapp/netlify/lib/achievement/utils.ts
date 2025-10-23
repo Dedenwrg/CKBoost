@@ -1,9 +1,8 @@
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
-import { getProtocolTypeScript } from "@/lib/ckb/protocol-cells";
-import { getLatestUserCellByLock } from "@/lib/ckb/user-cells";
 import { ccc } from "@ckb-ccc/shell";
 import {
   AchievementDataVec,
+  ConnectedTypeID,
   UserData,
   UserDataLike,
   type AchievementDataLike,
@@ -180,3 +179,228 @@ const findAchievementCell = async (
 
   return null;
 };
+
+export const getProtocolTypeScript = () => {
+  const network = deploymentManager.getCurrentNetwork();
+  const deployment = deploymentManager.getCurrentDeployment(
+    network,
+    "ckboostProtocolType"
+  );
+
+  if (!deployment || !deployment.typeHash) {
+    throw new Error(
+      `Protocol type contract not found in deployments.json for ${network}`
+    );
+  }
+
+  // For protocol cells, we need to use the actual protocol contract code hash (typeHash)
+  // not the Type ID script code hash
+  const protocolTypeScript = {
+    codeHash: deployment.typeHash,
+    hashType: "type" as const,
+    args: process.env.NEXT_PUBLIC_PROTOCOL_TYPE_ARGS || "0x", // Empty args to search for any protocol cell
+  };
+
+  return protocolTypeScript;
+};
+
+/**
+ * Fetch all user cells for a given lock script
+ * Searches by lock script first, then optionally filters by type code hash
+ * This approach finds all cells with the lock, or specific typed cells if typeCodeHash is provided
+ */
+export async function getAllUserCellsByLock(
+  lockScript: ccc.Script,
+  signer: ccc.Signer,
+  userTypeCodeHash?: ccc.Hex // Made optional
+): Promise<ccc.Cell[]> {
+  const cells: ccc.Cell[] = [];
+  const startTime = Date.now();
+
+  console.log(
+    "[getAllUserCellsByLock] Searching for cells with lock:",
+    lockScript.hash().slice(0, 10) + "..."
+  );
+
+  // Construct the type script filter if userTypeCodeHash is provided
+  const typeScript = userTypeCodeHash
+    ? {
+        codeHash: userTypeCodeHash,
+        hashType: "type" as const,
+        args: "", // Empty args to match any args - the type filter will handle the code hash matching
+      }
+    : null;
+
+  if (userTypeCodeHash) {
+    console.log(
+      "[getAllUserCellsByLock] Using type filter:",
+      userTypeCodeHash.slice(0, 10) + "..."
+    );
+  } else {
+    console.log(
+      "[getAllUserCellsByLock] No type filter - returning all cells with this lock"
+    );
+  }
+
+  // Use findCellsByLock with optional type parameter
+  // This is more efficient than filtering manually
+  for await (const cell of signer.client.findCellsByLock(
+    lockScript,
+    typeScript
+  )) {
+    console.log(`[getAllUserCellsByLock] ✅ Found cell #${cells.length + 1}:`, {
+      outPoint: cell.outPoint,
+      typeArgs: cell.cellOutput.type?.args?.slice(0, 66) + "...",
+      capacity: cell.cellOutput.capacity.toString(),
+    });
+    cells.push(cell);
+  }
+
+  console.log(
+    `[getAllUserCellsByLock] Found ${cells.length} matching user cells in ${
+      Date.now() - startTime
+    }ms`
+  );
+  return cells;
+}
+
+/**
+ * Get the latest user cell by block height
+ * When multiple user cells exist, returns the one created in the latest block
+ * Optionally filters by protocol connection
+ */
+export async function getLatestUserCellByLock(
+  lockScript: ccc.Script,
+  userTypeCodeHash: ccc.Hex,
+  signer: ccc.Signer,
+  protocolTypeHash?: ccc.Hex
+): Promise<ccc.Cell | undefined> {
+  console.log("[getLatestUserCellByLock] Starting search for user cells...");
+  const searchStart = Date.now();
+
+  let cells = await getAllUserCellsByLock(lockScript, signer, userTypeCodeHash);
+
+  // Filter by protocol connection if specified
+  if (protocolTypeHash) {
+    console.log(
+      `[getLatestUserCellByLock] Filtering for cells connected to protocol: ${protocolTypeHash.slice(
+        0,
+        10
+      )}...`
+    );
+    const originalCount = cells.length;
+    cells = cells.filter((cell) =>
+      isUserCellConnectedToProtocol(cell, protocolTypeHash)
+    );
+    console.log(
+      `[getLatestUserCellByLock] Filtered from ${originalCount} to ${cells.length} cells connected to current protocol`
+    );
+  }
+
+  console.log(
+    `[getLatestUserCellByLock] Found ${cells.length} matching cells in ${
+      Date.now() - searchStart
+    }ms`
+  );
+
+  if (cells.length === 0) {
+    return undefined;
+  }
+
+  if (cells.length === 1) {
+    return cells[0];
+  }
+
+  // Multiple cells found - need to find the latest one
+  console.warn(
+    `[getLatestUserCellByLock] Found ${
+      cells.length
+    } user cells for lock ${lockScript
+      .hash()
+      .slice(0, 10)}... - selecting latest by block height`
+  );
+
+  let latestCell = cells[0];
+  let latestBlockNumber = 0n;
+
+  // Get block number for each cell and find the latest
+  for (const cell of cells) {
+    try {
+      // Get transaction info to find block number
+      const txInfo = await signer.client.getTransaction(cell.outPoint.txHash);
+      if (txInfo && txInfo.blockNumber) {
+        const blockNumber = BigInt(txInfo.blockNumber);
+        console.log(
+          `[getLatestUserCellByLock] Cell ${cell.outPoint.txHash.slice(
+            0,
+            10
+          )}:${cell.outPoint.index} is in block ${blockNumber}`
+        );
+
+        if (blockNumber > latestBlockNumber) {
+          latestBlockNumber = blockNumber;
+          latestCell = cell;
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[getLatestUserCellByLock] Failed to get block info for cell ${cell.outPoint.txHash}:${cell.outPoint.index}`,
+        error
+      );
+    }
+  }
+
+  console.log(
+    `[getLatestUserCellByLock] Selected cell from block ${latestBlockNumber} as the latest user cell (total time: ${
+      Date.now() - searchStart
+    }ms)`
+  );
+  return latestCell;
+}
+
+/**
+ * Check if a user cell is connected to a specific protocol
+ */
+export function isUserCellConnectedToProtocol(
+  cell: ccc.Cell,
+  protocolTypeHash: ccc.Hex
+): boolean {
+  if (!cell.cellOutput.type) {
+    return false;
+  }
+
+  try {
+    const args = cell.cellOutput.type.args;
+    if (!args || args === "0x") {
+      return false;
+    }
+
+    // Parse ConnectedTypeID from args
+    const connectedTypeId = ConnectedTypeID.decode(ccc.bytesFrom(args));
+    const connectedKey = ccc.hexFrom(connectedTypeId.connected_key);
+    const isMatch = connectedKey === protocolTypeHash;
+    if (isMatch) {
+      console.log(
+        `[isUserCellConnectedToProtocol] Cell ${cell.outPoint.txHash.slice(
+          0,
+          10
+        )}:${
+          cell.outPoint.index
+        } is connected to protocol ${protocolTypeHash.slice(0, 10)}...`
+      );
+    } else {
+      console.log(
+        `[isUserCellConnectedToProtocol] Cell ${cell.outPoint.txHash.slice(
+          0,
+          10
+        )}:${
+          cell.outPoint.index
+        } is not connected to protocol ${protocolTypeHash.slice(0, 10)}...`
+      );
+    }
+    return isMatch;
+  } catch (error) {
+    console.error("Failed to check protocol connection:", error);
+    return false;
+  }
+}

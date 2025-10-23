@@ -19,6 +19,7 @@ import { AchievementDataVec, ConnectedTypeID } from "ssri-ckboost/types";
 import { getAchievementTypeCodeOutPoint } from "../ckb/achievement-cells";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { injectProxyAuthenticationCell } from "../utils/api";
+import { fetchProtocolCell } from "../ckb/protocol-cells";
 
 const ZERO_TYPE_ID = ccc.hexFrom(
   "0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -59,7 +60,7 @@ export class AchievementService {
   private readonly client: ccc.Client;
   private readonly achievementTypeCodeHash: ccc.Hex;
   private signer?: ccc.Signer;
-  private achievementExecutor: Achievement | null = null;
+  private achievementInstance: Achievement | null = null;
 
   /**
    * Instantiate an achievement service.
@@ -81,7 +82,7 @@ export class AchievementService {
 
   setSigner(signer: ccc.Signer | undefined): void {
     this.signer = signer;
-    this.achievementExecutor = null;
+    this.achievementInstance = null;
   }
 
   /**
@@ -226,17 +227,53 @@ export class AchievementService {
         });
       }
     }
-    const tx = ccc.Transaction.from({});
-    await tx.addInput(achievementCell);
-    await tx.addOutput(
-      ccc.CellOutput.from({
-        lock: achievementCell.cellOutput.lock,
-        type: achievementCell.cellOutput.type,
-      }),
+    const protocolCell = await fetchProtocolCell(this.client);
+    if (!protocolCell) {
+      throw new Error("Protocol cell not found");
+    }
+    const emptyTx = ccc.Transaction.from({});
+    const achievementInstance = await this.ensureAchievementInstance(
+      protocolCell,
+      achievementCell
+    );
+    const txResponse = await achievementInstance.claimAchievement(emptyTx);
+    if (!txResponse) {
+      throw new Error("Failed to claim achievements");
+    }
+    const tx = txResponse.res;
+    tx.addInput(achievementCell);
+    tx.addOutput(
+      achievementCell.cellOutput,
       ccc.hexFrom(AchievementDataVec.encode(achievementDataVec))
     );
-    // TODO: Add cell deps contingently for corresponding signer.
-    await tx.addCellDepsOfKnownScripts(signer.client, ccc.KnownScript.JoyId);
+    const protocolLockOutPoint = deploymentManager.getContractOutPoint(
+      deploymentManager.getCurrentNetwork(),
+      "ckboostProtocolLock"
+    );
+    if (!protocolLockOutPoint) {
+      throw new Error("Protocol lock out point not found");
+    }
+    tx.addCellDeps({
+      outPoint: protocolLockOutPoint,
+      depType: "code",
+    });
+
+    const achievementTypeOutPoint = getAchievementTypeCodeOutPoint(
+      deploymentManager.getCurrentNetwork()
+    );
+    if (!achievementTypeOutPoint) {
+      throw new Error("Achievement type out point not found");
+    }
+    tx.addCellDeps({
+      outPoint: achievementTypeOutPoint,
+      depType: "code",
+    });
+
+    tx.addCellDeps({
+      outPoint: protocolCell.outPoint,
+      depType: "code",
+    });
+
     await injectProxyAuthenticationCell(signer, tx);
     await tx.completeInputsByCapacity(signer);
 
@@ -266,6 +303,7 @@ export class AchievementService {
     await tx.completeFeeBy(signer);
 
     console.log("Calling /api/achievement-validate");
+    console.log("tx", ccc.stringify(tx));
     console.log("txHex", ccc.hexFrom(tx.toBytes()));
     console.log("userAddress", userAddress);
     const resp = await fetch("/api/achievement-validate", {
@@ -461,7 +499,7 @@ export class AchievementService {
     tx.outputs[achievementCellIndex].lock = protocolLockTypeScript;
     const txHash = await sendTransactionWithFeeRetry(signer, tx);
 
-    this.achievementExecutor = null;
+    this.achievementInstance = null;
     return {
       txHash,
       typeId: connectedTypeId.type_id,
@@ -484,7 +522,7 @@ export class AchievementService {
       params.protocolTypeHash
     );
 
-    const achievementExecutor = await this.ensureAchievementExecutor(
+    const achievementInstance = await this.ensureAchievementInstance(
       params.protocolCell,
       achievementCell
     );
@@ -495,7 +533,7 @@ export class AchievementService {
       dataLike
     );
 
-    const response = await achievementExecutor.updateAchievement(
+    const response = await achievementInstance.updateAchievement(
       signer,
       dataLike,
       txDraft
@@ -546,12 +584,12 @@ export class AchievementService {
     }));
   }
 
-  private async ensureAchievementExecutor(
+  private async ensureAchievementInstance(
     protocolCell: ccc.Cell,
     achievementCell: ccc.Cell
   ): Promise<Achievement> {
-    if (this.achievementExecutor) {
-      return this.achievementExecutor;
+    if (this.achievementInstance) {
+      return this.achievementInstance;
     }
 
     const network = deploymentManager.getCurrentNetwork();
@@ -571,14 +609,14 @@ export class AchievementService {
       process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
     const executor = new ssri.ExecutorJsonRpc(executorUrl);
 
-    this.achievementExecutor = new Achievement(
+    this.achievementInstance = new Achievement(
       codeOutPoint,
       typeScript,
       protocolCell,
       { executor }
     );
 
-    return this.achievementExecutor;
+    return this.achievementInstance;
   }
 
   private async buildAchievementUpdateTransaction(

@@ -1,9 +1,6 @@
-import { ccc, mol } from "@ckb-ccc/core";
+import { ccc } from "@ckb-ccc/core";
 import { ssri } from "@ckb-ccc/ssri";
-import {
-  AchievementDataVec,
-  type AchievementDataLike,
-} from "../generated";
+import { AchievementDataVec, type AchievementDataLike } from "../generated";
 
 /**
  * Lightweight helper around the CKBoost achievement type contract.
@@ -38,7 +35,6 @@ export class Achievement extends ssri.Trait {
    * @returns Transaction wrapped in an {@link ssri.ExecutorResponse} ready for further composition.
    */
   async claimAchievement(
-    achievementType: string,
     tx?: ccc.Transaction
   ): Promise<ssri.ExecutorResponse<ccc.Transaction>> {
     if (!this.executor) {
@@ -47,12 +43,11 @@ export class Achievement extends ssri.Trait {
 
     const txReq = ccc.Transaction.from(tx ?? {});
     const txHex = ccc.hexFrom(txReq.toBytes());
-    const achievementTypeHex = ccc.hexFrom(mol.String.encode(achievementType));
 
     const response = await this.executor.runScript(
       this.code,
       "CKBoostAchievement.claim_achievement",
-      [txHex, achievementTypeHex],
+      [txHex],
       { script: this.script }
     );
 

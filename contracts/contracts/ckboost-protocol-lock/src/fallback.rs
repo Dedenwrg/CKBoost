@@ -3,7 +3,7 @@ use ckboost_shared::{transaction_context::create_transaction_context, Error};
 
 use crate::{
     modules::CKBoostProtocolLock,
-    ssri::{CKBoostCampaign, CKBoostProtocol, CKBoostTipping},
+    ssri::{CKBoostAchievement, CKBoostCampaign, CKBoostProtocol, CKBoostTipping},
 };
 
 /// Fallback validation implementation for CKBoost Funding Lock
@@ -53,6 +53,18 @@ pub fn fallback() -> Result<(), Error> {
             debug_trace!("Executing verify_update_protocol");
             let verify_result = CKBoostProtocolLock::verify_update_protocol(&context);
             debug_trace!("verify_update_protocol result: {:?}", verify_result);
+            verify_result
+        }
+        b"CKBoostAchievement.claim_achievement" => {
+            debug_trace!("Executing verify_claim_achievement");
+            let verify_result = CKBoostProtocolLock::verify_claim_achievement(&context);
+            debug_trace!("verify_claim_achievement result: {:?}", verify_result);
+            verify_result
+        }
+        b"CKBoostAchievement.update_achievement" => {
+            debug_trace!("Executing verify_update_achievement");
+            let verify_result = CKBoostProtocolLock::verify_update_achievement(&context);
+            debug_trace!("verify_update_achievement result: {:?}", verify_result);
             verify_result
         }
         _ => {

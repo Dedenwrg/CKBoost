@@ -73,3 +73,12 @@ pub trait CKBoostProtocol {
         context: &TransactionContext<RuleBasedClassifier>,
     ) -> Result<(), Error>;
 }
+
+pub trait CKBoostAchievement {
+    fn verify_claim_achievement(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error>;
+    fn verify_update_achievement(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error>;
+}

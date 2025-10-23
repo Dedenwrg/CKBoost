@@ -3,8 +3,8 @@ import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
 import { getGrantableAchievements } from "@/netlify/lib/achievement/utils";
 import { AchievementDataLike, AchievementDataVec } from "ssri-ckboost/types";
-import { getProtocolTypeScript } from "@/lib/ckb/protocol-cells";
-import { getLatestUserCellByLock } from "@/lib/ckb/user-cells";
+import { getProtocolTypeScript } from "@/netlify/lib/achievement/utils";
+import { getLatestUserCellByLock } from "@/netlify/lib/achievement/utils";
 
 export const handler: Handler = async (event) => {
   console.log("Achievement validate handler");
@@ -12,6 +12,16 @@ export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
   const log = (...args: unknown[]) =>
     console.log(`[achievement-validate][${reqId}]`, ...args);
+  const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
+  if (!serverKey) {
+    throw new Error("Missing ACHIEVEMENT_PROXY_PRIVATE_KEY in environment.");
+  }
+
+  const network = deploymentManager.getCurrentNetwork();
+  const rpcUrl =
+    process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
+  const client = createClient(network, rpcUrl);
+  const signer = new ccc.SignerCkbPrivateKey(client, serverKey);
 
   if (event.httpMethod !== "POST") {
     log("method_not_allowed");
@@ -46,22 +56,37 @@ export const handler: Handler = async (event) => {
     let tx: ccc.Transaction;
     try {
       tx = ccc.Transaction.fromBytes(txHex);
+      for (let i = 0; i < tx.inputs.length; i++) {
+        const inputCell = await signer.client.getCell(
+          tx.inputs[i].previousOutput
+        );
+        if (!inputCell) {
+          throw new Error("Input cell not found");
+        }
+        tx.inputs[i] = ccc.CellInput.from({
+          previousOutput: inputCell?.outPoint,
+          since: "0x0",
+          cellOutput: inputCell?.cellOutput,
+          outputData: inputCell?.outputData,
+        });
+      }
+
+      for (let i = 0; i < tx.outputs.length; i++) {
+        const out = tx.outputs[i];
+        if (out.type) {
+          tx.outputs[i] = ccc.CellOutput.from(
+            { lock: out.lock, type: out.type },
+            tx.outputsData[i] as ccc.HexLike
+          );
+        }
+      }
+      console.log("tx", ccc.stringify(tx));
     } catch (error) {
       throw new Error(
         `Failed to parse transaction bytes: ${(error as Error).message}`
       );
     }
 
-    const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
-    if (!serverKey) {
-      throw new Error("Missing ACHIEVEMENT_PROXY_PRIVATE_KEY in environment.");
-    }
-
-    const network = deploymentManager.getCurrentNetwork();
-    const rpcUrl =
-      process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
-    const client = createClient(network, rpcUrl);
-    const signer = new ccc.SignerCkbPrivateKey(client, serverKey);
     const userTypeCodeHash = deploymentManager.getContractCodeHash(
       network,
       "ckboostUserType"
@@ -111,7 +136,10 @@ export const handler: Handler = async (event) => {
       throw new Error("Achievement claims not valid.");
     }
 
+    console.log("Validated Tx Before Signing", ccc.stringify(tx));
     const signedTx = await signer.signTransaction(tx);
+
+    console.log("signedTx", ccc.stringify(signedTx));
 
     return {
       statusCode: 200,
@@ -158,49 +186,77 @@ const validateAchievementClaims = async (
   const achievementCellPre = tx.inputs.find(
     (input) => input.cellOutput?.type?.codeHash === achievementTypeCodeHash
   );
-  const achievementDataVecPre = AchievementDataVec.decode(
-    ccc.hexFrom(achievementCellPre?.outputData ?? "0x")
-  ) as AchievementDataLike[];
-  const achievementCellPostIndex = tx.outputs.findIndex(
-    (output) => output.type?.codeHash === achievementTypeCodeHash
-  );
-  const achievementDataVecPost = AchievementDataVec.decode(
-    ccc.hexFrom(tx.outputsData[achievementCellPostIndex] ?? "0x")
-  ) as AchievementDataLike[];
-  if (achievementDataVecPost.length !== achievementDataVecPre.length) {
-    console.log("Achievement data vector length mismatch.");
+  if (!achievementCellPre) {
+    console.log("Achievement cell not found.");
+    console.log("Inputs", tx.inputs);
+    console.log("achievementTypeCodeHash", achievementTypeCodeHash);
     return false;
   }
-  for (const achievementPost of achievementDataVecPost) {
-    const matchingAchievementPre = achievementDataVecPre.find(
-      (achievementPre) =>
-        achievementPre.achievement_title === achievementPost.achievement_title
+  try {
+    console.log("achievementCellPre", achievementCellPre);
+    console.log(
+      "achievementCellPre outputData",
+      achievementCellPre?.outputData
     );
-    if (!matchingAchievementPre) {
-      console.log("Matching achievement not found.");
+    const achievementDataVecPre = AchievementDataVec.decode(
+      ccc.hexFrom(achievementCellPre?.outputData ?? "0x")
+    ) as AchievementDataLike[];
+    const achievementCellPostIndex = tx.outputs.findIndex(
+      (output) => output.type?.codeHash === achievementTypeCodeHash
+    );
+    const achievementDataVecPost = AchievementDataVec.decode(
+      ccc.hexFrom(tx.outputsData[achievementCellPostIndex] ?? "0x")
+    ) as AchievementDataLike[];
+    if (achievementDataVecPost.length !== achievementDataVecPre.length) {
+      console.log("Achievement data vector length mismatch.");
       return false;
     }
-    for (const receiver of achievementPost.receiver_user_record_vec) {
-      const matchingReceiverPre =
-        matchingAchievementPre.receiver_user_record_vec.find(
-          (record) =>
-            receiver.receiver_user_type_hash === record.receiver_user_type_hash
-        );
-      if (!matchingReceiverPre) {
-        if (
-          !grantableAchievements.includes(achievementPost.achievement_title)
-        ) {
-          console.log("Grantable achievement not found.");
-          return false;
-        }
-        if (
-          receiver.receiver_user_type_hash !== userCell.cellOutput.type?.hash()
-        ) {
-          console.log("Receiver user type hash mismatch.");
-          return false;
+    for (const achievementPost of achievementDataVecPost) {
+      const matchingAchievementPre = achievementDataVecPre.find(
+        (achievementPre) =>
+          achievementPre.achievement_title === achievementPost.achievement_title
+      );
+      if (!matchingAchievementPre) {
+        console.log("Matching achievement not found.");
+        return false;
+      }
+      for (const receiver of achievementPost.receiver_user_record_vec) {
+        const matchingReceiverPre =
+          matchingAchievementPre.receiver_user_record_vec.find(
+            (record) =>
+              receiver.receiver_user_type_hash ===
+              record.receiver_user_type_hash
+          );
+        if (!matchingReceiverPre) {
+          if (
+            !grantableAchievements.includes(achievementPost.achievement_title)
+          ) {
+            console.log("Grantable achievement not found.");
+            return false;
+          } else {
+            console.log(
+              "Grantable achievement found: ",
+              achievementPost.achievement_title
+            );
+          }
+          if (
+            receiver.receiver_user_type_hash !==
+            userCell.cellOutput.type?.hash()
+          ) {
+            console.log("Receiver user type hash mismatch.");
+            return false;
+          } else {
+            console.log(
+              "Receiver user type hash matches. Granted achievement: ",
+              achievementPost.achievement_title
+            );
+          }
         }
       }
     }
+    return true;
+  } catch (error) {
+    console.error("Failed to validate achievement claims:", error);
+    return false;
   }
-  return true;
 };

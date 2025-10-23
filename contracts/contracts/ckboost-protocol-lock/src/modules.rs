@@ -13,7 +13,7 @@ use molecule::prelude::Entity;
 
 pub struct CKBoostProtocolLock;
 
-use crate::ssri::{CKBoostProtocol, CKBoostTipping};
+use crate::ssri::{CKBoostAchievement, CKBoostProtocol, CKBoostTipping};
 use crate::{recipes, ssri::CKBoostCampaign};
 
 impl CKBoostCampaign for CKBoostProtocolLock {
@@ -315,6 +315,49 @@ impl CKBoostTipping for CKBoostProtocolLock {
     }
 }
 
+impl CKBoostAchievement for CKBoostProtocolLock {
+    fn verify_claim_achievement(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        let potential_admin_proxy_cells = context.input_cells.get_simple_ckb();
+        let protocol_data = get_protocol_data().map_err(|_| Error::InvalidProtocolData)?;
+        for potential_admin_proxy_cell in potential_admin_proxy_cells.into_iter() {
+            let matching_admin_lock_hash = protocol_data
+                .protocol_config()
+                .admin_lock_hash_vec()
+                .into_iter()
+                .find(|lock_hash| {
+                    lock_hash.raw_data().to_vec().as_slice()
+                        == potential_admin_proxy_cell.lock_hash.to_vec().as_slice()
+                });
+            if matching_admin_lock_hash.is_some() {
+                return Ok(());
+            }
+        }
+        return Err(Error::BusinessRuleViolation);
+    }
+
+    fn verify_update_achievement(
+        context: &TransactionContext<RuleBasedClassifier>,
+    ) -> Result<(), Error> {
+        let potential_admin_proxy_cells = context.input_cells.get_simple_ckb();
+        let protocol_data = get_protocol_data().map_err(|_| Error::InvalidProtocolData)?;
+        for potential_admin_proxy_cell in potential_admin_proxy_cells.into_iter() {
+            let matching_admin_lock_hash = protocol_data
+                .protocol_config()
+                .admin_lock_hash_vec()
+                .into_iter()
+                .find(|lock_hash| {
+                    lock_hash.raw_data().to_vec().as_slice()
+                        == potential_admin_proxy_cell.lock_hash.to_vec().as_slice()
+                });
+            if matching_admin_lock_hash.is_some() {
+                return Ok(());
+            }
+        }
+        return Err(Error::BusinessRuleViolation);
+    }
+}
 // Helper functions for lock validation
 impl CKBoostProtocolLock {
     /// Check if an approved user is claiming rewards
