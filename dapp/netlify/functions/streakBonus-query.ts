@@ -7,8 +7,8 @@ import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
 import {
   fetchRewardTransactions,
   prepareBonusStreakTransaction,
-  type PreparedBonusStreak,
   type RewardTransaction,
+  type StreakBonusQueryResponse,
 } from "@/netlify/lib/streak-bonus";
 
 const MAX_RESULTS = 100;
@@ -18,17 +18,6 @@ type RequestPayload = {
   userAddress?: string;
   limit?: number;
 };
-
-type StreakBonusQueryResponse =
-  | {
-      success: true;
-      bonusStreak: PreparedBonusStreak["response"];
-    }
-  | {
-      success: false;
-      error: string;
-      message?: string;
-    };
 
 /**
  * POST /streakBonus-query

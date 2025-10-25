@@ -39,6 +39,16 @@ to = "/.netlify/functions/achievement-query"
 status = 200
 
 [[redirects]]
+from = "/api/streakBonus-query"
+to = "/.netlify/functions/streakBonus-query"
+status = 200
+
+[[redirects]]
+from = "/api/streakBonus-validate"
+to = "/.netlify/functions/streakBonus-validate"
+status = 200
+
+[[redirects]]
 from = "/api/verification/*"
 to = "/.netlify/functions/verification-api/:splat"
 status = 200

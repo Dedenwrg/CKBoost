@@ -9,6 +9,7 @@ import {
   prepareBonusStreakTransaction,
   type PreparedBonusStreak,
   type RewardTransaction,
+  type StreakBonusValidateResponse,
 } from "@/netlify/lib/streak-bonus";
 
 const MAX_RESULTS = 100;
@@ -19,18 +20,6 @@ type RequestPayload = {
   userAddress?: string;
   limit?: number;
 };
-
-type StreakBonusValidateResponse =
-  | {
-      success: true;
-      txHex: string;
-      bonusStreak: PreparedBonusStreak["response"];
-    }
-  | {
-      success: false;
-      error: string;
-      message?: string;
-    };
 
 /**
  * POST /streakBonus-validate

@@ -67,6 +67,29 @@ export type PreparedBonusStreak = {
   transaction?: ccc.Transaction;
 };
 
+export type StreakBonusQueryResponse =
+  | {
+      success: true;
+      bonusStreak: BonusStreakResponse;
+    }
+  | {
+      success: false;
+      error: string;
+      message?: string;
+    };
+
+export type StreakBonusValidateResponse =
+  | {
+      success: true;
+      txHex: string;
+      bonusStreak: BonusStreakResponse;
+    }
+  | {
+      success: false;
+      error: string;
+      message?: string;
+    };
+
 /** Memoizes block timestamps while scanning reward history to avoid duplicate RPC calls. */
 const blockTimestampCache = new Map<string, bigint>();
 
