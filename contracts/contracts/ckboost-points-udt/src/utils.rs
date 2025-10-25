@@ -2,10 +2,13 @@ use ckb_std::{
     ckb_constants::Source,
     ckb_types::{bytes::Bytes, prelude::*},
     debug,
-    high_level::{load_cell_data, load_cell_type_hash, load_input, load_script, QueryIter},
+    high_level::{
+        load_cell_data, load_cell_lock_hash, load_cell_type_hash, load_input, load_script,
+        QueryIter,
+    },
 };
 use ckboost_shared::{
-    types::{ConnectedTypeID, UserData},
+    types::{ConnectedTypeID, ProtocolData, UserData},
     Error,
 };
 use core::result::Result;
@@ -79,9 +82,11 @@ pub fn validate_protocol_owner_mode(protocol_type_hash: &[u8]) -> Result<(), Err
     debug!("Validating protocol owner mode");
 
     // 1. Verify protocol cell exists in CellDeps
-    if !find_protocol_cell_in_deps(protocol_type_hash)? {
-        debug!("Protocol cell not found in CellDeps");
-        return Err(Error::InvalidProtocolReference);
+    let protocol_data = get_protocol_data_from_cell_deps(protocol_type_hash)?;
+
+    if !check_admin(&protocol_data)? {
+        debug!("Admin found in inputs. Short-circuiting validation.");
+        return Ok(());
     }
 
     // 2. Find campaign cell in inputs and validate its ConnectedTypeID
@@ -105,14 +110,49 @@ pub fn validate_protocol_owner_mode(protocol_type_hash: &[u8]) -> Result<(), Err
     Ok(())
 }
 
+fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
+    let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
+    if admin_lock_hash_vec.is_empty() {
+        debug!("No admin lock hash found in protocol data");
+        return Err(Error::ItemMissing);
+    }
+    let mut index = 0;
+    // Check the lock hash of all simple CKB cells in inputs. Skip if the cell has type script.
+    loop {
+        match load_input(index, Source::Input) {
+            Ok(_input) => {
+                if let Ok(Some(_type_hash)) = load_cell_type_hash(index, Source::Input) {
+                    continue;
+                } else {
+                    let lock_hash = load_cell_lock_hash(index, Source::Input)?;
+                    if admin_lock_hash_vec
+                        .clone()
+                        .into_iter()
+                        .any(|h| h.raw_data().to_vec() == lock_hash.to_vec())
+                    {
+                        return Ok(true);
+                    }
+                }
+            }
+            Err(_) => break,
+        }
+        index += 1;
+    }
+    return Ok(false);
+}
+
 /// Find protocol cell in CellDeps
-fn find_protocol_cell_in_deps(protocol_type_hash: &[u8]) -> Result<bool, Error> {
+fn get_protocol_data_from_cell_deps(protocol_type_hash: &[u8]) -> Result<ProtocolData, Error> {
     let mut index = 0;
     loop {
         match load_cell_type_hash(index, Source::CellDep) {
             Ok(Some(type_hash)) if type_hash.as_slice() == protocol_type_hash => {
                 debug!("Found protocol cell in CellDeps at index {}", index);
-                return Ok(true);
+                let data = load_cell_data(index, Source::CellDep)?;
+                match ProtocolData::from_slice(&data) {
+                    Ok(protocol_data) => return Ok(protocol_data),
+                    Err(_) => return Err(Error::ProtocolDataInvalid),
+                }
             }
             Err(ckb_std::error::SysError::IndexOutOfBound) => break,
             _ => {}
@@ -120,7 +160,7 @@ fn find_protocol_cell_in_deps(protocol_type_hash: &[u8]) -> Result<bool, Error> 
         index += 1;
     }
 
-    Ok(false)
+    Err(Error::ProtocolDataInvalid)
 }
 
 /// Find and validate campaign cell in inputs
