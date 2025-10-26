@@ -1,6 +1,6 @@
 import { ccc } from "@ckb-ccc/connector-react";
 import type {
-  BonusStreakResponse,
+  BonusStreakCalculation,
   StreakBonusQueryResponse,
   StreakBonusValidateResponse,
 } from "@/netlify/lib/streak-bonus";
@@ -15,7 +15,7 @@ export class StreakBonusService {
   async query(params: {
     userAddress: string;
     limit?: number;
-  }): Promise<BonusStreakResponse> {
+  }): Promise<BonusStreakCalculation> {
     const body: Record<string, unknown> = {
       userAddress: params.userAddress,
     };
@@ -39,14 +39,14 @@ export class StreakBonusService {
 
   async claim(params: {
     userAddress: string;
-    txHex: string;
+    tx: ccc.Transaction;
     limit?: number;
-  }): Promise<{ txHash: ccc.Hex; bonusStreak: BonusStreakResponse }> {
+  }): Promise<{ txHash: ccc.Hex; bonusStreak: BonusStreakCalculation }> {
     const signer = this.requireSigner();
 
     const body: Record<string, unknown> = {
       userAddress: params.userAddress,
-      txHex: params.txHex,
+      txHex: ccc.hexFrom(params.tx.toBytes()),
     };
     if (typeof params.limit === "number") {
       body.limit = params.limit;
@@ -63,8 +63,34 @@ export class StreakBonusService {
       throw new Error(payload.message ?? payload.error);
     }
 
-    const tx = ccc.Transaction.fromBytes(payload.txHex as ccc.Hex);
-    const txHash = await signer.sendTransaction(tx);
+    const validatedTx = ccc.Transaction.fromBytes(payload.txHex as ccc.Hex);
+
+    for (let i = 0; i < validatedTx.inputs.length; i += 1) {
+      const inputCell = await signer.client.getCell(
+        validatedTx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found while finalising streak bonus transaction.");
+      }
+      validatedTx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell.outPoint,
+        since: validatedTx.inputs[i].since ?? "0x0",
+        cellOutput: inputCell.cellOutput,
+        outputData: inputCell.outputData,
+      });
+    }
+
+    for (let i = 0; i < validatedTx.outputs.length; i += 1) {
+      const out = validatedTx.outputs[i];
+      if (out.type) {
+        validatedTx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          validatedTx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+
+    const txHash = await signer.sendTransaction(validatedTx);
 
     return {
       txHash,

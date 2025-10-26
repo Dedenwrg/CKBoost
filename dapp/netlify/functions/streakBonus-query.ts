@@ -5,8 +5,9 @@ import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
 import {
-  fetchRewardTransactions,
-  prepareBonusStreakTransaction,
+  evaluateStreakBonus,
+  readUdtAmount,
+  type BonusStreakCalculation,
   type RewardTransaction,
   type StreakBonusQueryResponse,
 } from "@/netlify/lib/streak-bonus";
@@ -72,18 +73,6 @@ export const handler: Handler = async (event) => {
     );
   }
 
-  const signingKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
-
-  if (!signingKey) {
-    return httpError(
-      500,
-      "missing_signing_key",
-      "Server signing key not configured."
-    );
-  }
-
-  const signer = new ccc.SignerCkbPrivateKey(client, signingKey as ccc.Hex);
-
   const userLockScript = addressObj.script;
 
   const pointsCodeHash = deploymentManager.getContractCodeHash(
@@ -122,21 +111,21 @@ export const handler: Handler = async (event) => {
     return httpError(500, "transaction_query_failed", (error as Error).message);
   }
 
+  let calculation: BonusStreakCalculation;
   try {
-    const prepared = await prepareBonusStreakTransaction({
-      signer,
+    calculation = await evaluateStreakBonus({
+      client,
       rpcUrl,
       address: userAddress,
       protocolTypeHash: protocolTypeScript.script.hash().toLowerCase(),
       network,
       userLockScript,
-      pointsTypeScript,
       transactions,
     });
 
     const response: StreakBonusQueryResponse = {
       success: true,
-      bonusStreak: prepared.response,
+      bonusStreak: calculation,
     };
 
     return {
@@ -147,7 +136,7 @@ export const handler: Handler = async (event) => {
   } catch (error) {
     return httpError(
       500,
-      "streak_bonus_preparation_failed",
+      "streak_bonus_evaluation_failed",
       (error as Error).message
     );
   }
@@ -225,4 +214,107 @@ const resolveProtocolTypeScriptFromEnv = ():
       }`,
     };
   }
+};
+
+const fetchRewardTransactions = async ({
+  client,
+  pointsTypeScript,
+  userLockScript,
+  limit,
+}: {
+  client: ccc.Client;
+  pointsTypeScript: ccc.Script;
+  userLockScript: ccc.Script;
+  limit: number;
+}): Promise<RewardTransaction[]> => {
+  const searchKey = {
+    script: pointsTypeScript,
+    scriptType: "type" as const,
+    scriptSearchMode: "exact" as const,
+    filter: {
+      script: userLockScript,
+    },
+    groupByTransaction: true as const,
+  };
+
+  const pageSize = Math.min(limit, 50);
+  const matches: Array<{
+    txHash: string;
+    blockNumber: bigint | null;
+    txIndex: bigint | null;
+    cells: Array<{ isInput: boolean; cellIndex: bigint }>;
+  }> = [];
+
+  for await (const tx of client.findTransactions(searchKey, "desc", pageSize)) {
+    matches.push(tx);
+    if (matches.length >= limit) {
+      break;
+    }
+  }
+
+  const responseTransactions: RewardTransaction[] = [];
+
+  for (const match of matches) {
+    try {
+      const txResponse = await client.getTransaction(match.txHash);
+      if (!txResponse) {
+        continue;
+      }
+      const tx = txResponse.transaction;
+
+      const outputCells = match.cells.filter((cell) => !cell.isInput);
+      const inputCells = match.cells.filter((cell) => cell.isInput);
+
+      let outputTotal = 0n;
+      const outputs = outputCells.map((cell) => {
+        const index = Number(cell.cellIndex);
+        const data = tx.outputsData[index];
+        const amount = readUdtAmount(data);
+        outputTotal += amount;
+        return { index, amount: amount.toString() };
+      });
+
+      let inputTotal = 0n;
+      const inputs: Array<{ index: number; amount: string }> = [];
+
+      for (const cell of inputCells) {
+        const index = Number(cell.cellIndex);
+        const input = tx.inputs[index];
+        if (!input) continue;
+        try {
+          const previous = await input.getCell(client);
+          if (!previous) continue;
+          const amount = readUdtAmount(previous.outputData);
+          inputTotal += amount;
+          inputs.push({ index, amount: amount.toString() });
+        } catch (error) {
+          console.warn(
+            `[streakBonus-query] Failed to load input cell for tx ${match.txHash} index ${index}:`,
+            error
+          );
+        }
+      }
+
+      const netPoints = outputTotal - inputTotal;
+      if (netPoints <= 0n) {
+        continue;
+      }
+
+      responseTransactions.push({
+        txHash: match.txHash,
+        blockNumber: match.blockNumber ? match.blockNumber.toString() : null,
+        txIndex: match.txIndex ? match.txIndex.toString() : null,
+        netPoints: netPoints.toString(),
+        outputs,
+        inputs,
+      });
+    } catch (error) {
+      console.warn(
+        `[streakBonus-query] Failed to process transaction ${match.txHash}`,
+        error
+      );
+    }
+  }
+
+  return responseTransactions;
 };

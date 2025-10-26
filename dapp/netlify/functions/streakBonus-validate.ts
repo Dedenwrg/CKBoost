@@ -5,12 +5,12 @@ import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
 import {
-  fetchRewardTransactions,
-  prepareBonusStreakTransaction,
-  type PreparedBonusStreak,
+  evaluateStreakBonus,
+  readUdtAmount,
   type RewardTransaction,
   type StreakBonusValidateResponse,
 } from "@/netlify/lib/streak-bonus";
+import { decodeUserData } from "@/netlify/lib/streak-bonus";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
@@ -131,54 +131,73 @@ export const handler: Handler = async (event) => {
     return httpError(500, "transaction_query_failed", (error as Error).message);
   }
 
-  let prepared: PreparedBonusStreak;
+  let calculation: Awaited<ReturnType<typeof evaluateStreakBonus>>;
   try {
-    prepared = await prepareBonusStreakTransaction({
-      signer,
+    calculation = await evaluateStreakBonus({
+      client,
       rpcUrl,
       address: userAddress,
       protocolTypeHash: protocolTypeScript.script.hash().toLowerCase(),
       network,
       userLockScript,
-      pointsTypeScript,
       transactions,
     });
   } catch (error) {
     return httpError(
       500,
-      "streak_bonus_preparation_failed",
+      "streak_bonus_evaluation_failed",
       (error as Error).message
     );
   }
 
-  if (!prepared.response.eligible) {
+  if (!calculation.eligible) {
     return httpError(
       400,
       "bonus_streak_not_eligible",
-      prepared.response.reason ?? "Bonus streak currently not eligible."
+      calculation.reason ?? "Bonus streak currently not eligible."
     );
   }
 
-  const expectedTxHex = prepared.response.transaction?.txHex?.toLowerCase();
-  if (!expectedTxHex || !prepared.transaction) {
+  if (!calculation.updatedLastBonusTimestamp) {
     return httpError(
       500,
-      "bonus_streak_missing_transaction",
-      "Failed to prepare streak bonus transaction."
+      "missing_updated_timestamp",
+      "Streak bonus calculation did not produce an updated timestamp."
     );
   }
 
-  if (expectedTxHex !== txHex.toLowerCase()) {
+  let tx: ccc.Transaction;
+  try {
+    tx = ccc.Transaction.fromBytes(txHex as ccc.Hex);
+  } catch (error) {
     return httpError(
       400,
-      "transaction_mismatch",
-      "Provided transaction does not match expected bonus streak transaction."
+      "invalid_transaction",
+      `Failed to parse transaction bytes: ${(error as Error).message}`
+    );
+  }
+
+  try {
+    await hydrateInputs(tx, client);
+    hydrateOutputs(tx);
+    validateStreakBonusTransaction({
+      tx,
+      calculation,
+      userLockScript,
+      pointsTypeScript,
+      network,
+    });
+  } catch (error) {
+    return httpError(
+      400,
+      "transaction_validation_failed",
+      (error as Error).message
     );
   }
 
   let signedTx: ccc.Transaction;
   try {
-    signedTx = await signer.signTransaction(prepared.transaction);
+    signedTx = await signer.signTransaction(tx);
   } catch (error) {
     return httpError(
       500,
@@ -188,20 +207,11 @@ export const handler: Handler = async (event) => {
   }
 
   const signedHex = ccc.hexFrom(signedTx.toBytes());
-  const bonusStreak = {
-    ...prepared.response,
-    transaction: prepared.response.transaction
-      ? {
-          ...prepared.response.transaction,
-          txHex: signedHex,
-        }
-      : undefined,
-  };
 
   const response: StreakBonusValidateResponse = {
     success: true,
     txHex: signedHex,
-    bonusStreak,
+    bonusStreak: calculation,
   };
 
   return {
@@ -280,5 +290,266 @@ const resolveProtocolTypeScriptFromEnv = ():
         (error as Error).message
       }`,
     };
+  }
+};
+
+const fetchRewardTransactions = async ({
+  client,
+  pointsTypeScript,
+  userLockScript,
+  limit,
+  logPrefix,
+}: {
+  client: ccc.Client;
+  pointsTypeScript: ccc.Script;
+  userLockScript: ccc.Script;
+  limit: number;
+  logPrefix: string;
+}): Promise<RewardTransaction[]> => {
+  const searchKey = {
+    script: pointsTypeScript,
+    scriptType: "type" as const,
+    scriptSearchMode: "exact" as const,
+    filter: {
+      script: userLockScript,
+    },
+    groupByTransaction: true as const,
+  };
+
+  const pageSize = Math.min(limit, 50);
+  const matches: Array<{
+    txHash: string;
+    blockNumber: bigint | null;
+    txIndex: bigint | null;
+    cells: Array<{ isInput: boolean; cellIndex: bigint }>;
+  }> = [];
+
+  for await (const tx of client.findTransactions(searchKey, "desc", pageSize)) {
+    matches.push(tx);
+    if (matches.length >= limit) {
+      break;
+    }
+  }
+
+  const responseTransactions: RewardTransaction[] = [];
+
+  for (const match of matches) {
+    try {
+      const txResponse = await client.getTransaction(match.txHash);
+      if (!txResponse) {
+        continue;
+      }
+      const tx = txResponse.transaction;
+
+      const outputCells = match.cells.filter((cell) => !cell.isInput);
+      const inputCells = match.cells.filter((cell) => cell.isInput);
+
+      let outputTotal = 0n;
+      const outputs = outputCells.map((cell) => {
+        const index = Number(cell.cellIndex);
+        const data = tx.outputsData[index];
+        const amount = readUdtAmount(data);
+        outputTotal += amount;
+        return { index, amount: amount.toString() };
+      });
+
+      let inputTotal = 0n;
+      const inputs: Array<{ index: number; amount: string }> = [];
+
+      for (const cell of inputCells) {
+        const index = Number(cell.cellIndex);
+        const input = tx.inputs[index];
+        if (!input) continue;
+        try {
+          const previous = await input.getCell(client);
+          if (!previous) continue;
+          const amount = readUdtAmount(previous.outputData);
+          inputTotal += amount;
+          inputs.push({ index, amount: amount.toString() });
+        } catch (error) {
+          console.warn(
+            `[${logPrefix}] Failed to load input cell for tx ${match.txHash} index ${index}:`,
+            error
+          );
+        }
+      }
+
+      const netPoints = outputTotal - inputTotal;
+      if (netPoints <= 0n) {
+        continue;
+      }
+
+      responseTransactions.push({
+        txHash: match.txHash,
+        blockNumber: match.blockNumber ? match.blockNumber.toString() : null,
+        txIndex: match.txIndex ? match.txIndex.toString() : null,
+        netPoints: netPoints.toString(),
+        outputs,
+        inputs,
+      });
+    } catch (error) {
+      console.warn(
+        `[${logPrefix}] Failed to process transaction ${match.txHash}`,
+        error
+      );
+    }
+  }
+
+  return responseTransactions;
+};
+
+const hydrateInputs = async (tx: ccc.Transaction, client: ccc.Client) => {
+  for (let i = 0; i < tx.inputs.length; i += 1) {
+    const original = tx.inputs[i];
+    const previous = await client.getCell(original.previousOutput);
+    if (!previous) {
+      throw new Error(
+        `Input cell not found for outPoint ${JSON.stringify(
+          original.previousOutput
+        )}`
+      );
+    }
+
+    tx.inputs[i] = ccc.CellInput.from({
+      previousOutput: previous.outPoint,
+      since: original.since ?? "0x0",
+      cellOutput: previous.cellOutput,
+      outputData: previous.outputData,
+    });
+  }
+};
+
+const hydrateOutputs = (tx: ccc.Transaction) => {
+  for (let i = 0; i < tx.outputs.length; i += 1) {
+    const out = tx.outputs[i];
+    if (out.type) {
+      tx.outputs[i] = ccc.CellOutput.from(
+        { lock: out.lock, type: out.type },
+        tx.outputsData[i] as ccc.HexLike
+      );
+    }
+  }
+};
+
+const scriptEquals = (a: ccc.Script | undefined, b: ccc.Script): boolean => {
+  if (!a) return false;
+  try {
+    return ccc.hexFrom(a.hash()).toLowerCase() === ccc.hexFrom(b.hash()).toLowerCase();
+  } catch {
+    return false;
+  }
+};
+
+const validateStreakBonusTransaction = ({
+  tx,
+  calculation,
+  userLockScript,
+  pointsTypeScript,
+  network,
+}: {
+  tx: ccc.Transaction;
+  calculation: Awaited<ReturnType<typeof evaluateStreakBonus>>;
+  userLockScript: ccc.Script;
+  pointsTypeScript: ccc.Script;
+  network: string;
+}) => {
+  const userTypeCodeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostUserType"
+  );
+
+  if (!userTypeCodeHash) {
+    throw new Error("User type contract not configured.");
+  }
+
+  const userInputIndex = tx.inputs.findIndex((input) => {
+    const cell = input.cellOutput;
+    if (!cell?.type) return false;
+    return (
+      cell.type.codeHash === userTypeCodeHash &&
+      scriptEquals(cell.lock, userLockScript)
+    );
+  });
+
+  if (userInputIndex === -1) {
+    throw new Error("User cell input not found in transaction.");
+  }
+
+  const userOutputIndex = tx.outputs.findIndex((output) => {
+    if (!output.type) return false;
+    return (
+      output.type.codeHash === userTypeCodeHash &&
+      scriptEquals(output.lock, userLockScript)
+    );
+  });
+
+  if (userOutputIndex === -1) {
+    throw new Error("User cell output not found in transaction.");
+  }
+
+  const pointsInputIndex = tx.inputs.findIndex((input) =>
+    scriptEquals(input.cellOutput?.type, pointsTypeScript)
+  );
+
+  if (pointsInputIndex === -1) {
+    throw new Error("Points UDT input not found in transaction.");
+  }
+
+  const pointsOutputIndex = tx.outputs.findIndex(
+    (output) =>
+      scriptEquals(output.type, pointsTypeScript) &&
+      scriptEquals(output.lock, userLockScript)
+  );
+
+  if (pointsOutputIndex === -1) {
+    throw new Error("Points UDT output not found in transaction.");
+  }
+
+  const inputUserData = decodeUserData(
+    tx.inputs[userInputIndex].outputData as ccc.HexLike
+  );
+  const outputUserData = decodeUserData(
+    tx.outputsData[userOutputIndex] as ccc.HexLike
+  );
+
+  const previousLastBonus = ccc.numFrom(
+    inputUserData.last_bonus_streak_at ?? 0n
+  );
+  const expectedLastBonus = BigInt(calculation.lastBonusTimestamp);
+  if (previousLastBonus !== expectedLastBonus) {
+    throw new Error(
+      `User cell last_bonus_streak_at mismatch. Expected ${expectedLastBonus}, received ${previousLastBonus}.`
+    );
+  }
+
+  const updatedLastBonus = ccc.numFrom(
+    outputUserData.last_bonus_streak_at ?? 0n
+  );
+  const expectedUpdated = BigInt(calculation.updatedLastBonusTimestamp!);
+  if (updatedLastBonus !== expectedUpdated) {
+    throw new Error(
+      `User cell last_bonus_streak_at not updated correctly. Expected ${expectedUpdated}, received ${updatedLastBonus}.`
+    );
+  }
+
+  const inputTotalPoints = ccc.numFrom(inputUserData.total_points_earned);
+  const outputTotalPoints = ccc.numFrom(outputUserData.total_points_earned);
+  const bonusAmount = BigInt(calculation.bonusAmount);
+  if (outputTotalPoints - inputTotalPoints !== bonusAmount) {
+    throw new Error(
+      "User cell total_points_earned does not reflect streak bonus amount."
+    );
+  }
+
+  const pointsInputAmount = readUdtAmount(
+    tx.inputs[pointsInputIndex].outputData
+  );
+  const pointsOutputAmount = readUdtAmount(
+    tx.outputsData[pointsOutputIndex]
+  );
+  if (pointsOutputAmount - pointsInputAmount !== bonusAmount) {
+    throw new Error(
+      "Points UDT output amount does not match streak bonus amount."
+    );
   }
 };

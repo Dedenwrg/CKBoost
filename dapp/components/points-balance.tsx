@@ -12,7 +12,8 @@ import {
 import { debug } from "@/lib/utils/debug";
 import { cn } from "@/lib/utils";
 import { StreakBonusService } from "@/lib/services/streak-bonus-service";
-import type { BonusStreakResponse } from "@/netlify/lib/streak-bonus";
+import { buildStreakBonusTransaction } from "@/lib/ckb/streak-bonus";
+import type { BonusStreakCalculation } from "@/netlify/lib/streak-bonus";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
@@ -24,7 +25,7 @@ export function PointsBalance() {
   const { toast } = useToast();
   const [balance, setBalance] = useState<bigint | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [bonus, setBonus] = useState<BonusStreakResponse | null>(null);
+  const [bonus, setBonus] = useState<BonusStreakCalculation | null>(null);
   const [bonusLoading, setBonusLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [minting, setMinting] = useState(false);
@@ -76,7 +77,7 @@ export function PointsBalance() {
       );
 
       const streakBonusService = new StreakBonusService();
-      let bonusResponse: BonusStreakResponse | null = null;
+      let bonusResponse: BonusStreakCalculation | null = null;
       try {
         bonusResponse = await streakBonusService.query({
           userAddress: userAddressString,
@@ -112,22 +113,22 @@ export function PointsBalance() {
   }, [loadBalances]);
 
   const handleClaimBonus = useCallback(async () => {
-    if (
-      !signer ||
-      !bonus ||
-      !bonus.eligible ||
-      !bonus.transaction?.txHex ||
-      !userAddress
-    ) {
+    if (!signer || !bonus || !bonus.eligible || !userAddress || !protocolCell) {
       return;
     }
 
     try {
       setClaiming(true);
       const bonusService = new StreakBonusService(signer);
+      const draftTx = await buildStreakBonusTransaction({
+        signer,
+        calculation: bonus,
+        protocolCell,
+      });
+
       const { txHash } = await bonusService.claim({
         userAddress,
-        txHex: bonus.transaction.txHex,
+        tx: draftTx,
       });
 
       toast({
@@ -224,6 +225,27 @@ export function PointsBalance() {
       });
 
       await tx.completeInputsByCapacity(signer);
+      for (let i = 0; i < tx.inputs.length; i += 1) {
+        const inputCell = await signer.client.getCell(tx.inputs[i].previousOutput);
+        if (!inputCell) {
+          throw new Error("Input cell not found while preparing mint transaction.");
+        }
+        tx.inputs[i] = ccc.CellInput.from({
+          previousOutput: inputCell.outPoint,
+          since: tx.inputs[i].since ?? "0x0",
+          cellOutput: inputCell.cellOutput,
+          outputData: inputCell.outputData,
+        });
+      }
+      for (let i = 0; i < tx.outputs.length; i += 1) {
+        const out = tx.outputs[i];
+        if (out.type) {
+          tx.outputs[i] = ccc.CellOutput.from(
+            { lock: out.lock, type: out.type },
+            tx.outputsData[i] as ccc.HexLike
+          );
+        }
+      }
       await tx.completeFeeBy(signer);
       const txHash = await signer.sendTransaction(tx);
 
@@ -285,7 +307,6 @@ export function PointsBalance() {
 
   const isBonusAvailable =
     Boolean(bonus?.eligible) &&
-    Boolean(bonus?.transaction?.txHex) &&
     bonusAmount > 0n;
 
   const isDisabled =
@@ -294,7 +315,8 @@ export function PointsBalance() {
     isLoading ||
     bonusLoading ||
     minting ||
-    !userAddress;
+    !userAddress ||
+    !protocolCell;
 
   return (
     <div className="flex items-center gap-2">
