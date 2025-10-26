@@ -481,6 +481,31 @@ const fetchRewardTransactions = async ({
   return responseTransactions;
 };
 
+const normalizeUserDataForComparison = (
+  data: ReturnType<typeof decodeUserData>
+) => {
+  const verification = data.verification_data ?? {};
+  const identityData = verification.identity_verification_data
+    ? ccc.hexFrom(verification.identity_verification_data)
+    : "0x";
+
+  return {
+    verification: {
+      telegramPersonalChatId: verification.telegram_personal_chat_id
+        ? ccc.numFrom(verification.telegram_personal_chat_id).toString()
+        : "0",
+      identityVerificationData: identityData,
+    },
+    submissionRecords: (data.submission_records ?? []).map((record) => ({
+      campaignTypeId: ccc.hexFrom(record.campaign_type_id),
+      questId: ccc.numFrom(record.quest_id).toString(),
+      submissionTimestamp: ccc.numFrom(record.submission_timestamp).toString(),
+      submissionContent: record.submission_content,
+    })),
+    profileData: (data.profile_data ?? []).map((entry) => ccc.hexFrom(entry)),
+  };
+};
+
 const hydrateInputs = async (tx: ccc.Transaction, client: ccc.Client) => {
   for (let i = 0; i < tx.inputs.length; i += 1) {
     const original = tx.inputs[i];
@@ -634,6 +659,14 @@ const validateStreakBonusTransaction = ({
   if (pointsOutputAmount - pointsInputAmount !== bonusAmount) {
     throw new Error(
       "Points UDT output amount does not match streak bonus amount."
+    );
+  }
+
+  const previousComparable = normalizeUserDataForComparison(inputUserData);
+  const nextComparable = normalizeUserDataForComparison(outputUserData);
+  if (JSON.stringify(previousComparable) !== JSON.stringify(nextComparable)) {
+    throw new Error(
+      "User data fields other than streak bonus metadata must remain unchanged."
     );
   }
 };
