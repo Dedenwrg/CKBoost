@@ -11,6 +11,7 @@ import {
   type RewardTransaction,
   type StreakBonusQueryResponse,
 } from "@/netlify/lib/streak-bonus";
+import { UserData } from "ssri-ckboost/types";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
@@ -88,6 +89,19 @@ export const handler: Handler = async (event) => {
     );
   }
 
+  const userTypeCodeHash = deploymentManager.getContractCodeHash(
+    network,
+    "ckboostUserType"
+  );
+
+  if (!userTypeCodeHash) {
+    return httpError(
+      500,
+      "missing_user_contract",
+      "User type contract not configured in deployments.json."
+    );
+  }
+
   const protocolTypeScript = resolveProtocolTypeScriptFromEnv();
   if ("error" in protocolTypeScript) {
     return httpError(500, "protocol_config_error", protocolTypeScript.error);
@@ -105,6 +119,7 @@ export const handler: Handler = async (event) => {
       client,
       pointsTypeScript,
       userLockScript,
+      userTypeCodeHash,
       limit,
     });
   } catch (error) {
@@ -220,11 +235,13 @@ const fetchRewardTransactions = async ({
   client,
   pointsTypeScript,
   userLockScript,
+  userTypeCodeHash,
   limit,
 }: {
   client: ccc.Client;
   pointsTypeScript: ccc.Script;
   userLockScript: ccc.Script;
+  userTypeCodeHash: string;
   limit: number;
 }): Promise<RewardTransaction[]> => {
   const searchKey = {
@@ -254,6 +271,18 @@ const fetchRewardTransactions = async ({
 
   const responseTransactions: RewardTransaction[] = [];
 
+  const lowerUserTypeHash = userTypeCodeHash.toLowerCase();
+  const expectedUserLockHash = userLockScript.hash().toLowerCase();
+
+  const scriptEquals = (scriptA: ccc.Script | undefined, scriptB: ccc.Script) => {
+    if (!scriptA) return false;
+    try {
+      return scriptA.hash().toLowerCase() === scriptB.hash().toLowerCase();
+    } catch {
+      return false;
+    }
+  };
+
   for (const match of matches) {
     try {
       const txResponse = await client.getTransaction(match.txHash);
@@ -276,6 +305,7 @@ const fetchRewardTransactions = async ({
 
       let inputTotal = 0n;
       const inputs: Array<{ index: number; amount: string }> = [];
+      const inputCellCache = new Map<number, ccc.Cell>();
 
       for (const cell of inputCells) {
         const index = Number(cell.cellIndex);
@@ -284,6 +314,7 @@ const fetchRewardTransactions = async ({
         try {
           const previous = await input.getCell(client);
           if (!previous) continue;
+          inputCellCache.set(index, previous);
           const amount = readUdtAmount(previous.outputData);
           inputTotal += amount;
           inputs.push({ index, amount: amount.toString() });
@@ -300,6 +331,50 @@ const fetchRewardTransactions = async ({
         continue;
       }
 
+      let isStreakBonus = false;
+
+      for (const cell of outputCells) {
+        const index = Number(cell.cellIndex);
+        const output = tx.outputs[index];
+        if (!output?.type) continue;
+        if (output.type.codeHash.toLowerCase() !== lowerUserTypeHash) continue;
+        if (!scriptEquals(output.lock, userLockScript)) continue;
+
+        const outputDataHex = tx.outputsData[index];
+        if (!outputDataHex) break;
+
+        let previousUserDataHex: ccc.HexLike | undefined;
+        for (const [inputIndex, cached] of inputCellCache.entries()) {
+          const inputType = cached.cellOutput.type;
+          if (!inputType) continue;
+          if (inputType.codeHash.toLowerCase() !== lowerUserTypeHash) continue;
+          if (cached.cellOutput.lock.hash().toLowerCase() !== expectedUserLockHash)
+            continue;
+          previousUserDataHex = cached.outputData;
+          break;
+        }
+
+        if (!previousUserDataHex) {
+          break;
+        }
+
+        try {
+          const previousUserData = UserData.decode(previousUserDataHex);
+          const nextUserData = UserData.decode(outputDataHex as ccc.HexLike);
+          const prevLast = ccc.numFrom(previousUserData.last_bonus_streak_at ?? 0n);
+          const nextLast = ccc.numFrom(nextUserData.last_bonus_streak_at ?? 0n);
+          if (nextLast > prevLast) {
+            isStreakBonus = true;
+            break;
+          }
+        } catch (error) {
+          console.warn(
+            `[streakBonus-query] Failed to decode user data for streak detection in tx ${match.txHash}`,
+            error
+          );
+        }
+      }
+
       responseTransactions.push({
         txHash: match.txHash,
         blockNumber: match.blockNumber ? match.blockNumber.toString() : null,
@@ -307,6 +382,7 @@ const fetchRewardTransactions = async ({
         netPoints: netPoints.toString(),
         outputs,
         inputs,
+        isStreakBonus,
       });
     } catch (error) {
       console.warn(

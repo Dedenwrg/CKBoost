@@ -13,6 +13,7 @@ export type RewardTransaction = {
   netPoints: string;
   outputs: Array<{ index: number; amount: string }>;
   inputs: Array<{ index: number; amount: string }>;
+  isStreakBonus?: boolean;
 };
 
 export type StreakInterval = {
@@ -238,6 +239,7 @@ export const evaluateStreakBonus = async (
   const rewardTimestamps: bigint[] = [];
 
   for (const tx of ctx.transactions) {
+    if (tx.isStreakBonus) continue;
     if (!tx.blockNumber) continue;
     const timestamp = await getBlockTimestamp(ctx.rpcUrl, tx.blockNumber);
     if (!timestamp) continue;

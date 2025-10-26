@@ -111,6 +111,7 @@ pub fn validate_protocol_owner_mode(protocol_type_hash: &[u8]) -> Result<(), Err
 }
 
 fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
+    debug!("Checking admin in inputs for short-circuiting");
     let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
     if admin_lock_hash_vec.is_empty() {
         debug!("No admin lock hash found in protocol data");
@@ -119,19 +120,26 @@ fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
     let mut index = 0;
     // Check the lock hash of all simple CKB cells in inputs. Skip if the cell has type script.
     loop {
-        match load_input(index, Source::Input) {
-            Ok(_input) => {
-                if let Ok(Some(_type_hash)) = load_cell_type_hash(index, Source::Input) {
-                    continue;
-                } else {
-                    let lock_hash = load_cell_lock_hash(index, Source::Input)?;
-                    if admin_lock_hash_vec
-                        .clone()
-                        .into_iter()
-                        .any(|h| h.raw_data().to_vec() == lock_hash.to_vec())
-                    {
-                        return Ok(true);
-                    }
+        debug!(
+            "Checking admin in inputs for short-circuiting at index {}",
+            index
+        );
+        match load_cell_type_hash(index, Source::Input) {
+            Ok(Some(_type_hash)) => {
+                continue;
+            }
+            Ok(None) => {
+                let lock_hash = load_cell_lock_hash(index, Source::Input)?;
+                if admin_lock_hash_vec
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.raw_data().to_vec() == lock_hash.to_vec())
+                {
+                    debug!(
+                        "Admin found in inputs for short-circuiting at index {}",
+                        index
+                    );
+                    return Ok(true);
                 }
             }
             Err(_) => break,
@@ -150,8 +158,17 @@ fn get_protocol_data_from_cell_deps(protocol_type_hash: &[u8]) -> Result<Protoco
                 debug!("Found protocol cell in CellDeps at index {}", index);
                 let data = load_cell_data(index, Source::CellDep)?;
                 match ProtocolData::from_slice(&data) {
-                    Ok(protocol_data) => return Ok(protocol_data),
-                    Err(_) => return Err(Error::ProtocolDataInvalid),
+                    Ok(protocol_data) => {
+                        debug!("Loaded protocol data from CellDeps at index {}", index);
+                        return Ok(protocol_data);
+                    }
+                    Err(_) => {
+                        debug!(
+                            "Failed to parse protocol data from CellDeps at index {}",
+                            index
+                        );
+                        return Err(Error::ProtocolDataInvalid);
+                    }
                 }
             }
             Err(ckb_std::error::SysError::IndexOutOfBound) => break,
@@ -160,6 +177,7 @@ fn get_protocol_data_from_cell_deps(protocol_type_hash: &[u8]) -> Result<Protoco
         index += 1;
     }
 
+    debug!("No protocol cell found in CellDeps");
     Err(Error::ProtocolDataInvalid)
 }
 
