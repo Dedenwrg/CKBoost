@@ -353,7 +353,10 @@ const fetchRewardTransactions = async ({
   const lowerUserTypeHash = userTypeCodeHash.toLowerCase();
   const expectedUserLockHash = userLockScript.hash().toLowerCase();
 
-  const scriptEquals = (scriptA: ccc.Script | undefined, scriptB: ccc.Script) => {
+  const scriptEquals = (
+    scriptA: ccc.Script | undefined,
+    scriptB: ccc.Script
+  ) => {
     if (!scriptA) return false;
     try {
       return scriptA.hash().toLowerCase() === scriptB.hash().toLowerCase();
@@ -427,7 +430,9 @@ const fetchRewardTransactions = async ({
           const inputType = cached.cellOutput.type;
           if (!inputType) continue;
           if (inputType.codeHash.toLowerCase() !== lowerUserTypeHash) continue;
-          if (cached.cellOutput.lock.hash().toLowerCase() !== expectedUserLockHash)
+          if (
+            cached.cellOutput.lock.hash().toLowerCase() !== expectedUserLockHash
+          )
             continue;
           previousUserDataHex = cached.outputData;
           break;
@@ -440,7 +445,9 @@ const fetchRewardTransactions = async ({
         try {
           const previousUserData = UserData.decode(previousUserDataHex);
           const nextUserData = UserData.decode(outputDataHex as ccc.HexLike);
-          const prevLast = ccc.numFrom(previousUserData.last_bonus_streak_at ?? 0n);
+          const prevLast = ccc.numFrom(
+            previousUserData.last_bonus_streak_at ?? 0n
+          );
           const nextLast = ccc.numFrom(nextUserData.last_bonus_streak_at ?? 0n);
           if (nextLast > prevLast) {
             isStreakBonus = true;
@@ -510,7 +517,10 @@ const hydrateOutputs = (tx: ccc.Transaction) => {
 const scriptEquals = (a: ccc.Script | undefined, b: ccc.Script): boolean => {
   if (!a) return false;
   try {
-    return ccc.hexFrom(a.hash()).toLowerCase() === ccc.hexFrom(b.hash()).toLowerCase();
+    return (
+      ccc.hexFrom(a.hash()).toLowerCase() ===
+      ccc.hexFrom(b.hash()).toLowerCase()
+    );
   } catch {
     return false;
   }
@@ -527,7 +537,7 @@ const validateStreakBonusTransaction = ({
   calculation: Awaited<ReturnType<typeof evaluateStreakBonus>>;
   userLockScript: ccc.Script;
   pointsTypeScript: ccc.Script;
-  network: string;
+  network: Network;
 }) => {
   const userTypeCodeHash = deploymentManager.getContractCodeHash(
     network,
@@ -620,9 +630,7 @@ const validateStreakBonusTransaction = ({
   const pointsInputAmount = readUdtAmount(
     tx.inputs[pointsInputIndex].outputData
   );
-  const pointsOutputAmount = readUdtAmount(
-    tx.outputsData[pointsOutputIndex]
-  );
+  const pointsOutputAmount = readUdtAmount(tx.outputsData[pointsOutputIndex]);
   if (pointsOutputAmount - pointsInputAmount !== bonusAmount) {
     throw new Error(
       "Points UDT output amount does not match streak bonus amount."

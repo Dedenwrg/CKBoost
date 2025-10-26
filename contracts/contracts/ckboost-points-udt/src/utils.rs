@@ -8,6 +8,7 @@ use ckb_std::{
     },
 };
 use ckboost_shared::{
+    protocol_data::check_admin,
     types::{ConnectedTypeID, ProtocolData, UserData},
     Error,
 };
@@ -108,45 +109,6 @@ pub fn validate_protocol_owner_mode(protocol_type_hash: &[u8]) -> Result<(), Err
 
     debug!("Protocol owner mode validation successful");
     Ok(())
-}
-
-fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
-    debug!("Checking admin in inputs for short-circuiting");
-    let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
-    if admin_lock_hash_vec.is_empty() {
-        debug!("No admin lock hash found in protocol data");
-        return Err(Error::ItemMissing);
-    }
-    let mut index = 0;
-    // Check the lock hash of all simple CKB cells in inputs. Skip if the cell has type script.
-    loop {
-        debug!(
-            "Checking admin in inputs for short-circuiting at index {}",
-            index
-        );
-        match load_cell_type_hash(index, Source::Input) {
-            Ok(Some(_type_hash)) => {
-                continue;
-            }
-            Ok(None) => {
-                let lock_hash = load_cell_lock_hash(index, Source::Input)?;
-                if admin_lock_hash_vec
-                    .clone()
-                    .into_iter()
-                    .any(|h| h.raw_data().to_vec() == lock_hash.to_vec())
-                {
-                    debug!(
-                        "Admin found in inputs for short-circuiting at index {}",
-                        index
-                    );
-                    return Ok(true);
-                }
-            }
-            Err(_) => break,
-        }
-        index += 1;
-    }
-    return Ok(false);
 }
 
 /// Find protocol cell in CellDeps

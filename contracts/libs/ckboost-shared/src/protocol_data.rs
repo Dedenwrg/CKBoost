@@ -10,7 +10,8 @@ use ckb_std::{
     ckb_constants::Source,
     ckb_types::prelude::*,
     high_level::{
-        load_cell_data, load_cell_lock, load_cell_type, load_cell_type_hash, load_script,
+        load_cell_data, load_cell_lock, load_cell_lock_hash, load_cell_type, load_cell_type_hash,
+        load_script,
     },
 };
 use molecule::prelude::*;
@@ -534,6 +535,50 @@ fn find_bounded_protocol_cell_for_data(
             }
         }
     }
+}
+
+pub fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
+    debug_trace!("Checking admin in inputs for short-circuiting");
+    let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
+    if admin_lock_hash_vec.is_empty() {
+        debug_trace!("No admin lock hash found in protocol data");
+        return Err(Error::ItemMissing);
+    }
+    let mut index = 0;
+    // Check the lock hash of all simple CKB cells in inputs. Skip if the cell has type script.
+    loop {
+        debug_trace!(
+            "Checking admin in inputs for short-circuiting at index {}",
+            index
+        );
+        match load_cell_type_hash(index, Source::Input) {
+            Ok(Some(_type_hash)) => {
+                index += 1;
+                continue;
+            }
+            Ok(None) => {
+                let lock_hash = load_cell_lock_hash(index, Source::Input)?;
+                if admin_lock_hash_vec
+                    .clone()
+                    .into_iter()
+                    .any(|h| h.raw_data().to_vec() == lock_hash.to_vec())
+                {
+                    debug_trace!(
+                        "Admin found in inputs for short-circuiting at index {}",
+                        index
+                    );
+                    return Ok(true);
+                } else {
+                    index += 1;
+                }
+            }
+            Err(_) => {
+                debug_trace!("No admin lock hash found in inputs");
+                return Err(Error::ItemMissing);
+            }
+        }
+    }
+    return Ok(false);
 }
 
 #[cfg(test)]

@@ -2,7 +2,11 @@ extern crate alloc;
 
 use ckb_deterministic::{debug_trace, transaction_recipe::TransactionRecipeExt};
 use ckb_std::debug;
-use ckboost_shared::{error::Error, transaction_context::create_transaction_context};
+use ckboost_shared::{
+    error::Error,
+    protocol_data::{check_admin, get_protocol_data},
+    transaction_context::create_transaction_context,
+};
 
 use crate::{modules::CKBoostUserType, ssri::CKBoostUser};
 
@@ -10,6 +14,13 @@ use crate::{modules::CKBoostUserType, ssri::CKBoostUser};
 /// This executes when SSRI methods are not yet implemented
 pub fn fallback() -> Result<(), Error> {
     debug_trace!("CKBoost User Type: Starting fallback validation");
+
+    let protocol_data = get_protocol_data()?;
+
+    if check_admin(&protocol_data)? {
+        debug!("Admin found in inputs. Short-circuiting validation.");
+        return Ok(());
+    }
 
     let context = create_transaction_context()?;
 
