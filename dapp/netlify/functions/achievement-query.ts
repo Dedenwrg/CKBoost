@@ -1,7 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
-import { getGrantableAchievements } from "@/netlify/lib/achievement/utils";
+import { getGrantableAchievements } from "@/netlify/lib/utils";
 import type { AchievementQueryResponse } from "@/netlify/lib/achievement/types";
 
 export const handler: Handler = async (event) => {

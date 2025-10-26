@@ -4,11 +4,9 @@
  */
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, Network } from "@/lib/ckb/deployment-manager";
-import { fetchProtocolCell } from "@/lib/ckb/protocol-cells";
-import {
-  getLatestUserCellByAddress,
-  parseUserData,
-} from "@/lib/ckb/user-cells";
+import { fetchProtocolCell } from "@/netlify/lib/utils";
+import { getLatestUserCellByLock } from "@/netlify/lib/utils";
+
 import { ProtocolData, UserData, type UserDataLike } from "ssri-ckboost/types";
 
 export type RewardTransaction = {
@@ -52,7 +50,7 @@ export type BonusStreakTransaction = {
 };
 
 export type BonusStreakContext = {
-  client: ccc.Client;
+  signer: ccc.Signer;
   rpcUrl: string;
   address: string;
   protocolTypeHash: string;
@@ -269,7 +267,7 @@ export const prepareBonusStreakTransaction = async (
 
   let protocolCell: ccc.Cell | null = null;
   try {
-    protocolCell = await fetchProtocolCell(ctx.client);
+    protocolCell = await fetchProtocolCell(ctx.signer.client);
   } catch (error) {
     base.reason = (error as Error).message;
     return { response: base };
@@ -318,10 +316,10 @@ export const prepareBonusStreakTransaction = async (
     return { response: base };
   }
 
-  const userCell = await getLatestUserCellByAddress(
-    ctx.address,
-    ctx.client,
+  const userCell = await getLatestUserCellByLock(
+    ctx.userLockScript,
     userTypeCodeHash,
+    ctx.signer,
     ccc.hexFrom(ctx.protocolTypeHash)
   );
 
@@ -330,7 +328,7 @@ export const prepareBonusStreakTransaction = async (
     return { response: base };
   }
 
-  const userData = parseUserData(userCell);
+  const userData = UserData.decode(userCell.outputData);
   if (!userData) {
     base.reason = "Unable to parse user data";
     return { response: base };
@@ -382,7 +380,7 @@ export const prepareBonusStreakTransaction = async (
   const bonusAmount = streakBonusPerInterval * intervalsAccumulated;
   base.bonusAmount = bonusAmount.toString();
 
-  const pointsCellIterator = ctx.client.findCells({
+  const pointsCellIterator = ctx.signer.client.findCells({
     script: ctx.pointsTypeScript,
     scriptType: "type" as const,
     scriptSearchMode: "exact" as const,
@@ -422,7 +420,7 @@ export const prepareBonusStreakTransaction = async (
     ccc.numToBytes(updatedPointsBalance, 16)
   );
 
-  const proxyCell = await findProxyAuthenticationCell(ctx.client);
+  const proxyCell = await findProxyAuthenticationCell(ctx.signer.client);
   if (!proxyCell) {
     base.reason = "Proxy authentication cell unavailable";
     return { response: base };

@@ -32,9 +32,7 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
-  const signingKey =
-    process.env.STREAK_BONUS_PRIVATE_KEY ||
-    process.env.TELEGRAM_AUTH_PRIVATE_KEY;
+  const signingKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
 
   if (!signingKey) {
     return httpError(
@@ -78,7 +76,7 @@ export const handler: Handler = async (event) => {
       ? "https://mainnet.ckb.dev"
       : "https://testnet.ckb.dev");
   const client = createClient(network, rpcUrl);
-
+  const signer = new ccc.SignerCkbPrivateKey(client, signingKey as ccc.Hex);
   let addressObj: ccc.Address;
   try {
     addressObj = await ccc.Address.fromString(userAddress, client);
@@ -136,7 +134,7 @@ export const handler: Handler = async (event) => {
   let prepared: PreparedBonusStreak;
   try {
     prepared = await prepareBonusStreakTransaction({
-      client,
+      signer,
       rpcUrl,
       address: userAddress,
       protocolTypeHash: protocolTypeScript.script.hash().toLowerCase(),
@@ -180,7 +178,6 @@ export const handler: Handler = async (event) => {
 
   let signedTx: ccc.Transaction;
   try {
-    const signer = new ccc.SignerCkbPrivateKey(client, signingKey as ccc.Hex);
     signedTx = await signer.signTransaction(prepared.transaction);
   } catch (error) {
     return httpError(

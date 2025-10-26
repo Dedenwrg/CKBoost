@@ -1,10 +1,10 @@
 import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
-import { getGrantableAchievements } from "@/netlify/lib/achievement/utils";
+import { getGrantableAchievements } from "@/netlify/lib/utils";
 import { AchievementDataLike, AchievementDataVec } from "ssri-ckboost/types";
-import { getProtocolTypeScript } from "@/netlify/lib/achievement/utils";
-import { getLatestUserCellByLock } from "@/netlify/lib/achievement/utils";
+import { getProtocolTypeScript } from "@/netlify/lib/utils";
+import { getLatestUserCellByLock } from "@/netlify/lib/utils";
 
 export const handler: Handler = async (event) => {
   console.log("Achievement validate handler");

@@ -72,6 +72,18 @@ export const handler: Handler = async (event) => {
     );
   }
 
+  const signingKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
+
+  if (!signingKey) {
+    return httpError(
+      500,
+      "missing_signing_key",
+      "Server signing key not configured."
+    );
+  }
+
+  const signer = new ccc.SignerCkbPrivateKey(client, signingKey as ccc.Hex);
+
   const userLockScript = addressObj.script;
 
   const pointsCodeHash = deploymentManager.getContractCodeHash(
@@ -112,7 +124,7 @@ export const handler: Handler = async (event) => {
 
   try {
     const prepared = await prepareBonusStreakTransaction({
-      client,
+      signer,
       rpcUrl,
       address: userAddress,
       protocolTypeHash: protocolTypeScript.script.hash().toLowerCase(),

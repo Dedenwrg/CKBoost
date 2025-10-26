@@ -404,3 +404,91 @@ export function isUserCellConnectedToProtocol(
     return false;
   }
 }
+
+/**
+ * Fetch protocol cell from CKB blockchain
+ * @param client - CCC client instance
+ * @returns Protocol cell or null if not found
+ */
+export async function fetchProtocolCell(
+  client: ccc.Client
+): Promise<ccc.Cell | null> {
+  try {
+    // Check if client is properly initialized
+    if (!client) {
+      throw new Error("Client is not initialized.");
+    }
+
+    // Get protocol type script
+    let protocolTypeScript;
+    try {
+      protocolTypeScript = getProtocolTypeScript();
+    } catch (error) {
+      throw new Error(
+        `Protocol contract not found in deployments.json. ` +
+          `Please ensure the CKBoost protocol contract is deployed on-chain first using the deployment scripts. ` +
+          `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    console.log("Searching for protocol cell with type script:", {
+      codeHash: protocolTypeScript.codeHash,
+      hashType: protocolTypeScript.hashType,
+      args: protocolTypeScript.args,
+    });
+
+    // Search for protocol cell by type script
+    const cellsGenerator = client.findCells({
+      script: protocolTypeScript,
+      scriptType: "type",
+      scriptSearchMode: "exact",
+    });
+
+    // Get first cell from async generator
+    const firstCell = await cellsGenerator.next();
+    console.log("Cell search result:", {
+      done: firstCell.done,
+      hasValue: !!firstCell.value,
+    });
+
+    if (firstCell.done || !firstCell.value) {
+      console.warn(
+        "No protocol cell found on blockchain with the configured type script"
+      );
+      // Provide more specific guidance based on the type script args
+      if (protocolTypeScript.args === "0x") {
+        throw new Error(
+          "No protocol cell exists on the blockchain yet. " +
+            "Please deploy a new protocol cell using the Protocol Management interface."
+        );
+      } else {
+        throw new Error(
+          `No protocol cell found with type script args: ${protocolTypeScript.args}. ` +
+            "The protocol cell may have been consumed or the configuration may be incorrect."
+        );
+      }
+    }
+
+    const cell = firstCell.value;
+    return cell;
+  } catch (error) {
+    console.error("Failed to fetch protocol cell:", error);
+
+    // Re-throw with the original error message if it's already descriptive
+    if (
+      error instanceof Error &&
+      (error.message.includes("Signer") ||
+        error.message.includes("protocol") ||
+        error.message.includes("deploy"))
+    ) {
+      throw error;
+    }
+
+    // Otherwise, provide a generic error
+    throw new Error(
+      `Failed to fetch protocol data from blockchain: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+}

@@ -15,9 +15,10 @@ import { StreakBonusService } from "@/lib/services/streak-bonus-service";
 import type { BonusStreakResponse } from "@/netlify/lib/streak-bonus";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
 
 export function PointsBalance() {
-  const { protocolCell } = useProtocol();
+  const { protocolCell, isAdmin } = useProtocol();
   const signer = ccc.useSigner();
   const { client } = ccc.useCcc();
   const { toast } = useToast();
@@ -26,6 +27,7 @@ export function PointsBalance() {
   const [bonus, setBonus] = useState<BonusStreakResponse | null>(null);
   const [bonusLoading, setBonusLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [minting, setMinting] = useState(false);
   const [userAddress, setUserAddress] = useState<string | null>(null);
   const mountedRef = useRef(true);
 
@@ -150,6 +152,103 @@ export function PointsBalance() {
     }
   }, [bonus, loadBalances, signer, toast, userAddress]);
 
+  const handleTestMint = useCallback(async () => {
+    if (!isAdmin) {
+      return;
+    }
+    if (!signer || !userAddress || !protocolCell?.cellOutput.type) {
+      toast({
+        title: "Mint unavailable",
+        description: "Connect an admin wallet before minting test points.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setMinting(true);
+
+      const recommended = await signer.getRecommendedAddressObj();
+      const userLockScript = recommended.script;
+      const network = deploymentManager.getCurrentNetwork();
+      const pointsCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostPointsUdt"
+      );
+      if (!pointsCodeHash) {
+        throw new Error("Points UDT contract not configured.");
+      }
+
+      const protocolTypeHash = protocolCell.cellOutput.type.hash();
+      const pointsTypeScript = ccc.Script.from({
+        codeHash: pointsCodeHash,
+        hashType: "type" as ccc.HashType,
+        args: protocolTypeHash,
+      });
+
+      const amount = 100n;
+      const pointsData = ccc.hexFrom(ccc.numToBytes(amount, 16));
+
+      const tx = ccc.Transaction.from({});
+
+      await tx.addOutput(
+        ccc.CellOutput.from({
+          capacity: ccc.numFrom(200n * 10n ** 8n),
+          lock: userLockScript,
+          type: pointsTypeScript,
+        }),
+        pointsData
+      );
+
+      const contractNames = [
+        "ckboostPointsUdt",
+        "ckboostProtocolType",
+        "ckboostProtocolLock",
+      ] as const;
+      for (const name of contractNames) {
+        const outPoint = deploymentManager.getContractOutPoint(network, name);
+        if (outPoint) {
+          tx.addCellDeps({
+            outPoint: { txHash: outPoint.txHash, index: outPoint.index },
+            depType: "code",
+          });
+        }
+      }
+
+      tx.addCellDeps({
+        outPoint: {
+          txHash: protocolCell.outPoint.txHash,
+          index: protocolCell.outPoint.index,
+        },
+        depType: "code",
+      });
+
+      await tx.completeInputsByCapacity(signer);
+      await tx.completeFeeBy(signer);
+      const txHash = await signer.sendTransaction(tx);
+
+      toast({
+        title: "Test mint submitted",
+        description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
+          -6
+        )} submitted.`,
+      });
+      await loadBalances();
+    } catch (error) {
+      debug.error("Failed to mint test points:", error);
+      toast({
+        title: "Mint failed",
+        description:
+          error instanceof Error ? error.message : "Unexpected mint error.",
+        variant: "destructive",
+      });
+    } finally {
+      if (mountedRef.current) {
+        setMinting(false);
+      }
+    }
+  }, [isAdmin, loadBalances, protocolCell, signer, toast, userAddress]);
+
   const handleRefresh = useCallback(() => {
     void loadBalances();
   }, [loadBalances]);
@@ -190,7 +289,12 @@ export function PointsBalance() {
     bonusAmount > 0n;
 
   const isDisabled =
-    !isBonusAvailable || claiming || isLoading || bonusLoading || !userAddress;
+    !isBonusAvailable ||
+    claiming ||
+    isLoading ||
+    bonusLoading ||
+    minting ||
+    !userAddress;
 
   return (
     <div className="flex items-center gap-2">
@@ -229,7 +333,7 @@ export function PointsBalance() {
         variant="outline"
         size="icon"
         onClick={handleRefresh}
-        disabled={isLoading || bonusLoading || claiming}
+        disabled={isLoading || bonusLoading || claiming || minting}
         className="h-7 w-7"
       >
         <RefreshCw
@@ -240,6 +344,18 @@ export function PointsBalance() {
         />
         <span className="sr-only">Refresh points and streak bonus</span>
       </Button>
+      {isAdmin && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleTestMint}
+          disabled={
+            isLoading || bonusLoading || claiming || minting || !userAddress
+          }
+        >
+          {minting ? "Minting..." : "Mint +100"}
+        </Button>
+      )}
     </div>
   );
 }

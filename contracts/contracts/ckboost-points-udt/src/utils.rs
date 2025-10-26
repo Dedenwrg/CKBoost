@@ -84,7 +84,7 @@ pub fn validate_protocol_owner_mode(protocol_type_hash: &[u8]) -> Result<(), Err
     // 1. Verify protocol cell exists in CellDeps
     let protocol_data = get_protocol_data_from_cell_deps(protocol_type_hash)?;
 
-    if !check_admin(&protocol_data)? {
+    if check_admin(&protocol_data)? {
         debug!("Admin found in inputs. Short-circuiting validation.");
         return Ok(());
     }
