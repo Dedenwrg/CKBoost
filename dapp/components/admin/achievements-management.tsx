@@ -75,6 +75,7 @@ type AchievementCellStatus =
       txHash: string;
       index: number;
       capacity: string;
+      typeHash: string;
       typeId: string;
       protocolKey: string;
       lockTypeId?: string;
@@ -102,8 +103,13 @@ const createDraft = (): AchievementDraft => ({
 
 export function AchievementsManagement(): React.JSX.Element {
   const { client } = ccc.useCcc();
-  const { protocolCell, signer, isWalletConnected, achievementService } =
-    useProtocol();
+  const {
+    protocolCell,
+    protocolData,
+    signer,
+    isWalletConnected,
+    achievementService,
+  } = useProtocol();
   const { toast } = useToast();
   const storageModal = useStorageModal();
   const network = deploymentManager.getCurrentNetwork();
@@ -129,8 +135,36 @@ export function AchievementsManagement(): React.JSX.Element {
 
   const [drafts, setDrafts] = useState<AchievementDraft[]>([createDraft()]);
   const [deploying, setDeploying] = useState(false);
+  const [appending, setAppending] = useState(false);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const { storeAchievementMetadata } = useNostrStorage();
+
+  const protocolAchievementTypeHashes = useMemo(() => {
+    const hashes =
+      protocolData?.protocol_config?.achievement_type_hashes ?? [];
+    return hashes
+      .map((hash) =>
+        typeof hash === "string"
+          ? hash.toLowerCase()
+          : ccc.hexFrom(hash as ccc.HexLike).toLowerCase()
+      )
+      .filter((hash) => hash && hash !== "0x");
+  }, [protocolData]);
+
+  const activeAchievementTypeHash = useMemo(() => {
+    if (status?.found && status.typeHash && status.typeHash !== "unknown") {
+      return status.typeHash.toLowerCase();
+    }
+    return null;
+  }, [status]);
+
+  const isActiveCellRegistered = useMemo(
+    () =>
+      activeAchievementTypeHash
+        ? protocolAchievementTypeHashes.includes(activeAchievementTypeHash)
+        : false,
+    [activeAchievementTypeHash, protocolAchievementTypeHashes]
+  );
 
   const evaluateDraft = useCallback(
     (draft: AchievementDraft): DraftEvaluation => {
@@ -180,6 +214,84 @@ export function AchievementsManagement(): React.JSX.Element {
   const deploymentUnavailable = !achievementTypeCodeHash;
   const missingProtocolCell = !protocolCell || !protocolTypeHash;
 
+  const prepareAchievementDefinitions = useCallback(
+    async (
+      existingEntries: AchievementEntry[] = []
+    ): Promise<{
+      definitions: AchievementDefinitionInput[];
+      updatedDrafts: AchievementDraft[];
+    }> => {
+      const definitions: AchievementDefinitionInput[] =
+        existingEntries.map((entry) => ({
+          achievement_title: entry.raw.achievement_title,
+          achievement_metadata: entry.raw.achievement_metadata,
+          receiver_user_record_vec:
+            entry.raw.receiver_user_record_vec ?? entry.records ?? [],
+        }));
+
+      const updatedDrafts: AchievementDraft[] = [];
+      const usedIds = new Set<string>();
+
+      existingEntries.forEach((entry) => {
+        const existingTitle = entry.title?.trim();
+        if (existingTitle) {
+          usedIds.add(slugify(existingTitle));
+        }
+      });
+
+      for (const [index, draft] of drafts.entries()) {
+        const titleTrimmed = draft.title.trim();
+        const descriptionTrimmed = draft.metadataDescription.trim();
+
+        let metadataId = slugify(titleTrimmed);
+        if (!metadataId) {
+          metadataId = `achievement-${index + 1}`;
+        }
+        let uniqueId = metadataId;
+        let suffix = 1;
+        while (usedIds.has(uniqueId)) {
+          uniqueId = `${metadataId}-${suffix}`;
+          suffix += 1;
+        }
+        usedIds.add(uniqueId);
+
+        let metadataNevent = draft.metadataText.trim();
+        if (!metadataNevent.startsWith("nevent")) {
+          const payload = {
+            id: uniqueId,
+            title: titleTrimmed,
+            description_html: descriptionTrimmed,
+            updated_at: new Date().toISOString(),
+          };
+
+          metadataNevent = await storeAchievementMetadata.mutateAsync({
+            achievementId: uniqueId,
+            title: titleTrimmed,
+            content: JSON.stringify(payload),
+            metadata: {
+              format: "html",
+              type: "achievement_metadata",
+            },
+          });
+        }
+
+        definitions.push({
+          achievement_title: titleTrimmed,
+          achievement_metadata: metadataNevent,
+          receiver_user_record_vec: [],
+        });
+
+        updatedDrafts.push({
+          ...draft,
+          metadataText: metadataNevent,
+        });
+      }
+
+      return { definitions, updatedDrafts };
+    },
+    [drafts, storeAchievementMetadata]
+  );
+
   const loadStatus = useCallback(async () => {
     if (!client) {
       setStatus(null);
@@ -225,6 +337,9 @@ export function AchievementsManagement(): React.JSX.Element {
         : "unknown";
       const index = Number(cell.outPoint?.index ?? 0);
       const capacity = ccc.numFrom(cell.cellOutput.capacity ?? 0).toString();
+      const typeHash = cell.cellOutput.type
+        ? ccc.hexFrom(cell.cellOutput.type.hash())
+        : "unknown";
 
       const typeConnected = decodeConnectedTypeId(cell.cellOutput.type?.args);
       const lockConnected = decodeConnectedTypeId(
@@ -236,6 +351,7 @@ export function AchievementsManagement(): React.JSX.Element {
         txHash,
         index,
         capacity,
+        typeHash,
         typeId: typeConnected?.type_id
           ? ccc.hexFrom(typeConnected.type_id)
           : "unknown",
@@ -468,17 +584,7 @@ export function AchievementsManagement(): React.JSX.Element {
       toast({
         title: "Achievements cell already exists",
         description:
-          "Updating achievements requires a dedicated flow. Only one cell should exist per protocol.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!hasValidEntries) {
-      toast({
-        title: "Add achievement details",
-        description:
-          "Provide at least one achievement with title and description.",
+          "Use the append action below to add new achievements instead of deploying a new cell.",
         variant: "destructive",
       });
       return;
@@ -498,76 +604,26 @@ export function AchievementsManagement(): React.JSX.Element {
       return;
     }
 
+    if (!achievementService) {
+      toast({
+        title: "Achievement service not available",
+        description:
+          "Achievement service is not available. Please try again later.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setDeploying(true);
     try {
-      const achievementsPayload: AchievementDefinitionInput[] = [];
-      const updatedDrafts: AchievementDraft[] = [];
-      const usedIds = new Set<string>();
-
-      for (const [index, draft] of drafts.entries()) {
-        const titleTrimmed = draft.title.trim();
-        const descriptionTrimmed = draft.metadataDescription.trim();
-
-        let metadataId = slugify(titleTrimmed);
-        if (!metadataId) {
-          metadataId = `achievement-${index + 1}`;
-        }
-        let uniqueId = metadataId;
-        let suffix = 1;
-        while (usedIds.has(uniqueId)) {
-          uniqueId = `${metadataId}-${suffix}`;
-          suffix += 1;
-        }
-        usedIds.add(uniqueId);
-
-        let metadataNevent = draft.metadataText.trim();
-        if (!metadataNevent.startsWith("nevent")) {
-          const payload = {
-            id: uniqueId,
-            title: titleTrimmed,
-            description_html: descriptionTrimmed,
-            updated_at: new Date().toISOString(),
-          };
-
-          metadataNevent = await storeAchievementMetadata.mutateAsync({
-            achievementId: uniqueId,
-            title: titleTrimmed,
-            content: JSON.stringify(payload),
-            metadata: {
-              format: "html",
-              type: "achievement_metadata",
-            },
-          });
-        }
-
-        achievementsPayload.push({
-          achievement_title: titleTrimmed,
-          achievement_metadata: metadataNevent,
-          receiver_user_record_vec: [],
-        });
-
-        updatedDrafts.push({
-          ...draft,
-          metadataText: metadataNevent,
-        });
-      }
-
+      const { definitions, updatedDrafts } =
+        await prepareAchievementDefinitions();
       setDrafts(updatedDrafts);
-
-      if (!achievementService) {
-        toast({
-          title: "Achievement service not available",
-          description:
-            "Achievement service is not available. Please try again later.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       const result = await achievementService.deployAchievementCell({
         signer,
         protocolCell,
-        achievements: achievementsPayload,
+        achievements: definitions,
       });
 
       toast({
@@ -577,6 +633,7 @@ export function AchievementsManagement(): React.JSX.Element {
         )} · Type ID: ${formatHash(result?.typeId ?? "")}`,
       });
 
+      setDrafts([createDraft()]);
       await loadStatus();
     } catch (error) {
       log.error("Deployment failed", error);
@@ -590,17 +647,125 @@ export function AchievementsManagement(): React.JSX.Element {
       setDeploying(false);
     }
   }, [
+    achievementService,
     achievementTypeCodeHash,
     draftEvaluations,
-    drafts,
     hasValidEntries,
     isWalletConnected,
     loadStatus,
+    prepareAchievementDefinitions,
     protocolCell,
     protocolTypeHash,
     signer,
     status,
-    storeAchievementMetadata,
+    toast,
+  ]);
+
+  const handleAppend = useCallback(async () => {
+    if (!status?.found) {
+      toast({
+        title: "Achievements cell not found",
+        description: "Deploy the achievements cell before adding new entries.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!hasValidEntries) {
+      toast({
+        title: "No achievements prepared",
+        description: "Add at least one achievement before updating the cell.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isWalletConnected || !signer) {
+      toast({
+        title: "Wallet required",
+        description: "Connect an admin wallet to append achievements.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!protocolCell || !protocolTypeHash) {
+      toast({
+        title: "Protocol cell unavailable",
+        description:
+          "Deploy and load the protocol cell before updating achievements.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const firstErrorIndex = draftEvaluations.findIndex(
+      (evaluation) => evaluation.titleError || evaluation.metadataError
+    );
+    if (firstErrorIndex !== -1) {
+      const evaluation = draftEvaluations[firstErrorIndex];
+      toast({
+        title: "Complete achievement details",
+        description:
+          evaluation.titleError ?? evaluation.metadataError ?? "Invalid entry.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!achievementService) {
+      toast({
+        title: "Achievement service not available",
+        description:
+          "Achievement service is not available. Please try again later.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAppending(true);
+    try {
+      const { definitions, updatedDrafts } =
+        await prepareAchievementDefinitions(onChainAchievements);
+      setDrafts(updatedDrafts);
+
+      const txHash = await achievementService.updateAchievementCell({
+        signer,
+        protocolCell,
+        protocolTypeHash: ccc.hexFrom(protocolTypeHash) as ccc.Hex,
+        achievements: definitions,
+      });
+
+      toast({
+        title: "Achievements updated",
+        description: `Tx: ${formatHash(txHash)}`,
+      });
+
+      setDrafts([createDraft()]);
+      await loadStatus();
+    } catch (error) {
+      log.error("Failed to append achievements", error);
+      toast({
+        title: "Update failed",
+        description:
+          error instanceof Error ? error.message : "Unknown error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setAppending(false);
+    }
+  }, [
+    achievementService,
+    draftEvaluations,
+    hasValidEntries,
+    isWalletConnected,
+    loadStatus,
+    onChainAchievements,
+    prepareAchievementDefinitions,
+    protocolCell,
+    protocolTypeHash,
+    signer,
+    status,
     toast,
   ]);
 
@@ -609,10 +774,9 @@ export function AchievementsManagement(): React.JSX.Element {
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <CardTitle>Achievements Deployment</CardTitle>
+            <CardTitle>Achievements Cell Status</CardTitle>
             <CardDescription>
-              Deploy and monitor the achievements cell connected to the current
-              protocol.
+              Monitor the achievements cell connected to the current protocol and confirm it is registered.
             </CardDescription>
           </div>
           <Button
@@ -724,7 +888,13 @@ export function AchievementsManagement(): React.JSX.Element {
                 </div>
                 <div>
                   <span className="block text-[0.65rem] uppercase text-muted-foreground">
-                    Type ID
+                    Type hash
+                  </span>
+                  <span className="break-all">{status.typeHash}</span>
+                </div>
+                <div>
+                  <span className="block text-[0.65rem] uppercase text-muted-foreground">
+                    Connected type ID
                   </span>
                   <span className="break-all">{status.typeId}</span>
                 </div>
@@ -733,6 +903,27 @@ export function AchievementsManagement(): React.JSX.Element {
                     Connected protocol key
                   </span>
                   <span className="break-all">{status.protocolKey}</span>
+                </div>
+                <div className="md:col-span-2">
+                  <span className="block text-[0.65rem] uppercase text-muted-foreground">
+                    Protocol config registration
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      className={
+                        isActiveCellRegistered
+                          ? "bg-green-100 text-green-800"
+                          : "bg-amber-100 text-amber-800"
+                      }
+                    >
+                      {isActiveCellRegistered ? "Registered" : "Not in config"}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {isActiveCellRegistered
+                        ? "Listed in protocol_config.achievement_type_hashes."
+                        : `Add ${status.typeId} to protocol_config.achievement_type_hashes.`}
+                    </span>
+                  </div>
                 </div>
                 {status.lockTypeId && (
                   <div>
@@ -751,6 +942,24 @@ export function AchievementsManagement(): React.JSX.Element {
                   </div>
                 )}
               </dl>
+
+              {!isActiveCellRegistered && (
+                <Alert variant="destructive">
+                  <AlertTitle>Protocol config update required</AlertTitle>
+                  <AlertDescription>
+                    <span>
+                      Achievements cell type hash {status.typeHash} is not listed in
+                      <code>protocol_config.achievement_type_hashes</code>. Add it to
+                      ensure dashboards and clients can detect this cell.
+                    </span>
+                    {protocolAchievementTypeHashes.length > 0 && (
+                      <span className="mt-1 block">
+                        Registered values: {protocolAchievementTypeHashes.join(', ')}
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-2 rounded-md border border-border/50 bg-background/70 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -812,10 +1021,9 @@ export function AchievementsManagement(): React.JSX.Element {
 
       <Card>
         <CardHeader>
-          <CardTitle>Prepare Achievements</CardTitle>
+          <CardTitle>Manage Achievements</CardTitle>
           <CardDescription>
-            Define the achievements that will be stored in the achievements
-            cell. Data is persisted as <code>AchievementDataVec</code>.
+            Draft new achievements to append to the active achievements cell. Deploy a new cell only when one is not yet connected.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -928,37 +1136,68 @@ export function AchievementsManagement(): React.JSX.Element {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            <Button
-              type="button"
-              onClick={handleDeploy}
-              disabled={
-                deploying ||
-                !hasValidEntries ||
-                !isWalletConnected ||
-                !signer ||
-                deploymentUnavailable ||
-                missingProtocolCell ||
-                status?.found === true
-              }
-            >
-              {deploying ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deploying
-                </>
-              ) : (
-                <>
-                  <FileJson className="mr-2 h-4 w-4" />
-                  Deploy achievements cell
-                </>
-              )}
-            </Button>
-            {status?.found && (
-              <p className="text-xs text-muted-foreground">
-                Deployment disabled because an achievements cell already exists.
-              </p>
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              {status?.found
+                ? `New achievements will be appended to type hash ${status.typeHash}.`
+                : "Draft achievements and deploy a new cell if one is not available."}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                onClick={handleAppend}
+                disabled={
+                  appending ||
+                  deploying ||
+                  !hasValidEntries ||
+                  !isWalletConnected ||
+                  !signer ||
+                  deploymentUnavailable ||
+                  missingProtocolCell ||
+                  !status?.found ||
+                  statusLoading
+                }
+              >
+                {appending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add achievements to cell
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDeploy}
+                disabled={
+                  deploying ||
+                  appending ||
+                  !hasValidEntries ||
+                  !isWalletConnected ||
+                  !signer ||
+                  deploymentUnavailable ||
+                  missingProtocolCell ||
+                  status?.found === true
+                }
+              >
+                {deploying ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deploying
+                  </>
+                ) : (
+                  <>
+                    <FileJson className="mr-2 h-4 w-4" />
+                    Deploy achievements cell
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

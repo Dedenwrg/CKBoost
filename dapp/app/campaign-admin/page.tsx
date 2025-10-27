@@ -629,7 +629,7 @@ export default function CampaignAdminDashboard() {
           </div>
 
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -657,19 +657,6 @@ export default function CampaignAdminDashboard() {
                   </div>
                   <div className="p-3 bg-green-100 rounded-full">
                     <Users className="w-6 h-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Budget Used</p>
-                  </div>
-                  <div className="p-3 bg-purple-100 rounded-full">
-                    <DollarSign className="w-6 h-6 text-purple-600" />
                   </div>
                 </div>
               </CardContent>
@@ -970,7 +957,7 @@ export default function CampaignAdminDashboard() {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                             <div className="text-center">
                               <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
                                 <Users className="w-4 h-4" />
@@ -1024,38 +1011,6 @@ export default function CampaignAdminDashboard() {
                                 Staff Members
                               </p>
                             </div>
-                          </div>
-
-                          <div className="mb-4">
-                            <div className="flex justify-between text-sm mb-2">
-                              <span>Budget Used</span>
-                              <span>
-                                {Number(
-                                  campaign.metadata?.total_rewards
-                                    .points_amount || 0
-                                )}{" "}
-                                /{" "}
-                                {Number(
-                                  campaign.metadata?.total_rewards
-                                    .points_amount || 0
-                                )}{" "}
-                                CKB
-                              </span>
-                            </div>
-                            <Progress
-                              value={
-                                (Number(
-                                  campaign.metadata?.total_rewards
-                                    .points_amount || 0
-                                ) /
-                                  Number(
-                                    campaign.metadata?.total_rewards
-                                      .points_amount || 1
-                                  )) *
-                                100
-                              }
-                              className="h-2"
-                            />
                           </div>
 
                           <div className="flex items-center justify-between">
