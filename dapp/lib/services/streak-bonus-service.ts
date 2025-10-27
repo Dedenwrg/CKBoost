@@ -4,6 +4,12 @@ import type {
   StreakBonusQueryResponse,
   StreakBonusValidateResponse,
 } from "@/netlify/lib/streak-bonus";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import {
+  buildStreakBonusQueryCacheKey,
+  seedStreakBonusQueryCache,
+  withStreakBonusQueryCache,
+} from "@/lib/cache/query-cache";
 
 export class StreakBonusService {
   private readonly signer?: ccc.Signer;
@@ -15,26 +21,43 @@ export class StreakBonusService {
   async query(params: {
     userAddress: string;
     limit?: number;
+    refresh?: boolean;
   }): Promise<BonusStreakCalculation> {
-    const body: Record<string, unknown> = {
-      userAddress: params.userAddress,
-    };
-    if (typeof params.limit === "number") {
-      body.limit = params.limit;
-    }
-
-    const response = await fetch("/api/streakBonus-query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+    const { userAddress, limit, refresh = false } = params;
+    const network = deploymentManager.getCurrentNetwork();
+    const cacheKey = buildStreakBonusQueryCacheKey({
+      network,
+      userAddress,
+      limit,
     });
 
-    const payload = (await response.json()) as StreakBonusQueryResponse;
-    if (!payload.success) {
-      throw new Error(payload.message ?? payload.error);
-    }
+    const result = await withStreakBonusQueryCache(
+      cacheKey,
+      async () => {
+        const body: Record<string, unknown> = {
+          userAddress,
+        };
+        if (typeof limit === "number") {
+          body.limit = limit;
+        }
 
-    return payload.bonusStreak;
+        const response = await fetch("/api/streakBonus-query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const payload = (await response.json()) as StreakBonusQueryResponse;
+        if (!payload.success) {
+          throw new Error(payload.message ?? payload.error);
+        }
+
+        return payload.bonusStreak;
+      },
+      { refresh }
+    );
+
+    return result.value;
   }
 
   async claim(params: {
@@ -91,6 +114,14 @@ export class StreakBonusService {
     }
 
     const txHash = await signer.sendTransaction(validatedTx);
+
+    const network = deploymentManager.getCurrentNetwork();
+    const cacheKey = buildStreakBonusQueryCacheKey({
+      network,
+      userAddress: params.userAddress,
+      limit: params.limit,
+    });
+    seedStreakBonusQueryCache(cacheKey, payload.bonusStreak);
 
     return {
       txHash,

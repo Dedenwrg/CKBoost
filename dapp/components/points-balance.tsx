@@ -17,6 +17,10 @@ import type { BonusStreakCalculation } from "@/netlify/lib/streak-bonus";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import {
+  buildPointsBalanceCacheKey,
+  withPointsBalanceCache,
+} from "@/lib/cache/query-cache";
 
 const log = createScopedLogger("PointsBalance");
 
@@ -41,69 +45,85 @@ export function PointsBalance() {
     };
   }, []);
 
-  const loadBalances = useCallback(async () => {
-    if (!mountedRef.current) {
-      return;
-    }
-
-    if (!signer || !client || !protocolCell) {
-      setBalance(null);
-      setBonus(null);
-      setUserAddress(null);
-      setIsLoading(false);
-      setBonusLoading(false);
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      setBonusLoading(true);
-
-      const recommended = await signer.getRecommendedAddressObj();
-      const userAddressString = await signer.getRecommendedAddress();
-      if (!mountedRef.current) return;
-      setUserAddress(userAddressString);
-
-      const protocolTypeHash = protocolCell.cellOutput.type?.hash();
-      if (!protocolTypeHash) {
-        log.warn("Protocol type hash not found");
-        setBalance(BigInt(0));
-        setBonus(null);
+  const loadBalances = useCallback(
+    async (forceRefresh = false) => {
+      if (!mountedRef.current) {
         return;
       }
 
-      const pointsPromise = fetchUserPointsBalance(
-        client,
-        recommended.script,
-        protocolTypeHash
-      );
-
-      const streakBonusService = new StreakBonusService();
-      let bonusResponse: BonusStreakCalculation | null = null;
-      try {
-        bonusResponse = await streakBonusService.query({
-          userAddress: userAddressString,
-        });
-      } catch (bonusError) {
-        log.warn("Failed to load streak bonus information:", bonusError);
+      if (!signer || !client || !protocolCell) {
+        setBalance(null);
+        setBonus(null);
+        setUserAddress(null);
+        setIsLoading(false);
+        setBonusLoading(false);
+        return;
       }
 
-      const pointsBalance = await pointsPromise;
-      if (!mountedRef.current) return;
+      try {
+        setIsLoading(true);
+        setBonusLoading(true);
 
-      setBalance(pointsBalance);
-      setBonus(bonusResponse);
-    } catch (error) {
-      log.error("Failed to load Points balance:", error);
-      if (!mountedRef.current) return;
-      setBalance(BigInt(0));
-      setBonus(null);
-    } finally {
-      if (!mountedRef.current) return;
-      setIsLoading(false);
-      setBonusLoading(false);
-    }
-  }, [signer, client, protocolCell]);
+        const recommended = await signer.getRecommendedAddressObj();
+        const userAddressString = await signer.getRecommendedAddress();
+        if (!mountedRef.current) return;
+        setUserAddress(userAddressString);
+
+        const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+        if (!protocolTypeHash) {
+          log.warn("Protocol type hash not found");
+          setBalance(BigInt(0));
+          setBonus(null);
+          return;
+        }
+
+        const network = deploymentManager.getCurrentNetwork();
+        const pointsCacheKey = buildPointsBalanceCacheKey({
+          network,
+          protocolTypeHash,
+          lockScriptHash: recommended.script.hash(),
+        });
+
+        const pointsPromise = withPointsBalanceCache(
+          pointsCacheKey,
+          () =>
+            fetchUserPointsBalance(
+              client,
+              recommended.script,
+              protocolTypeHash
+            ),
+          { refresh: forceRefresh }
+        );
+
+        const streakBonusService = new StreakBonusService();
+        let bonusResponse: BonusStreakCalculation | null = null;
+        try {
+          bonusResponse = await streakBonusService.query({
+            userAddress: userAddressString,
+            refresh: forceRefresh,
+          });
+        } catch (bonusError) {
+          log.warn("Failed to load streak bonus information:", bonusError);
+        }
+
+        const pointsResult = await pointsPromise;
+        if (!mountedRef.current) return;
+
+        setBalance(pointsResult.value);
+        setBonus(bonusResponse);
+      } catch (error) {
+        log.error("Failed to load Points balance:", error);
+        if (!mountedRef.current) return;
+        setBalance(BigInt(0));
+        setBonus(null);
+      } finally {
+        if (!mountedRef.current) return;
+        setIsLoading(false);
+        setBonusLoading(false);
+      }
+    },
+    [signer, client, protocolCell]
+  );
 
   useEffect(() => {
     void loadBalances();
@@ -139,7 +159,7 @@ export function PointsBalance() {
           -6
         )} submitted.`,
       });
-      await loadBalances();
+      await loadBalances(true);
     } catch (error) {
       log.error("Failed to claim streak bonus:", error);
       toast({
@@ -257,7 +277,7 @@ export function PointsBalance() {
           -6
         )} submitted.`,
       });
-      await loadBalances();
+      await loadBalances(true);
     } catch (error) {
       log.error("Failed to mint test points:", error);
       toast({
@@ -274,7 +294,7 @@ export function PointsBalance() {
   }, [isAdmin, loadBalances, protocolCell, signer, toast, userAddress]);
 
   const handleRefresh = useCallback(() => {
-    void loadBalances();
+    void loadBalances(true);
   }, [loadBalances]);
 
   // Don't show anything if wallet not connected
