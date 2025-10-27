@@ -220,7 +220,13 @@ const formatTokenAmount = (value: bigint, token: UDTToken | null): string => {
   return formatBigIntAmount(value);
 };
 
-type RewardCategory = "quest" | "tipping" | "achievement" | "other";
+type RewardCategory =
+  | "quest"
+  | "tipping"
+  | "achievement"
+  | "streak"
+  | "mockMint"
+  | "other";
 
 type TokenRewardDetail = {
   symbol: string;
@@ -274,6 +280,65 @@ const rewardCategoryStyles: Record<
     className:
       "bg-slate-100 text-slate-700 dark:bg-slate-600/30 dark:text-slate-200",
   },
+  streak: {
+    label: "Streak Bonus",
+    className:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200",
+  },
+  mockMint: {
+    label: "Mock Mint",
+    className:
+      "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-500/20 dark:text-fuchsia-200",
+  },
+};
+
+const buildSyntheticRewardEvent = (
+  tx: PointsMintTransaction,
+  points: bigint
+): RewardEventDetail => {
+  const inputCount = tx.inputs?.length ?? 0;
+  const outputCount = tx.outputs?.length ?? 0;
+
+  if (inputCount === 0 && outputCount > 0) {
+    return {
+      id: `${tx.txHash}:mock-mint`,
+      type: "mockMint",
+      title: "Mock mint allocation",
+      subtitle: null,
+      link: null,
+      points,
+      tokenRewards: [],
+    };
+  }
+
+  if (inputCount === 1 && outputCount === 1) {
+    const previousAmount = numToBigInt(tx.inputs?.[0]?.amount ?? 0);
+    const nextAmount = numToBigInt(tx.outputs?.[0]?.amount ?? 0);
+    const delta = nextAmount - previousAmount;
+    const subtitle =
+      delta > 0n
+        ? `Balance increased by ${formatBigIntAmount(delta)}`
+        : "Points balance updated";
+    return {
+      id: `${tx.txHash}:streak-bonus`,
+      type: "streak",
+      title: "Streak bonus claim",
+      subtitle,
+      link: null,
+      points,
+      tokenRewards: [],
+    };
+  }
+
+  return {
+    id: `${tx.txHash}:reward`,
+    type: "other",
+    title: "Reward distribution",
+    subtitle: null,
+    link: null,
+    points,
+    tokenRewards: [],
+  };
 };
 
 export function ProfileContent({
@@ -682,15 +747,7 @@ export function ProfileContent({
       }
 
       if (events.length === 0) {
-        events.push({
-          id: `${tx.txHash}:fallback`,
-          type: "other",
-          title: "Reward distribution",
-          subtitle: null,
-          link: null,
-          points: remainingPoints,
-          tokenRewards: [],
-        });
+        events.push(buildSyntheticRewardEvent(tx, remainingPoints));
       } else if (remainingPoints > 0n) {
         events.push({
           id: `${tx.txHash}:residual`,
