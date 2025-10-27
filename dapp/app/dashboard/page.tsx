@@ -220,7 +220,7 @@ export default function Dashboard() {
       return identityName;
     }
     if (userAddress) {
-      return userAddress;
+      return shorten(userAddress, 6, 6);
     }
     if (currentUserTypeId) {
       return currentUserTypeId;

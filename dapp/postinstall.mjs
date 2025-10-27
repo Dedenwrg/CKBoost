@@ -1,37 +1,35 @@
-import fse from 'fs-extra';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { createScopedLogger } from 'ssri-ckboost';
+import fse from "fs-extra";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const publicTinymcePath = path.join(__dirname, 'public', 'tinymce');
-const log = createScopedLogger('postinstall');
+const publicTinymcePath = path.join(__dirname, "public", "tinymce");
 
 // Empty and copy TinyMCE to public directory
 fse.emptyDirSync(publicTinymcePath);
 
 // Handle both regular directory and symlink (pnpm) cases
-const tinymceSourcePath = path.join(__dirname, 'node_modules', 'tinymce');
+const tinymceSourcePath = path.join(__dirname, "node_modules", "tinymce");
 try {
   const stats = fse.lstatSync(tinymceSourcePath);
   if (stats.isSymbolicLink()) {
     // If it's a symlink (pnpm), resolve it first
     const realPath = fse.realpathSync(tinymceSourcePath);
-    fse.copySync(realPath, publicTinymcePath, { 
+    fse.copySync(realPath, publicTinymcePath, {
       overwrite: true,
-      dereference: true 
+      dereference: true,
     });
   } else {
     // Regular directory
-    fse.copySync(tinymceSourcePath, publicTinymcePath, { 
-      overwrite: true 
+    fse.copySync(tinymceSourcePath, publicTinymcePath, {
+      overwrite: true,
     });
   }
-  log.info('✓ TinyMCE copied to public directory');
+  log.info("✓ TinyMCE copied to public directory");
 } catch (error) {
-  log.error('Error copying TinyMCE:', error.message);
+  log.error("Error copying TinyMCE:", error.message);
   // Don't fail the install if TinyMCE copy fails
   process.exit(0);
 }
