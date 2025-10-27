@@ -61,7 +61,7 @@ export function TippingCard({
   const [additionalTipAmount, setAdditionalTipAmount] = useState("");
   const [additionalTipMessage, setAdditionalTipMessage] = useState("");
   const [isSendingTip, setIsSendingTip] = useState(false);
-  const { protocolData } = useProtocol();
+  const { protocolData, resolveEndorser } = useProtocol();
   const tippingConfig = protocolData?.tipping_config;
   const { fetchSubmission } = useNostrFetch();
   const [resolvedLongDescription, setResolvedLongDescription] =
@@ -69,6 +69,35 @@ export function TippingCard({
   const [isResolvingLongDescription, setIsResolvingLongDescription] =
     useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+
+  const proposerLockHash = useMemo(() => {
+    try {
+      return ccc.hexFrom(tipping.data.proposer_lock_hash).toLowerCase();
+    } catch {
+      try {
+        const stringValue = tipping.data.proposer_lock_hash?.toString?.();
+        return stringValue ? stringValue.toLowerCase() : "";
+      } catch {
+        return "";
+      }
+    }
+  }, [tipping.data.proposer_lock_hash]);
+
+  const proposerInfo = useMemo(
+    () =>
+      proposerLockHash
+        ? resolveEndorser(proposerLockHash) ?? null
+        : null,
+    [resolveEndorser, proposerLockHash]
+  );
+
+  const proposerDisplayName =
+    proposerInfo?.name ?? (proposerLockHash || "Unknown proposer");
+
+  const proposerShortHash =
+    proposerLockHash && proposerLockHash.startsWith("0x")
+      ? `${proposerLockHash.slice(0, 8)}...${proposerLockHash.slice(-6)}`
+      : proposerLockHash || null;
 
   const extractHtmlFromContent = (raw: string) => {
     if (!raw) {
@@ -496,8 +525,34 @@ export function TippingCard({
           )}
         </div>
         <div className="text-left flex justify-between text-xs text-muted-foreground">
-          <div>
-            Proposed by {ccc.stringify(tipping.data.proposer_lock_hash)}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span>
+                Proposed by{" "}
+                <span className="font-medium text-foreground">
+                  {proposerDisplayName}
+                </span>
+                {proposerShortHash &&
+                  proposerShortHash !== proposerDisplayName && (
+                    <span className="ml-1 font-mono text-muted-foreground">
+                      {proposerShortHash}
+                    </span>
+                  )}
+              </span>
+              {proposerInfo?.verified && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] uppercase tracking-wide"
+                >
+                  Verified
+                </Badge>
+              )}
+            </div>
+            {proposerInfo?.description && (
+              <span className="text-[11px] text-muted-foreground">
+                {proposerInfo.description}
+              </span>
+            )}
           </div>
           {creationDate && (
             <div className="mt-auto flex items-center gap-1 text-xs text-muted-foreground">

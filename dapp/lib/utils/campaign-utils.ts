@@ -5,6 +5,8 @@ import { ccc } from "@ckb-ccc/connector-react";
 import type { CampaignDataLike, ConnectedTypeIDLike } from "ssri-ckboost/types";
 import { CampaignData, ConnectedTypeID } from "ssri-ckboost/types";
 import { createScopedLogger } from "ssri-ckboost";
+import type { EndorserResolver, ResolvedEndorser } from "./endorser-resolver";
+import { normalizeEndorserLockHash } from "./endorser-resolver";
 
 const log = createScopedLogger("CampaignUtils");
 import {
@@ -55,6 +57,8 @@ export type CampaignDisplay = CampaignDataLike & {
   shortDescription: string;
   categories: string[];
   endorserName: string;
+  endorserLockHash: string | null;
+  endorser: ResolvedEndorser | null;
   image: string;
 };
 
@@ -63,7 +67,10 @@ export type CampaignDisplay = CampaignDataLike & {
  * @param cell - Cell containing campaign data
  * @returns Campaign data with additional UI fields
  */
-export function cellToCampaignDisplay(cell: ccc.Cell): CampaignDisplay {
+export function cellToCampaignDisplay(
+  cell: ccc.Cell,
+  options: { endorserResolver?: EndorserResolver } = {}
+): CampaignDisplay {
   // Decode the campaign data from the cell
   const campaignData = CampaignData.decode(cell.outputData) as CampaignDataLike;
 
@@ -120,6 +127,17 @@ export function cellToCampaignDisplay(cell: ccc.Cell): CampaignDisplay {
     campaignData.ending_time
   );
 
+  const normalizedEndorserLockHash = normalizeEndorserLockHash(
+    campaignData.endorser_lock_hash
+  );
+  const resolvedEndorser =
+    options.endorserResolver?.resolve(normalizedEndorserLockHash) ?? null;
+  const endorserName =
+    resolvedEndorser?.name ??
+    normalizedEndorserLockHash ??
+    ccc.hexFrom(campaignData.endorser_lock_hash) ??
+    "Unknown Endorser";
+
   return {
     // Spread the original campaign data
     ...campaignData,
@@ -143,8 +161,9 @@ export function cellToCampaignDisplay(cell: ccc.Cell): CampaignDisplay {
     title: metadata.title || "Untitled Campaign",
     shortDescription: metadata.short_description || "",
     categories: metadata.categories || [],
-    endorserName:
-      ccc.hexFrom(campaignData.endorser_lock_hash) || "Unknown Endorser",
+    endorserName,
+    endorserLockHash: normalizedEndorserLockHash,
+    endorser: resolvedEndorser,
     image: metadata.image_url || "/placeholder.svg",
   };
 }

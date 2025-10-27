@@ -5,6 +5,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useMemo,
   ReactNode,
 } from "react";
 import { ccc } from "@ckb-ccc/connector-react";
@@ -25,6 +26,12 @@ import { ProtocolService } from "../services/protocol-service";
 import { AchievementService } from "../services/achievement-service";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { createScopedLogger } from "ssri-ckboost";
+import {
+  createEndorserResolver,
+  type EndorserResolver,
+  type ResolvedEndorser,
+  normalizeEndorserLockHash,
+} from "../utils/endorser-resolver";
 
 const log = createScopedLogger("ProtocolProvider");
 
@@ -50,6 +57,10 @@ interface ProtocolContextType {
   getEndorser: (address: string) => EndorserInfoLike | undefined;
   getTipping: (index: number) => TippingDataLike | undefined;
   getApprovedCampaign: (id: string) => CampaignDataLike | undefined;
+  resolveEndorser: (
+    address: string | null | undefined
+  ) => ResolvedEndorser | undefined;
+  endorserResolver: EndorserResolver;
 
   // User-specific data
   userAddress: string | null;
@@ -98,6 +109,12 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
 
   // Wallet connection state
   const isWalletConnected = !!signer;
+
+  const endorserResolver = useMemo(
+    () =>
+      createEndorserResolver(protocolData?.endorsers_whitelist ?? []),
+    [protocolData?.endorsers_whitelist]
+  );
 
   // Initialize protocol data
   useEffect(() => {
@@ -223,20 +240,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
             setIsAdmin(isUserAdmin);
 
             // Check if user is in endorser whitelist
-            const isUserEndorser =
-              protocolData.endorsers_whitelist?.some(
-                (endorser: EndorserInfoLike) => {
-                  const endorserHash =
-                    typeof endorser.endorser_lock_hash === "string"
-                      ? endorser.endorser_lock_hash
-                      : ccc.hexFrom(
-                          new Uint8Array(endorser.endorser_lock_hash)
-                        );
-                  return (
-                    endorserHash.toLowerCase() === userLockHash.toLowerCase()
-                  );
-                }
-              ) || false;
+            const isUserEndorser = endorserResolver.has(userLockHash);
             setIsEndorser(isUserEndorser);
           } catch (adminCheckErr) {
             log.error(
@@ -253,7 +257,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     };
 
     updateUserInfo();
-  }, [signer, protocolData]);
+  }, [signer, protocolData, endorserResolver]);
 
   const updateProtocol = async (form: ProtocolDataLike): Promise<ccc.Hex> => {
     if (!protocolService) {
@@ -605,9 +609,12 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
 
   // Helper functions
   const getEndorser = (address: string): EndorserInfoLike | undefined => {
-    return protocolData?.endorsers_whitelist?.find(
-      (e: EndorserInfoLike) => e.endorser_lock_hash === address
-    );
+    const normalized = normalizeEndorserLockHash(address);
+    if (!normalized) {
+      return undefined;
+    }
+    const resolved = endorserResolver.resolve(normalized);
+    return resolved?.raw;
   };
 
   const getTipping = (index: number): TippingDataLike | undefined => {
@@ -620,6 +627,13 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     // TODO: To implement.
     throw new Error(`To be implemented ${id} `);
     // return protocolData?.campaigns_approved?.find((campaignTypeIdHex: ccc.Hex) => c.status === id);
+  };
+
+  const resolveEndorser = (
+    address: string | null | undefined
+  ): ResolvedEndorser | undefined => {
+    if (!address) return undefined;
+    return endorserResolver.resolve(normalizeEndorserLockHash(address));
   };
 
   const value: ProtocolContextType = {
@@ -643,6 +657,8 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     getEndorser,
     getTipping,
     getApprovedCampaign,
+    resolveEndorser,
+    endorserResolver,
 
     // User-specific data
     userAddress,
@@ -701,17 +717,25 @@ export function useProtocolAdmin() {
 
 // Helper hook for endorser-specific data
 export function useEndorser(address?: string) {
-  const { getEndorser, protocolData, isLoading } = useProtocol();
+  const { resolveEndorser, endorserResolver, protocolData, isLoading } =
+    useProtocol();
 
-  const endorser = address ? getEndorser(address) : undefined;
-  const allEndorsers = protocolData?.endorsers_whitelist || [];
+  const resolvedEndorser = address ? resolveEndorser(address) : undefined;
+  const endorser = resolvedEndorser?.raw;
+  const resolvedEndorsers = endorserResolver.list();
+  const allEndorsers =
+    protocolData?.endorsers_whitelist?.length && resolvedEndorsers.length === 0
+      ? protocolData.endorsers_whitelist
+      : resolvedEndorsers.map((item) => item.raw);
 
   return {
     endorser,
+    resolvedEndorser: resolvedEndorser ?? null,
+    resolvedEndorsers,
     allEndorsers,
     isLoading,
     exists: !!endorser,
-    totalEndorsers: allEndorsers.length,
+    totalEndorsers: resolvedEndorsers.length || allEndorsers.length,
   };
 }
 

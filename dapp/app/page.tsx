@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Navigation } from "@/components/navigation"
 import { CampaignCard } from "@/components/campaign-card"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
@@ -9,7 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Search, Star, X } from "lucide-react"
 import Link from "next/link"
-import { getDerivedStatus, useCampaigns, cellToCampaignDisplay } from "@/lib"
+import {
+  getDerivedStatus,
+  useCampaigns,
+  cellToCampaignDisplay,
+  type CampaignDisplay,
+} from "@/lib"
+import { useProtocol } from "@/lib/providers/protocol-provider"
 import { createScopedLogger } from "ssri-ckboost"
 
 const log = createScopedLogger("HomePage")
@@ -20,30 +26,37 @@ export default function HomePage() {
   const [selectedDifficulties, setSelectedDifficulties] = useState<string[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
+  const [selectedEndorsers, setSelectedEndorsers] = useState<string[]>([])
 
   // Use campaign provider
   const { campaigns: campaignCells, featuredCampaigns: featuredCells, isLoading, error } = useCampaigns()
+  const { endorserResolver } = useProtocol()
 
   // Convert Cell data to display format
   const campaigns = campaignCells.map(cell => {
     try {
-      return cellToCampaignDisplay(cell)
+      return cellToCampaignDisplay(cell, { endorserResolver })
     } catch (err) {
       log.error("Failed to convert campaign cell:", err)
       return null
     }
-  }).filter(c => c !== null)
+  }).filter((c): c is CampaignDisplay => c !== null)
 
   const featuredCampaigns = featuredCells.map(cell => {
     try {
-      return cellToCampaignDisplay(cell)
+      return cellToCampaignDisplay(cell, { endorserResolver })
     } catch (err) {
       log.error("Failed to convert featured campaign cell:", err)
       return null
     }
-  }).filter(c => c !== null)
+  }).filter((c): c is CampaignDisplay => c !== null)
 
-  const hasActiveFilters = searchTerm !== "" || selectedDifficulties.length > 0 || selectedCategories.length > 0 || selectedStatuses.length > 0
+  const hasActiveFilters =
+    searchTerm !== "" ||
+    selectedDifficulties.length > 0 ||
+    selectedCategories.length > 0 ||
+    selectedStatuses.length > 0 ||
+    selectedEndorsers.length > 0
 
   const filteredCampaigns = campaigns.filter((campaign) => {
     // If no filters are active, exclude featured campaigns from "All Campaigns" section
@@ -62,11 +75,32 @@ export default function HomePage() {
     // Handle status filter with derived status
     const derivedStatus = getDerivedStatus(campaign)
     const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(derivedStatus)
+    const matchesEndorser =
+      selectedEndorsers.length === 0 ||
+      (campaign.endorserLockHash &&
+        selectedEndorsers.includes(campaign.endorserLockHash))
 
-    return matchesSearch && matchesDifficulty && matchesCategory && matchesStatus
+    return matchesSearch && matchesDifficulty && matchesCategory && matchesStatus && matchesEndorser
   })
 
   const allCategories = Array.from(new Set(campaigns.flatMap((c) => c.categories)))
+  const endorserOptions = useMemo(() => {
+    const mapping = new Map<string, { lockHash: string; name: string }>()
+    campaigns.forEach((campaign) => {
+      if (!campaign.endorserLockHash) {
+        return
+      }
+      if (!mapping.has(campaign.endorserLockHash)) {
+        mapping.set(campaign.endorserLockHash, {
+          lockHash: campaign.endorserLockHash,
+          name: campaign.endorser?.name || campaign.endorserName || campaign.endorserLockHash,
+        })
+      }
+    })
+    return Array.from(mapping.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+    )
+  }, [campaigns])
 
   // Handle loading and error states
   if (isLoading) {
@@ -287,6 +321,46 @@ export default function HomePage() {
                           {category}
                         </Badge>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Endorser Filter */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">Endorser:</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedEndorsers([])}
+                        className={`h-auto p-1 text-xs ${selectedEndorsers.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                      >
+                        <X className="w-3 h-3 mr-1" />
+                        Clear
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {endorserOptions.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">No endorsers available</span>
+                      ) : (
+                        endorserOptions.map((endorser) => (
+                          <Badge
+                            key={endorser.lockHash}
+                            variant={selectedEndorsers.includes(endorser.lockHash) ? "default" : "outline"}
+                            className="cursor-pointer hover:bg-primary/10 border-gray-300 dark:border-gray-600"
+                            onClick={() => {
+                              const isSelected = selectedEndorsers.includes(endorser.lockHash)
+                              setSelectedEndorsers((prev) =>
+                                isSelected
+                                  ? prev.filter((hash) => hash !== endorser.lockHash)
+                                  : [...prev, endorser.lockHash]
+                              )
+                              setTimeout(() => scrollToAllCampaigns(), 100)
+                            }}
+                          >
+                            {endorser.name}
+                          </Badge>
+                        ))
+                      )}
                     </div>
                   </div>
 

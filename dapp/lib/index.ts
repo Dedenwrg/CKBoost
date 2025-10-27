@@ -26,6 +26,12 @@ export {
   cellToCampaignDisplay,
   type CampaignDisplay,
 } from "./utils/campaign-utils";
+export {
+  createEndorserResolver,
+  normalizeEndorserLockHash,
+  type EndorserResolver,
+  type ResolvedEndorser,
+} from "./utils/endorser-resolver";
 
 // CKB Integration (for advanced users)
 export * from "./ckb/campaign-cells";

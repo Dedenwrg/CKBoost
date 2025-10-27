@@ -32,7 +32,7 @@ const parseBigInt = (value: ccc.NumLike | undefined | null): bigint => {
 export function Tippings() {
   const { tippings: contextTippings, isLoading, error } = useTippingsData();
   const { updateTipping, refreshTippings } = useTippingContext();
-  const { isAdmin, isEndorser, protocolData } = useProtocol();
+  const { isAdmin, isEndorser, protocolData, endorserResolver } = useProtocol();
   const signer = ccc.useSigner();
   const { toast } = useToast();
 
@@ -101,12 +101,23 @@ export function Tippings() {
 
   const filteredTippings = useMemo(() => {
     return tippings.filter((tipping) => {
+      const proposerLockHash = (() => {
+        try {
+          return ccc.hexFrom(tipping.data.proposer_lock_hash).toLowerCase();
+        } catch {
+          try {
+            return tipping.data.proposer_lock_hash
+              ?.toString()
+              ?.toLowerCase?.() as string;
+          } catch {
+            return "";
+          }
+        }
+      })();
+
       if (!isAdmin) {
         const status = tipping.data.status?.toLowerCase?.() ?? "";
         if (status === "created") {
-          const proposerLockHash = ccc
-            .hexFrom(tipping.data.proposer_lock_hash)
-            .toLowerCase();
           const isOwner =
             viewerLockHash && proposerLockHash === viewerLockHash.toLowerCase();
           if (!isOwner) {
@@ -123,14 +134,25 @@ export function Tippings() {
         .toString()
         .toLowerCase()
         .includes(lowerSearch);
-      const proposerMatch = tipping.data.proposer_lock_hash
-        .toString()
-        .toLowerCase()
-        .includes(lowerSearch);
+      const proposerMatch = proposerLockHash.includes(lowerSearch);
+      const proposerInfo = endorserResolver.resolve(proposerLockHash);
+      const proposerNameMatch = proposerInfo
+        ? proposerInfo.name.toLowerCase().includes(lowerSearch)
+        : false;
+      const proposerDescriptionMatch =
+        proposerInfo && proposerInfo.description
+          ? proposerInfo.description.toLowerCase().includes(lowerSearch)
+          : false;
 
-      return titleMatch || targetMatch || proposerMatch;
+      return (
+        titleMatch ||
+        targetMatch ||
+        proposerMatch ||
+        proposerNameMatch ||
+        proposerDescriptionMatch
+      );
     });
-  }, [isAdmin, searchTerm, tippings]);
+  }, [endorserResolver, isAdmin, searchTerm, tippings, viewerLockHash]);
 
   const handleApprove = useCallback(
     async (tipping: TippingInfo) => {
