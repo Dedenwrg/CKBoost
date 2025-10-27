@@ -27,9 +27,9 @@ try {
       overwrite: true,
     });
   }
-  log.info("✓ TinyMCE copied to public directory");
+  console.info("✓ TinyMCE copied to public directory");
 } catch (error) {
-  log.error("Error copying TinyMCE:", error.message);
+  console.error("Error copying TinyMCE:", error.message);
   // Don't fail the install if TinyMCE copy fails
   process.exit(0);
 }
