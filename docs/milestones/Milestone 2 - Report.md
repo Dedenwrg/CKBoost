@@ -2,7 +2,10 @@
 
 ## Preface
 
-Milestone 2 focuses on advanced verification, gamification, and the community tipping system. Core scaffolding has been merged, and the team is actively wiring real data flows, admin tooling, and contract enforcement ahead of delivery.
+Milestone 2 focuses on:
+
+1. Implementations of advanced API based on Netlify Functions and Proxied validation that are core to new modules including identity verification, achievement, reward tracking, streak bonus;
+2. Implementation of the tipping system with multi-signature peer approvals;
 
 ## Overview
 
@@ -21,6 +24,8 @@ Work during this iteration centres on expanding the identity system beyond the i
 - ✅ Chain-backed leaderboard page with live Points UDT aggregation and per-user positioning (`dapp/app/leaderboard/page.tsx`, `dapp/lib/services/leaderboard-service.ts`)
 - ✅ Contributor dashboard summarises submissions, campaign progress, token balances, and activity timeline (`dapp/app/dashboard/page.tsx`)
 - ✅ Navigation and layout updates expose leaderboard, tipping, and verification entry points across the dApp
+- ✅ Streak bonus implemented
+- ✅ Achievement implemented
 
 ### Tipping Foundations
 
@@ -34,43 +39,24 @@ Work during this iteration centres on expanding the identity system beyond the i
 - ✅ Deployment documentation for Telegram identity infrastructure (`dapp/DEPLOYMENT.md`)
 - ✅ Updated `deploy-contracts.sh` to recognise tipping contracts alongside existing script bundle
 
-## ⏳ In-Progress Highlights
-
-### Identity & Verification
-
-- ⏳ Admin-facing approval workflow for Telegram bindings and manual reviews; queue and revocation tooling still under development
-- ⏳ DID/KYC provider integration awaiting backend adapters and storage schema updates
-- ⏳ Social account bindings (X, Discord, Reddit) currently simulate success and require OAuth + persistence
-
-### Gamification & Leaderboards
-
-- ⏳ Streak bonus, multiplier, and badge logic implemented only as admin mocks; calculation engine and persistence pending
-- ⏳ Leaderboard caching and scheduled refresh tasks required to avoid repeated full-chain scans
-- ⏳ User profile insights (historical charts, streak callouts) planned but not rendered yet
-
-### Tipping System
-
-- ⏳ Reward distribution checks and vault accounting within `automatic_execution` still marked TODO (`contracts/contracts/ckboost-tipping-type/src/recipes.rs:266`)
-- ⏳ Grant execution recipe & SSRI flow outstanding; approvals currently mutate client state only (`dapp/components/tippings.tsx:58`)
-- ⏳ Platform admin review dashboards use mock data; need live proposal queues and evidence links
-
-### Admin Dashboards & Analytics
-
-- ⏳ Platform admin page relies on hard-coded campaign/tipping samples (`dapp/app/platform-admin/page.tsx:77`)
-- ⏳ Unified moderation queue and analytics widgets (verification throughput, reward burn) are scoped but not yet implemented
-- ⏳ Role-based access checks require integration with verification flags before dashboards go live
-
 ## 📝 Remaining Scope Before Milestone Acceptance
 
-- Finalise verification workflows: admin approvals, DID/KYC hooks, and enforcement across submission builders
-- Ship streak/multiplier engines plus badge milestone minting to satisfy gamification goals
-- Complete tipping reward execution (contract + dApp) and persist supporter approvals on-chain
-- Replace mock admin datasets with live data sources and add moderation tooling
-- Harden caching, pagination, and empty-state handling for leaderboard and tipping services
+## Postponed Items
 
-## 📊 Testing & Documentation Status
+- Generic identification data structure is available for DID/KYC.
+- Multiplier as not meaningful after bonus streak is implemented
 
-- ⏰ Smart-contract tests covering tipping thresholds and reward distribution are pending; current suites focus on earlier milestone scripts
-- ⏰ End-to-end verification tests (Telegram flow, verification flag gating) still need automation
-- ✅ Telegram deployment and troubleshooting guide drafted (`dapp/DEPLOYMENT.md`)
-- ✅ Documentation updates captured in `docs/milestones/Milestone 2 - Follow Ups.md` to track outstanding gaps
+## Appendix: Deliverables for M2
+
+- Expand verification methods: integrate Telegram admin review, prepare DID/KYC hooks for later.
+  - Update: Telegram binding is now automatic. DID/KYC is ready for further implementation.
+- Design simple leaderboards and user profiles with progress tracking.
+  - Update: Implemented.
+- Add streak bonuses, difficulty multipliers, and badge milestone features.
+  - Update: Streak bonus and badge milestone features are now implemented. Difficulty multipliers are postponed.
+- Develop the tipping system with multi-signature peer approvals.
+  - Update: Implemented.
+- Improve user profiles: public achievements, contribution logs.
+  - Update: Implemented.
+- Build out admin dashboard for better submission management and analytics.
+  - Update: Implemented.
