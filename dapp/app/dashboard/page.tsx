@@ -6,7 +6,13 @@ import { ccc } from "@ckb-ccc/connector-react";
 import { CampaignData, type CampaignDataLike } from "ssri-ckboost/types";
 import { Navigation } from "@/components/navigation";
 import { AchievementsSection } from "@/components/dashboard/achievements-section";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -173,6 +179,7 @@ export default function Dashboard() {
   const {
     userAddress,
     isAdmin,
+    isEndorser,
     protocolData,
     protocolCell,
     error: protocolError,
@@ -633,52 +640,73 @@ export default function Dashboard() {
               )}
             </div>
 
-            {isAdmin && (
+            {(isAdmin || isEndorser) && (
               <Card className="mb-6 bg-gradient-to-r from-orange-50 to-red-50 border-orange-200 dark:from-orange-900/20 dark:to-red-900/20 dark:border-orange-800">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
                     <Settings className="w-5 h-5" />
                     Admin Quick Access
                   </CardTitle>
+                  <CardDescription className="text-sm text-orange-900/80 dark:text-orange-100/70">
+                    Jump to the management tools that match your current
+                    permissions.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Link href="/campaign-admin">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start bg-transparent"
-                      >
-                        <UserCog className="w-4 h-4 mr-2" />
-                        Admin Dashboard
-                      </Button>
-                    </Link>
-                    <Link href="/campaign-admin/users">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start bg-transparent"
-                      >
-                        <Users className="w-4 h-4 mr-2" />
-                        User Management
-                      </Button>
-                    </Link>
-                    <Link href="/campaign-admin/quests">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start bg-transparent"
-                      >
-                        <Target className="w-4 h-4 mr-2" />
-                        Quest Management
-                      </Button>
-                    </Link>
-                    <Link href="/campaign-admin/tips">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start bg-transparent"
-                      >
-                        <FileText className="w-4 h-4 mr-2" />
-                        Tip Management
-                      </Button>
-                    </Link>
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    {isAdmin && (
+                      <div className="rounded-lg border border-orange-200 bg-white/70 p-4 shadow-sm dark:border-orange-800/60 dark:bg-orange-950/30">
+                        <div className="flex items-start gap-3">
+                          <Shield className="w-5 h-5 text-orange-700 dark:text-orange-200" />
+                          <div>
+                            <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+                              Platform Administration
+                            </h3>
+                            <p className="text-sm text-orange-800/80 dark:text-orange-100/70">
+                              Manage protocol-wide settings and approvals.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <Link href="/platform-admin">
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start bg-white/80 text-orange-900 hover:bg-orange-100 dark:bg-transparent dark:text-orange-100"
+                            >
+                              <Settings className="w-4 h-4 mr-2" />
+                              Platform Admin Dashboard
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+
+                    {(isAdmin || isEndorser) && (
+                      <div className="rounded-lg border border-orange-200 bg-white/70 p-4 shadow-sm dark:border-orange-800/60 dark:bg-orange-950/30">
+                        <div className="flex items-start gap-3">
+                          <UserCog className="w-5 h-5 text-orange-700 dark:text-orange-200" />
+                          <div>
+                            <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+                              Campaign Administration
+                            </h3>
+                            <p className="text-sm text-orange-800/80 dark:text-orange-100/70">
+                              Review quests, manage teams, and track tipping.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-4">
+                          <Link href="/campaign-admin">
+                            <Button
+                              variant="outline"
+                              className="w-full justify-start bg-white/80 text-orange-900 hover:bg-orange-100 dark:bg-transparent dark:text-orange-100"
+                            >
+                              <UserCog className="w-4 h-4 mr-2" />
+                              Campaign Admin Dashboard
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
