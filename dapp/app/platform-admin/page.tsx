@@ -1054,7 +1054,7 @@ export default function PlatformAdminDashboard() {
           </div>
 
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -1120,22 +1120,6 @@ export default function PlatformAdminDashboard() {
                   </div>
                   <div className="p-3 bg-purple-100 rounded-full">
                     <Trophy className="w-6 h-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Platform Health
-                    </p>
-                    <p className="text-2xl font-bold">98%</p>
-                  </div>
-                  <div className="p-3 bg-indigo-100 rounded-full">
-                    <TrendingUp className="w-6 h-6 text-indigo-600" />
                   </div>
                 </div>
               </CardContent>
