@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Navigation } from "@/components/navigation";
 import { ccc } from "@ckb-ccc/connector-react";
 import {
@@ -61,6 +61,7 @@ import Link from "next/link";
 import { ProtocolManagement } from "@/components/admin/protocol-management";
 import { AchievementsManagement } from "@/components/admin/achievements-management";
 import { useProtocol } from "@/lib/providers/protocol-provider";
+import { useTippingsData } from "@/lib/providers/tipping-provider";
 
 const log = createScopedLogger("PlatformAdminPage");
 
@@ -111,38 +112,6 @@ const PENDING_CAMPAIGNS = [
     submittedDate: "2024-01-18",
     status: "under_review",
     documents: ["educational-plan.pdf", "timeline.pdf"],
-  },
-];
-
-// Mock tipping for review
-const TIPPINGS = [
-  {
-    id: 1,
-    proposer: "CommunityLead",
-    nominee: "CKBExpert",
-    amount: 150,
-    reason:
-      "Outstanding contribution to developer documentation and community support over the past month",
-    submittedDate: "2024-01-21",
-    status: "pending",
-    votes: { for: 8, against: 1 },
-    evidence: [
-      "GitHub contributions",
-      "Discord help threads",
-      "Documentation PRs",
-    ],
-  },
-  {
-    id: 2,
-    proposer: "DevContributor",
-    nominee: "SmartContractGuru",
-    amount: 200,
-    reason:
-      "Created comprehensive smart contract tutorial series and helped debug community contracts",
-    submittedDate: "2024-01-19",
-    status: "pending",
-    votes: { for: 12, against: 0 },
-    evidence: ["Tutorial videos", "Code reviews", "Community feedback"],
   },
 ];
 
@@ -615,6 +584,11 @@ export default function PlatformAdminDashboard() {
     isAdmin,
     isLoading: protocolLoading,
   } = useProtocol();
+  const {
+    tippings: tippingProposals,
+    isLoading: tippingLoading,
+    error: tippingError,
+  } = useTippingsData();
   const [activeTab, setActiveTab] = useState("overview");
   const [isRewardDialogOpen, setIsRewardDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -627,6 +601,19 @@ export default function PlatformAdminDashboard() {
   const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
   const [connectedCampaigns, setConnectedCampaigns] = useState<ccc.Cell[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+
+  const approvalThresholds = useMemo(() => {
+    const thresholds =
+      protocolData?.tipping_config?.approval_requirement_thresholds;
+    if (!thresholds) {
+      return [];
+    }
+    try {
+      return thresholds.map((threshold) => BigInt(ccc.numFrom(threshold)));
+    } catch {
+      return [];
+    }
+  }, [protocolData]);
 
   // Fetch campaigns connected to the protocol
   useEffect(() => {
@@ -778,8 +765,10 @@ export default function PlatformAdminDashboard() {
   });
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    const value = status?.toLowerCase?.() ?? "";
+    switch (value) {
       case "pending":
+      case "created":
         return "bg-yellow-100 text-yellow-800";
       case "under_review":
         return "bg-blue-100 text-blue-800";
@@ -791,6 +780,8 @@ export default function PlatformAdminDashboard() {
         return "bg-green-100 text-green-800";
       case "upcoming":
         return "bg-purple-100 text-purple-800";
+      case "granted":
+        return "bg-green-100 text-green-800";
       case "flagged":
         return "bg-red-100 text-red-800";
       default:
@@ -813,9 +804,106 @@ export default function PlatformAdminDashboard() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    // Use consistent date formatting to avoid hydration mismatch
-    return formatDateConsistent(dateString);
+  const formatDate = (value: string | number | bigint | Date) => {
+    if (value === undefined || value === null) {
+      return "—";
+    }
+
+    if (value instanceof Date) {
+      return formatDateConsistent(value);
+    }
+
+    if (typeof value === "bigint") {
+      return formatDateConsistent(new Date(Number(value)));
+    }
+
+    if (typeof value === "number") {
+      return formatDateConsistent(new Date(value));
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed === "") {
+        return "—";
+      }
+
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric) && /^\d+$/.test(trimmed)) {
+        return formatDateConsistent(new Date(numeric));
+      }
+
+      return formatDateConsistent(trimmed);
+    }
+
+    return formatDateConsistent(String(value));
+  };
+
+  const SHANNON_FACTOR = 10n ** 8n;
+
+  const formatCkbAmount = (
+    shannons: ccc.NumLike | undefined | null
+  ): string => {
+    try {
+      const value = shannons ? BigInt(ccc.numFrom(shannons)) : 0n;
+      const integer = value / SHANNON_FACTOR;
+      const fractional = value % SHANNON_FACTOR;
+      if (fractional === 0n) {
+        return integer.toString();
+      }
+      const fractionalStr = fractional
+        .toString()
+        .padStart(8, "0")
+        .replace(/0+$/, "");
+      return `${integer}.${fractionalStr}`;
+    } catch {
+      return "0";
+    }
+  };
+
+  const formatPointsAmount = (
+    points: ccc.NumLike | undefined | null
+  ): string => {
+    try {
+      const value = points ? BigInt(ccc.numFrom(points)) : 0n;
+      return value.toString();
+    } catch {
+      return "0";
+    }
+  };
+
+  const shortenHex = (
+    value: ccc.HexLike | string | null | undefined,
+    head = 10,
+    tail = 6
+  ): string => {
+    if (!value) {
+      return "—";
+    }
+
+    try {
+      const hex =
+        typeof value === "string" ? value : ccc.hexFrom(value as ccc.HexLike);
+      if (hex.length <= head + tail) {
+        return hex;
+      }
+      return `${hex.slice(0, head)}...${hex.slice(-tail)}`;
+    } catch {
+      const fallback = String(value);
+      if (fallback.length <= head + tail) {
+        return fallback;
+      }
+      return `${fallback.slice(0, head)}...${fallback.slice(-tail)}`;
+    }
+  };
+
+  const formatStatusLabel = (status: string | undefined | null) => {
+    if (!status) {
+      return "Unknown";
+    }
+    return status
+      .toLowerCase()
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
   };
 
   const handleCreateReward = () => {
@@ -870,13 +958,21 @@ export default function PlatformAdminDashboard() {
   const totalActiveUsers = PLATFORM_USERS.filter(
     (u) => u.status === "active"
   ).length;
-  const totalPendingTips = TIPPINGS.filter(
-    (t) => t.status === "pending"
-  ).length;
+  const totalPendingTips = useMemo(() => {
+    return tippingProposals.filter((tip) => {
+      const status = tip.data.status?.toLowerCase?.() ?? "";
+      return status === "created" || status === "pending";
+    }).length;
+  }, [tippingProposals]);
   const totalRewards = LEADERBOARD_REWARDS.reduce(
     (sum, r) => sum + r.totalPrize.CKB,
     0
   );
+
+  const pendingTipsDisplay = tippingLoading ? "..." : totalPendingTips;
+  const pendingTipsBadgeLabel = tippingLoading
+    ? "Loading..."
+    : `${totalPendingTips} Pending Review`;
 
   // User management functions
   const filteredUsers = PLATFORM_USERS.filter((user) => {
@@ -1097,7 +1193,7 @@ export default function PlatformAdminDashboard() {
                     <p className="text-sm text-muted-foreground">
                       Pending Tips
                     </p>
-                    <p className="text-2xl font-bold">{totalPendingTips}</p>
+                    <p className="text-2xl font-bold">{pendingTipsDisplay}</p>
                   </div>
                   <div className="p-3 bg-green-100 rounded-full">
                     <DollarSign className="w-6 h-6 text-green-600" />
@@ -1853,89 +1949,206 @@ export default function PlatformAdminDashboard() {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-semibold">Tip Proposal Reviews</h2>
                 <Badge className="bg-green-100 text-green-800">
-                  {totalPendingTips} Pending Review
+                  {pendingTipsBadgeLabel}
                 </Badge>
               </div>
 
               <div className="grid gap-6">
-                {TIPPINGS.map((tip) => (
-                  <Card key={tip.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <CardTitle className="text-lg">
-                              Tip Proposal: {tip.amount} CKB
-                            </CardTitle>
-                            <Badge className={getStatusColor(tip.status)}>
-                              {tip.status}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground mb-2">
-                            <span className="font-medium">{tip.proposer}</span>{" "}
-                            → <span className="font-medium">{tip.nominee}</span>
-                          </div>
-                          <p className="text-muted-foreground">{tip.reason}</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm text-muted-foreground mb-1">
-                            Community Votes
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-green-100 text-green-800">
-                              👍 {tip.votes.for}
-                            </Badge>
-                            <Badge className="bg-red-100 text-red-800">
-                              👎 {tip.votes.against}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="mb-4">
-                        <div className="text-sm text-muted-foreground mb-2">
-                          Supporting Evidence
-                        </div>
-                        <div className="flex gap-2">
-                          {tip.evidence.map((evidence, index) => (
-                            <Badge
-                              key={index}
-                              variant="outline"
-                              className="bg-blue-50 dark:bg-blue-900"
-                            >
-                              ✓ {evidence}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
-                          Submitted {formatDate(tip.submittedDate)}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm">
-                            <Eye className="w-4 h-4 mr-1" />
-                            Review Evidence
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <X className="w-4 h-4 mr-1" />
-                            Reject
-                          </Button>
-                          <Button size="sm">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Approve
-                          </Button>
-                        </div>
-                      </div>
+                {tippingLoading ? (
+                  Array.from({ length: 2 }).map((_, index) => (
+                    <Card key={`tip-skeleton-${index}`} className="border border-dashed">
+                      <CardHeader className="space-y-3">
+                        <div className="h-5 w-1/3 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                        <div className="h-4 w-2/3 rounded bg-gray-100 dark:bg-gray-900 animate-pulse" />
+                        <div className="h-3 w-full rounded bg-gray-100 dark:bg-gray-900 animate-pulse" />
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="h-3 w-1/2 rounded bg-gray-100 dark:bg-gray-900 animate-pulse" />
+                        <div className="h-10 rounded bg-gray-100 dark:bg-gray-900 animate-pulse" />
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : tippingError ? (
+                  <Card>
+                    <CardContent className="py-6">
+                      <p className="text-sm text-red-600 dark:text-red-300">
+                        Failed to load tip proposals: {tippingError}
+                      </p>
                     </CardContent>
                   </Card>
-                ))}
+                ) : tippingProposals.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-12 text-center space-y-3 text-muted-foreground">
+                      <div className="text-3xl">📝</div>
+                      <p>No tip proposals found yet.</p>
+                      <p className="text-sm">
+                        Approved tipping submissions will appear here for review.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  tippingProposals.map((tip, index) => {
+                    const statusRaw = tip.data.status ?? "pending";
+                    const statusLabel = formatStatusLabel(statusRaw);
+                    const statusClass = getStatusColor(statusRaw);
+                    const title =
+                      tip.data.metadata.contribution_title || "Tip Proposal";
+                    const shortDescription =
+                      tip.data.metadata.short_description || "";
+                    const typeTags =
+                      tip.data.metadata.contribution_type_tags || [];
+                    const proposer = shortenHex(tip.data.proposer_lock_hash);
+                    const recipient = shortenHex(tip.data.target_lock_hash);
+                    const ckbAmountRaw = tip.data.rewards?.ckb_amount;
+                    const ckbAmount = formatCkbAmount(ckbAmountRaw);
+                    const pointsAmount = formatPointsAmount(
+                      tip.data.rewards?.points_amount
+                    );
+                    const supporters =
+                      tip.data.supporter_lock_hashes?.length ?? 0;
+                    const ckbValue =
+                      ckbAmountRaw !== undefined && ckbAmountRaw !== null
+                        ? BigInt(ccc.numFrom(ckbAmountRaw))
+                        : 0n;
+                    const requiredApprovals = Math.max(
+                      1,
+                      approvalThresholds.filter(
+                        (threshold) => ckbValue >= threshold
+                      ).length + 1
+                    );
+                    let createdAt = "—";
+                    const timestamp =
+                      tip.data.metadata.creation_timestamp ?? null;
+                    if (timestamp !== null && timestamp !== undefined) {
+                      try {
+                        const numeric = Number(ccc.numFrom(timestamp));
+                        if (!Number.isNaN(numeric) && numeric > 0) {
+                          createdAt = formatDate(new Date(numeric));
+                        }
+                      } catch {
+                        createdAt = formatDate(String(timestamp));
+                      }
+                    }
+                    const tipTypeIdHex = tip.typeId
+                      ? typeof tip.typeId === "string"
+                        ? tip.typeId
+                        : ccc.hexFrom(tip.typeId)
+                      : null;
+                    const typeIdDisplay = tipTypeIdHex
+                      ? shortenHex(tipTypeIdHex, 14, 6)
+                      : null;
+                    const additionalTips = tip.additionalTips ?? [];
+                    return (
+                      <Card key={tipTypeIdHex ?? `tip-${index}`}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <CardTitle className="text-lg">{title}</CardTitle>
+                                <Badge className={statusClass}>{statusLabel}</Badge>
+                                {typeTags.slice(0, 3).map((tag) => (
+                                  <Badge
+                                    key={tag}
+                                    variant="outline"
+                                    className="bg-blue-50 dark:bg-blue-900 text-blue-800 dark:text-blue-100"
+                                  >
+                                    #{tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                              {shortDescription && (
+                                <p className="text-sm text-muted-foreground">
+                                  {shortDescription}
+                                </p>
+                              )}
+                              <div className="text-sm text-muted-foreground space-y-1">
+                                <div>
+                                  <span className="font-medium text-foreground">
+                                    Proposer:
+                                  </span>{" "}
+                                  {proposer}
+                                </div>
+                                <div>
+                                  <span className="font-medium text-foreground">
+                                    Recipient:
+                                  </span>{" "}
+                                  {recipient}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right space-y-2">
+                              <div className="text-sm text-muted-foreground">
+                                Proposed Reward
+                              </div>
+                              <div className="text-2xl font-bold text-yellow-600">
+                                {ckbAmount} CKB
+                              </div>
+                              {pointsAmount !== "0" && (
+                                <div className="text-sm text-muted-foreground">
+                                  + {pointsAmount} pts
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                            <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                              Supporters {supporters} / {requiredApprovals}
+                            </Badge>
+                            <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                              Submitted {createdAt}
+                            </Badge>
+                            {typeIdDisplay && (
+                              <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                                Type ID {typeIdDisplay}
+                              </Badge>
+                            )}
+                            {!!(tip.data.rewards?.udt_assets?.length ?? 0) && (
+                              <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                                {tip.data.rewards?.udt_assets?.length} UDT asset
+                                {tip.data.rewards?.udt_assets?.length === 1 ? "" : "s"}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                              {additionalTips.length > 0 ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-green-50 dark:bg-green-900 text-green-700 dark:text-green-200"
+                                >
+                                  {additionalTips.length} community tip
+                                  {additionalTips.length === 1 ? "" : "s"}
+                                </Badge>
+                              ) : (
+                                <span>No community tips yet</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm">
+                                <Eye className="w-4 h-4 mr-1" />
+                                View Proposal
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <X className="w-4 h-4 mr-1" />
+                                Reject
+                              </Button>
+                              <Button size="sm">
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
               </div>
             </TabsContent>
 
