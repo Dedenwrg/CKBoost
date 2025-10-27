@@ -1,26 +1,42 @@
 /**
  * Netlify function: returns streak bonus eligibility metadata and unsigned transaction.
  */
-import type { Handler } from "@netlify/functions";
+import type { Handler, HandlerEvent } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
-import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import type { StreakBonusQueryResponse } from "@/netlify/lib/streak-bonus";
+import { withCache } from "@/netlify/lib/cache";
 import {
-  evaluateStreakBonus,
-  readUdtAmount,
-  type BonusStreakCalculation,
-  type RewardTransaction,
-  type StreakBonusQueryResponse,
-} from "@/netlify/lib/streak-bonus";
-import { UserData } from "ssri-ckboost/types";
+  STREAK_BONUS_CACHE_NAMESPACE,
+  buildStreakBonusCacheKey,
+  resolveStreakBonusCacheTtlMs,
+} from "@/netlify/lib/streak-bonus-cache";
+import {
+  createPublicClient,
+  loadStreakBonusCalculation,
+  resolveProtocolTypeScriptFromEnv,
+} from "@/netlify/lib/streak-bonus-loader";
 import { createLogger } from "@/netlify/lib/log";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
 const logger = createLogger("streakBonus-query");
 
+class HttpHandledError extends Error {
+  statusCode: number;
+  errorCode: string;
+
+  constructor(statusCode: number, errorCode: string, message?: string) {
+    super(message);
+    this.statusCode = statusCode;
+    this.errorCode = errorCode;
+  }
+}
+
 type RequestPayload = {
   userAddress?: string;
   limit?: number;
+  noCache?: boolean | string | number;
 };
 
 /**
@@ -29,7 +45,7 @@ type RequestPayload = {
  * Body: { userAddress, limit? }
  * Response: streak bonus eligibility details and unsigned transaction metadata.
  */
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event, context) => {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
@@ -64,7 +80,7 @@ export const handler: Handler = async (event) => {
       ? "https://mainnet.ckb.dev"
       : "https://testnet.ckb.dev");
 
-  const client = createClient(network, rpcUrl);
+  const client = createPublicClient(network, rpcUrl);
   let addressObj: ccc.Address;
   try {
     addressObj = await ccc.Address.fromString(userAddress, client);
@@ -115,47 +131,91 @@ export const handler: Handler = async (event) => {
     args: protocolTypeScript.script.hash(),
   });
 
-  let transactions: RewardTransaction[];
-  try {
-    transactions = await fetchRewardTransactions({
-      client,
-      pointsTypeScript,
-      userLockScript,
-      userTypeCodeHash,
-      limit,
-    });
-  } catch (error) {
-    return httpError(500, "transaction_query_failed", (error as Error).message);
-  }
+  const bypassCache = shouldBypassCache(event, payload);
+  const cacheTtlMs = resolveStreakBonusCacheTtlMs();
+  const protocolTypeHash = protocolTypeScript.script.hash().toLowerCase();
+  const cacheKey = buildStreakBonusCacheKey({
+    network,
+    protocolTypeHash,
+    userAddress,
+    limit,
+  });
 
-  let calculation: BonusStreakCalculation;
+  const cacheBinding =
+    (context?.caches as { default?: unknown } | undefined)?.default ??
+    context?.caches ??
+    null;
+  const waitUntil =
+    typeof context?.waitUntil === "function"
+      ? context.waitUntil.bind(context)
+      : null;
+
   try {
-    calculation = await evaluateStreakBonus({
-      client,
-      rpcUrl,
-      address: userAddress,
-      protocolTypeHash: protocolTypeScript.script.hash().toLowerCase(),
-      network,
-      userLockScript,
-      transactions,
-    });
+    const { value: calculation, hit, metadata } = await withCache(
+      cacheKey,
+      async () => {
+        try {
+          return await loadStreakBonusCalculation({
+            client,
+            pointsTypeScript,
+            userLockScript,
+            userTypeCodeHash,
+            limit,
+            rpcUrl,
+            address: userAddress,
+            protocolTypeHash,
+            network,
+          });
+        } catch (error) {
+          throw new HttpHandledError(
+            500,
+            "transaction_query_failed",
+            (error as Error).message
+          );
+        }
+      },
+      {
+        namespace: STREAK_BONUS_CACHE_NAMESPACE,
+        skipCache: bypassCache,
+        ttlMs: cacheTtlMs,
+        cacheBinding,
+        waitUntil,
+      }
+    );
 
     const response: StreakBonusQueryResponse = {
       success: true,
       bonusStreak: calculation,
     };
 
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-CKBoost-Cache": hit ? "HIT" : "MISS",
+      "X-CKBoost-Cache-Age": Math.max(metadata.ageMs, 0).toFixed(0),
+    };
+
+    if (metadata.ttlMs !== undefined) {
+      headers["X-CKBoost-Cache-TTL"] = Math.round(metadata.ttlMs).toString();
+    }
+
+    if (bypassCache) {
+      headers["X-CKBoost-Cache-Bypass"] = "1";
+    }
+
     return {
       statusCode: 200,
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(response),
     };
   } catch (error) {
-    return httpError(
-      500,
-      "streak_bonus_evaluation_failed",
-      (error as Error).message
-    );
+    if (error instanceof HttpHandledError) {
+      logger.warn(error.errorCode, { message: error.message });
+      return httpError(error.statusCode, error.errorCode, error.message);
+    }
+
+    const err = error as Error;
+    logger.error("streak_bonus_evaluation_failed", err);
+    return httpError(500, "streak_bonus_evaluation_failed", err.message);
   }
 };
 
@@ -181,6 +241,70 @@ const httpError = (
   };
 };
 
+const shouldBypassCache = (
+  event: HandlerEvent,
+  payload: RequestPayload
+): boolean => {
+  if (isTruthy(event.queryStringParameters?.noCache)) {
+    return true;
+  }
+
+  if (isTruthy(payload?.noCache)) {
+    return true;
+  }
+
+  const headers = event.headers ?? {};
+  const direct =
+    headers["x-no-cache"] ??
+    headers["X-No-Cache"] ??
+    headers["x-cache-bypass"] ??
+    headers["X-Cache-Bypass"];
+
+  if (isTruthy(direct)) {
+    return true;
+  }
+
+  const cacheControl =
+    headers["cache-control"] ?? headers["Cache-Control"] ?? undefined;
+  if (
+    typeof cacheControl === "string" &&
+    hasNoCacheDirective(cacheControl)
+  ) {
+    return true;
+  }
+
+  const pragma = headers["pragma"] ?? headers["Pragma"];
+  if (typeof pragma === "string" && hasNoCacheDirective(pragma)) {
+    return true;
+  }
+
+  return false;
+};
+
+const hasNoCacheDirective = (value: string): boolean => {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes("no-cache") ||
+    normalized.includes("no-store") ||
+    /\bmax-age=0\b/.test(normalized)
+  );
+};
+
+const isTruthy = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return false;
+    return value !== 0;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    if (normalized === "false" || normalized === "0") return false;
+    return ["1", "true", "yes", "y", "on"].includes(normalized);
+  }
+  return false;
+};
+
 /** Clamp incoming limit values to reasonable bounds for cell queries. */
 const sanitizeLimit = (rawLimit: number | undefined): number => {
   const numeric = Number(rawLimit ?? DEFAULT_RESULTS);
@@ -188,215 +312,4 @@ const sanitizeLimit = (rawLimit: number | undefined): number => {
     return DEFAULT_RESULTS;
   }
   return Math.min(MAX_RESULTS, Math.floor(numeric));
-};
-
-/** Wrap public client instantiation so tests can stub this if needed. */
-const createClient = (network: Network, url: string): ccc.Client => {
-  if (network === "mainnet") {
-    return new ccc.ClientPublicMainnet({ url });
-  }
-  return new ccc.ClientPublicTestnet({ url });
-};
-
-/** Build the protocol type script from the same env variables the dapp uses. */
-const resolveProtocolTypeScriptFromEnv = ():
-  | { script: ccc.Script }
-  | { error: string } => {
-  const protocolTypeCodeHash =
-    process.env.NEXT_PUBLIC_PROTOCOL_TYPE_CODE_HASH?.trim();
-  const protocolTypeHashType =
-    (process.env.NEXT_PUBLIC_PROTOCOL_TYPE_HASH_TYPE?.trim() ||
-      "type") as ccc.HashType;
-  const protocolTypeArgs =
-    process.env.NEXT_PUBLIC_PROTOCOL_TYPE_ARGS?.trim() || "";
-
-  if (!protocolTypeCodeHash || !protocolTypeArgs) {
-    return {
-      error:
-        "Protocol type environment variables missing. Ensure NEXT_PUBLIC_PROTOCOL_TYPE_CODE_HASH and NEXT_PUBLIC_PROTOCOL_TYPE_ARGS are set.",
-    };
-  }
-
-  try {
-    const script = ccc.Script.from({
-      codeHash: protocolTypeCodeHash,
-      hashType: protocolTypeHashType,
-      args: protocolTypeArgs,
-    });
-    return { script };
-  } catch (error) {
-    return {
-      error: `Failed to construct protocol type script from environment: ${
-        (error as Error).message
-      }`,
-    };
-  }
-};
-
-const fetchRewardTransactions = async ({
-  client,
-  pointsTypeScript,
-  userLockScript,
-  userTypeCodeHash,
-  limit,
-}: {
-  client: ccc.Client;
-  pointsTypeScript: ccc.Script;
-  userLockScript: ccc.Script;
-  userTypeCodeHash: string;
-  limit: number;
-}): Promise<RewardTransaction[]> => {
-  const searchKey = {
-    script: pointsTypeScript,
-    scriptType: "type" as const,
-    scriptSearchMode: "exact" as const,
-    filter: {
-      script: userLockScript,
-    },
-    groupByTransaction: true as const,
-  };
-
-  const pageSize = Math.min(limit, 50);
-  const matches: Array<{
-    txHash: string;
-    blockNumber: bigint | null;
-    txIndex: bigint | null;
-    cells: Array<{ isInput: boolean; cellIndex: bigint }>;
-  }> = [];
-
-  for await (const tx of client.findTransactions(searchKey, "desc", pageSize)) {
-    matches.push(tx);
-    if (matches.length >= limit) {
-      break;
-    }
-  }
-
-  const responseTransactions: RewardTransaction[] = [];
-
-  const lowerUserTypeHash = userTypeCodeHash.toLowerCase();
-  const expectedUserLockHash = userLockScript.hash().toLowerCase();
-
-  const scriptEquals = (
-    scriptA: ccc.Script | undefined,
-    scriptB: ccc.Script
-  ) => {
-    if (!scriptA) return false;
-    try {
-      return scriptA.hash().toLowerCase() === scriptB.hash().toLowerCase();
-    } catch {
-      return false;
-    }
-  };
-
-  for (const match of matches) {
-    try {
-      const txResponse = await client.getTransaction(match.txHash);
-      if (!txResponse) {
-        continue;
-      }
-      const tx = txResponse.transaction;
-
-      const outputCells = match.cells.filter((cell) => !cell.isInput);
-      const inputCells = match.cells.filter((cell) => cell.isInput);
-
-      let outputTotal = 0n;
-      const outputs = outputCells.map((cell) => {
-        const index = Number(cell.cellIndex);
-        const data = tx.outputsData[index];
-        const amount = readUdtAmount(data);
-        outputTotal += amount;
-        return { index, amount: amount.toString() };
-      });
-
-      let inputTotal = 0n;
-      const inputs: Array<{ index: number; amount: string }> = [];
-      const inputCellCache = new Map<number, ccc.Cell>();
-
-      for (const cell of inputCells) {
-        const index = Number(cell.cellIndex);
-        const input = tx.inputs[index];
-        if (!input) continue;
-        try {
-          const previous = await input.getCell(client);
-          if (!previous) continue;
-          inputCellCache.set(index, previous);
-          const amount = readUdtAmount(previous.outputData);
-          inputTotal += amount;
-          inputs.push({ index, amount: amount.toString() });
-        } catch (error) {
-          logger.warn(
-            `Failed to load input cell for tx ${match.txHash} index ${index}:`,
-            error
-          );
-        }
-      }
-
-      const netPoints = outputTotal - inputTotal;
-      if (netPoints <= 0n) {
-        continue;
-      }
-
-      let isStreakBonus = false;
-
-      for (const cell of outputCells) {
-        const index = Number(cell.cellIndex);
-        const output = tx.outputs[index];
-        if (!output?.type) continue;
-        if (output.type.codeHash.toLowerCase() !== lowerUserTypeHash) continue;
-        if (!scriptEquals(output.lock, userLockScript)) continue;
-
-        const outputDataHex = tx.outputsData[index];
-        if (!outputDataHex) break;
-
-        let previousUserDataHex: ccc.HexLike | undefined;
-        for (const [inputIndex, cached] of inputCellCache.entries()) {
-          const inputType = cached.cellOutput.type;
-          if (!inputType) continue;
-          if (inputType.codeHash.toLowerCase() !== lowerUserTypeHash) continue;
-          if (
-            cached.cellOutput.lock.hash().toLowerCase() !== expectedUserLockHash
-          )
-            continue;
-          previousUserDataHex = cached.outputData;
-          break;
-        }
-
-        if (!previousUserDataHex) {
-          break;
-        }
-
-        try {
-          const previousUserData = UserData.decode(previousUserDataHex);
-          const nextUserData = UserData.decode(outputDataHex as ccc.HexLike);
-          const prevLast = ccc.numFrom(
-            previousUserData.last_bonus_streak_at ?? 0n
-          );
-          const nextLast = ccc.numFrom(nextUserData.last_bonus_streak_at ?? 0n);
-          if (nextLast > prevLast) {
-            isStreakBonus = true;
-            break;
-          }
-        } catch (error) {
-          logger.warn(
-            `Failed to decode user data for streak detection in tx ${match.txHash}`,
-            error
-          );
-        }
-      }
-
-      responseTransactions.push({
-        txHash: match.txHash,
-        blockNumber: match.blockNumber ? match.blockNumber.toString() : null,
-        txIndex: match.txIndex ? match.txIndex.toString() : null,
-        netPoints: netPoints.toString(),
-        outputs,
-        inputs,
-        isStreakBonus,
-      });
-    } catch (error) {
-      logger.warn(`Failed to process transaction ${match.txHash}`, error);
-    }
-  }
-
-  return responseTransactions;
 };
