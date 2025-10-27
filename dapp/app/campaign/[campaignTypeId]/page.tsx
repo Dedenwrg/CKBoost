@@ -37,7 +37,9 @@ import { useProtocol } from "@/lib/providers/protocol-provider";
 import { isCampaignApproved } from "@/lib/ckb/campaign-cells";
 import { CampaignData, CampaignDataLike } from "ssri-ckboost/types";
 import type { AssetListLike, UDTAssetLike } from "ssri-ckboost/types";
-import { debug, formatDateConsistent } from "@/lib/utils/debug";
+import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
+
+const log = createScopedLogger("CampaignPage");
 import { getDifficultyString } from "@/lib";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { QuestSubmissionForm } from "@/components/quest-submission-form";
@@ -174,9 +176,9 @@ export default function CampaignDetailPage() {
         }
 
         setFundingData(fundingMap);
-        debug.log("Fetched funding data:", fundingMap);
+        log.log("Fetched funding data:", fundingMap);
       } catch (error) {
-        debug.error("Failed to fetch funding data:", error);
+        log.error("Failed to fetch funding data:", error);
       } finally {
         setIsLoadingFunding(false);
       }
@@ -204,7 +206,7 @@ export default function CampaignDetailPage() {
         // Check if they match
         setIsOwner(userLockHash === campaignLockHash);
       } catch (error) {
-        debug.error("Failed to check campaign ownership:", error);
+        log.error("Failed to check campaign ownership:", error);
         setIsOwner(false);
       }
     };
@@ -216,31 +218,31 @@ export default function CampaignDetailPage() {
     const fetchCampaign = async () => {
       // Use public client if no signer is available
       if (!client) {
-        debug.warn("Waiting for client to initialize...");
+        log.warn("Waiting for client to initialize...");
         return;
       }
 
       if (!campaignTypeId) {
-        debug.warn("No campaign type ID provided");
+        log.warn("No campaign type ID provided");
         setIsLoading(false);
         return;
       }
 
       // Wait for both protocolData AND protocolCell to be loaded
       if (!protocolData || !protocolCell) {
-        debug.log("Waiting for protocol data and cell to load...");
+        log.log("Waiting for protocol data and cell to load...");
         // Don't set loading to false here - keep loading state
         return;
       }
 
       try {
         setIsLoading(true); // Ensure loading state is set
-        debug.log("Fetching campaign by type ID:", campaignTypeId);
+        log.log("Fetching campaign by type ID:", campaignTypeId);
         const campaignCodeHash =
           protocolData.protocol_config?.script_code_hashes
             ?.ckb_boost_campaign_type_code_hash;
         if (!campaignCodeHash) {
-          debug.error("Campaign code hash not found in protocol data");
+          log.error("Campaign code hash not found in protocol data");
           setCampaign(null);
           setIsLoading(false);
           return;
@@ -269,7 +271,7 @@ export default function CampaignDetailPage() {
           setCampaign(null);
         }
       } catch (error) {
-        debug.error("Failed to fetch campaign:", error);
+        log.error("Failed to fetch campaign:", error);
         setCampaign(null); // Set to null on error
       } finally {
         setIsLoading(false);
@@ -310,7 +312,7 @@ export default function CampaignDetailPage() {
               ccc.bytesFrom(rawDescription)
             );
           } catch (error) {
-            console.warn("Failed to decode hex long description", error);
+            log.warn("Failed to decode hex long description", error);
             decodedContent = "";
           }
         }
@@ -325,7 +327,7 @@ export default function CampaignDetailPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          console.error("Failed to resolve campaign description", error);
+          log.error("Failed to resolve campaign description", error);
           setResolvedDescription(null);
           setDescriptionError(
             error instanceof Error
@@ -473,7 +475,7 @@ export default function CampaignDetailPage() {
   );
 
   // Debug logging for approval status
-  debug.log("Campaign approval check:", {
+  log.log("Campaign approval check:", {
     isApproved,
     campaignTypeId,
     campaigns_approved: protocolData?.campaigns_approved,
@@ -516,7 +518,7 @@ export default function CampaignDetailPage() {
 
   // Debug quest structure
   if (campaign?.quests && campaign.quests.length > 0) {
-    debug.log("Quest structure:", {
+    log.log("Quest structure:", {
       firstQuest: campaign.quests[0],
       questKeys: Object.keys(campaign.quests[0] || {}),
       totalQuests: campaign.quests.length,
@@ -691,7 +693,8 @@ export default function CampaignDetailPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Created By</p>
                     <p className="text-sm font-medium truncate">
-                      {campaign.endorser?.endorser_name || "Unknown"}
+                      {/* TODO: Add endorser name */}
+                      {"Unknown"}
                     </p>
                   </div>
                   <Star className="w-8 h-8 text-yellow-600" />
@@ -709,34 +712,34 @@ export default function CampaignDetailPage() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Campaign Description</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {descriptionLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-6 w-2/3" />
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-5/6" />
-                </div>
-              ) : descriptionError ? (
-                <p className="text-sm text-red-600 dark:text-red-400">
-                  {descriptionError}
-                </p>
-              ) : resolvedDescription ? (
-                <div
-                  className="prose prose-sm sm:prose dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: resolvedDescription }}
-                />
-              ) : (
-                <p className="text-muted-foreground whitespace-pre-wrap">
-                  {campaign.metadata?.short_description ||
-                    "No detailed description available."}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Campaign Description</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {descriptionLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-6 w-2/3" />
+                      <Skeleton className="h-6 w-full" />
+                      <Skeleton className="h-6 w-5/6" />
+                    </div>
+                  ) : descriptionError ? (
+                    <p className="text-sm text-red-600 dark:text-red-400">
+                      {descriptionError}
+                    </p>
+                  ) : resolvedDescription ? (
+                    <div
+                      className="prose prose-sm sm:prose dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: resolvedDescription }}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground whitespace-pre-wrap">
+                      {campaign.metadata?.short_description ||
+                        "No detailed description available."}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
 
               <Card>
                 <CardHeader>
@@ -1276,8 +1279,8 @@ export default function CampaignDetailPage() {
                             })()}
                             onSuccess={async () => {
                               // Refresh user data after successful submission
-                              console.log(
-                                "[CampaignPage] Quest submitted successfully, refreshing data..."
+                              log.info(
+                                "Quest submitted successfully, refreshing data..."
                               );
 
                               // Wait a bit for transaction to be confirmed

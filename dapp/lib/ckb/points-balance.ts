@@ -1,6 +1,8 @@
 import { ccc } from "@ckb-ccc/connector-react";
 import { deploymentManager } from "./deployment-manager";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("PointsBalance");
 
 /**
  * Fetch the Points UDT balance for a user
@@ -16,10 +18,13 @@ export async function fetchUserPointsBalance(
 ): Promise<bigint> {
   try {
     const network = deploymentManager.getCurrentNetwork();
-    const pointsUdtCodeHash = deploymentManager.getContractCodeHash(network, "ckboostPointsUdt");
-    
+    const pointsUdtCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostPointsUdt"
+    );
+
     if (!pointsUdtCodeHash) {
-      debug.warn("Points UDT contract not deployed");
+      log.warn("Points UDT contract not deployed");
       return BigInt(0);
     }
 
@@ -27,24 +32,24 @@ export async function fetchUserPointsBalance(
     const pointsUdtTypeScript = ccc.Script.from({
       codeHash: pointsUdtCodeHash,
       hashType: "type",
-      args: protocolTypeHash // Points UDT uses protocol type hash as args
+      args: protocolTypeHash, // Points UDT uses protocol type hash as args
     });
 
-    debug.log("Searching for Points UDT cells:", {
+    log.log("Searching for Points UDT cells:", {
       udtTypeHash: pointsUdtTypeScript.hash().slice(0, 10) + "...",
-      userLockHash: userLockScript.hash().slice(0, 10) + "..."
+      userLockHash: userLockScript.hash().slice(0, 10) + "...",
     });
 
     // Search for cells with this UDT type script and user's lock script
     let totalBalance = BigInt(0);
-    
+
     const searchKey = {
       script: userLockScript,
       scriptType: "lock" as const,
       scriptSearchMode: "exact" as const,
       filter: {
-        script: pointsUdtTypeScript
-      }
+        script: pointsUdtTypeScript,
+      },
     };
 
     for await (const cell of client.findCells(searchKey)) {
@@ -53,15 +58,15 @@ export async function fetchUserPointsBalance(
         const amountBytes = ccc.bytesFrom(cell.outputData.slice(0, 34)); // "0x" + 32 hex chars = 16 bytes
         const amount = ccc.numLeFromBytes(amountBytes);
         totalBalance += amount;
-        
-        debug.log("Found Points UDT cell with balance:", amount.toString());
+
+        log.log("Found Points UDT cell with balance:", amount.toString());
       }
     }
 
-    debug.log("Total Points balance:", totalBalance.toString());
+    log.log("Total Points balance:", totalBalance.toString());
     return totalBalance;
   } catch (error) {
-    debug.error("Failed to fetch Points balance:", error);
+    log.error("Failed to fetch Points balance:", error);
     return BigInt(0);
   }
 }
@@ -76,19 +81,19 @@ export function formatPointsBalance(balance: bigint): string {
   // Points have 0 decimal places
   const decimals = 0;
   const divisor = BigInt(10 ** decimals);
-  
+
   const wholePart = balance / divisor;
   const fractionalPart = balance % divisor;
-  
+
   // Format with commas for thousands
   const wholeStr = wholePart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  
+
   // If there's a fractional part, show up to 2 decimal places
   if (fractionalPart > 0) {
     const fractionalStr = fractionalPart.toString().padStart(decimals, "0");
     const significantDecimals = fractionalStr.slice(0, 2);
     return `${wholeStr}.${significantDecimals}`;
   }
-  
+
   return wholeStr;
 }

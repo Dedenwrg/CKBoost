@@ -22,7 +22,7 @@ import {
   InsufficientTippingFundingError,
   type FundingShortage,
 } from "../services/tipping-service";
-import { debug } from "../utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { Tipping } from "ssri-ckboost/tipping";
 import { deploymentManager } from "../ckb/deployment-manager";
 
@@ -39,6 +39,8 @@ interface TippingContextType {
 }
 
 const TippingContext = createContext<TippingContextType | undefined>(undefined);
+
+const log = createScopedLogger("TippingProvider");
 
 export function TippingProvider({ children }: { children: ReactNode }) {
   const signer = ccc.useSigner();
@@ -61,7 +63,7 @@ export function TippingProvider({ children }: { children: ReactNode }) {
     try {
       return new TippingService(signer ?? undefined, null, protocolCell);
     } catch (err) {
-      debug.error("Failed to initialise tipping service", err);
+      log.error("Failed to initialise tipping service", err);
       return null;
     }
   }, [protocolCell, signer]);
@@ -92,7 +94,7 @@ export function TippingProvider({ children }: { children: ReactNode }) {
         setFundingSummary(null);
       }
     } catch (err) {
-      debug.error("Failed to load tippings", err);
+      log.error("Failed to load tippings", err);
       setError(err instanceof Error ? err.message : "Failed to load tippings");
       setTippings([]);
       setFundingSummary(null);
@@ -125,7 +127,7 @@ export function TippingProvider({ children }: { children: ReactNode }) {
         "ckboostTippingType"
       );
       if (!codeOutPoint) {
-        debug.warn(
+        log.warn(
           "Tipping type contract out point not found in deployments.json"
         );
         throw new Error(
@@ -135,7 +137,7 @@ export function TippingProvider({ children }: { children: ReactNode }) {
 
       const protocolTypeHash = protocolCell.cellOutput.type?.hash();
       if (!protocolTypeHash) {
-        debug.warn("Protocol cell missing type hash");
+        log.warn("Protocol cell missing type hash");
         throw new Error("Protocol cell missing type hash");
       }
 

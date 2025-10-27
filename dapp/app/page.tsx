@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Star, X } from "lucide-react"
 import Link from "next/link"
 import { getDerivedStatus, useCampaigns, cellToCampaignDisplay } from "@/lib"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("HomePage")
 
 
 export default function HomePage() {
@@ -26,7 +29,7 @@ export default function HomePage() {
     try {
       return cellToCampaignDisplay(cell)
     } catch (err) {
-      console.error("Failed to convert campaign cell:", err)
+      log.error("Failed to convert campaign cell:", err)
       return null
     }
   }).filter(c => c !== null)
@@ -35,7 +38,7 @@ export default function HomePage() {
     try {
       return cellToCampaignDisplay(cell)
     } catch (err) {
-      console.error("Failed to convert featured campaign cell:", err)
+      log.error("Failed to convert featured campaign cell:", err)
       return null
     }
   }).filter(c => c !== null)

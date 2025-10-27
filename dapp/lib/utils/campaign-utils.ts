@@ -4,6 +4,9 @@
 import { ccc } from "@ckb-ccc/connector-react"
 import type { CampaignDataLike, ConnectedTypeIDLike } from "ssri-ckboost/types"
 import { CampaignData, ConnectedTypeID } from "ssri-ckboost/types"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("CampaignUtils")
 import { 
   decodeVerificationRequirements, 
   getDifficultyString,
@@ -80,7 +83,7 @@ export function cellToCampaignDisplay(cell: ccc.Cell): CampaignDisplay {
     }
   } catch (error) {
     // If decoding fails, type ID remains null
-    console.debug("Failed to extract type ID from campaign cell:", error)
+    log.log("Failed to extract type ID from campaign cell:", error)
   }
   
   // Convert timestamps to ISO date strings

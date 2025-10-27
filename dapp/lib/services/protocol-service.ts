@@ -18,6 +18,9 @@ import {
 import { Protocol } from "ssri-ckboost";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProtocolService");
 
 /**
  * Protocol service that provides high-level protocol operations
@@ -133,7 +136,7 @@ export class ProtocolService {
         depType: "code",
       });
     } catch (e) {
-      console.warn("Failed to rebuild protocol outputs for auto-capacity:", e);
+      log.warn("Failed to rebuild protocol outputs for auto-capacity:", e);
     }
 
     // Complete fees and send transaction with automatic retry
@@ -141,7 +144,7 @@ export class ProtocolService {
     await tx.completeFeeBy(this.signer);
     const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
 
-    console.log("Protocol updated, tx:", txHash);
+    log.info("Protocol updated, tx:", txHash);
     return txHash;
   }
 
@@ -177,7 +180,7 @@ export class ProtocolService {
     try {
       return await fetchProtocolTransactions(this.client, limit);
     } catch (error) {
-      console.warn("Failed to fetch protocol transactions:", error);
+      log.warn("Failed to fetch protocol transactions:", error);
       throw error;
     }
   }
@@ -192,9 +195,7 @@ export class ProtocolService {
       // For empty or minimal protocol cells, return default structure
       // This allows the app to function while the protocol cell is being deployed
       if (cellData === "0x" || !cellData || cellData.length < 10) {
-        console.log(
-          "Protocol cell is empty or minimal, returning default structure"
-        );
+        log.info("Protocol cell is empty or minimal, returning default structure");
 
         // Create default values using the new type system
         // For Uint64Type - use bigint
@@ -237,25 +238,25 @@ export class ProtocolService {
       }
 
       // Parse actual protocol data using molecule codec
-      console.log("Parsing protocol data from cell:", cellData);
+      log.info("Parsing protocol data from cell:", cellData);
 
       try {
         // Convert hex string to bytes for molecule parsing
         const cellDataBytes = ccc.bytesFrom(cellData);
-        console.log("Cell data bytes length:", cellDataBytes.length);
+        log.info("Cell data bytes length:", cellDataBytes.length);
 
         // Decode using the generated ProtocolData codec
         const protocolData = ProtocolData.decode(cellDataBytes);
 
-        console.log("Successfully parsed protocol data");
+        log.info("Successfully parsed protocol data");
 
         // Return the decoded data - cast through unknown to handle type differences
         // The decoded data has the correct structure but some fields may have different types (bigint vs number)
         // This is acceptable since the consuming code should handle these type variations
         return protocolData as unknown as ProtocolDataLike;
       } catch (parseError) {
-        console.error("Failed to parse protocol data:", parseError);
-        console.error("Cell data that failed to parse:", cellData);
+        log.error("Failed to parse protocol data:", parseError);
+        log.error("Cell data that failed to parse:", cellData);
 
         // If we have non-empty cell data but can't parse it, the cell is corrupted
         // Throw an error to trigger redeployment
@@ -265,7 +266,7 @@ export class ProtocolService {
         );
       }
     } catch (error) {
-      console.error("Failed to parse ProtocolData:", error);
+      log.error("Failed to parse ProtocolData:", error);
       throw error;
     }
   }
@@ -286,10 +287,7 @@ export class ProtocolService {
           .join("")
       );
     } catch (error) {
-      console.error(
-        "Failed to generate ProtocolData with Molecule serialization:",
-        error
-      );
+      log.error("Failed to generate ProtocolData with Molecule serialization:", error);
       throw new Error(
         "Failed to serialize protocol data. Please ensure the data structure is valid."
       );
@@ -355,13 +353,11 @@ export class ProtocolService {
         const maxTimestamp = 4102444800; // Jan 1, 2100
 
         if (timestamp < minTimestamp || timestamp > maxTimestamp) {
-          console.warn(
-            `Invalid timestamp value: ${timestamp}, using current time`
-          );
+          log.warn(`Invalid timestamp value: ${timestamp}, using current time`);
           timestamp = Math.floor(Date.now() / 1000);
         }
       } catch (error) {
-        console.error("Error converting timestamp:", error);
+        log.error("Error converting timestamp:", error);
         timestamp = Math.floor(Date.now() / 1000);
       }
 
@@ -379,7 +375,7 @@ export class ProtocolService {
         lastUpdated: new Date(timestamp * 1000).toISOString(),
       };
     } catch (error) {
-      console.error("Failed to fetch protocol metrics:", error);
+      log.error("Failed to fetch protocol metrics:", error);
       throw error;
     }
   }

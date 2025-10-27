@@ -2,9 +2,11 @@ import { ccc, ssri, udt } from "@ckb-ccc/connector-react";
 import { fetchCampaignByTypeId } from "../ckb/campaign-cells";
 import { fetchUDTCellsByFundingLock } from "../ckb/udt-cells";
 import { UDTAssetLike } from "ssri-ckboost/types";
-import { debug } from "../utils/debug";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { udtRegistry } from "./udt-registry";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("FundingService");
 
 /**
  * Service for managing campaign funding with UDTs
@@ -40,7 +42,7 @@ export class FundingService {
     // Initialize known UDT instances from registry
     this.udtInstances = new Map();
     this.initializeUDTsFromRegistry().catch((error) => {
-      debug.error("Failed to initialize UDT instances:", error);
+      log.error("Failed to initialize UDT instances:", error);
     });
   }
 
@@ -51,7 +53,7 @@ export class FundingService {
     // Get all tokens from registry
     const tokens = udtRegistry.getAllTokens();
 
-    debug.log("Initializing UDT instances from registry");
+    log.log("Initializing UDT instances from registry");
 
     // Initialize a UDT instance for each token in the registry
     for (const token of tokens) {
@@ -59,7 +61,7 @@ export class FundingService {
       const scriptHash = script.hash();
       const contractScript = ccc.Script.from(token.contractScript);
 
-      debug.log(`Initializing token ${token.symbol}:`, {
+      log.log(`Initializing token ${token.symbol}:`, {
         script: token.script,
         contractScript: token.contractScript,
         ssri: token.ssri,
@@ -68,7 +70,7 @@ export class FundingService {
 
       try {
         // Find the deployment cell using contractScript
-        debug.log(`Finding contract deployment for token ${token.symbol}`);
+        log.log(`Finding contract deployment for token ${token.symbol}`);
 
         const collector = this.signer.client.findCells({
           script: contractScript,
@@ -80,7 +82,7 @@ export class FundingService {
         for await (const cell of collector) {
           if (cell.outPoint) {
             outPoint = cell.outPoint;
-            debug.log(
+            log.log(
               `Found contract deployment for ${token.symbol}:`,
               outPoint
             );
@@ -89,7 +91,7 @@ export class FundingService {
         }
 
         if (!outPoint) {
-          debug.warn(
+          log.warn(
             `Could not find contract deployment for token ${token.symbol}, skipping`
           );
           continue;
@@ -101,24 +103,24 @@ export class FundingService {
             scriptHash,
             new udt.Udt(outPoint, script, { executor: this.executor })
           );
-          debug.log(
+          log.log(
             `Initialized SSRI UDT instance for ${token.symbol} with executor`
           );
         } else {
           this.udtInstances.set(scriptHash, new udt.Udt(outPoint, script));
-          debug.log(
+          log.log(
             `Initialized regular UDT instance for ${token.symbol} without executor`
           );
         }
       } catch (error) {
-        debug.error(
+        log.error(
           `Failed to initialize UDT instance for ${token.symbol}:`,
           error
         );
       }
     }
 
-    debug.log("Initialized UDT instances from registry:", {
+    log.log("Initialized UDT instances from registry:", {
       totalTokens: tokens.length,
       initializedInstances: this.udtInstances.size,
     });
@@ -146,7 +148,7 @@ export class FundingService {
 
     // Find the deployment cell using contractScript
     const contractScript = ccc.Script.from(token.contractScript);
-    debug.log(
+    log.log(
       `Finding contract deployment for token ${token.symbol} on demand`
     );
 
@@ -176,10 +178,10 @@ export class FundingService {
       newInstance = new udt.Udt(outPoint, udtScript, {
         executor: this.executor,
       });
-      debug.log(`Created SSRI UDT instance on demand for ${token.symbol}`);
+      log.log(`Created SSRI UDT instance on demand for ${token.symbol}`);
     } else {
       newInstance = new udt.Udt(outPoint, udtScript);
-      debug.log(`Created regular UDT instance on demand for ${token.symbol}`);
+      log.log(`Created regular UDT instance on demand for ${token.symbol}`);
     }
 
     this.udtInstances.set(scriptHash, newInstance);
@@ -196,7 +198,7 @@ export class FundingService {
   ): Promise<ccc.Transaction> {
     if (shannons <= 0n) return tx;
 
-    debug.log("Adding CKB funding to transaction", {
+    log.log("Adding CKB funding to transaction", {
       shannons: shannons.toString(),
     });
 
@@ -207,7 +209,7 @@ export class FundingService {
     });
     tx.addOutput(ckbOutput, "0x");
 
-    debug.log("CKB funding output added", {
+    log.log("CKB funding output added", {
       lockHash: fundingLock.hash(),
       capacity: shannons.toString(),
       outputs: tx.outputs.length,
@@ -229,23 +231,23 @@ export class FundingService {
     campaignOwnerLock: ccc.Script,
     udtAssets: UDTAssetLike[]
   ): Promise<ccc.Transaction> {
-    console.log("===============================================");
-    console.log("ADDING UDT FUNDING TO EXISTING TRANSACTION");
-    console.log("===============================================");
-    debug.log(
+    log.info("===============================================");
+    log.info("ADDING UDT FUNDING TO EXISTING TRANSACTION");
+    log.info("===============================================");
+    log.log(
       "Adding UDT funding for",
       udtAssets.length,
       "assets to existing transaction"
     );
-    debug.log("Campaign owner lock:", campaignOwnerLock.args);
-    debug.log("Transaction before UDT funding:", {
+    log.log("Campaign owner lock:", campaignOwnerLock.args);
+    log.log("Transaction before UDT funding:", {
       inputs: tx.inputs.length,
       outputs: tx.outputs.length,
       cellDeps: tx.cellDeps.length,
     });
 
     if (!udtAssets || udtAssets.length === 0) {
-      debug.log("No UDT assets to fund, returning transaction unchanged");
+      log.log("No UDT assets to fund, returning transaction unchanged");
       return tx;
     }
 
@@ -254,14 +256,14 @@ export class FundingService {
       const udtScript = ccc.Script.from(udtAsset.udt_script);
       const requiredAmount = ccc.numFrom(udtAsset.amount);
 
-      debug.log("Processing UDT funding:", {
+      log.log("Processing UDT funding:", {
         scriptHash: udtScript.hash().slice(0, 10) + "...",
         requiredAmount: requiredAmount.toString(),
         udtScript,
       });
 
       // First, let's check if the user has any UDT cells of this type
-      debug.log("Checking user's UDT balance for script:", {
+      log.log("Checking user's UDT balance for script:", {
         codeHash: udtScript.codeHash,
         hashType: udtScript.hashType,
         args: udtScript.args,
@@ -276,7 +278,7 @@ export class FundingService {
             addresses[0],
             this.signer.client
           );
-          debug.log("User lock script:", userLock);
+          log.log("User lock script:", userLock);
 
           // Search for UDT cells
           const collector = this.signer.client.findCellsByLock(
@@ -295,7 +297,7 @@ export class FundingService {
             if (scannedCells <= 3) {
               const amountBytes = cell.outputData.slice(0, 16);
               const amount = ccc.numLeFromBytes(amountBytes);
-              debug.log(`Cell #${scannedCells}:`, {
+              log.log(`Cell #${scannedCells}:`, {
                 lock: cell.cellOutput.lock.args.slice(0, 20) + "...",
                 lockHash: cell.cellOutput.lock.hash().slice(0, 20) + "...",
                 userLockHash: userLock.hash().slice(0, 20) + "...",
@@ -310,7 +312,7 @@ export class FundingService {
               const amountBytes = cell.outputData.slice(0, 16);
               const amount = ccc.numLeFromBytes(amountBytes);
               totalAmount += amount;
-              debug.log(
+              log.log(
                 `Found UDT cell #${foundCells}: amount=${amount.toString()}, lock=${cell.cellOutput.lock.args.slice(
                   0,
                   10
@@ -321,14 +323,14 @@ export class FundingService {
             }
 
             if (scannedCells >= 10) {
-              debug.log(
+              log.log(
                 `Scanned ${scannedCells} cells, found ${foundCells} belonging to user`
               );
               break;
             }
           }
 
-          debug.log(
+          log.log(
             `UDT balance check: found ${foundCells} cells with total amount ${totalAmount.toString()}`
           );
 
@@ -339,7 +341,7 @@ export class FundingService {
           }
         }
       } catch (error) {
-        debug.error("Error checking UDT balance:", error);
+        log.error("Error checking UDT balance:", error);
         throw new Error(
           `Failed to verify UDT balance: ${
             error instanceof Error ? error.message : "Unknown error"
@@ -351,7 +353,7 @@ export class FundingService {
       const udt = await this.getUdtInstance(udtScript);
 
       // Use the UDT transfer method to create a transfer to the campaign owner
-      debug.log("Creating UDT transfer to campaign owner");
+      log.log("Creating UDT transfer to campaign owner");
 
       try {
         const { res: transferTx } = await udt.transfer(
@@ -371,7 +373,7 @@ export class FundingService {
         await udt.completeBy(transferTx, this.signer);
         tx = transferTx;
       } catch (error) {
-        debug.error("UDT transfer failed:", error);
+        log.error("UDT transfer failed:", error);
 
         // Provide more helpful error message
         if (
@@ -392,29 +394,29 @@ export class FundingService {
 
       // The transfer method should have added the necessary inputs, outputs, and cell deps
 
-      debug.log("UDT transfer added to transaction:", {
+      log.log("UDT transfer added to transaction:", {
         amount: requiredAmount.toString(),
         to: campaignOwnerLock.args.slice(0, 10) + "...",
       });
     }
 
     // Log transaction structure after adding UDT funding
-    debug.log("Transaction after adding UDT funding:", {
+    log.log("Transaction after adding UDT funding:", {
       inputs: tx.inputs.length,
       outputs: tx.outputs.length,
       cellDeps: tx.cellDeps.length,
     });
 
     // Log detailed output info
-    debug.log("UDT outputs added to transaction:");
+    log.log("UDT outputs added to transaction:");
     for (let i = 0; i < tx.outputs.length; i++) {
       const output = tx.outputs[i];
       if (output.type) {
-        debug.log(
+        log.log(
           `Output ${i}: Type script hash ${output.type.hash().slice(0, 10)}...`
         );
-        debug.log(`  Lock: ${output.lock.args.slice(0, 10)}...`);
-        debug.log(`  Capacity: ${output.capacity}`);
+        log.log(`  Lock: ${output.lock.args.slice(0, 10)}...`);
+        log.log(`  Capacity: ${output.capacity}`);
       }
     }
 
@@ -429,10 +431,10 @@ export class FundingService {
     campaignTypeId: ccc.Hex,
     udtAssets: UDTAssetLike[]
   ): Promise<string> {
-    console.log("===============================================");
-    console.log("CREATING STANDALONE UDT FUNDING TRANSACTION");
-    console.log("===============================================");
-    debug.log(
+    log.info("===============================================");
+    log.info("CREATING STANDALONE UDT FUNDING TRANSACTION");
+    log.info("===============================================");
+    log.log(
       "Funding campaign",
       campaignTypeId,
       "with UDT assets:",
@@ -477,7 +479,7 @@ export class FundingService {
       await tx.completeFeeBy(this.signer);
 
       // Log final transaction
-      debug.log("Final standalone funding transaction:", {
+      log.log("Final standalone funding transaction:", {
         inputs: tx.inputs.length,
         outputs: tx.outputs.length,
         witnesses: tx.witnesses.length,
@@ -489,10 +491,10 @@ export class FundingService {
 
       const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
 
-      debug.log("Campaign funded successfully. Transaction:", txHash);
+      log.log("Campaign funded successfully. Transaction:", txHash);
       return txHash;
     } catch (error) {
-      debug.error("Failed to fund campaign:", error);
+      log.error("Failed to fund campaign:", error);
       throw error;
     }
   }
@@ -504,7 +506,7 @@ export class FundingService {
     campaignTypeId: ccc.Hex,
     requiredAssets: UDTAssetLike[]
   ): Promise<boolean> {
-    debug.log("Checking funding sufficiency for campaign", campaignTypeId);
+    log.log("Checking funding sufficiency for campaign", campaignTypeId);
 
     try {
       // Fetch funding-locked UDT cells
@@ -537,7 +539,7 @@ export class FundingService {
         const needed = ccc.numFrom(required.amount);
 
         if (funded < needed) {
-          debug.log(
+          log.log(
             `Insufficient funding: ${funded} < ${needed} for UDT ${udtTypeHash}`
           );
           return false;
@@ -546,7 +548,7 @@ export class FundingService {
 
       return true;
     } catch (error) {
-      debug.error("Failed to check funding sufficiency:", error);
+      log.error("Failed to check funding sufficiency:", error);
       return false;
     }
   }
@@ -558,7 +560,7 @@ export class FundingService {
     fundedAssets: Map<string, bigint>;
     totalValueLocked: bigint;
   }> {
-    debug.log("Getting funding status for campaign", campaignTypeId);
+    log.log("Getting funding status for campaign", campaignTypeId);
 
     try {
       // Fetch funding-locked UDT cells
@@ -589,7 +591,7 @@ export class FundingService {
         totalValueLocked,
       };
     } catch (error) {
-      debug.error("Failed to get funding status:", error);
+      log.error("Failed to get funding status:", error);
       throw error;
     }
   }

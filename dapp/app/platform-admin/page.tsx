@@ -9,7 +9,11 @@ import {
   isCampaignApproved,
 } from "@/lib/ckb/campaign-cells";
 import { CampaignData } from "ssri-ckboost/types";
-import { debug, formatDateConsistent } from "@/lib/utils/debug";
+import {
+  createScopedLogger,
+  createTimer,
+  formatDateConsistent,
+} from "ssri-ckboost";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +61,8 @@ import Link from "next/link";
 import { ProtocolManagement } from "@/components/admin/protocol-management";
 import { AchievementsManagement } from "@/components/admin/achievements-management";
 import { useProtocol } from "@/lib/providers/protocol-provider";
+
+const log = createScopedLogger("PlatformAdminPage");
 
 // Hub Admin configuration
 const CURRENT_USER = {
@@ -625,20 +631,20 @@ export default function PlatformAdminDashboard() {
   // Fetch campaigns connected to the protocol
   useEffect(() => {
     if (!signer) {
-      debug.warn("No signer available, skipping campaign fetch");
+      log.warn("No signer available, skipping campaign fetch");
       setIsLoadingCampaigns(false);
       return;
     }
 
     if (protocolLoading) {
-      debug.log("Protocol context loading, waiting before fetching campaigns");
+      log.log("Protocol context loading, waiting before fetching campaigns");
       setIsLoadingCampaigns(true);
       return;
     }
 
     if (!protocolCell || !protocolData) {
       // Protocol context is still warming up; try again when it changes.
-      debug.log("Protocol context not ready yet, deferring campaign fetch");
+      log.log("Protocol context not ready yet, deferring campaign fetch");
       setIsLoadingCampaigns(false);
       return;
     }
@@ -646,31 +652,31 @@ export default function PlatformAdminDashboard() {
     let isCancelled = false;
 
     const fetchCampaigns = async () => {
-      debug.group("Platform Admin - Fetch Campaigns");
-      debug.log("Signer status:", { signerPresent: !!signer });
+      log.log("Platform Admin - Fetch Campaigns");
+      log.log("Signer status:", { signerPresent: !!signer });
 
       setIsLoadingCampaigns(true);
       try {
-        debug.log("Using protocol cell from context...");
-        debug.log("Protocol cell found:", {
+        log.log("Using protocol cell from context...");
+        log.log("Protocol cell found:", {
           typeHash: protocolCell.cellOutput.type?.hash(),
           dataLength: protocolCell.outputData.length,
         });
 
         // Get campaign code hash from protocol data
-        debug.log("Using protocol data from context...");
+        log.log("Using protocol data from context...");
         const campaignCodeHash =
           protocolData.protocol_config.script_code_hashes
             .ckb_boost_campaign_type_code_hash;
 
-        debug.log("Extracted campaign code hash:", campaignCodeHash);
+        log.log("Extracted campaign code hash:", campaignCodeHash);
 
         // Get the protocol type hash (from the protocol cell's type script)
         const protocolTypeHash = protocolCell.cellOutput.type?.hash() || "0x";
-        debug.log("Protocol type hash:", protocolTypeHash);
+        log.log("Protocol type hash:", protocolTypeHash);
 
         // Fetch campaigns connected to this protocol
-        debug.log("Fetching campaigns connected to protocol...");
+        log.log("Fetching campaigns connected to protocol...");
         const campaigns = await fetchCampaignsConnectedToProtocol(
           signer.client,
           campaignCodeHash as ccc.Hex,
@@ -678,11 +684,11 @@ export default function PlatformAdminDashboard() {
         );
 
         if (isCancelled) {
-          debug.warn("Component unmounted before campaign fetch completed");
+          log.warn("Component unmounted before campaign fetch completed");
           return;
         }
 
-        debug.log(`Received ${campaigns.length} connected campaigns`);
+        log.log(`Received ${campaigns.length} connected campaigns`);
 
         // Filter out approved campaigns - only show pending review campaigns
         const approvedCampaignIds = protocolData.campaigns_approved || [];
@@ -691,37 +697,35 @@ export default function PlatformAdminDashboard() {
           return !isCampaignApproved(campaignTypeId, approvedCampaignIds);
         });
 
-        debug.log(
+        log.log(
           `Filtered to ${pendingCampaigns.length} pending review campaigns`
         );
         setConnectedCampaigns(pendingCampaigns);
 
         // Log campaign details
         if (campaigns.length > 0) {
-          debug.group("Campaign Details");
+          log.log("Campaign Details");
           campaigns.forEach((campaign, index) => {
             try {
               const campaignData = CampaignData.decode(campaign.outputData);
-              debug.log(`Campaign ${index + 1}:`, {
+              log.log(`Campaign ${index + 1}:`, {
                 title: campaignData.metadata.title,
                 typeHash: campaign.cellOutput.type?.hash(),
                 categories: campaignData.metadata.categories,
               });
             } catch (e) {
-              debug.error(`Failed to parse campaign ${index + 1}:`, e);
+              log.error(`Failed to parse campaign ${index + 1}:`, e);
             }
           });
-          debug.groupEnd();
         }
       } catch (error) {
         if (!isCancelled) {
-          debug.error("Failed to fetch campaigns:", error);
+          log.error("Failed to fetch campaigns:", error);
         }
       } finally {
         if (!isCancelled) {
           setIsLoadingCampaigns(false);
         }
-        debug.groupEnd();
       }
     };
 
@@ -815,7 +819,7 @@ export default function PlatformAdminDashboard() {
   };
 
   const handleCreateReward = () => {
-    console.log("Creating reward:", newReward);
+    log.info("Creating reward:", newReward);
     setIsRewardDialogOpen(false);
     setNewReward({
       period: "",
@@ -900,7 +904,7 @@ export default function PlatformAdminDashboard() {
     verificationId: number,
     action: "approve" | "reject"
   ) => {
-    console.log(`${action} verification ${verificationId}`);
+    log.info(`${action} verification ${verificationId}`);
   };
 
   const getSybilRiskColor = (risk: string) => {
@@ -1452,7 +1456,7 @@ export default function PlatformAdminDashboard() {
                         </Card>
                       );
                     } catch (error) {
-                      console.warn("Failed to parse campaign data:", error);
+                      log.warn("Failed to parse campaign data:", error);
                       return null;
                     }
                   })}

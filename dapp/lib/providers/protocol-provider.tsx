@@ -24,6 +24,9 @@ import {
 import { ProtocolService } from "../services/protocol-service";
 import { AchievementService } from "../services/achievement-service";
 import { deploymentManager } from "../ckb/deployment-manager";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProtocolProvider");
 
 // Types for protocol provider
 interface ProtocolContextType {
@@ -152,7 +155,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to load protocol data";
         setError(errorMessage);
-        console.error("Failed to initialize protocol data:", err);
+        log.error("Failed to initialize protocol data:", err);
 
         // For protocol cell not found errors or corrupted data, set data to null but keep the error
         // This allows the UI to show the deployment form
@@ -201,7 +204,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
               .script;
             const userLockHash = userLockScript.hash();
 
-            console.log("Admin check:", {
+            log.info("Admin check:", {
               userAddress: addr,
               userLockHash,
               adminHashes: protocolData.protocol_config.admin_lock_hash_vec,
@@ -236,7 +239,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
               ) || false;
             setIsEndorser(isUserEndorser);
           } catch (adminCheckErr) {
-            console.error(
+            log.error(
               "Failed to check admin/endorser status:",
               adminCheckErr
             );
@@ -245,7 +248,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (err) {
-        console.error("Failed to update user info:", err);
+        log.error("Failed to update user info:", err);
       }
     };
 
@@ -318,7 +321,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
       );
       // Refresh data after successful update
     } catch (err) {
-      console.error("Failed to add endorser:", err);
+      log.error("Failed to add endorser:", err);
       throw err;
     }
   };
@@ -346,7 +349,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
       );
       // Refresh data after successful update
     } catch (err) {
-      console.error("Failed to edit endorser:", err);
+      log.error("Failed to edit endorser:", err);
       throw err;
     }
   };
@@ -375,7 +378,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         newProtocolData as ReturnType<typeof ProtocolData.decode>
       );
     } catch (err) {
-      console.error("Failed to remove endorser:", err);
+      log.error("Failed to remove endorser:", err);
       throw err;
     }
   };
@@ -596,7 +599,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
         removed: [],
       },
     };
-    console.log("Changes:", changes);
+    log.info("Changes:", changes);
     return changes;
   };
 

@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { CampaignData, type CampaignDataLike } from 'ssri-ckboost/types'
 import { ccc } from '@ckb-ccc/connector-react'
+import { createScopedLogger } from 'ssri-ckboost'
+
+const log = createScopedLogger('useCampaignDraft')
 
 const DRAFT_KEY_PREFIX = 'ckboost_campaign_draft_'
 const DRAFTS_LIST_KEY = 'ckboost_campaign_drafts'
@@ -24,7 +27,7 @@ export function useCampaignDraft(campaignTypeId?: string) {
         setDraft(campaignData)
       }
     } catch (error) {
-      console.error('Failed to load draft:', error)
+      log.error('Failed to load draft:', error)
     } finally {
       setIsLoading(false)
     }
@@ -59,7 +62,7 @@ export function useCampaignDraft(campaignTypeId?: string) {
       
       return true
     } catch (error) {
-      console.error('Failed to save draft:', error)
+      log.error('Failed to save draft:', error)
       return false
     }
   }, [draftKey, campaignTypeId])
@@ -77,7 +80,7 @@ export function useCampaignDraft(campaignTypeId?: string) {
       setDraft(null)
       return true
     } catch (error) {
-      console.error('Failed to delete draft:', error)
+      log.error('Failed to delete draft:', error)
       return false
     }
   }, [draftKey])

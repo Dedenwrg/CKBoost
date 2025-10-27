@@ -1,6 +1,9 @@
 import { NSecSigner } from '@nostrify/nostrify';
 import { NostrEvent } from '@nostrify/types';
 import { nip19, getEventHash, generateSecretKey, getPublicKey } from 'nostr-tools';
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("NostrStorageService");
 
 // Default public Nostr relays (free to use)
 const DEFAULT_NOSTR_RELAYS = [
@@ -66,7 +69,7 @@ export class NostrStorageService {
       relays: this.relays.slice(0, 3),
     });
     
-    console.log(`Storing submission with nevent ID: ${neventId}`);
+    log.info(`Storing submission with nevent ID: ${neventId}`);
     
     // Note: Actual relay publishing would be handled by the React hook
     // This service just prepares the event
@@ -91,7 +94,7 @@ export class NostrStorageService {
       }
       return null;
     } catch (error) {
-      console.error('Failed to decode nevent:', error);
+      log.error('Failed to decode nevent:', error);
       return null;
     }
   }
@@ -166,7 +169,7 @@ export class NostrStorageService {
         };
       }
     } catch (error) {
-      console.error('Failed to fetch from any relay:', error);
+      log.error('Failed to fetch from any relay:', error);
     }
     
     return null;
@@ -242,13 +245,13 @@ export class NostrStorageService {
             resolve(null);
           }
         } catch (error) {
-          console.error('Error parsing message from relay:', error);
+          log.error('Error parsing message from relay:', error);
         }
       };
       
       ws.onerror = (error) => {
         clearTimeout(timeout);
-        console.error(`WebSocket error for ${relayUrl}:`, error);
+        log.error(`WebSocket error for ${relayUrl}:`, error);
         reject(error);
       };
       

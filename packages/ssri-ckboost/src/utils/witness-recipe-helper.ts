@@ -1,4 +1,7 @@
 import { ccc } from '@ckb-ccc/core';
+import { createScopedLogger } from '../logging/index.js';
+
+const log = createScopedLogger('WitnessRecipeHelper');
 
 /**
  * Helper functions for working with TransactionRecipe in WitnessArgs
@@ -48,7 +51,7 @@ export function findRecipeWitnessIndex(witnesses: ccc.HexLike[]): number {
  * Demonstrates the witness structure
  */
 export function explainWitnessArgsUsage(): void {
-  console.log(`
+  log.info(`
 === WitnessArgs Structure and TransactionRecipe ===
 
 WitnessArgs is a Molecule table with 3 fields:

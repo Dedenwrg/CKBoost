@@ -8,6 +8,9 @@ import { ccc } from "@ckb-ccc/connector-react";
 import { Campaign } from "ssri-ckboost";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { fetchCampaignsConnectedToProtocol } from "../ckb/campaign-cells";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("CampaignService");
 
 /**
  * Campaign service that provides high-level campaign operations
@@ -54,13 +57,12 @@ export class CampaignService {
       // TODO: Implement Points balance fetching
       // This will query Points UDT cells owned by the user
       // Points UDT uses protocol type hash as args
-      
-      console.log("Fetching Points balance for user:", userAddress);
-      
+      log.info("Fetching Points balance for user:", userAddress);
+
       // Placeholder - return 0 for now
       return BigInt(0);
     } catch (error) {
-      console.error("Failed to fetch Points balance:", error);
+      log.error("Failed to fetch Points balance:", error);
       return BigInt(0);
     }
   }
@@ -84,9 +86,13 @@ export class CampaignService {
     const protocolTypeHash = protocolCell.cellOutput.type.hash();
 
     try {
-      return await fetchCampaignsConnectedToProtocol(client, campaignCodeHash, protocolTypeHash);
+      return await fetchCampaignsConnectedToProtocol(
+        client,
+        campaignCodeHash,
+        protocolTypeHash
+      );
     } catch (error) {
-      console.error("Failed to fetch campaigns:", error);
+      log.error("Failed to fetch campaigns:", error);
       throw error;
     }
   }
@@ -110,7 +116,7 @@ export class CampaignService {
       const allCampaigns = await this.getAllCampaigns(client);
       return allCampaigns.slice(0, 4);
     } catch (error) {
-      console.error("Failed to fetch featured campaigns:", error);
+      log.error("Failed to fetch featured campaigns:", error);
       throw error;
     }
   }

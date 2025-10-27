@@ -17,6 +17,9 @@ importers:
       '@ckb-ccc/udt':
         specifier: ^0.1.21
         version: 0.1.21(typescript@5.8.3)
+      beautify-console-log:
+        specifier: ^1.3.17
+        version: 1.3.17
     devDependencies:
       '@ckb-ccc/eip6963':
         specifier: ^1.0.26
@@ -612,6 +615,9 @@ packages:
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
+
+  beautify-console-log@1.3.17:
+    resolution: {integrity: sha512-D0WCezIbIamHKgxFWpNTySnB1vO5xMfAYV7zMh8rROBIPsRxm14GsQ4mOte6tDbVDObrxlHcZApuWiatBfCgzA==}
 
   bech32@1.1.4:
     resolution: {integrity: sha512-s0IrSOzLlbvX7yp4WBfPITzpAU8sqQcpsmwXDiKwrG4r491vwCO/XpejasRNl0piBMe/DvP4Tz0mIS/X1DPJBQ==}
@@ -2715,6 +2721,8 @@ snapshots:
   base-x@5.0.1: {}
 
   base64-js@1.5.1: {}
+
+  beautify-console-log@1.3.17: {}
 
   bech32@1.1.4: {}
 

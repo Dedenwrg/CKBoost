@@ -18,20 +18,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SocialInteractions } from "./social-interactions";
-import {
-  ThumbsUp,
-  Users,
-  Clock,
-  Eye,
-  ExternalLink,
-  Plus,
-  Wallet,
-  Gift,
-} from "lucide-react";
+import { ThumbsUp, Users, Clock, Eye, Plus, Wallet, Gift } from "lucide-react";
 import { TippingInfo } from "@/lib/providers/tipping-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ccc } from "@ckb-ccc/connector-react";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("TippingCard");
 
 interface TippingCardProps {
   tipping: TippingInfo;
@@ -132,7 +126,7 @@ export function TippingCard({
         if (cancelled) {
           return;
         }
-        console.warn("Failed to fetch tipping description from Nostr", error);
+        log.warn("Failed to fetch tipping description from Nostr", error);
         setResolvedLongDescription("");
         setResolveError("Unable to load description from Nostr.");
       } finally {
@@ -269,7 +263,7 @@ export function TippingCard({
     try {
       await onApprove(tipping);
     } catch (error) {
-      console.error("Failed to approve tipping", error);
+      log.error("Failed to approve tipping", error);
       setApproveError(
         error instanceof Error
           ? error.message

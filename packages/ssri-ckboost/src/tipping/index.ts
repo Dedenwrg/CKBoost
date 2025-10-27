@@ -5,6 +5,9 @@ import {
   TippingData,
   type TippingDataLike,
 } from "../generated";
+import { createScopedLogger } from "../logging/index.js";
+
+const log = createScopedLogger("Tipping");
 
 export interface FundingPoolSummary {
   /** Capacity-only cells (CKB funding) locked by the funding lock */
@@ -89,7 +92,7 @@ export class Tipping extends ssri.Trait {
         outPoint: this.code,
         depType: "code",
       }); // SSRI Method might fail to find the tipping cell by out point, so we need to find it manually for both input and output
-      console.log("Finding tipping cell by type:", {
+      log.info("Finding tipping cell by type:", {
         codeHash: this.script.codeHash,
         hashType: "type",
         args: this.script.args,
@@ -99,7 +102,7 @@ export class Tipping extends ssri.Trait {
         hashType: "type",
         args: this.script.args, // Empty args to match any args
       })) {
-        console.log("Found tipping cell:", cell.outPoint);
+        log.info("Found tipping cell:", cell.outPoint);
         // Check if the cell is in the inputs of the transaction. If none, add it as an input.
         if (
           !resTx.res.inputs.some(
@@ -108,7 +111,7 @@ export class Tipping extends ssri.Trait {
               input.previousOutput.index === cell.outPoint.index
           )
         ) {
-          console.log("Adding tipping cell as input:", cell.outPoint);
+          log.info("Adding tipping cell as input:", cell.outPoint);
           resTx.res.addInput(cell);
         }
         // Check if the cell is in the outputs of the transaction. If none, add it as an output.
@@ -119,7 +122,7 @@ export class Tipping extends ssri.Trait {
               output.type?.args === cell.cellOutput.type?.args
           )
         ) {
-          console.log("Adding new tipping cell as output:", cell.outPoint);
+          log.info("Adding new tipping cell as output:", cell.outPoint);
           const tippingCellOutput = ccc.CellOutput.from({
             lock: cell.cellOutput.lock,
             type: cell.cellOutput.type,
@@ -137,7 +140,7 @@ export class Tipping extends ssri.Trait {
       );
 
       if (tippingCellOutputIndex === -1) {
-        console.log(
+        log.info(
           "Tipping cell output not found in transaction. TxHex:",
           ccc.hexFrom(resTx.res.toBytes())
         );
@@ -171,7 +174,7 @@ export class Tipping extends ssri.Trait {
           type_id: ccc.hexFrom(typeIdBytes),
           connected_key: connectedProtocolCellTypeHash,
         };
-        console.log("Connected_Key: ", connectedProtocolCellTypeHash);
+        log.info("Connected_Key: ", connectedProtocolCellTypeHash);
       } else if (argsBytes.length === 32) {
         // Direct protocol reference - wrap in ConnectedTypeID
         // Use the existing 32 bytes as the type_id
@@ -179,12 +182,12 @@ export class Tipping extends ssri.Trait {
           type_id: tippingCellTypeArgs,
           connected_key: connectedProtocolCellTypeHash,
         };
-        console.log("Connected_Key: ", connectedProtocolCellTypeHash);
+        log.info("Connected_Key: ", connectedProtocolCellTypeHash);
       } else if (argsBytes.length === 76) {
         // Already a ConnectedTypeID - decode and update
         connectedTypeId = ConnectedTypeID.decode(tippingCellTypeArgs);
         connectedTypeId.connected_key = connectedProtocolCellTypeHash;
-        console.log("Connected_Key: ", connectedProtocolCellTypeHash);
+        log.info("Connected_Key: ", connectedProtocolCellTypeHash);
       } else {
         throw new Error(
           `Invalid tipping type args length: ${argsBytes.length}. Expected 0, 32, or 76 bytes.`
@@ -194,14 +197,14 @@ export class Tipping extends ssri.Trait {
       // Encode ConnectedTypeID and set it as the tipping type script args
       const connectedTypeIdBytes = ConnectedTypeID.encode(connectedTypeId);
       const connectedTypeIdHex = ccc.hexFrom(connectedTypeIdBytes);
-      console.log("ConnectedTypeIDHex: ", connectedTypeIdHex);
+      log.info("ConnectedTypeIDHex: ", connectedTypeIdHex);
 
       // Update the tipping cell's type script args with the ConnectedTypeID
       if (resTx.res.outputs[tippingCellOutputIndex].type) {
-        console.log("Updating tipping cell type args with ConnectedTypeID");
+        log.info("Updating tipping cell type args with ConnectedTypeID");
         resTx.res.outputs[tippingCellOutputIndex].type.args =
           connectedTypeIdHex;
-        console.log(
+        log.info(
           "Updated tipping cell type args: ",
           resTx.res.outputs[tippingCellOutputIndex].type.args
         );
@@ -226,7 +229,7 @@ export class Tipping extends ssri.Trait {
     signer: ccc.Signer,
     udtScript: ccc.ScriptLike
   ): Promise<ccc.Cell[]> {
-    console.log(`🔍 Searching for tipping UDT cells by lock script:`, {
+    log.info(`🔍 Searching for tipping UDT cells by lock script:`, {
       tippingTypeScript: this.script.codeHash.slice(0, 10) + "...",
       udtScript: ccc.Script.from(udtScript).codeHash.slice(0, 10) + "...",
     });
@@ -241,7 +244,7 @@ export class Tipping extends ssri.Trait {
         .ckb_boost_funding_lock_code_hash
     );
 
-    console.log(`🔑 Funding lock details:`, {
+    log.info(`🔑 Funding lock details:`, {
       fundingLockCodeHash: fundingLockCodeHash.slice(0, 10) + "...",
       protocolTypeHash: this.getProtocolTypeHash().slice(0, 10) + "...",
     });
@@ -270,7 +273,7 @@ export class Tipping extends ssri.Trait {
         cell.cellOutput.type.args === targetUdtScript.args
       ) {
         tippingUdtCells.push(cell);
-        console.log(`✅ Found tipping UDT cell:`, {
+        log.info(`✅ Found tipping UDT cell:`, {
           outPoint: cell.outPoint,
           capacity: cell.cellOutput.capacity.toString(),
           udtCodeHash: cell.cellOutput.type.codeHash.slice(0, 10) + "...",
@@ -279,14 +282,14 @@ export class Tipping extends ssri.Trait {
       }
     }
 
-    console.log(`📊 Funding lock UDT search results:`, {
+    log.info(`📊 Funding lock UDT search results:`, {
       totalFundingLockCells: "checked all funding-locked cells",
       matchingUdtCells: tippingUdtCells.length,
       targetUdtCodeHash: targetUdtScript.codeHash.slice(0, 10) + "...",
     });
 
     if (tippingUdtCells.length === 0) {
-      console.warn(
+      log.warn(
         `❌ No funding lock UDT cells found for UDT ${targetUdtScript.codeHash.slice(0, 10)}...`
       );
     }
@@ -301,7 +304,7 @@ export class Tipping extends ssri.Trait {
   async collectFundingPool(signer: ccc.Signer): Promise<FundingPoolSummary> {
     const chainClient = signer.client;
     const fundingLockScript = await this.getFundingLockScript();
-    console.log(
+    log.info(
       "ssri-ckboost: collectFundingPool: fundingLockScript",
       fundingLockScript
     );
@@ -328,7 +331,7 @@ export class Tipping extends ssri.Trait {
         const previous = udtTotalsByType.get(typeHash) ?? 0n;
         udtTotalsByType.set(typeHash, previous + amount);
       } else {
-        console.log("ssri-ckboost: collectFundingPool: pushing ckbCell", cell);
+        log.info("ssri-ckboost: collectFundingPool: pushing ckbCell", cell);
         ckbCells.push(cell);
         totalCapacity += ccc.numFrom(cell.cellOutput.capacity);
       }

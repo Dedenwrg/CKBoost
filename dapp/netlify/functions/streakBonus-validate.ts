@@ -12,9 +12,11 @@ import {
 } from "@/netlify/lib/streak-bonus";
 import { decodeUserData } from "@/netlify/lib/streak-bonus";
 import { UserData } from "ssri-ckboost/types";
+import { createLogger } from "@/netlify/lib/log";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
+const logger = createLogger("streakBonus-validate");
 
 type RequestPayload = {
   txHex?: string;
@@ -401,7 +403,7 @@ const fetchRewardTransactions = async ({
           inputTotal += amount;
           inputs.push({ index, amount: amount.toString() });
         } catch (error) {
-          console.warn(
+          logger.warn(
             `[${logPrefix}] Failed to load input cell for tx ${match.txHash} index ${index}:`,
             error
           );
@@ -454,7 +456,7 @@ const fetchRewardTransactions = async ({
             break;
           }
         } catch (error) {
-          console.warn(
+          logger.warn(
             `[${logPrefix}] Failed to decode user data for streak detection in tx ${match.txHash}`,
             error
           );
@@ -471,7 +473,7 @@ const fetchRewardTransactions = async ({
         isStreakBonus,
       });
     } catch (error) {
-      console.warn(
+      logger.warn(
         `[${logPrefix}] Failed to process transaction ${match.txHash}`,
         error
       );

@@ -41,6 +41,8 @@ import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ConnectedTypeID, type ConnectedTypeIDLike } from "ssri-ckboost/types";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
+import { createScopedLogger } from "ssri-ckboost";
+const log = createScopedLogger("AchievementsManagement");
 
 const decodeConnectedTypeId = (
   args?: ccc.HexLike | null
@@ -49,10 +51,7 @@ const decodeConnectedTypeId = (
   try {
     return ConnectedTypeID.decode(ccc.hexFrom(args)) as ConnectedTypeIDLike;
   } catch (error) {
-    console.warn(
-      "[AchievementsManagement] Failed to decode ConnectedTypeID args",
-      error
-    );
+    log.warn("Failed to decode ConnectedTypeID args", error);
     return null;
   }
 };
@@ -253,7 +252,7 @@ export function AchievementsManagement(): React.JSX.Element {
 
       setOnChainAchievements(toAchievementEntries(cell));
     } catch (error) {
-      console.error("[AchievementsManagement] Failed to load status", error);
+      log.error("Failed to load status", error);
       const message =
         error instanceof Error ? error.message : "Unknown error occurred.";
       setStatus(null);
@@ -265,9 +264,7 @@ export function AchievementsManagement(): React.JSX.Element {
   }, [client, achievementTypeCodeHash, protocolTypeHash]);
 
   useEffect(() => {
-    loadStatus().catch((error) =>
-      console.error("[AchievementsManagement] initial load failed", error)
-    );
+    loadStatus().catch((error) => log.error("initial load failed", error));
   }, [loadStatus]);
 
   const handleAddDraft = useCallback(() => {
@@ -312,7 +309,7 @@ export function AchievementsManagement(): React.JSX.Element {
         description: "Draft achievement JSON copied to clipboard.",
       });
     } catch (error) {
-      console.error("[AchievementsManagement] Copy failed", error);
+      log.error("Copy failed", error);
       toast({
         title: "Unable to copy",
         description:
@@ -582,7 +579,7 @@ export function AchievementsManagement(): React.JSX.Element {
 
       await loadStatus();
     } catch (error) {
-      console.error("[AchievementsManagement] Deployment failed", error);
+      log.error("Deployment failed", error);
       toast({
         title: "Deployment failed",
         description:

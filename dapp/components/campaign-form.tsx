@@ -15,6 +15,9 @@ import { ArrowLeft, Plus, Trash2, Info, AlertTriangle, Calendar, Loader2, CheckC
 import Link from "next/link"
 import { ccc, ScriptLike } from "@ckb-ccc/connector-react"
 import type { CampaignDataLike, EndorserInfoLike, UDTAssetLike } from "ssri-ckboost/types"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("CampaignForm")
 // import { useCampaignDraft } from "@/lib/hooks/use-campaign-draft"
 
 // Simplified form data interface
@@ -104,7 +107,7 @@ export function CampaignForm({
   // Save draft functionality temporarily disabled
   const saveCurrentDraft = useCallback(() => {
     // TODO: Implement draft saving with CampaignDataLike
-    console.log('Draft saving temporarily disabled')
+    log.info('Draft saving temporarily disabled')
   }, [formData, ckbReward, nftRewards, udtRewards, rules, quests])
 
   // Handle form submission
@@ -141,7 +144,7 @@ export function CampaignForm({
       // Draft deletion temporarily disabled
       // deleteDraft()
     } catch (error) {
-      console.error("Failed to submit campaign:", error)
+      log.error("Failed to submit campaign:", error)
       setSubmitError(error instanceof Error ? error.message : "Failed to submit campaign")
     } finally {
       setIsSubmitting(false)

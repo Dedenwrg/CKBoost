@@ -7,6 +7,9 @@ import {
   UserDataLike,
   type AchievementDataLike,
 } from "ssri-ckboost/types";
+import { createLogger } from "./log";
+
+const log = createLogger("NetlifyUtils");
 
 /**
  * Minimal definition for an achievement validation rule.
@@ -37,7 +40,7 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
         ccc.hexFrom(verificationData).toLowerCase() !== "0x";
 
       if (!hasVerification) {
-        console.log(
+        log.info(
           "Telegram verification achievement requires completed identity verification data."
         );
         return false;
@@ -48,10 +51,10 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
   {
     title: "First Submission",
     validate: (userData: UserDataLike) => {
-      console.log("Validating first submission");
+      log.info("Validating first submission");
       const submissionCount = userData.submission_records.length;
       if (submissionCount === 0) {
-        console.log(
+        log.info(
           "First submission achievement requires at least one submission."
         );
       }
@@ -114,7 +117,7 @@ export const getGrantableAchievements = async (
   const achievementDataVec = AchievementDataVec.decode(
     ccc.hexFrom(achievementCell.outputData)
   ) as AchievementDataLike[];
-  console.log("achievementDataVec", achievementDataVec);
+  log.info("achievementDataVec", achievementDataVec);
   const availableAchievements = achievementDataVec.filter((achievement) => {
     const achievementReceiverHashes = achievement.receiver_user_record_vec?.map(
       (record) => {
@@ -125,26 +128,26 @@ export const getGrantableAchievements = async (
       userCell.cellOutput.type?.hash() ?? ""
     );
   });
-  console.log("availableAchievements", availableAchievements);
+  log.info("availableAchievements", availableAchievements);
 
   const userData = UserData.decode(userCell.outputData);
 
   const grantableAchievements: string[] = availableAchievements
     .filter((achievement) => {
-      console.log("Checking achievement", achievement.achievement_title);
+      log.info("Checking achievement", achievement.achievement_title);
       const rule = ACHIEVEMENT_RULE_MAP.get(achievement.achievement_title);
       if (!rule) {
-        console.log(
+        log.info(
           "Rule not found for achievement",
           achievement.achievement_title
         );
         return false;
       }
-      console.log("Validating achievement", achievement.achievement_title);
+      log.info("Validating achievement", achievement.achievement_title);
       return rule.validate(userData);
     })
     .map((achievement) => achievement.achievement_title);
-  console.log("grantableAchievements", grantableAchievements);
+  log.info("grantableAchievements", grantableAchievements);
   return grantableAchievements;
 };
 
@@ -217,8 +220,8 @@ export async function getAllUserCellsByLock(
   const cells: ccc.Cell[] = [];
   const startTime = Date.now();
 
-  console.log(
-    "[getAllUserCellsByLock] Searching for cells with lock:",
+  log.info(
+    "Searching for cells with lock:",
     lockScript.hash().slice(0, 10) + "..."
   );
 
@@ -232,14 +235,9 @@ export async function getAllUserCellsByLock(
     : null;
 
   if (userTypeCodeHash) {
-    console.log(
-      "[getAllUserCellsByLock] Using type filter:",
-      userTypeCodeHash.slice(0, 10) + "..."
-    );
+    log.info("Using type filter:", userTypeCodeHash.slice(0, 10) + "...");
   } else {
-    console.log(
-      "[getAllUserCellsByLock] No type filter - returning all cells with this lock"
-    );
+    log.info("No type filter - returning all cells with this lock");
   }
 
   // Use findCellsByLock with optional type parameter
@@ -248,7 +246,7 @@ export async function getAllUserCellsByLock(
     lockScript,
     typeScript
   )) {
-    console.log(`[getAllUserCellsByLock] ✅ Found cell #${cells.length + 1}:`, {
+    log.info(`✅ Found cell #${cells.length + 1}:`, {
       outPoint: cell.outPoint,
       typeArgs: cell.cellOutput.type?.args?.slice(0, 66) + "...",
       capacity: cell.cellOutput.capacity.toString(),
@@ -256,10 +254,8 @@ export async function getAllUserCellsByLock(
     cells.push(cell);
   }
 
-  console.log(
-    `[getAllUserCellsByLock] Found ${cells.length} matching user cells in ${
-      Date.now() - startTime
-    }ms`
+  log.info(
+    `Found ${cells.length} matching user cells in ${Date.now() - startTime}ms`
   );
   return cells;
 }
@@ -332,8 +328,8 @@ export async function getLatestUserCellByLockWithClient(
         }
       }
     } catch (error) {
-      console.error(
-        `[getLatestUserCellByLockWithClient] Failed to load transaction info for ${cell.outPoint.txHash}:${cell.outPoint.index}`,
+      log.error(
+        `Failed to load transaction info for ${cell.outPoint.txHash}:${cell.outPoint.index}`,
         error
       );
     }
@@ -368,15 +364,15 @@ export async function getLatestUserCellByLock(
   signer: ccc.Signer,
   protocolTypeHash?: ccc.Hex
 ): Promise<ccc.Cell | undefined> {
-  console.log("[getLatestUserCellByLock] Starting search for user cells...");
+  log.info("Starting search for user cells...");
   const searchStart = Date.now();
 
   let cells = await getAllUserCellsByLock(lockScript, signer, userTypeCodeHash);
 
   // Filter by protocol connection if specified
   if (protocolTypeHash) {
-    console.log(
-      `[getLatestUserCellByLock] Filtering for cells connected to protocol: ${protocolTypeHash.slice(
+    log.info(
+      `Filtering for cells connected to protocol: ${protocolTypeHash.slice(
         0,
         10
       )}...`
@@ -385,15 +381,13 @@ export async function getLatestUserCellByLock(
     cells = cells.filter((cell) =>
       isUserCellConnectedToProtocol(cell, protocolTypeHash)
     );
-    console.log(
-      `[getLatestUserCellByLock] Filtered from ${originalCount} to ${cells.length} cells connected to current protocol`
+    log.info(
+      `Filtered from ${originalCount} to ${cells.length} cells connected to current protocol`
     );
   }
 
-  console.log(
-    `[getLatestUserCellByLock] Found ${cells.length} matching cells in ${
-      Date.now() - searchStart
-    }ms`
+  log.info(
+    `Found ${cells.length} matching cells in ${Date.now() - searchStart}ms`
   );
 
   if (cells.length === 0) {
@@ -405,10 +399,8 @@ export async function getLatestUserCellByLock(
   }
 
   // Multiple cells found - need to find the latest one
-  console.warn(
-    `[getLatestUserCellByLock] Found ${
-      cells.length
-    } user cells for lock ${lockScript
+  log.warn(
+    `Found ${cells.length} user cells for lock ${lockScript
       .hash()
       .slice(0, 10)}... - selecting latest by block height`
   );
@@ -423,11 +415,10 @@ export async function getLatestUserCellByLock(
       const txInfo = await signer.client.getTransaction(cell.outPoint.txHash);
       if (txInfo && txInfo.blockNumber) {
         const blockNumber = BigInt(txInfo.blockNumber);
-        console.log(
-          `[getLatestUserCellByLock] Cell ${cell.outPoint.txHash.slice(
-            0,
-            10
-          )}:${cell.outPoint.index} is in block ${blockNumber}`
+        log.info(
+          `Cell ${cell.outPoint.txHash.slice(0, 10)}:${
+            cell.outPoint.index
+          } is in block ${blockNumber}`
         );
 
         if (blockNumber > latestBlockNumber) {
@@ -436,15 +427,15 @@ export async function getLatestUserCellByLock(
         }
       }
     } catch (error) {
-      console.error(
-        `[getLatestUserCellByLock] Failed to get block info for cell ${cell.outPoint.txHash}:${cell.outPoint.index}`,
+      log.error(
+        `Failed to get block info for cell ${cell.outPoint.txHash}:${cell.outPoint.index}`,
         error
       );
     }
   }
 
-  console.log(
-    `[getLatestUserCellByLock] Selected cell from block ${latestBlockNumber} as the latest user cell (total time: ${
+  log.info(
+    `Selected cell from block ${latestBlockNumber} as the latest user cell (total time: ${
       Date.now() - searchStart
     }ms)`
   );
@@ -473,27 +464,21 @@ export function isUserCellConnectedToProtocol(
     const connectedKey = ccc.hexFrom(connectedTypeId.connected_key);
     const isMatch = connectedKey === protocolTypeHash;
     if (isMatch) {
-      console.log(
-        `[isUserCellConnectedToProtocol] Cell ${cell.outPoint.txHash.slice(
-          0,
-          10
-        )}:${
+      log.info(
+        `Cell ${cell.outPoint.txHash.slice(0, 10)}:${
           cell.outPoint.index
         } is connected to protocol ${protocolTypeHash.slice(0, 10)}...`
       );
     } else {
-      console.log(
-        `[isUserCellConnectedToProtocol] Cell ${cell.outPoint.txHash.slice(
-          0,
-          10
-        )}:${
+      log.info(
+        `Cell ${cell.outPoint.txHash.slice(0, 10)}:${
           cell.outPoint.index
         } is not connected to protocol ${protocolTypeHash.slice(0, 10)}...`
       );
     }
     return isMatch;
   } catch (error) {
-    console.error("Failed to check protocol connection:", error);
+    log.error("Failed to check protocol connection:", error);
     return false;
   }
 }
@@ -524,7 +509,7 @@ export async function fetchProtocolCell(
       );
     }
 
-    console.log("Searching for protocol cell with type script:", {
+    log.info("Searching for protocol cell with type script:", {
       codeHash: protocolTypeScript.codeHash,
       hashType: protocolTypeScript.hashType,
       args: protocolTypeScript.args,
@@ -539,13 +524,13 @@ export async function fetchProtocolCell(
 
     // Get first cell from async generator
     const firstCell = await cellsGenerator.next();
-    console.log("Cell search result:", {
+    log.info("Cell search result:", {
       done: firstCell.done,
       hasValue: !!firstCell.value,
     });
 
     if (firstCell.done || !firstCell.value) {
-      console.warn(
+      log.warn(
         "No protocol cell found on blockchain with the configured type script"
       );
       // Provide more specific guidance based on the type script args
@@ -565,7 +550,7 @@ export async function fetchProtocolCell(
     const cell = firstCell.value;
     return cell;
   } catch (error) {
-    console.error("Failed to fetch protocol cell:", error);
+    log.error("Failed to fetch protocol cell:", error);
 
     // Re-throw with the original error message if it's already descriptive
     if (

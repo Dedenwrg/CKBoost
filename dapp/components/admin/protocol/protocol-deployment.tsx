@@ -36,6 +36,9 @@ import {
   deployProtocolCell,
   validateDeploymentParams,
 } from "@/lib/ckb/protocol-deployment";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProtocolDeploymentUI");
 
 interface ProtocolDeploymentProps {
   protocolData: DecodedProtocolData | null;
@@ -104,14 +107,14 @@ export function ProtocolDeployment({
         );
       }
 
-      console.log("Successfully loaded protocol cell from outpoint:", outPoint);
+      log.info("Successfully loaded protocol cell from outpoint:", outPoint);
 
       // Refresh the protocol data with the new cell
       await refreshProtocolData();
 
       setShowOutpointDialog(false);
     } catch (err) {
-      console.error("Failed to load protocol cell:", err);
+      log.error("Failed to load protocol cell:", err);
       setDeploymentError(
         err instanceof Error ? err.message : "Failed to load protocol cell"
       );
@@ -152,7 +155,7 @@ export function ProtocolDeployment({
       // Deploy the protocol cell
       const result = await deployProtocolCell(signer, deploymentTemplate);
 
-      console.log("Protocol deployed successfully:", result);
+      log.info("Protocol deployed successfully:", result);
       alert(
         `Protocol deployed successfully! Transaction hash: ${result.txHash}`
       );
@@ -160,7 +163,7 @@ export function ProtocolDeployment({
       // Refresh the protocol data
       await refreshProtocolData();
     } catch (err) {
-      console.error("Failed to deploy protocol:", err);
+      log.error("Failed to deploy protocol:", err);
       setDeploymentError(
         err instanceof Error ? err.message : "Failed to deploy protocol"
       );

@@ -22,7 +22,6 @@ import {
   UserPlus,
   TestTube,
   ExternalLink,
-  Database,
   Cloud,
   Coins,
 } from "lucide-react";
@@ -31,11 +30,13 @@ import { useUser } from "@/lib/providers/user-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
 import { ccc } from "@ckb-ccc/connector-react";
-import { debug } from "@/lib/utils/debug";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 // Global storage modal
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 import { isNostrSubmissionData, QuestSubtask } from "@/types/submission";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("QuestSubmissionForm");
 
 interface QuestSubmissionFormProps {
   quest: {
@@ -151,7 +152,7 @@ export function QuestSubmissionForm({
                   setSubtaskResponses(responses);
                 }
               } catch (err) {
-                console.error("Failed to load content from Nostr:", err);
+                log.error("Failed to load content from Nostr:", err);
                 // Mark as Nostr fetch error
                 setNostrFetchError(true);
                 // Set empty responses to allow resubmission
@@ -170,7 +171,7 @@ export function QuestSubmissionForm({
           }
         }
       } catch (err) {
-        console.error("Failed to check/load submission:", err);
+        log.error("Failed to check/load submission:", err);
       }
     } else if (userAddress) {
       setIsFirstTime(true);
@@ -446,7 +447,7 @@ Lines        : 93.84% ( 183/195 )
     if (nostrConnected && userAddress) {
       try {
         setIsSubmitting(true);
-        debug.log(
+        log.log(
           isEditMode
             ? "Updating submission on Nostr..."
             : "Storing submission on Nostr..."
@@ -459,10 +460,10 @@ Lines        : 93.84% ( 183/195 )
           timestamp: Date.now(),
         });
         nostrNeventId = result;
-        debug.log("✅ Successfully stored on Nostr!");
-        debug.log("Stored nevent ID:", nostrNeventId);
-        debug.log("Full nevent ID that will be submitted:", nostrNeventId);
-        debug.log("Is this an edit?", isEditMode);
+        log.log("✅ Successfully stored on Nostr!");
+        log.log("Stored nevent ID:", nostrNeventId);
+        log.log("Full nevent ID that will be submitted:", nostrNeventId);
+        log.log("Is this an edit?", isEditMode);
 
         // Store the submission data for later - use the nevent ID directly
         setPendingSubmissionData({
@@ -471,7 +472,7 @@ Lines        : 93.84% ( 183/195 )
           contentToStore: nostrNeventId, // Use the nevent ID directly
         });
         setPendingNeventId(nostrNeventId);
-        debug.log("Pending data set with nevent ID:", nostrNeventId);
+        log.log("Pending data set with nevent ID:", nostrNeventId);
 
         // Open global modal after successful Nostr storage
         const questIdNum = Number(quest.quest_id || questIndex + 1);
@@ -495,10 +496,7 @@ Lines        : 93.84% ( 183/195 )
         // Don't proceed with transaction yet - wait for verification
         return;
       } catch (nostrError) {
-        console.warn(
-          "Failed to store on Nostr, will store on-chain:",
-          nostrError
-        );
+        log.warn("Failed to store on Nostr, will store on-chain:", nostrError);
         setIsSubmitting(false);
         // Continue without Nostr storage
       }
@@ -538,7 +536,7 @@ Lines        : 93.84% ( 183/195 )
       const finalQuestId = questIdParam || pendingSubmissionData?.questId;
       const finalContent = content || pendingSubmissionData?.contentToStore;
 
-      debug.log("📍 finalizeSubmission called with:", {
+      log.log("📍 finalizeSubmission called with:", {
         providedCampaignTypeId: campaignTypeId,
         providedQuestId: questIdParam,
         providedContent: content?.slice(0, 50),
@@ -559,7 +557,7 @@ Lines        : 93.84% ( 183/195 )
         isFirstTime ? userVerificationData : undefined
       );
 
-      debug.log("Quest submitted successfully:", {
+      log.log("Quest submitted successfully:", {
         txHash,
         questId: finalQuestId,
         usedNostr: !!pendingNeventId,
@@ -585,14 +583,14 @@ Lines        : 93.84% ( 183/195 )
 
       // Call the onSuccess callback if provided
       if (onSuccess) {
-        debug.log("Calling onSuccess callback after successful submission");
+        log.log("Calling onSuccess callback after successful submission");
         await onSuccess();
       }
 
       // Return the txHash so the modal can display it
       return txHash;
     } catch (err) {
-      debug.error("Failed to finalize submission:", err);
+      log.error("Failed to finalize submission:", err);
       setError(err instanceof Error ? err.message : "Failed to submit quest");
       // Re-throw so the modal can handle the error
       throw err;
@@ -812,7 +810,7 @@ Lines        : 93.84% ( 183/195 )
                       // For Milestone 1, CKB rewards are paid upon approval or via sponsor pool.
                       // Enable claim button to signal availability and unify UX.
                       try {
-                        console.log(
+                        log.info(
                           "CKB claim requested for",
                           ckbPerCompletion,
                           "CKB"
@@ -823,7 +821,7 @@ Lines        : 93.84% ( 183/195 )
                           "CKB claim requested. In Milestone 1, CKB payouts are distributed upon approval or from sponsor pool once funded."
                         );
                       } catch (e) {
-                        console.error("CKB claim failed", e);
+                        log.error("CKB claim failed", e);
                         alert(
                           "Failed to initiate CKB claim. Please try again later."
                         );

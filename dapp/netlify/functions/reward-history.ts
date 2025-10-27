@@ -2,6 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { readUdtAmount } from "@/netlify/lib/streak-bonus";
+import { createLogger } from "@/netlify/lib/log";
 
 type JsonResponse = {
   address: string;
@@ -23,6 +24,8 @@ type JsonResponse = {
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
+
+const logger = createLogger("reward-history");
 
 const getClient = () => {
   const network = deploymentManager.getCurrentNetwork();
@@ -218,8 +221,8 @@ export const handler: Handler = async (event) => {
           inputTotal += amount;
           inputs.push({ index, amount: amount.toString() });
         } catch (error) {
-          console.warn(
-            `[reward-history] Failed to load input cell for tx ${match.txHash} index ${index}:`,
+          logger.warn(
+            `Failed to load input cell for tx ${match.txHash} index ${index}:`,
             error
           );
         }
@@ -239,10 +242,7 @@ export const handler: Handler = async (event) => {
         inputs,
       });
     } catch (error) {
-      console.warn(
-        `[reward-history] Failed to process transaction ${match.txHash}`,
-        error
-      );
+      logger.warn(`Failed to process transaction ${match.txHash}`, error);
     }
   }
 

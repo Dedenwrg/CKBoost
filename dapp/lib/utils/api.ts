@@ -1,4 +1,7 @@
 import { ccc } from "@ckb-ccc/connector-react";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ApiUtils");
 
 export async function injectProxyAuthenticationCell(
   signer: ccc.Signer,
@@ -29,7 +32,7 @@ export async function injectProxyAuthenticationCell(
     throw new Error("Proxy authentication cell not found");
   }
 
-  console.log("proxyAuthenticationCell", proxyAuthenticationCell);
+  log.log("proxyAuthenticationCell", proxyAuthenticationCell);
 
   await baseDraftTx.addInput(proxyAuthenticationCell);
   const proxyAuthenticationCellOutput = ccc.CellOutput.from({
@@ -38,6 +41,6 @@ export async function injectProxyAuthenticationCell(
   });
   await baseDraftTx.addOutput(proxyAuthenticationCellOutput);
 
-  console.log("baseDraftTx", baseDraftTx);
-  console.log("baseDraftTx in Hex", ccc.hexFrom(baseDraftTx.toBytes()));
+  log.log("baseDraftTx", baseDraftTx);
+  log.log("baseDraftTx in Hex", ccc.hexFrom(baseDraftTx.toBytes()));
 }

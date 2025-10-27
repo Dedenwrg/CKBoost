@@ -1,107 +1,132 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { CheckCircle, ExternalLink, Eye, Clock, RefreshCcw, AlertCircle } from "lucide-react"
-import { useUser } from "@/lib/providers/user-provider"
-import { useNostrFetch } from "@/hooks/use-nostr-fetch"
-import { ccc } from "@ckb-ccc/connector-react"
-import { debug } from "@/lib/utils/debug"
-import { NostrSubmissionData, isNostrSubmissionData } from "@/types/submission"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import {
+  CheckCircle,
+  ExternalLink,
+  Eye,
+  Clock,
+  RefreshCcw,
+  AlertCircle,
+} from "lucide-react";
+import { useUser } from "@/lib/providers/user-provider";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { ccc } from "@ckb-ccc/connector-react";
+import { createScopedLogger } from "ssri-ckboost";
+import { isNostrSubmissionData } from "@/types/submission";
+
+const log = createScopedLogger("QuestSubmissionDisplay");
 
 interface QuestSubmissionDisplayProps {
-  quest: { quest_id?: number; metadata?: { title?: string } }
-  questIndex: number
-  campaignTypeId: ccc.Hex
+  quest: { quest_id?: number; metadata?: { title?: string } };
+  questIndex: number;
+  campaignTypeId: ccc.Hex;
 }
 
-export function QuestSubmissionDisplay({ 
-  quest, 
-  questIndex, 
-  campaignTypeId 
+export function QuestSubmissionDisplay({
+  quest,
+  questIndex,
+  campaignTypeId,
 }: QuestSubmissionDisplayProps) {
-  const { currentUserTypeId, getUserSubmissions, refreshUserData } = useUser()
-  const { fetchSubmission } = useNostrFetch()
-  const [userSubmission, setUserSubmission] = useState<{ submission_timestamp?: number; submission_content?: string } | null>(null)
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
-  const [submissionContent, setSubmissionContent] = useState<string>("")
-  const [isLoadingContent, setIsLoadingContent] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
+  const { currentUserTypeId, getUserSubmissions, refreshUserData } = useUser();
+  const { fetchSubmission } = useNostrFetch();
+  const [userSubmission, setUserSubmission] = useState<{
+    submission_timestamp?: number;
+    submission_content?: string;
+  } | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [submissionContent, setSubmissionContent] = useState<string>("");
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load user's submission for this quest
   const loadSubmission = async () => {
-    if (!currentUserTypeId) return
+    if (!currentUserTypeId) return;
 
     try {
-      const submissions = await getUserSubmissions(currentUserTypeId)
-      const questId = Number(quest.quest_id || questIndex + 1)
-      
+      const submissions = await getUserSubmissions(currentUserTypeId);
+      const questId = Number(quest.quest_id || questIndex + 1);
+
       // Find submission for this specific quest
-      const submission = submissions.find((s: { campaign_type_id?: string; quest_id?: number }) => 
-        s.campaign_type_id === campaignTypeId && 
-        s.quest_id === questId
-      )
+      const submission = submissions.find(
+        (s: { campaign_type_id?: string; quest_id?: number }) =>
+          s.campaign_type_id === campaignTypeId && s.quest_id === questId
+      );
 
       if (submission) {
-        debug.log("Found submission for quest", {
+        log.log("Found submission for quest", {
           questId,
-          hasNeventId: submission.submission_content?.startsWith('nevent1')
-        })
+          hasNeventId: submission.submission_content?.startsWith("nevent1"),
+        });
         setUserSubmission({
           submission_timestamp: Number(submission.submission_timestamp),
-          submission_content: submission.submission_content
-        })
+          submission_content: submission.submission_content,
+        });
       } else {
-        setUserSubmission(null)
+        setUserSubmission(null);
       }
     } catch (err) {
-      console.error("Failed to load submission:", err)
+      log.error("Failed to load submission:", err);
     }
-  }
+  };
 
   useEffect(() => {
-    loadSubmission()
-  }, [currentUserTypeId, campaignTypeId, quest.quest_id, questIndex])
+    loadSubmission();
+  }, [currentUserTypeId, campaignTypeId, quest.quest_id, questIndex]);
 
   const handleRefresh = async () => {
-    setIsRefreshing(true)
+    setIsRefreshing(true);
     try {
-      await refreshUserData()
-      await loadSubmission()
+      await refreshUserData();
+      await loadSubmission();
     } finally {
-      setIsRefreshing(false)
+      setIsRefreshing(false);
     }
-  }
+  };
 
   const handleViewSubmission = async () => {
-    if (!userSubmission) return
+    if (!userSubmission) return;
 
-    setIsViewDialogOpen(true)
-    setIsLoadingContent(true)
+    setIsViewDialogOpen(true);
+    setIsLoadingContent(true);
 
     try {
       // Check if content is a nevent ID
-      if (userSubmission.submission_content?.startsWith('nevent1')) {
+      if (userSubmission.submission_content?.startsWith("nevent1")) {
         // Fetch from Nostr
-        const nostrData = await fetchSubmission(userSubmission.submission_content)
+        const nostrData = await fetchSubmission(
+          userSubmission.submission_content
+        );
         if (nostrData) {
-          setSubmissionContent(nostrData.content)
+          setSubmissionContent(nostrData.content);
         } else {
-          setSubmissionContent("Failed to load content from Nostr. Event ID: " + userSubmission.submission_content)
+          setSubmissionContent(
+            "Failed to load content from Nostr. Event ID: " +
+              userSubmission.submission_content
+          );
         }
       } else {
         // It's direct content
-        setSubmissionContent(userSubmission.submission_content || "No content available")
+        setSubmissionContent(
+          userSubmission.submission_content || "No content available"
+        );
       }
     } catch (err) {
-      console.error("Failed to load submission content:", err)
-      setSubmissionContent("Error loading submission content")
+      log.error("Failed to load submission content:", err);
+      setSubmissionContent("Error loading submission content");
     } finally {
-      setIsLoadingContent(false)
+      setIsLoadingContent(false);
     }
-  }
+  };
 
   if (!userSubmission) {
     return (
@@ -123,17 +148,20 @@ export function QuestSubmissionDisplay({
           No submission found. Click refresh to check again.
         </span>
       </div>
-    )
+    );
   }
 
   // Check if submission is accepted
   // Note: acceptance status would need to be fetched from the campaign cell
-  const isAccepted = false // TODO: Implement acceptance checking from campaign cell
+  const isAccepted = false; // TODO: Implement acceptance checking from campaign cell
 
   return (
     <>
       <div className="flex items-center gap-2 mt-4">
-        <Badge variant={isAccepted ? "default" : "secondary"} className="flex items-center gap-1">
+        <Badge
+          variant={isAccepted ? "default" : "secondary"}
+          className="flex items-center gap-1"
+        >
           {isAccepted ? (
             <>
               <CheckCircle className="w-4 h-4" />
@@ -146,12 +174,8 @@ export function QuestSubmissionDisplay({
             </>
           )}
         </Badge>
-        
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleViewSubmission}
-        >
+
+        <Button size="sm" variant="outline" onClick={handleViewSubmission}>
           <Eye className="w-4 h-4 mr-1" />
           View Submission
         </Button>
@@ -189,7 +213,9 @@ export function QuestSubmissionDisplay({
             <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
               <span className="text-sm font-medium">Submitted</span>
               <span className="text-sm text-muted-foreground">
-                {new Date(Number(userSubmission.submission_timestamp)).toLocaleString()}
+                {new Date(
+                  Number(userSubmission.submission_timestamp)
+                ).toLocaleString()}
               </span>
             </div>
 
@@ -209,7 +235,10 @@ export function QuestSubmissionDisplay({
                         // JSON format - render structured subtasks
                         return parsed.subtasks.map((subtask, index) => {
                           return (
-                            <div key={index} className="border rounded-lg overflow-hidden">
+                            <div
+                              key={index}
+                              className="border rounded-lg overflow-hidden"
+                            >
                               <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 border-b">
                                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                                   {subtask.title || `Subtask ${index + 1}`}
@@ -217,14 +246,16 @@ export function QuestSubmissionDisplay({
                               </div>
                               <div className="p-4 bg-white dark:bg-gray-900">
                                 {subtask.response ? (
-                                  <div 
+                                  <div
                                     className="prose prose-sm dark:prose-invert max-w-none"
-                                    dangerouslySetInnerHTML={{ 
-                                      __html: subtask.response
+                                    dangerouslySetInnerHTML={{
+                                      __html: subtask.response,
                                     }}
                                   />
                                 ) : (
-                                  <p className="text-gray-500 dark:text-gray-400 italic">Not provided</p>
+                                  <p className="text-gray-500 dark:text-gray-400 italic">
+                                    Not provided
+                                  </p>
                                 )}
                               </div>
                             </div>
@@ -252,7 +283,7 @@ export function QuestSubmissionDisplay({
             </div>
 
             {/* Storage Type */}
-            {userSubmission.submission_content?.startsWith('nevent1') && (
+            {userSubmission.submission_content?.startsWith("nevent1") && (
               <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <ExternalLink className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 <span className="text-sm text-blue-800 dark:text-blue-200">
@@ -276,9 +307,9 @@ export function QuestSubmissionDisplay({
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 // Add missing import
-import { Label } from "@/components/ui/label"
-import { Loader2 } from "lucide-react"
+import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";

@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge"
 import type { DraftVersion, DraftStore } from "@/lib/utils/draft-storage"
 import { History, RotateCcw, Save } from "lucide-react"
 import { useTheme } from "next-themes"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("DraftHistory")
 
 export interface DraftHistoryStorage<T> {
   load: DraftStore<T>["load"]
@@ -90,7 +93,7 @@ export function DraftHistory<T>(props: DraftHistoryProps<T>) {
       onRestore(v.data)
       refresh()
     } catch (e) {
-      console.error("Failed to restore draft: ", e)
+      log.error("Failed to restore draft: ", e)
       alert("Failed to restore draft")
     }
   }

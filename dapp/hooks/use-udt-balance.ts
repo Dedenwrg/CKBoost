@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { ccc } from "@ckb-ccc/connector-react";
 import { udtRegistry, UDTToken } from "@/lib/services/udt-registry";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("useUDTBalance");
 
 interface UDTBalance {
   raw: bigint;
@@ -21,7 +23,7 @@ export function useUDTBalance(
     raw: 0n,
     formatted: "0",
     loading: false,
-    error: null
+    error: null,
   });
 
   const fetchBalance = useCallback(async () => {
@@ -30,12 +32,12 @@ export function useUDTBalance(
         raw: 0n,
         formatted: "0",
         loading: false,
-        error: null
+        error: null,
       });
       return;
     }
 
-    setBalance(prev => ({ ...prev, loading: true, error: null }));
+    setBalance((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
       const result = await udtRegistry.getBalance(token, signer);
@@ -43,15 +45,16 @@ export function useUDTBalance(
         raw: result.raw,
         formatted: result.formatted,
         loading: false,
-        error: null
+        error: null,
       });
     } catch (error) {
-      debug.error(`Failed to fetch balance for ${token.symbol}:`, error);
+      log.error(`Failed to fetch balance for ${token.symbol}:`, error);
       setBalance({
         raw: 0n,
         formatted: "0",
         loading: false,
-        error: error instanceof Error ? error.message : "Failed to fetch balance"
+        error:
+          error instanceof Error ? error.message : "Failed to fetch balance",
       });
     }
   }, [token, signer]);
@@ -62,7 +65,7 @@ export function useUDTBalance(
 
   return {
     ...balance,
-    refresh: fetchBalance
+    refresh: fetchBalance,
   };
 }
 
@@ -97,15 +100,18 @@ export function useMultipleUDTBalances(
             raw: result.raw,
             formatted: result.formatted,
             loading: false,
-            error: null
+            error: null,
           });
         } catch (error) {
-          debug.error(`Failed to fetch balance for ${token.symbol}:`, error);
+          log.error(`Failed to fetch balance for ${token.symbol}:`, error);
           newBalances.set(token.symbol, {
             raw: 0n,
             formatted: "0",
             loading: false,
-            error: error instanceof Error ? error.message : "Failed to fetch balance"
+            error:
+              error instanceof Error
+                ? error.message
+                : "Failed to fetch balance",
           });
         }
       })
@@ -122,7 +128,7 @@ export function useMultipleUDTBalances(
   return {
     balances,
     loading,
-    refresh: fetchAllBalances
+    refresh: fetchAllBalances,
   };
 }
 
@@ -132,7 +138,7 @@ export function useMultipleUDTBalances(
 export function useUDTRegistry(signer: ccc.Signer | undefined) {
   const [tokens, setTokens] = useState<UDTToken[]>([]);
   const [selectedToken, setSelectedToken] = useState<UDTToken | undefined>();
-  
+
   useEffect(() => {
     const allTokens = udtRegistry.getAllTokens();
     setTokens(allTokens);
@@ -148,6 +154,6 @@ export function useUDTRegistry(signer: ccc.Signer | undefined) {
     selectedToken,
     setSelectedToken,
     balance,
-    registry: udtRegistry
+    registry: udtRegistry,
   };
 }

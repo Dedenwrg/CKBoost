@@ -10,6 +10,9 @@ import {
   type TippingConfigLike,
   type EndorserInfoLike,
 } from "../types";
+import { createScopedLogger } from "../logging/index.js";
+
+const log = createScopedLogger("Protocol");
 
 /**
  * Represents the CKBoost Protocol contract for managing protocol operations.
@@ -104,7 +107,7 @@ export class Protocol extends ssri.Trait {
     const txHex = ccc.hexFrom(txReq.toBytes());
     const protocolDataHex = ccc.hexFrom(protocolDataBytes);
 
-    console.log("Calling SSRI executor with:", {
+    log.info("Calling SSRI executor with:", {
       codeOutpoint: this.code,
       method: "CKBoostProtocol.update_protocol",
       scriptCodeHash: this.script.codeHash,
@@ -112,8 +115,8 @@ export class Protocol extends ssri.Trait {
       scriptArgs: this.script.args,
     });
 
-    console.log("txHex", txHex);
-    console.log("protocolDataHex", protocolDataHex);
+    log.info("txHex", txHex);
+    log.info("protocolDataHex", protocolDataHex);
 
     try {
       const res = await this.executor.runScriptTry(
@@ -138,8 +141,8 @@ export class Protocol extends ssri.Trait {
         throw new Error("Failed to update protocol");
       }
     } catch (error) {
-      console.error("SSRI executor error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
+      log.error("SSRI executor error:", error);
+      log.error("Error details:", JSON.stringify(error, null, 2));
       throw error;
     }
   }

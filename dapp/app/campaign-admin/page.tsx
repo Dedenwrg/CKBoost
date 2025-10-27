@@ -16,7 +16,7 @@ import {
   ConnectedTypeID,
   EndorserInfoLike,
 } from "ssri-ckboost/types";
-import { debug, formatDateConsistent } from "@/lib/utils/debug";
+import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
 import {
   fetchAllUserCells,
   parseUserData,
@@ -76,6 +76,8 @@ const CURRENT_USER = {
   permissions: ["manage_campaigns", "review_quests", "manage_staff"],
 };
 
+const log = createScopedLogger("CampaignAdminPageDashboard");
+
 export default function CampaignAdminDashboard() {
   const { signer, protocolCell, protocolData, isAdmin, isEndorser } =
     useProtocol();
@@ -113,28 +115,28 @@ export default function CampaignAdminDashboard() {
   // Fetch campaigns owned by the current user
   useEffect(() => {
     const fetchCampaigns = async () => {
-      debug.group("Campaign Admin - Fetch User Campaigns");
-      debug.log("Signer status:", { signerPresent: !!signer });
-      debug.log("Protocol status:", {
+      log.log("Campaign Admin - Fetch User Campaigns");
+      log.log("Signer status:", { signerPresent: !!signer });
+      log.log("Protocol status:", {
         protocolCell: !!protocolCell,
         protocolData: !!protocolData,
       });
 
       // Wait for signer to be available
       if (!signer) {
-        debug.warn("No signer available, waiting...");
-        debug.groupEnd();
+        log.warn("No signer available, waiting...");
+
         // Keep loading state true while waiting for signer
         return;
       }
 
       // Wait for protocol to be loaded
       if (!protocolCell || !protocolData) {
-        debug.log("Waiting for protocol to load...", {
+        log.log("Waiting for protocol to load...", {
           protocolCell: !!protocolCell,
           protocolData: !!protocolData,
         });
-        debug.groupEnd();
+
         // Keep loading state true while waiting for protocol
         return;
       }
@@ -142,8 +144,8 @@ export default function CampaignAdminDashboard() {
       setIsLoading(true);
       try {
         // Protocol is now loaded, we can proceed
-        debug.log("Protocol loaded, fetching campaigns...");
-        debug.log("Protocol cell found:", {
+        log.log("Protocol loaded, fetching campaigns...");
+        log.log("Protocol cell found:", {
           typeHash: protocolCell.cellOutput.type?.hash(),
           dataLength: protocolCell.outputData.length,
         });
@@ -152,7 +154,7 @@ export default function CampaignAdminDashboard() {
             .ckb_boost_campaign_type_code_hash;
         const protocolTypeHash = protocolCell.cellOutput.type?.hash() || "0x";
 
-        debug.log("Extracted data:", {
+        log.log("Extracted data:", {
           campaignCodeHash,
           protocolTypeHash,
           approvedCampaigns: protocolData.campaigns_approved?.length || 0,
@@ -180,14 +182,14 @@ export default function CampaignAdminDashboard() {
         });
 
         // Fetch campaigns owned by the current user
-        debug.log("Fetching campaigns owned by user...");
+        log.log("Fetching campaigns owned by user...");
         const userCampaigns = await fetchCampaignsOwnedByUser(
           signer.client,
           protocolLockScript,
           campaignCodeHash as ccc.Hex
         );
 
-        debug.log(`Found ${userCampaigns.length} campaigns owned by user`);
+        log.log(`Found ${userCampaigns.length} campaigns owned by user`);
 
         // Process campaigns and check their connection status
         const processedCampaigns: typeof ownedCampaigns = [];
@@ -223,7 +225,7 @@ export default function CampaignAdminDashboard() {
 
             // Skip campaigns that are not connected to the protocol
             if (!isConnected) {
-              debug.log("Skipping campaign - not connected to protocol");
+              log.log("Skipping campaign - not connected to protocol");
               continue;
             }
 
@@ -274,24 +276,23 @@ export default function CampaignAdminDashboard() {
               });
             }
 
-            debug.log("Processed campaign:", {
+            log.log("Processed campaign:", {
               title: campaignInfo.metadata.title,
               status: campaignInfo.status,
               isApproved: campaignInfo.isApproved,
             });
           } catch (error) {
-            debug.warn("Failed to parse campaign data:", error);
+            log.warn("Failed to parse campaign data:", error);
           }
         }
 
-        debug.log(`Processed ${processedCampaigns.length} campaigns`);
+        log.log(`Processed ${processedCampaigns.length} campaigns`);
         setOwnedCampaigns(processedCampaigns);
         setPendingReviews(reviews);
       } catch (error) {
-        debug.error("Failed to fetch campaigns:", error);
+        log.error("Failed to fetch campaigns:", error);
       } finally {
         setIsLoading(false);
-        debug.groupEnd();
       }
     };
 
@@ -304,7 +305,7 @@ export default function CampaignAdminDashboard() {
 
     const fetchPendingSubmissions = async () => {
       try {
-        debug.group("Fetching pending submissions");
+        log.log("Fetching pending submissions");
 
         const network = deploymentManager.getCurrentNetwork();
         const userTypeCodeHash = deploymentManager.getContractCodeHash(
@@ -313,13 +314,13 @@ export default function CampaignAdminDashboard() {
         );
 
         if (!userTypeCodeHash) {
-          debug.warn("User type code hash not found");
+          log.warn("User type code hash not found");
           return;
         }
 
         // Fetch all user cells
         const userCells = await fetchAllUserCells(userTypeCodeHash, signer);
-        debug.log(`Found ${userCells.length} total user cells`);
+        log.log(`Found ${userCells.length} total user cells`);
 
         // Count pending submissions per campaign
         const pendingCounts: Record<string, number> = {};
@@ -331,7 +332,7 @@ export default function CampaignAdminDashboard() {
           // Extract the user's type_id from the cell's ConnectedTypeID args
           const userTypeId = extractTypeIdFromUserCell(userCell);
           if (!userTypeId) {
-            debug.warn("Could not extract type_id from user cell");
+            log.warn("Could not extract type_id from user cell");
             continue;
           }
 
@@ -378,12 +379,11 @@ export default function CampaignAdminDashboard() {
           }
         }
 
-        debug.log("Pending submissions per campaign:", pendingCounts);
+        log.log("Pending submissions per campaign:", pendingCounts);
         setCampaignPendingCounts(pendingCounts);
       } catch (error) {
-        debug.error("Failed to fetch pending submissions:", error);
+        log.error("Failed to fetch pending submissions:", error);
       } finally {
-        debug.groupEnd();
       }
     };
 
@@ -398,7 +398,7 @@ export default function CampaignAdminDashboard() {
       );
       if (pendingFundingStr) {
         const pendingFunding = JSON.parse(pendingFundingStr);
-        debug.log("Found pending funding for campaign:", pendingFunding);
+        log.log("Found pending funding for campaign:", pendingFunding);
 
         // Show notification about pending funding
         alert(

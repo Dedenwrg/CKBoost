@@ -8,8 +8,9 @@ import {
 } from "ssri-ckboost/types";
 import { deploymentManager } from "./deployment-manager";
 import type { Network } from "./deployment-manager";
-import { ssri } from "@ckb-ccc/connector-react";
-import { Achievement } from "ssri-ckboost";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("AchievementCells");
 
 /**
  * Structured representation of an achievement entry stored inside the
@@ -52,10 +53,7 @@ const decodeConnectedTypeIdArgs = (
   try {
     return ConnectedTypeID.decode(ccc.hexFrom(args)) as ConnectedTypeIDLike;
   } catch (error) {
-    console.warn(
-      "[achievement-cells] Failed to decode ConnectedTypeID args:",
-      error
-    );
+    log.warn("Failed to decode ConnectedTypeID args:", error);
     return null;
   }
 };

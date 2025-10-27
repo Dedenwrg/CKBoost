@@ -1,5 +1,8 @@
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { createLogger } from "@/netlify/lib/log";
+
+const log = createLogger("streak-bonus");
 import {
   fetchProtocolCell,
   getLatestUserCellByAddressWithClient,
@@ -112,9 +115,7 @@ export const getBlockTimestamp = async (
     });
 
     if (!response.ok) {
-      console.warn(
-        `[streak-bonus] Failed to fetch block ${blockNumber}: HTTP ${response.status}`
-      );
+      log.warn(`Failed to fetch block ${blockNumber}: HTTP ${response.status}`);
       return null;
     }
 
@@ -131,10 +132,7 @@ export const getBlockTimestamp = async (
     blockTimestampCache.set(blockNumber, timestamp);
     return timestamp;
   } catch (error) {
-    console.warn(
-      `[streak-bonus] Failed to query block ${blockNumber} timestamp:`,
-      error
-    );
+    log.warn(`Failed to query block ${blockNumber} timestamp:`, error);
     return null;
   }
 };

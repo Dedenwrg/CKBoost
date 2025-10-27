@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Copy, CheckCircle, AlertCircle } from "lucide-react"
 import { computeLockHashFromAddress, computeLockHashWithPrefix, validateCKBAddress, formatAddressForDisplay } from "@/lib/utils/address-utils"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("AddressHashTool")
 
 export function AddressHashTool() {
   // Default test address - expected lock hash: 608e6846ba5e83c969aa93349551db03fd450b92dfd6e1ed55970fa5f4635b6a
@@ -55,7 +58,7 @@ export function AddressHashTool() {
       setCopySuccess(`${type} copied!`)
       setTimeout(() => setCopySuccess(""), 2000)
     } catch (err) {
-      console.error("Failed to copy:", err)
+      log.error("Failed to copy:", err)
     }
   }
 

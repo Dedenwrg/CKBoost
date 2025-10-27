@@ -6,6 +6,9 @@ import { useProtocol } from "@/lib/providers/protocol-provider";
 import { CampaignAdminService } from "@/lib/services/campaign-admin-service";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { Campaign } from "ssri-ckboost";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("CampaignAdminProvider");
 
 interface CampaignAdminContextType {
   campaignAdminService: CampaignAdminService | null;
@@ -52,14 +55,14 @@ export function CampaignAdminProvider({
     );
 
     if (!userTypeCodeHash || !campaignTypeCodeHash) {
-      console.warn("Required contracts not deployed");
+      log.warn("Required contracts not deployed");
       return { campaignAdminService: null, campaignInstance: null };
     }
 
     // Extract protocol type hash from protocol cell
     const protocolTypeHash = protocolCell.cellOutput.type?.hash();
     if (!protocolTypeHash) {
-      console.warn("Protocol type hash not found");
+      log.warn("Protocol type hash not found");
       return { campaignAdminService: null, campaignInstance: null };
     }
 
@@ -179,7 +182,7 @@ export function useCampaignAdmin(campaignTypeId?: ccc.Hex | string) {
 
         setCampaign(campaignInstance);
       } catch (err) {
-        console.error("Failed to load campaign:", err);
+        log.error("Failed to load campaign:", err);
         setError(
           err instanceof Error ? err.message : "Failed to load campaign"
         );

@@ -1,94 +1,101 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { 
-  CheckCircle, 
-  Eye, 
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  CheckCircle,
+  Eye,
   Trophy,
   User,
   Mail,
   Twitter,
   MessageSquare,
   Clock,
-  ExternalLink
-} from "lucide-react"
-import { UserSubmissionRecordLike, UserDataLike } from "ssri-ckboost/types"
-import { SubmissionReviewModal } from "./submission-review-modal"
-import { formatDateConsistent } from "@/lib/utils/debug"
+  ExternalLink,
+} from "lucide-react";
+import { UserSubmissionRecordLike, UserDataLike } from "ssri-ckboost/types";
+import { SubmissionReviewModal } from "./submission-review-modal";
+import { formatDateConsistent } from "ssri-ckboost";
 
 interface SubmissionCardProps {
-  submission: UserSubmissionRecordLike & { userTypeId: string }
-  userData?: UserDataLike
-  questId: number
-  questPoints: number
-  isPending: boolean
-  isSelected?: boolean
-  onSelectChange?: (selected: boolean) => void
+  submission: UserSubmissionRecordLike & { userTypeId: string };
+  userData?: UserDataLike;
+  questId: number;
+  questPoints: number;
+  isPending: boolean;
+  isSelected?: boolean;
+  onSelectChange?: (selected: boolean) => void;
   quest?: {
     sub_tasks?: Array<{
-      title?: string
-      description?: string
-      type?: string
-      proof_required?: string
-    }>
-  }
+      title?: string;
+      description?: string;
+      type?: string;
+      proof_required?: string;
+    }>;
+  };
 }
 
-export function SubmissionCard({ 
-  submission, 
-  userData, 
+export function SubmissionCard({
+  submission,
+  userData,
   questId,
   questPoints,
   isPending,
   isSelected = false,
   onSelectChange,
-  quest
+  quest,
 }: SubmissionCardProps) {
-  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   // Parse user verification data
   let userInfo = {
     name: "Anonymous",
     email: "",
     twitter: "",
-    discord: ""
-  }
+    discord: "",
+  };
 
   if (userData?.verification_data?.identity_verification_data) {
     try {
-      const identityData = userData.verification_data.identity_verification_data
-      let jsonStr: string
-      
-      if (typeof identityData === 'string') {
-        jsonStr = identityData
+      const identityData =
+        userData.verification_data.identity_verification_data;
+      let jsonStr: string;
+
+      if (typeof identityData === "string") {
+        jsonStr = identityData;
       } else if (ArrayBuffer.isView(identityData)) {
-        jsonStr = new TextDecoder().decode(identityData as Uint8Array)
+        jsonStr = new TextDecoder().decode(identityData as Uint8Array);
       } else {
-        jsonStr = "{}"
+        jsonStr = "{}";
       }
-      
+
       // Trim whitespace and check if it's valid JSON
-      jsonStr = jsonStr.trim()
-      if (jsonStr && jsonStr !== "" && (jsonStr.startsWith('{') || jsonStr.startsWith('['))) {
-        userInfo = JSON.parse(jsonStr)
+      jsonStr = jsonStr.trim();
+      if (
+        jsonStr &&
+        jsonStr !== "" &&
+        (jsonStr.startsWith("{") || jsonStr.startsWith("["))
+      ) {
+        userInfo = JSON.parse(jsonStr);
       }
     } catch (err) {
-      console.error("Failed to parse user identity data:", err)
+      console.error("Failed to parse user identity data:", err);
     }
   }
 
-  const submissionTime = submission.submission_timestamp 
+  const submissionTime = submission.submission_timestamp
     ? new Date(Number(submission.submission_timestamp))
-    : null
+    : null;
 
   return (
     <>
-      <div className={`flex items-center justify-between p-3 border rounded-lg ${
-        isPending ? 'bg-background' : 'bg-green-50/50 dark:bg-green-950/20'
-      } ${isSelected ? 'ring-2 ring-primary' : ''}`}>
+      <div
+        className={`flex items-center justify-between p-3 border rounded-lg ${
+          isPending ? "bg-background" : "bg-green-50/50 dark:bg-green-950/20"
+        } ${isSelected ? "ring-2 ring-primary" : ""}`}
+      >
         <div className="flex items-center gap-3 flex-1">
           {/* Selection Checkbox for pending submissions */}
           {isPending && onSelectChange && (
@@ -98,7 +105,7 @@ export function SubmissionCard({
               aria-label="Select for approval"
             />
           )}
-          
+
           {/* Status Badge */}
           {!isPending && (
             <Badge className="bg-green-100 text-green-800">
@@ -112,8 +119,11 @@ export function SubmissionCard({
             <div className="flex items-center gap-2">
               <span className="font-medium">{userInfo.name}</span>
               {userInfo.twitter && (
-                <a 
-                  href={`https://twitter.com/${userInfo.twitter.replace('@', '')}`}
+                <a
+                  href={`https://twitter.com/${userInfo.twitter.replace(
+                    "@",
+                    ""
+                  )}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-500 hover:text-blue-600"
@@ -156,7 +166,7 @@ export function SubmissionCard({
               {questPoints} points minted
             </Badge>
           )}
-          
+
           <Button
             variant="outline"
             size="sm"
@@ -181,5 +191,5 @@ export function SubmissionCard({
         quest={quest}
       />
     </>
-  )
+  );
 }

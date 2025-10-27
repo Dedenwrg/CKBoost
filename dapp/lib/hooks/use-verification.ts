@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "../providers/user-provider";
 import { useProtocol } from "../providers/protocol-provider";
-import { debug } from "../utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 
 export interface VerificationStatus {
   telegram: boolean;
@@ -21,6 +21,8 @@ export interface VerificationStatus {
 }
 
 
+const log = createScopedLogger("useVerification");
+
 export const useVerification = () => {
   const { userService } = useUser();
   const { protocolCell } = useProtocol();
@@ -36,14 +38,14 @@ export const useVerification = () => {
       const status = await userService.getUserVerificationStatus();
       setVerificationStatus(status);
       
-      debug.log("Loaded verification status", {
+      log.log("Loaded verification status", {
         verificationFlags: status.verification_flags.toString(2),
         telegram: status.telegram,
         twitter: status.twitter,
         discord: status.discord,
       });
     } catch (error) {
-      debug.error("Failed to load verification status", error);
+      log.error("Failed to load verification status", error);
     } finally {
       setIsLoading(false);
     }

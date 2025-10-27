@@ -1,11 +1,13 @@
 import fse from 'fs-extra';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createScopedLogger } from 'ssri-ckboost';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const publicTinymcePath = path.join(__dirname, 'public', 'tinymce');
+const log = createScopedLogger('postinstall');
 
 // Empty and copy TinyMCE to public directory
 fse.emptyDirSync(publicTinymcePath);
@@ -27,9 +29,9 @@ try {
       overwrite: true 
     });
   }
-  console.log('✓ TinyMCE copied to public directory');
+  log.info('✓ TinyMCE copied to public directory');
 } catch (error) {
-  console.error('Error copying TinyMCE:', error.message);
+  log.error('Error copying TinyMCE:', error.message);
   // Don't fail the install if TinyMCE copy fails
   process.exit(0);
 }

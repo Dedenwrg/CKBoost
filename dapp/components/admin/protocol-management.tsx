@@ -68,6 +68,9 @@ import {
   ProtocolChangesDialog,
   AchievementsConfig,
 } from "./protocol";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProtocolManagement");
 // Note: Byte32, Uint128, Uint64 are now represented as ccc.Hex, bigint, bigint respectively
 
 // Form types
@@ -473,7 +476,7 @@ export function ProtocolManagement() {
             ) || []
           );
         } catch (error) {
-          console.error("Failed to initialize deployment forms:", error);
+          log.error("Failed to initialize deployment forms:", error);
         }
       }
     };
@@ -655,7 +658,7 @@ export function ProtocolManagement() {
       if (arr1.length === 0 && arr2.length === 0) return true;
 
       if (arr1.length !== arr2.length) {
-        console.log(
+        log.info(
           `Script array length mismatch for ${fieldName}:`,
           arr1.length,
           "vs",
@@ -682,7 +685,7 @@ export function ProtocolManagement() {
         const argsMatch = args1 === args2;
 
         if (!codeHashMatch || !hashTypeMatch || !argsMatch) {
-          console.log(`Script mismatch at index ${index} for ${fieldName}:`, {
+          log.info(`Script mismatch at index ${index} for ${fieldName}:`, {
             codeHash: [codeHash1, codeHash2],
             hashType: [script1.hashType, script2.hashType],
             args: [args1, args2],
@@ -702,7 +705,7 @@ export function ProtocolManagement() {
       return;
 
     // Debug logging
-    console.log("Comparing script values:", {
+    log.info("Comparing script values:", {
       current_udt: scriptCodeHashesValues.accepted_udt_type_scripts,
       baseline_udt: baselineValues.scriptCodeHashes.accepted_udt_type_scripts,
       current_dob: scriptCodeHashesValues.accepted_dob_type_scripts,
@@ -815,7 +818,7 @@ export function ProtocolManagement() {
           return;
         }
 
-        console.log("Calculating changes with data:", {
+        log.info("Calculating changes with data:", {
           protocolData: !!protocolData,
           currentFormData,
         });
@@ -823,7 +826,7 @@ export function ProtocolManagement() {
         const changes = calculateChanges(currentFormData);
 
         if (isActive) {
-          console.log("Changes calculated successfully:", changes);
+          log.info("Changes calculated successfully:", changes);
           setProtocolChanges(changes);
 
           // Update pending changes indicators
@@ -849,7 +852,7 @@ export function ProtocolManagement() {
         }
       } catch (error) {
         if (isActive) {
-          console.error("Failed to calculate changes:", error);
+          log.error("Failed to calculate changes:", error);
           // Reset changes on error
           setProtocolChanges(null);
           setPendingChanges({
@@ -940,7 +943,7 @@ export function ProtocolManagement() {
       computeLockHashFromAddress(watchedAddress)
         .then((hash) => setPreviewLockHash(hash))
         .catch((error) => {
-          console.error("Failed to compute lock hash from address:", error);
+          log.error("Failed to compute lock hash from address:", error);
           setPreviewLockHash("Invalid address format");
         });
     } else {
@@ -995,7 +998,7 @@ export function ProtocolManagement() {
         adminLockHash: "",
       });
     } catch (error) {
-      console.error("Failed to add admin:", error);
+      log.error("Failed to add admin:", error);
       alert("Failed to add admin: " + (error as Error).message);
     }
   };
@@ -1061,7 +1064,7 @@ export function ProtocolManagement() {
 
       endorserForm.reset();
     } catch (error) {
-      console.error("Failed to add endorser:", error);
+      log.error("Failed to add endorser:", error);
       alert("Failed to add endorser: " + (error as Error).message);
     }
   };
@@ -1082,7 +1085,7 @@ export function ProtocolManagement() {
   };
 
   const onUpdate = () => {
-    console.log("onUpdate called", {
+    log.info("onUpdate called", {
       isWalletConnected,
       protocolChanges: !!protocolChanges,
       pendingChanges,
@@ -1095,7 +1098,7 @@ export function ProtocolManagement() {
     }
 
     if (!protocolData) {
-      console.error("No protocol data available");
+      log.error("No protocol data available");
       alert("Protocol data not loaded. Please wait or refresh.");
       return;
     }
@@ -1109,7 +1112,7 @@ export function ProtocolManagement() {
       pendingChanges.achievements;
 
     if (!hasChanges) {
-      console.warn("No pending changes detected");
+      log.warn("No pending changes detected");
       alert("No changes to update");
       return;
     }
@@ -1121,12 +1124,12 @@ export function ProtocolManagement() {
       pendingChanges.tippingConfig ||
       pendingChanges.streakConfig;
     if (hasFormChanges && !protocolChanges) {
-      console.error("No protocol changes available for form modifications");
+      log.error("No protocol changes available for form modifications");
       alert("Unable to process form changes. Please try again.");
       return;
     }
 
-    console.log("Opening confirmation dialog");
+    log.info("Opening confirmation dialog");
     setShowConfirmationDialog(true);
   };
 
@@ -1196,7 +1199,7 @@ export function ProtocolManagement() {
 
       // Use the provider's update method with the complete ProtocolData
       const txHash = await updateProtocol(updatedData);
-      console.log("Protocol updated:", txHash);
+      log.info("Protocol updated:", txHash);
       alert(`Protocol updated successfully! Transaction: ${txHash}`);
 
       // Reset pending changes and close dialog
@@ -1214,7 +1217,7 @@ export function ProtocolManagement() {
       });
       setShowConfirmationDialog(false);
     } catch (error) {
-      console.error("Failed to batch update protocol:", error);
+      log.error("Failed to batch update protocol:", error);
       alert("Failed to update protocol: " + (error as Error).message);
       setShowConfirmationDialog(false);
     }
@@ -1391,9 +1394,9 @@ export function ProtocolManagement() {
       // Re-initialization will happen automatically via the useEffect hooks
       // when baseline values are cleared and forms are reset
 
-      console.log("All changes have been reset");
+      log.info("All changes have been reset");
     } catch (error) {
-      console.error("Failed to reset changes:", error);
+      log.error("Failed to reset changes:", error);
       alert("Failed to reset changes: " + (error as Error).message);
     }
   };
@@ -1417,7 +1420,7 @@ export function ProtocolManagement() {
   //     setOutpointIndex(0n);
   //     alert("Protocol data loaded successfully from the specified outpoint");
   //   } catch (error) {
-  //     console.error("Failed to load protocol data by outpoint:", error);
+  //     log.error("Failed to load protocol data by outpoint:", error);
   //     alert("Failed to load protocol data: " + (error as Error).message);
   //   } finally {
   //     setIsLoadingOutpoint(false);
@@ -1451,7 +1454,7 @@ export function ProtocolManagement() {
       });
       return cccScript.hash();
     } catch (error) {
-      console.error("Failed to compute script hash:", error);
+      log.error("Failed to compute script hash:", error);
       return "Invalid script format";
     }
   };
@@ -1470,7 +1473,7 @@ export function ProtocolManagement() {
       const script = addr.script;
       return script.hash();
     } catch (error) {
-      console.error("Failed to parse address:", error);
+      log.error("Failed to parse address:", error);
       return "Invalid address format";
     }
   };
@@ -1549,7 +1552,7 @@ export function ProtocolManagement() {
         `Protocol cell deployed successfully!\n\nTransaction: ${result.txHash}\n\nIMPORTANT: Copy the protocol cell args and update your .env.local file:\nNEXT_PUBLIC_PROTOCOL_TYPE_ARGS=${result.protocolTypeScript.args}`
       );
     } catch (error) {
-      console.error("Failed to deploy protocol:", error);
+      log.error("Failed to deploy protocol:", error);
       alert("Failed to deploy protocol: " + (error as Error).message);
     } finally {
       setIsDeploying(false);

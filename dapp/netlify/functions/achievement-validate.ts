@@ -5,13 +5,13 @@ import { getGrantableAchievements } from "@/netlify/lib/utils";
 import { AchievementDataLike, AchievementDataVec } from "ssri-ckboost/types";
 import { getProtocolTypeScript } from "@/netlify/lib/utils";
 import { getLatestUserCellByLock } from "@/netlify/lib/utils";
+import { createLogger, log } from "@/netlify/lib/log";
 
 export const handler: Handler = async (event) => {
-  console.log("Achievement validate handler");
-  console.log("event", event);
   const reqId = Math.random().toString(36).slice(2, 8);
-  const log = (...args: unknown[]) =>
-    console.log(`[achievement-validate][${reqId}]`, ...args);
+  const logger = createLogger(`achievement-validate:${reqId}`);
+  logger.info("Achievement validate handler");
+  logger.log("event", event);
   const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
   if (!serverKey) {
     throw new Error("Missing ACHIEVEMENT_PROXY_PRIVATE_KEY in environment.");
@@ -24,7 +24,7 @@ export const handler: Handler = async (event) => {
   const signer = new ccc.SignerCkbPrivateKey(client, serverKey);
 
   if (event.httpMethod !== "POST") {
-    log("method_not_allowed");
+    logger.warn("method_not_allowed");
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
@@ -80,7 +80,7 @@ export const handler: Handler = async (event) => {
           );
         }
       }
-      console.log("tx", ccc.stringify(tx));
+      logger.log("tx", ccc.stringify(tx));
     } catch (error) {
       throw new Error(
         `Failed to parse transaction bytes: ${(error as Error).message}`
@@ -136,10 +136,10 @@ export const handler: Handler = async (event) => {
       throw new Error("Achievement claims not valid.");
     }
 
-    console.log("Validated Tx Before Signing", ccc.stringify(tx));
+    logger.log("Validated Tx Before Signing", ccc.stringify(tx));
     const signedTx = await signer.signTransaction(tx);
 
-    console.log("signedTx", ccc.stringify(signedTx));
+    logger.log("signedTx", ccc.stringify(signedTx));
 
     return {
       statusCode: 200,
@@ -152,7 +152,7 @@ export const handler: Handler = async (event) => {
     };
   } catch (error) {
     const err = error as Error;
-    console.error("[achievement-validate] validation_failed", err);
+    logger.error("validation_failed", err);
     return {
       statusCode: 400,
       headers: { "Content-Type": "application/json" },
@@ -187,17 +187,14 @@ const validateAchievementClaims = async (
     (input) => input.cellOutput?.type?.codeHash === achievementTypeCodeHash
   );
   if (!achievementCellPre) {
-    console.log("Achievement cell not found.");
-    console.log("Inputs", tx.inputs);
-    console.log("achievementTypeCodeHash", achievementTypeCodeHash);
+    log.log("Achievement cell not found.");
+    log.log("Inputs", tx.inputs);
+    log.log("achievementTypeCodeHash", achievementTypeCodeHash);
     return false;
   }
   try {
-    console.log("achievementCellPre", achievementCellPre);
-    console.log(
-      "achievementCellPre outputData",
-      achievementCellPre?.outputData
-    );
+    log.log("achievementCellPre", achievementCellPre);
+    log.log("achievementCellPre outputData", achievementCellPre?.outputData);
     const achievementDataVecPre = AchievementDataVec.decode(
       ccc.hexFrom(achievementCellPre?.outputData ?? "0x")
     ) as AchievementDataLike[];
@@ -208,7 +205,7 @@ const validateAchievementClaims = async (
       ccc.hexFrom(tx.outputsData[achievementCellPostIndex] ?? "0x")
     ) as AchievementDataLike[];
     if (achievementDataVecPost.length !== achievementDataVecPre.length) {
-      console.log("Achievement data vector length mismatch.");
+      log.log("Achievement data vector length mismatch.");
       return false;
     }
     for (const achievementPost of achievementDataVecPost) {
@@ -217,7 +214,7 @@ const validateAchievementClaims = async (
           achievementPre.achievement_title === achievementPost.achievement_title
       );
       if (!matchingAchievementPre) {
-        console.log("Matching achievement not found.");
+        log.log("Matching achievement not found.");
         return false;
       }
       for (const receiver of achievementPost.receiver_user_record_vec) {
@@ -231,10 +228,10 @@ const validateAchievementClaims = async (
           if (
             !grantableAchievements.includes(achievementPost.achievement_title)
           ) {
-            console.log("Grantable achievement not found.");
+            log.log("Grantable achievement not found.");
             return false;
           } else {
-            console.log(
+            log.log(
               "Grantable achievement found: ",
               achievementPost.achievement_title
             );
@@ -243,10 +240,10 @@ const validateAchievementClaims = async (
             receiver.receiver_user_type_hash !==
             userCell.cellOutput.type?.hash()
           ) {
-            console.log("Receiver user type hash mismatch.");
+            log.log("Receiver user type hash mismatch.");
             return false;
           } else {
-            console.log(
+            log.log(
               "Receiver user type hash matches. Granted achievement: ",
               achievementPost.achievement_title
             );
@@ -256,7 +253,7 @@ const validateAchievementClaims = async (
     }
     return true;
   } catch (error) {
-    console.error("Failed to validate achievement claims:", error);
+    log.error("Failed to validate achievement claims:", error);
     return false;
   }
 };

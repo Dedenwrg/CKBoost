@@ -3,18 +3,18 @@ import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager, type Network } from "@/lib/ckb/deployment-manager";
 import { getGrantableAchievements } from "@/netlify/lib/utils";
 import type { AchievementQueryResponse } from "@/netlify/lib/achievement/types";
+import { createLogger } from "@/netlify/lib/log";
 
 export const handler: Handler = async (event) => {
-  console.log("Achievement query handler");
-  console.log("event", event);
   const reqId = Math.random().toString(36).slice(2, 8);
-  const log = (...args: unknown[]) =>
-    console.log(`[achievement-query][${reqId}]`, ...args);
+  const logger = createLogger(`achievement-query:${reqId}`);
+  logger.info("Achievement query handler");
+  logger.log("event", event);
   const serverKey = process.env.NETLIFY_API_AUTHENTICATOR_PRIVATE_KEY;
   const rpcUrl =
     process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
   if (!serverKey) {
-    log("config_error_post", { hasServerKey: !!serverKey });
+    logger.error("config_error_post", { hasServerKey: !!serverKey });
     return {
       statusCode: 500,
       body: JSON.stringify({ success: false, error: "missing_private_key" }),
@@ -27,7 +27,7 @@ export const handler: Handler = async (event) => {
   );
 
   if (event.httpMethod !== "POST") {
-    log("method_not_allowed");
+    logger.warn("method_not_allowed");
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
@@ -87,7 +87,7 @@ export const handler: Handler = async (event) => {
     };
   } catch (error) {
     const err = error as Error;
-    console.error("[achievement-query] validation_failed", err);
+    logger.error("validation_failed", err);
 
     const response: AchievementQueryResponse = {
       success: false,

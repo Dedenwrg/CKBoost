@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import Script from "next/script";
+import { parseLogLevel, setLogLevel, type LogLevel } from "ssri-ckboost";
 
 export const metadata: Metadata = {
   title: "CKBoost",
@@ -9,6 +10,19 @@ export const metadata: Metadata = {
     "Decentralized campaign platform on CKB blockchain for community contribution rewards",
   generator: "Next.js",
 };
+
+const defaultLogLevel: LogLevel =
+  process.env.NODE_ENV === "production" ? "error" : "debug";
+
+const configuredLogLevel = parseLogLevel(
+  process.env.NEXT_PUBLIC_CKBOOST_LOG_LEVEL ??
+    process.env.NEXT_PUBLIC_LOG_LEVEL ??
+    process.env.CKBOOST_LOG_LEVEL ??
+    process.env.LOG_LEVEL,
+  defaultLogLevel
+);
+
+setLogLevel(configuredLogLevel);
 
 export default function RootLayout({
   children,

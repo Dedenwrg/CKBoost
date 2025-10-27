@@ -20,6 +20,9 @@ import { getAchievementTypeCodeOutPoint } from "../ckb/achievement-cells";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { injectProxyAuthenticationCell } from "../utils/api";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("AchievementService");
 
 const ZERO_TYPE_ID = ccc.hexFrom(
   "0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -143,10 +146,7 @@ export class AchievementService {
     );
 
     if (!userCell || !userCell.cellOutput.type) {
-      console.warn(
-        "[AchievementService] User cell not found for address:",
-        userAddress
-      );
+      log.warn("User cell not found for address:", userAddress);
       return entries.map((entry) => ({
         id: this.extractAchievementId(entry),
         title: entry.title,
@@ -302,24 +302,24 @@ export class AchievementService {
     }
     await tx.completeFeeBy(signer);
 
-    console.log("Calling /api/achievement-validate");
-    console.log("tx", ccc.stringify(tx));
-    console.log("txHex", ccc.hexFrom(tx.toBytes()));
-    console.log("userAddress", userAddress);
+    log.info("Calling /api/achievement-validate");
+    log.log("tx", ccc.stringify(tx));
+    log.log("txHex", ccc.hexFrom(tx.toBytes()));
+    log.log("userAddress", userAddress);
     const resp = await fetch("/api/achievement-validate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ txHex: ccc.hexFrom(tx.toBytes()), userAddress }),
     });
     if (!resp.ok) {
-      console.error("Achievement validation failed at server");
+      log.error("Achievement validation failed at server");
       throw new Error("Achievement validation failed at server");
     }
 
     const responseJson = await resp.json();
-    console.log("response from achievement-validate", responseJson);
+    log.info("response from achievement-validate", responseJson);
     const validatedTx = ccc.Transaction.fromBytes(responseJson.txHex);
-    console.log("validatedTx from bytes", ccc.stringify(validatedTx));
+    log.log("validatedTx from bytes", ccc.stringify(validatedTx));
     for (let i = 0; i < validatedTx.inputs.length; i++) {
       const inputCell = await signer.client.getCell(
         validatedTx.inputs[i].previousOutput
@@ -343,11 +343,11 @@ export class AchievementService {
         );
       }
     }
-    console.log(
+    log.info(
       "validatedTx after modifying inputs and outputs",
       ccc.stringify(validatedTx)
     );
-    console.log("validatedTx after signing", ccc.stringify(validatedTx));
+    log.log("validatedTx after signing", ccc.stringify(validatedTx));
     return await signer.sendTransaction(validatedTx);
   }
 

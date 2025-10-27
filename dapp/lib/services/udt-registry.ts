@@ -1,6 +1,8 @@
 import { ccc } from "@ckb-ccc/connector-react";
-import { debug } from "../utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { fetchUDTCellsByType, calculateUDTBalance } from "../ckb/udt-cells";
+
+const log = createScopedLogger("UdtRegistry");
 
 /**
  * UDT Token definition
@@ -176,7 +178,7 @@ export class UDTRegistryService {
         formatted: this.formatAmount(balance, token)
       };
     } catch (error) {
-      debug.error(`Failed to get balance for ${token.symbol}:`, error);
+      log.error(`Failed to get balance for ${token.symbol}:`, error);
       return {
         raw: 0n,
         formatted: "0"

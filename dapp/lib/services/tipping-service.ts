@@ -14,10 +14,12 @@ import {
   fetchTippingsConnectedToProtocol,
   extractTypeIdFromTippingCell,
 } from "../ckb/tipping-cells";
-import { debug } from "../utils/debug";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { TippingInfo } from "../providers/tipping-provider";
 import { udtRegistry } from "./udt-registry";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("TippingService");
 
 export class TippingService {
   private signer?: ccc.Signer;
@@ -49,7 +51,7 @@ export class TippingService {
 
     if (signer) {
       this.initializeUdtInstancesFromRegistry().catch((error) => {
-        debug.error("Failed to initialise tipping UDT instances", error);
+        log.error("Failed to initialise tipping UDT instances", error);
       });
     }
   }
@@ -58,7 +60,7 @@ export class TippingService {
     this.signer = signer;
     if (signer) {
       this.initializeUdtInstancesFromRegistry().catch((error) => {
-        debug.error("Failed to initialise tipping UDT instances", error);
+        log.error("Failed to initialise tipping UDT instances", error);
       });
     }
   }
@@ -171,7 +173,7 @@ export class TippingService {
       );
       return txHash;
     } catch (error) {
-      debug.error("Failed to propose tipping", error);
+      log.error("Failed to propose tipping", error);
       throw error;
     }
   }
@@ -192,7 +194,7 @@ export class TippingService {
     try {
       return await tipping.collectFundingPool(this.signer);
     } catch (error) {
-      debug.error("Failed to collect funding pool summary", error);
+      log.error("Failed to collect funding pool summary", error);
       return null;
     }
   }
@@ -305,7 +307,7 @@ export class TippingService {
             additionalTips: [],
           } as TippingInfo;
         } catch (error) {
-          debug.warn("Failed to decode tipping cell", error);
+          log.warn("Failed to decode tipping cell", error);
           return null;
         }
       })
@@ -353,7 +355,7 @@ export class TippingService {
             additionalTips: [],
           } as TippingInfo;
         } catch (error) {
-          debug.warn("Failed to decode tipping", error);
+          log.warn("Failed to decode tipping", error);
           return null;
         }
       })
@@ -387,7 +389,7 @@ export class TippingService {
       "ckboostTippingType"
     );
     if (!codeOutPoint) {
-      debug.warn(
+      log.warn(
         "Tipping type contract out point not found in deployments.json"
       );
       return null;
@@ -399,7 +401,7 @@ export class TippingService {
 
     const protocolTypeHash = this.protocolCell.cellOutput.type?.hash();
     if (!protocolTypeHash) {
-      debug.warn(
+      log.warn(
         "Protocol cell missing type hash; cannot initialise tipping SSRI"
       );
       return null;
@@ -461,7 +463,7 @@ export class TippingService {
       }
 
       if (!outPoint) {
-        debug.warn(
+        log.warn(
           `Could not find contract deployment for token ${token.symbol}, skipping initialisation`
         );
         continue;
@@ -653,16 +655,13 @@ export class TippingService {
       (acc, cell) => acc + ccc.numFrom(cell.cellOutput.capacity),
       0n
     );
-    console.log(
+    log.log(
       "ssri-ckboost: addCkbRewardFunding: fundingLockCellsInputCapacity",
       fundingLockCellsInputCapacity
     );
 
     const changeAmount = fundingLockCellsInputCapacity - requiredCKB;
-    console.log(
-      "ssri-ckboost: addCkbRewardFunding: changeAmount",
-      changeAmount
-    );
+    log.log("ssri-ckboost: addCkbRewardFunding: changeAmount", changeAmount);
 
     if (changeAmount > 0n) {
       const fundingLockScript = await this.getFundingLockScript();

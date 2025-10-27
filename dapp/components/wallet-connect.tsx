@@ -27,6 +27,9 @@ import { cn } from "@/lib/utils";
 import { ccc } from "@ckb-ccc/connector-react";
 import { NeventParserDialog } from "@/components/nevent-parser-dialog";
 import { useProtocol } from "@/lib/providers/protocol-provider";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("WalletConnect");
 
 // Mock verification status - in real app, this would come from authentication
 const USER_VERIFICATION_STATUS = {
@@ -87,7 +90,7 @@ export function WalletConnect() {
           const addr = await signer.getRecommendedAddress();
           setAddress(addr);
         } catch (error) {
-          console.error("Error getting address:", error);
+          log.error("Error getting address:", error);
         }
       } else {
         setAddress("");
@@ -101,7 +104,7 @@ export function WalletConnect() {
       setIsConnecting(true);
       await open();
     } catch (error) {
-      console.error("Connection failed:", error);
+      log.error("Connection failed:", error);
     } finally {
       setIsConnecting(false);
     }

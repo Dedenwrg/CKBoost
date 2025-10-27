@@ -4,6 +4,9 @@ import { useState, useCallback } from "react";
 import { useNostr } from "@/lib/providers/nostr-provider";
 import { NostrEvent, NostrFilter } from "@nostrify/types";
 import { nip19 } from "nostr-tools";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("useNostrFetch");
 
 // Custom kind for CKBoost quest submissions
 const CKBOOST_SUBMISSION_KIND = 30078;
@@ -40,7 +43,7 @@ export function useNostrFetch() {
       }
       return null;
     } catch (error) {
-      console.error("Failed to decode nevent:", error);
+      log.error("Failed to decode nevent:", error);
       return null;
     }
   };
@@ -91,22 +94,22 @@ export function useNostrFetch() {
 
         const fetchPromise = (async () => {
           try {
-            console.log("Querying Nostr relays for event:", parsed.id);
+            log.info("Querying Nostr relays for event:", parsed.id);
             for await (const msg of nostr.req([filter])) {
-              console.log("Received message type:", msg[0]);
+              log.info("Received message type:", msg[0]);
               if (msg[0] === "EVENT") {
                 const event = msg[2];
-                console.log("Found event:", event.id);
+                log.info("Found event:", event.id);
                 events.push(event);
                 break; // We only need one event
               }
               if (msg[0] === "EOSE") {
-                console.log("End of stored events reached");
+                log.info("End of stored events reached");
                 break; // End of stored events
               }
             }
           } catch (err) {
-            console.error("Error in Nostr query:", err);
+            log.error("Error in Nostr query:", err);
             throw err;
           }
         })();
@@ -115,10 +118,10 @@ export function useNostrFetch() {
         try {
           await Promise.race([fetchPromise, timeoutPromise]);
         } catch (err) {
-          console.error("Failed to fetch from relays:", err);
+          log.error("Failed to fetch from relays:", err);
           // Try without timeout as fallback
           if (err instanceof Error && err.message.includes("timeout")) {
-            console.log("Retrying without timeout...");
+            log.info("Retrying without timeout...");
             // Give it one more try with longer timeout
             await Promise.race([
               fetchPromise,
@@ -173,7 +176,7 @@ export function useNostrFetch() {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to fetch submission";
         setError(errorMessage);
-        console.error("Error fetching submission:", err);
+        log.error("Error fetching submission:", err);
         return null;
       } finally {
         setIsLoading(false);

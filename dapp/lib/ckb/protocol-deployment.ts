@@ -6,6 +6,9 @@ import { Protocol } from "ssri-ckboost";
 import { deploymentManager, DeploymentRecord } from "./deployment-manager";
 import { ConnectedTypeID, ProtocolDataLike } from "ssri-ckboost/types";
 import { sendTransactionWithFeeRetry } from "./transaction-wrapper";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProtocolDeployment");
 
 /**
  * Get the protocol type code cell outpoint from deployment information
@@ -36,14 +39,11 @@ function getProtocolTypeCodeOutPoint(): {
       );
     }
 
-    console.log(
-      `Using protocol type code cell from deployments.json:`,
-      outPoint
-    );
+    log.info(`Using protocol type code cell from deployments.json:`, outPoint);
 
     return { outPoint, deployment };
   } catch (error) {
-    console.error("Failed to get protocol type code outpoint:", error);
+    log.error("Failed to get protocol type code outpoint:", error);
     return null;
   }
 }
@@ -274,8 +274,8 @@ export async function deployProtocolCell(
   protocolData: ProtocolDataLike
 ): Promise<DeploymentResult> {
   try {
-    console.log("=== Starting Protocol Cell Deployment ===");
-    console.log("Signer info:", {
+    log.info("=== Starting Protocol Cell Deployment ===");
+    log.info("Signer info:", {
       isConnected: !!signer,
       hasClient: !!signer.client,
       signerType: signer.constructor.name,
@@ -302,7 +302,7 @@ export async function deployProtocolCell(
 
     // Create initial protocol data using ssri-ckboost Protocol class
     // Note: The Protocol.createProtocolData expects camelCase properties
-    console.log("Creating protocolData:", {
+    log.info("Creating protocolData:", {
       adminLockHashes: protocolData.protocol_config.admin_lock_hash_vec,
       tippingConfigThresholds:
         protocolData.tipping_config.approval_requirement_thresholds,
@@ -339,8 +339,8 @@ export async function deployProtocolCell(
     // This method will handle all the complex transaction building
     let tx: ccc.Transaction;
 
-    console.log("Calling SSRI updateProtocol with executor:", executorUrl);
-    console.log(
+    log.info("Calling SSRI updateProtocol with executor:", executorUrl);
+    log.info(
       "Protocol type script place holder:",
       protocolTypeScriptPlaceHolder
     );
@@ -348,13 +348,13 @@ export async function deployProtocolCell(
     // Only try to log protocol data properties if it exists
     if (protocolData && typeof protocolData === "object") {
       // Log the entire protocolData to see its structure
-      console.log("Full protocol data:", protocolData);
+      log.info("Full protocol data:", protocolData);
 
       // Try different property access patterns
       const props = Object.keys(protocolData);
-      console.log("Protocol data properties:", props);
+      log.info("Protocol data properties:", props);
 
-      console.log("Protocol data preview:", {
+      log.info("Protocol data preview:", {
         adminLockHashes:
           protocolData.protocol_config?.admin_lock_hash_vec || "N/A",
         lastUpdated: protocolData.last_updated || "N/A",
@@ -412,18 +412,18 @@ export async function deployProtocolCell(
       if (protocolCellOutputIndex === -1) {
         throw new Error("Protocol cell output not found in transaction");
       }
-      console.log("Implementing protocol lock");
+      log.info("Implementing protocol lock");
       tx.outputs[protocolCellOutputIndex].lock = ccc.Script.from({
         codeHash: protocolLockCodeHash,
         hashType: tx.outputs[protocolCellOutputIndex].lock.hashType,
         args: ccc.hexFrom(connectedIDforProtocolLock),
       });
 
-      console.log("SSRI response received successfully");
-      console.log("Transaction in Hex:");
-      console.log(ccc.hexFrom(tx.toBytes()));
+      log.info("SSRI response received successfully");
+      log.info("Transaction in Hex:");
+      log.info(ccc.hexFrom(tx.toBytes()));
     } catch (error) {
-      console.error("SSRI updateProtocol failed:", error);
+      log.error("SSRI updateProtocol failed:", error);
 
       // Check if it's an executor error
       if (
@@ -460,31 +460,31 @@ export async function deployProtocolCell(
     await tx.completeInputsByCapacity(signer);
 
     // Print initial transaction structure for debugging
-    console.log("=== Transaction Structure (before fee) ===");
-    console.log("Transaction summary:", {
+    log.info("=== Transaction Structure (before fee) ===");
+    log.info("Transaction summary:", {
       inputsCount: tx.inputs.length,
       outputsCount: tx.outputs.length,
       witnessesCount: tx.witnesses.length,
       cellDepsCount: tx.cellDeps.length,
     });
-    console.log("=============================\n");
+    log.info("=============================\n");
 
     // Check if transaction is ready for signing
     if (!tx.inputs || tx.inputs.length === 0) {
-      console.error("WARNING: Transaction has no inputs!");
+      log.error("WARNING: Transaction has no inputs!");
     }
     if (!tx.outputs || tx.outputs.length === 0) {
-      console.error("WARNING: Transaction has no outputs!");
+      log.error("WARNING: Transaction has no outputs!");
     }
     if (!tx.witnesses || tx.witnesses.length === 0) {
-      console.error("WARNING: Transaction has no witnesses!");
+      log.error("WARNING: Transaction has no witnesses!");
     }
 
     try {
       // Send the transaction
-      console.log("Sending transaction to network...");
-      console.log("This should trigger wallet signing...");
-      console.log("Signer state before send:", {
+      log.info("Sending transaction to network...");
+      log.info("This should trigger wallet signing...");
+      log.info("Signer state before send:", {
         isConnected: !!signer,
         hasClient: !!signer.client,
         signerType: signer.constructor.name,
@@ -492,7 +492,7 @@ export async function deployProtocolCell(
       });
 
       // Log transaction details
-      console.log("Transaction summary:", {
+      log.info("Transaction summary:", {
         inputsCount: tx.inputs.length,
         outputsCount: tx.outputs.length,
         witnessesCount: tx.witnesses.length,
@@ -500,20 +500,20 @@ export async function deployProtocolCell(
         hasSignatures: tx.witnesses.some((w) => w && w.length > 0),
       });
 
-      console.log("About to call signer.sendTransaction...");
+      log.info("About to call signer.sendTransaction...");
 
       // SSRI provides the TransactionRecipe in the witness but doesn't sign the transaction
       // We need to sign the transaction with the wallet
-      console.log(
+      log.info(
         "Transaction has witness with TransactionRecipe, needs wallet signing..."
       );
 
       // Check witness structure
       if (tx.witnesses && tx.witnesses.length > 0) {
-        console.log("Witness count:", tx.witnesses.length);
+        log.info("Witness count:", tx.witnesses.length);
         for (let i = 0; i < tx.witnesses.length; i++) {
           const witness = tx.witnesses[i];
-          console.log(`Witness ${i}:`, {
+          log.info(`Witness ${i}:`, {
             length: witness?.length || 0,
             hex: witness
               ? ccc.hexFrom(witness.slice(0, Math.min(100, witness.length))) +
@@ -525,7 +525,7 @@ export async function deployProtocolCell(
           try {
             if (witness && witness.length > 0) {
               const witnessArgs = ccc.WitnessArgs.decode(witness);
-              console.log(`  WitnessArgs ${i}:`, {
+              log.info(`  WitnessArgs ${i}:`, {
                 lock: witnessArgs.lock
                   ? `${witnessArgs.lock.length} bytes`
                   : "empty",
@@ -538,27 +538,27 @@ export async function deployProtocolCell(
               });
             }
           } catch (e) {
-            console.log(`  Not a valid WitnessArgs structure ${e}`);
+            log.info(`  Not a valid WitnessArgs structure ${e}`);
           }
         }
       }
 
       // Sign and send the transaction
-      console.log("Requesting wallet to sign transaction...");
+      log.info("Requesting wallet to sign transaction...");
 
       try {
         // Convert transaction to hex for debugging (after fee completion)
         const finalTxHex = ccc.hexFrom(tx.toBytes());
-        console.log("=== Final Transaction (with fee) ===");
-        console.log("Transaction hex:");
-        console.log(finalTxHex);
-        console.log("\nTo debug this transaction offline, run:");
-        console.log(`cd contracts/utils && cargo run -- "${finalTxHex}"`);
-        console.log("=============================\n");
+        log.info("=== Final Transaction (with fee) ===");
+        log.info("Transaction hex:");
+        log.info(finalTxHex);
+        log.info("\nTo debug this transaction offline, run:");
+        log.info(`cd contracts/utils && cargo run -- "${finalTxHex}"`);
+        log.info("=============================\n");
 
         // Use our wrapper that handles fee errors automatically
         const txHash = await sendTransactionWithFeeRetry(signer, tx);
-        console.log("Transaction sent successfully! TxHash:", txHash);
+        log.info("Transaction sent successfully! TxHash:", txHash);
 
         // Extract the protocol cell's type script from the transaction
         // The protocol cell should be the first output with a type script
@@ -582,7 +582,7 @@ export async function deployProtocolCell(
               hashType: output.type.hashType,
               args: ccc.hexFrom(output.type.args),
             };
-            console.log("Found protocol cell type script:", protocolTypeScript);
+            log.info("Found protocol cell type script:", protocolTypeScript);
             break;
           }
         }
@@ -596,7 +596,7 @@ export async function deployProtocolCell(
           },
         };
       } catch (sendError) {
-        console.error("Transaction send failed:", sendError);
+        log.error("Transaction send failed:", sendError);
 
         // Check if it's a ScriptNotFound error
         const errorMessage =
@@ -635,7 +635,7 @@ export async function deployProtocolCell(
           (sendError.message.includes("sign") ||
             sendError.message.includes("wallet"))
         ) {
-          console.error("Wallet signing error. Transaction hex for debugging:");
+          log.error("Wallet signing error. Transaction hex for debugging:");
           throw new Error(
             `Wallet signing failed: ${sendError.message}\n\n` +
               "Please check:\n" +
@@ -649,13 +649,11 @@ export async function deployProtocolCell(
       }
     } catch (sendError) {
       // If transaction fails, print the hex for debugging
-      console.error(
-        "Transaction failed to send. Transaction hex for debugging:"
-      );
+      log.error("Transaction failed to send. Transaction hex for debugging:");
       throw sendError;
     }
   } catch (error) {
-    console.error("Failed to deploy protocol cell:", error);
+    log.error("Failed to deploy protocol cell:", error);
     throw error;
   }
 }

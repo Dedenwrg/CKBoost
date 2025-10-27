@@ -24,7 +24,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { getDaysUntilEnd, type CampaignDisplay } from "@/lib";
-import { formatDateConsistent } from "@/lib/utils/debug";
+import { formatDateConsistent } from "ssri-ckboost";
 import { udtRegistry } from "@/lib/services/udt-registry";
 
 interface CampaignCardProps {

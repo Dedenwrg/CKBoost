@@ -3,12 +3,12 @@
 
 import { ccc } from "@ckb-ccc/connector-react";
 import { cccA } from "@ckb-ccc/connector-react/advanced";
-import type {
-  UserSubmissionRecordLike,
-  ConnectedTypeIDLike,
-} from "ssri-ckboost/types";
+import type { ConnectedTypeIDLike } from "ssri-ckboost/types";
 import { ConnectedTypeID } from "ssri-ckboost/types";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger, createTimer } from "ssri-ckboost";
+
+const log = createScopedLogger("CampaignCells");
+const timer = createTimer(log);
 
 // Development flag - set to true to use blockchain, false to use mock data
 const USE_BLOCKCHAIN = true; // Set to true when blockchain is available
@@ -32,19 +32,19 @@ export async function fetchCampaignByTypeId(
   }
 
   try {
-    debug.group("fetchCampaignByTypeId");
-    debug.log("Searching for campaign with type ID:", typeId);
-    debug.log("Campaign code hash:", campaignCodeHash);
+    log.log("fetchCampaignByTypeId");
+    log.log("Searching for campaign with type ID:", typeId);
+    log.log("Campaign code hash:", campaignCodeHash);
 
     // Use the protocol cell passed as parameter
     if (!protocolCell || !protocolCell.cellOutput.type) {
-      debug.error("Protocol cell not found or has no type script");
-      debug.groupEnd();
+      log.error("Protocol cell not found or has no type script");
+
       return undefined;
     }
 
     const protocolTypeHash = protocolCell.cellOutput.type.hash();
-    debug.log("Protocol type hash:", protocolTypeHash);
+    log.log("Protocol type hash:", protocolTypeHash);
 
     // Construct the ConnectedTypeID args
     const connectedTypeId: ConnectedTypeIDLike = {
@@ -56,7 +56,7 @@ export async function fetchCampaignByTypeId(
     const encodedArgs = ConnectedTypeID.encode(connectedTypeId);
     const argsHex = ccc.hexFrom(encodedArgs);
 
-    debug.log("Constructed ConnectedTypeID args:", argsHex);
+    log.log("Constructed ConnectedTypeID args:", argsHex);
 
     // Create exact search key for the campaign with these specific args
     const searchKey: cccA.ClientCollectableSearchKeyLike = {
@@ -69,21 +69,21 @@ export async function fetchCampaignByTypeId(
       scriptSearchMode: "exact",
     };
 
-    debug.log("Searching with exact args match");
+    log.log("Searching with exact args match");
 
     // This should return at most one cell (O(1) lookup)
     for await (const cell of client.findCells(searchKey)) {
-      debug.log("✅ Found campaign cell with type ID:", typeId);
-      debug.groupEnd();
+      log.log("✅ Found campaign cell with type ID:", typeId);
+
       return cell;
     }
 
-    debug.warn("No campaign found with type ID:", typeId);
-    debug.groupEnd();
+    log.warn("No campaign found with type ID:", typeId);
+
     return undefined;
   } catch (error) {
-    debug.error(`Failed to fetch campaign by type ID ${typeId}:`, error);
-    debug.groupEnd();
+    log.error(`Failed to fetch campaign by type ID ${typeId}:`, error);
+
     return undefined;
   }
 }
@@ -100,29 +100,29 @@ export async function fetchCampaignsOwnedByUser(
   protocolLockScript: ccc.Script,
   campaignCodeHash: ccc.Hex
 ): Promise<ccc.Cell[]> {
-  debug.group("fetchCampaignsOwnedByUser");
-  debug.log("Input parameters:", {
+  log.log("fetchCampaignsOwnedByUser");
+  log.log("Input parameters:", {
     campaignCodeHash,
     clientPresent: !!client,
     protocolLockScript,
   });
 
   if (!client) {
-    debug.error("Client is required to fetch campaigns");
-    debug.groupEnd();
+    log.error("Client is required to fetch campaigns");
+
     throw new Error("Client is required to fetch campaigns");
   }
 
   try {
-    debug.log("Protocol lock script:", {
+    log.log("Protocol lock script:", {
       codeHash: protocolLockScript.codeHash,
       hashType: protocolLockScript.hashType,
       args: protocolLockScript.args,
     });
 
     // Search for campaign cells locked by the user's lock script
-    debug.log("Searching for campaign cells owned by user...");
-    debug.time("Campaign cell search");
+    log.log("Searching for campaign cells owned by user...");
+    timer.time("Campaign cell search");
 
     // First, search for all cells locked by the user
     const searchKey = {
@@ -131,7 +131,7 @@ export async function fetchCampaignsOwnedByUser(
       scriptSearchMode: "exact" as const,
     };
 
-    debug.log("Search parameters:", searchKey);
+    log.log("Search parameters:", searchKey);
 
     // Collect cells that are campaigns (have the campaign type script)
     const campaignCells: ccc.Cell[] = [];
@@ -143,7 +143,7 @@ export async function fetchCampaignsOwnedByUser(
           cell.cellOutput.type.codeHash === campaignCodeHash &&
           cell.cellOutput.type.hashType === "type"
         ) {
-          debug.log("Found campaign cell owned by user:", {
+          log.log("Found campaign cell owned by user:", {
             typeHash: cell.cellOutput.type.hash(),
             capacity: cell.cellOutput.capacity,
           });
@@ -152,16 +152,16 @@ export async function fetchCampaignsOwnedByUser(
         if (campaignCells.length >= 100) break; // Limit to 100 campaigns
       }
     } catch (iterError) {
-      debug.warn("Error iterating cells:", iterError);
+      log.warn("Error iterating cells:", iterError);
     }
 
-    debug.timeEnd("Campaign cell search");
-    debug.info(`✨ Found ${campaignCells.length} campaigns owned by user`);
-    debug.groupEnd();
+    timer.timeEnd("Campaign cell search");
+    log.info(`✨ Found ${campaignCells.length} campaigns owned by user`);
+
     return campaignCells;
   } catch (error) {
-    debug.error("Failed to fetch user's campaigns:", error);
-    debug.groupEnd();
+    log.error("Failed to fetch user's campaigns:", error);
+
     return [];
   }
 }
@@ -193,7 +193,7 @@ export function extractTypeIdFromCampaignCell(
 
     return connectedTypeId.type_id as ccc.Hex;
   } catch (error) {
-    debug.warn("Failed to extract type_id from campaign cell:", error);
+    log.warn("Failed to extract type_id from campaign cell:", error);
     return undefined;
   }
 }
@@ -218,7 +218,7 @@ export function isCampaignApproved(
     const matches = identifier.toLowerCase() === campaignTypeId.toLowerCase();
 
     if (matches) {
-      debug.log("Campaign is approved:", {
+      log.log("Campaign is approved:", {
         campaignTypeId,
         identifier,
       });
@@ -233,25 +233,25 @@ export async function fetchCampaignsConnectedToProtocol(
   campaignCodeHash: ccc.Hex,
   protocolTypeHash: ccc.Hex
 ): Promise<ccc.Cell[]> {
-  debug.group("fetchCampaignsConnectedToProtocol");
-  debug.log("Input parameters:", {
+  log.log("fetchCampaignsConnectedToProtocol");
+  log.log("Input parameters:", {
     campaignCodeHash,
     protocolTypeHash,
     clientPresent: !!client,
   });
 
   if (!client) {
-    debug.error("Client is required to fetch campaigns");
-    debug.groupEnd();
+    log.error("Client is required to fetch campaigns");
+
     throw new Error("Client is required to fetch campaigns");
   }
 
   try {
-    debug.log("CKB Client initialized:", !!client);
+    log.log("CKB Client initialized:", !!client);
 
     // Search for all campaign cells by code hash
-    debug.log("Searching for campaign cells with code hash:", campaignCodeHash);
-    debug.time("Campaign cell search");
+    log.log("Searching for campaign cells with code hash:", campaignCodeHash);
+    timer.time("Campaign cell search");
 
     // Create a proper search key for campaigns with this code hash
     const searchKey = {
@@ -264,7 +264,7 @@ export async function fetchCampaignsConnectedToProtocol(
       scriptSearchMode: "prefix" as const,
     };
 
-    debug.log("Search parameters:", searchKey);
+    log.log("Search parameters:", searchKey);
 
     // Use the async iterator to collect cells
     const campaignCells: ccc.Cell[] = [];
@@ -274,11 +274,11 @@ export async function fetchCampaignsConnectedToProtocol(
         if (campaignCells.length >= 100) break; // Limit to 100 campaigns
       }
     } catch (iterError) {
-      debug.warn("Error iterating cells:", iterError);
+      log.warn("Error iterating cells:", iterError);
     }
 
-    debug.timeEnd("Campaign cell search");
-    debug.log(`Found ${campaignCells.length} total campaign cells`);
+    timer.timeEnd("Campaign cell search");
+    log.log(`Found ${campaignCells.length} total campaign cells`);
 
     // Filter campaigns connected to our protocol
     const connectedCampaigns: ccc.Cell[] = [];
@@ -287,7 +287,7 @@ export async function fetchCampaignsConnectedToProtocol(
       try {
         // Parse the campaign type args as ConnectedTypeID
         if (cell.cellOutput.type && cell.cellOutput.type.args) {
-          debug.log("Parsing campaign cell:", {
+          log.log("Parsing campaign cell:", {
             typeHash: cell.cellOutput.type?.hash(),
             args: cell.cellOutput.type.args,
           });
@@ -297,38 +297,38 @@ export async function fetchCampaignsConnectedToProtocol(
             argsBytes
           ) as ConnectedTypeIDLike;
 
-          debug.log("Parsed ConnectedTypeID:", {
+          log.log("Parsed ConnectedTypeID:", {
             type_id: connectedTypeId.type_id,
             connected_key: connectedTypeId.connected_key,
           });
 
           // Check if this campaign is connected to our protocol
           if (connectedTypeId.connected_key === protocolTypeHash) {
-            debug.log("✅ Campaign is connected to our protocol");
+            log.log("✅ Campaign is connected to our protocol");
             connectedCampaigns.push(cell);
           } else {
-            debug.log(
+            log.log(
               "❌ Campaign is connected to different protocol:",
               connectedTypeId.connected_key
             );
           }
         } else {
-          debug.warn("Campaign cell has no type script or args");
+          log.warn("Campaign cell has no type script or args");
         }
       } catch (parseError) {
-        debug.warn("Failed to parse campaign args:", parseError);
+        log.warn("Failed to parse campaign args:", parseError);
         // Continue to next campaign if parsing fails
       }
     }
 
-    debug.info(
+    log.info(
       `✨ Found ${connectedCampaigns.length} campaigns connected to protocol ${protocolTypeHash}`
     );
-    debug.groupEnd();
+
     return connectedCampaigns;
   } catch (error) {
-    debug.error("Failed to fetch campaigns connected to protocol:", error);
-    debug.groupEnd();
+    log.error("Failed to fetch campaigns connected to protocol:", error);
+
     return [];
   }
 }

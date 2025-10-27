@@ -1,99 +1,136 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle, Play, Send, Upload, AlertCircle, Loader2, UserPlus } from "lucide-react"
-import { useUser } from "@/lib/providers/user-provider"
-import { useProtocol } from "@/lib/providers/protocol-provider"
-import { ccc } from "@ckb-ccc/connector-react"
-import { ckboost } from "ssri-ckboost"
-import { debug } from "@/lib/utils/debug"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  CheckCircle,
+  Play,
+  Send,
+  Upload,
+  AlertCircle,
+  Loader2,
+  UserPlus,
+} from "lucide-react";
+import { useUser } from "@/lib/providers/user-provider";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import { ccc } from "@ckb-ccc/connector-react";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("QuestSubmissionButton");
 
 interface QuestSubmissionButtonProps {
-  quest: { 
-    quest_id?: number
-    metadata?: { title?: string; description?: string; short_description?: string }
-    sub_tasks?: Array<{ title?: string; description?: string; type?: string; proof_required?: string }> 
-  }
-  questIndex: number
-  campaign: unknown // Campaign type not used
-  campaignTypeId: ccc.Hex
+  quest: {
+    quest_id?: number;
+    metadata?: {
+      title?: string;
+      description?: string;
+      short_description?: string;
+    };
+    sub_tasks?: Array<{
+      title?: string;
+      description?: string;
+      type?: string;
+      proof_required?: string;
+    }>;
+  };
+  questIndex: number;
+  campaign: unknown; // Campaign type not used
+  campaignTypeId: ccc.Hex;
 }
 
-export function QuestSubmissionButton({ 
-  quest, 
+export function QuestSubmissionButton({
+  quest,
   questIndex,
-  campaignTypeId 
+  campaignTypeId,
 }: QuestSubmissionButtonProps) {
-  const { currentUserTypeId, submitQuest, hasUserSubmittedQuest, isLoading: userLoading } = useUser()
-  const { userAddress } = useProtocol()
-  const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false)
-  const [submissionContent, setSubmissionContent] = useState("")
-  const [submissionUrl, setSubmissionUrl] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isFirstTime, setIsFirstTime] = useState(false)
+  const {
+    currentUserTypeId,
+    submitQuest,
+    hasUserSubmittedQuest,
+    isLoading: userLoading,
+  } = useUser();
+  const { userAddress } = useProtocol();
+  const [isSubmissionDialogOpen, setIsSubmissionDialogOpen] = useState(false);
+  const [submissionContent, setSubmissionContent] = useState("");
+  const [submissionUrl, setSubmissionUrl] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isFirstTime, setIsFirstTime] = useState(false);
   const [userVerificationData, setUserVerificationData] = useState({
     name: "",
     email: "",
     twitter: "",
-    discord: ""
-  })
+    discord: "",
+  });
 
   // Check if user has already submitted this quest
   useEffect(() => {
     async function checkSubmission() {
-      console.log("Checking submission status for quest", {
+      log.info("Checking submission status for quest", {
         hasUserTypeId: !!currentUserTypeId,
         userTypeId: currentUserTypeId?.slice(0, 10) + "..." || "none",
         campaignTypeId: campaignTypeId.slice(0, 10) + "...",
-        questId: Number(quest.quest_id || questIndex + 1)
+        questId: Number(quest.quest_id || questIndex + 1),
       });
-      
+
       if (currentUserTypeId) {
         const submitted = await hasUserSubmittedQuest(
           currentUserTypeId,
           campaignTypeId,
           Number(quest.quest_id || questIndex + 1)
-        )
-        console.log("Submission check result:", submitted);
-        setHasSubmitted(submitted)
-        setIsFirstTime(false)
+        );
+        log.info("Submission check result:", submitted);
+        setHasSubmitted(submitted);
+        setIsFirstTime(false);
       } else if (userAddress) {
         // User is connected but doesn't have a cell yet
-        console.log("User connected but no user cell found");
-        setIsFirstTime(true)
+        log.info("User connected but no user cell found");
+        setIsFirstTime(true);
       }
     }
-    checkSubmission()
-  }, [currentUserTypeId, campaignTypeId, quest.quest_id, questIndex, hasUserSubmittedQuest, userAddress])
+    checkSubmission();
+  }, [
+    currentUserTypeId,
+    campaignTypeId,
+    quest.quest_id,
+    questIndex,
+    hasUserSubmittedQuest,
+    userAddress,
+  ]);
 
   const handleSubmit = async () => {
     if (!submissionContent && !submissionUrl) {
-      setError("Please provide submission content or URL")
-      return
+      setError("Please provide submission content or URL");
+      return;
     }
 
     // If first time user, ensure they provide at least a name
     if (isFirstTime && !userVerificationData.name) {
-      setError("Please provide your name for profile creation")
-      return
+      setError("Please provide your name for profile creation");
+      return;
     }
 
     try {
-      setIsSubmitting(true)
-      setError(null)
+      setIsSubmitting(true);
+      setError(null);
 
       // Combine content and URL for submission
-      const fullSubmissionContent = submissionUrl 
+      const fullSubmissionContent = submissionUrl
         ? `${submissionContent}\n\nProof URL: ${submissionUrl}`
-        : submissionContent
+        : submissionContent;
 
       // Submit quest - this will create user cell if needed
       const txHash = await submitQuest(
@@ -101,43 +138,52 @@ export function QuestSubmissionButton({
         Number(quest.quest_id || questIndex + 1),
         fullSubmissionContent,
         isFirstTime ? userVerificationData : undefined
-      )
+      );
 
-      debug.log("Quest submitted successfully:", { txHash, questId: quest.quest_id })
-      
-      setHasSubmitted(true)
-      setIsSubmissionDialogOpen(false)
-      setSubmissionContent("")
-      setSubmissionUrl("")
+      log.log("Quest submitted successfully:", {
+        txHash,
+        questId: quest.quest_id,
+      });
+
+      setHasSubmitted(true);
+      setIsSubmissionDialogOpen(false);
+      setSubmissionContent("");
+      setSubmissionUrl("");
     } catch (err) {
-      debug.error("Failed to submit quest:", err)
-      setError(err instanceof Error ? err.message : "Failed to submit quest")
+      log.error("Failed to submit quest:", err);
+      setError(err instanceof Error ? err.message : "Failed to submit quest");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   // Button text changes based on user state
   const getButtonText = () => {
-    if (!userAddress) return "Connect Wallet First"
-    if (hasSubmitted) return "Quest Submitted"
-    if (isFirstTime) return "Submit & Create Profile"
-    return "Submit Quest"
-  }
+    if (!userAddress) return "Connect Wallet First";
+    if (hasSubmitted) return "Quest Submitted";
+    if (isFirstTime) return "Submit & Create Profile";
+    return "Submit Quest";
+  };
 
   const getButtonIcon = () => {
-    if (!userAddress) return <AlertCircle className="w-5 h-5 mr-2" />
-    if (hasSubmitted) return <CheckCircle className="w-5 h-5 mr-2" />
-    if (isFirstTime) return <UserPlus className="w-5 h-5 mr-2" />
-    return <Send className="w-5 h-5 mr-2" />
-  }
+    if (!userAddress) return <AlertCircle className="w-5 h-5 mr-2" />;
+    if (hasSubmitted) return <CheckCircle className="w-5 h-5 mr-2" />;
+    if (isFirstTime) return <UserPlus className="w-5 h-5 mr-2" />;
+    return <Send className="w-5 h-5 mr-2" />;
+  };
 
   return (
     <>
       <div className="space-y-2">
-        <Button 
-          size="lg" 
-          className={hasSubmitted ? "bg-green-100 text-green-800" : isFirstTime ? "bg-purple-600 hover:bg-purple-700" : "bg-blue-600 hover:bg-blue-700"}
+        <Button
+          size="lg"
+          className={
+            hasSubmitted
+              ? "bg-green-100 text-green-800"
+              : isFirstTime
+              ? "bg-purple-600 hover:bg-purple-700"
+              : "bg-blue-600 hover:bg-blue-700"
+          }
           onClick={() => setIsSubmissionDialogOpen(true)}
           disabled={userLoading || !userAddress || hasSubmitted}
         >
@@ -151,14 +197,19 @@ export function QuestSubmissionButton({
         )}
       </div>
 
-      <Dialog open={isSubmissionDialogOpen} onOpenChange={setIsSubmissionDialogOpen}>
+      <Dialog
+        open={isSubmissionDialogOpen}
+        onOpenChange={setIsSubmissionDialogOpen}
+      >
         <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isFirstTime ? "Create Profile & Submit Quest" : "Submit Quest Completion"}
+              {isFirstTime
+                ? "Create Profile & Submit Quest"
+                : "Submit Quest Completion"}
             </DialogTitle>
             <DialogDescription>
-              {isFirstTime 
+              {isFirstTime
                 ? "Create your profile and submit your first quest completion"
                 : "Provide evidence of your quest completion. Include any relevant links, screenshots, or descriptions."}
             </DialogDescription>
@@ -178,8 +229,10 @@ export function QuestSubmissionButton({
             {/* User Profile Fields (for first-time users) */}
             {isFirstTime && (
               <div className="space-y-4 p-4 border rounded-lg">
-                <h4 className="font-medium text-sm">Your Profile Information</h4>
-                
+                <h4 className="font-medium text-sm">
+                  Your Profile Information
+                </h4>
+
                 <div className="space-y-2">
                   <Label htmlFor="user-name">
                     Name <span className="text-red-500">*</span>
@@ -188,10 +241,12 @@ export function QuestSubmissionButton({
                     id="user-name"
                     placeholder="Your display name"
                     value={userVerificationData.name}
-                    onChange={(e) => setUserVerificationData({
-                      ...userVerificationData,
-                      name: e.target.value
-                    })}
+                    onChange={(e) =>
+                      setUserVerificationData({
+                        ...userVerificationData,
+                        name: e.target.value,
+                      })
+                    }
                   />
                 </div>
 
@@ -202,10 +257,12 @@ export function QuestSubmissionButton({
                       id="user-twitter"
                       placeholder="@yourhandle"
                       value={userVerificationData.twitter}
-                      onChange={(e) => setUserVerificationData({
-                        ...userVerificationData,
-                        twitter: e.target.value
-                      })}
+                      onChange={(e) =>
+                        setUserVerificationData({
+                          ...userVerificationData,
+                          twitter: e.target.value,
+                        })
+                      }
                     />
                   </div>
 
@@ -215,10 +272,12 @@ export function QuestSubmissionButton({
                       id="user-discord"
                       placeholder="username#1234"
                       value={userVerificationData.discord}
-                      onChange={(e) => setUserVerificationData({
-                        ...userVerificationData,
-                        discord: e.target.value
-                      })}
+                      onChange={(e) =>
+                        setUserVerificationData({
+                          ...userVerificationData,
+                          discord: e.target.value,
+                        })
+                      }
                     />
                   </div>
                 </div>
@@ -227,9 +286,7 @@ export function QuestSubmissionButton({
 
             {/* Submission Content */}
             <div className="space-y-2">
-              <Label htmlFor="submission-content">
-                Submission Description
-              </Label>
+              <Label htmlFor="submission-content">Submission Description</Label>
               <Textarea
                 id="submission-content"
                 placeholder="Describe how you completed the quest..."
@@ -241,9 +298,7 @@ export function QuestSubmissionButton({
 
             {/* Proof URL */}
             <div className="space-y-2">
-              <Label htmlFor="proof-url">
-                Proof URL (Optional)
-              </Label>
+              <Label htmlFor="proof-url">Proof URL (Optional)</Label>
               <Input
                 id="proof-url"
                 type="url"
@@ -285,16 +340,26 @@ export function QuestSubmissionButton({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || (!submissionContent && !submissionUrl) || (isFirstTime && !userVerificationData.name)}
+              disabled={
+                isSubmitting ||
+                (!submissionContent && !submissionUrl) ||
+                (isFirstTime && !userVerificationData.name)
+              }
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  {isFirstTime ? "Creating Profile & Submitting..." : "Submitting..."}
+                  {isFirstTime
+                    ? "Creating Profile & Submitting..."
+                    : "Submitting..."}
                 </>
               ) : (
                 <>
-                  {isFirstTime ? <UserPlus className="w-4 h-4 mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+                  {isFirstTime ? (
+                    <UserPlus className="w-4 h-4 mr-2" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
                   {isFirstTime ? "Create Profile & Submit" : "Submit Quest"}
                 </>
               )}
@@ -303,5 +368,5 @@ export function QuestSubmissionButton({
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

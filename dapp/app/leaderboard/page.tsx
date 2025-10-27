@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ccc } from "@ckb-ccc/connector-react"
-import { Navigation } from "@/components/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ccc } from "@ckb-ccc/connector-react";
+import { Navigation } from "@/components/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Crown,
   Trophy,
@@ -17,48 +17,47 @@ import {
   Activity,
   Clock,
   Info,
-} from "lucide-react"
-import {
-  InMemoryLeaderboardCache,
-  LeaderboardService,
-} from "@/lib"
+} from "lucide-react";
+import { InMemoryLeaderboardCache, LeaderboardService } from "@/lib";
 import type {
   LeaderboardEntry,
   LeaderboardStats,
   PointsMintRecord,
-} from "@/lib"
-import { useProtocol } from "@/lib/providers/protocol-provider"
-import { debug } from "@/lib/utils/debug"
+} from "@/lib";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("LeaderboardPage");
 
 const formatPoints = (value: string): string => {
   try {
-    return BigInt(value).toLocaleString()
+    return BigInt(value).toLocaleString();
   } catch (error) {
-    debug.warn("Failed to format points value", { value, error })
-    return value
+    log.warn("Failed to format points value", { value, error });
+    return value;
   }
-}
+};
 
 const shorten = (value: string, head = 10, tail = 6): string => {
   if (!value || value.length <= head + tail) {
-    return value
+    return value;
   }
-  return `${value.slice(0, head)}...${value.slice(-tail)}`
-}
+  return `${value.slice(0, head)}...${value.slice(-tail)}`;
+};
 
 const getAvatarLabel = (identifier: string): string => {
-  const sanitized = identifier.replace(/^0x/, "")
-  const alphanumeric = sanitized.replace(/[^a-zA-Z0-9]/g, "")
-  const label = alphanumeric.slice(0, 2) || sanitized.slice(0, 2) || "??"
-  return label.toUpperCase()
-}
+  const sanitized = identifier.replace(/^0x/, "");
+  const alphanumeric = sanitized.replace(/[^a-zA-Z0-9]/g, "");
+  const label = alphanumeric.slice(0, 2) || sanitized.slice(0, 2) || "??";
+  return label.toUpperCase();
+};
 
 const getRankIcon = (rank: number) => {
-  if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />
-  if (rank === 2) return <Trophy className="w-5 h-5 text-gray-400" />
-  if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />
-  return <Award className="w-5 h-5 text-purple-500" />
-}
+  if (rank === 1) return <Crown className="w-5 h-5 text-yellow-500" />;
+  if (rank === 2) return <Trophy className="w-5 h-5 text-gray-400" />;
+  if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />;
+  return <Award className="w-5 h-5 text-purple-500" />;
+};
 
 const calculateTotals = (stats: LeaderboardStats | null) => {
   if (!stats) {
@@ -66,218 +65,214 @@ const calculateTotals = (stats: LeaderboardStats | null) => {
       totalMinted: 0n,
       uniqueRecipients: 0,
       transactionsTracked: 0,
-    }
+    };
   }
 
   const totalMinted = stats.mintedTransactions.reduce(
     (acc, record) => acc + BigInt(record.totalMinted),
     0n
-  )
+  );
 
-  const recipientHashes = new Set<string>()
+  const recipientHashes = new Set<string>();
   stats.mintedTransactions.forEach((record) => {
     record.recipients.forEach((recipient) => {
-      recipientHashes.add(recipient.lockHash.toLowerCase())
-    })
-  })
+      recipientHashes.add(recipient.lockHash.toLowerCase());
+    });
+  });
 
   return {
     totalMinted,
     uniqueRecipients: recipientHashes.size,
     transactionsTracked: stats.mintedTransactions.length,
-  }
-}
+  };
+};
 
 const getIdentifier = (entry: LeaderboardEntry): string => {
-  return entry.address ?? entry.lockHash
-}
+  return entry.address ?? entry.lockHash;
+};
 
-const getRecipientIdentifier = (record: PointsMintRecord["recipients"][number]) => {
-  return record.address ?? record.lockHash
-}
+const getRecipientIdentifier = (
+  record: PointsMintRecord["recipients"][number]
+) => {
+  return record.address ?? record.lockHash;
+};
 
 export default function Leaderboard() {
-  const { client } = ccc.useCcc()
-  const signer = ccc.useSigner()
+  const { client } = ccc.useCcc();
+  const signer = ccc.useSigner();
   const {
     protocolCell,
     isLoading: isProtocolLoading,
     error: protocolError,
     userAddress,
-  } = useProtocol()
+  } = useProtocol();
 
-  const cacheRef = useRef(new InMemoryLeaderboardCache())
-  const [stats, setStats] = useState<LeaderboardStats | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [userLockHash, setUserLockHash] = useState<string | null>(null)
+  const cacheRef = useRef(new InMemoryLeaderboardCache());
+  const [stats, setStats] = useState<LeaderboardStats | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [userLockHash, setUserLockHash] = useState<string | null>(null);
 
   const service = useMemo(() => {
     if (!client || !protocolCell) {
-      return null
+      return null;
     }
 
     return new LeaderboardService({
       client,
       protocolCell,
       cache: cacheRef.current,
-    })
-  }, [client, protocolCell])
+    });
+  }, [client, protocolCell]);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
 
     const loadLockHash = async () => {
       if (!signer) {
         if (!cancelled) {
-          setUserLockHash(null)
+          setUserLockHash(null);
         }
-        return
+        return;
       }
 
       try {
-        const addressObj = await signer.getRecommendedAddressObj()
-        const hash = addressObj.script.hash().toLowerCase()
+        const addressObj = await signer.getRecommendedAddressObj();
+        const hash = addressObj.script.hash().toLowerCase();
         if (!cancelled) {
-          setUserLockHash(hash)
+          setUserLockHash(hash);
         }
       } catch (err) {
-        debug.warn("Failed to derive user lock hash", err)
+        log.warn("Failed to derive user lock hash", err);
         if (!cancelled) {
-          setUserLockHash(null)
+          setUserLockHash(null);
         }
       }
-    }
+    };
 
-    loadLockHash()
+    loadLockHash();
 
     return () => {
-      cancelled = true
-    }
-  }, [signer])
+      cancelled = true;
+    };
+  }, [signer]);
 
   useEffect(() => {
     if (!service) {
-      return
+      return;
     }
 
-    let cancelled = false
+    let cancelled = false;
 
     const loadStats = async () => {
-      setIsLoading(true)
-      setError(null)
+      setIsLoading(true);
+      setError(null);
 
       try {
-        const result = await service.collectLeaderboardStats()
+        const result = await service.collectLeaderboardStats();
         if (!cancelled) {
-          setStats(result)
-          setLastUpdated(new Date())
+          setStats(result);
+          setLastUpdated(new Date());
         }
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to load leaderboard"
-        debug.error("Leaderboard load failed", err)
+          err instanceof Error ? err.message : "Failed to load leaderboard";
+        log.error("Leaderboard load failed", err);
         if (!cancelled) {
-          setError(message)
-          setStats(null)
+          setError(message);
+          setStats(null);
         }
       } finally {
         if (!cancelled) {
-          setIsLoading(false)
+          setIsLoading(false);
         }
       }
-    }
+    };
 
-    loadStats()
+    loadStats();
 
     return () => {
-      cancelled = true
-    }
-  }, [service])
+      cancelled = true;
+    };
+  }, [service]);
 
   const handleRefresh = useCallback(async () => {
     if (!service) {
-      return
+      return;
     }
 
-    setIsRefreshing(true)
-    setError(null)
+    setIsRefreshing(true);
+    setError(null);
 
     try {
-      const result = await service.collectLeaderboardStats()
-      setStats(result)
-      setLastUpdated(new Date())
+      const result = await service.collectLeaderboardStats();
+      setStats(result);
+      setLastUpdated(new Date());
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to refresh leaderboard"
-      debug.error("Leaderboard refresh failed", err)
-      setError(message)
+        err instanceof Error ? err.message : "Failed to refresh leaderboard";
+      log.error("Leaderboard refresh failed", err);
+      setError(message);
     } finally {
-      setIsRefreshing(false)
+      setIsRefreshing(false);
     }
-  }, [service])
+  }, [service]);
 
-  const leaderboardEntries = useMemo(
-    () => stats?.totals ?? [],
-    [stats]
-  )
+  const leaderboardEntries = useMemo(() => stats?.totals ?? [], [stats]);
 
   const leaderboardTop = useMemo(
     () => leaderboardEntries.slice(0, 10),
     [leaderboardEntries]
-  )
+  );
 
   const recentTransactions = useMemo(() => {
     if (!stats) {
-      return [] as PointsMintRecord[]
+      return [] as PointsMintRecord[];
     }
 
-    return [...stats.mintedTransactions].reverse().slice(0, 5)
-  }, [stats])
+    return [...stats.mintedTransactions].reverse().slice(0, 5);
+  }, [stats]);
 
-  const totalsSummary = useMemo(
-    () => calculateTotals(stats),
-    [stats]
-  )
+  const totalsSummary = useMemo(() => calculateTotals(stats), [stats]);
 
-  const participantCount = leaderboardEntries.length
-  const protocolUnavailable = !protocolCell && !isProtocolLoading
-  const combinedError = error ?? (protocolUnavailable ? protocolError : null)
-  const isInitialLoading = !stats && (isLoading || isProtocolLoading)
+  const participantCount = leaderboardEntries.length;
+  const protocolUnavailable = !protocolCell && !isProtocolLoading;
+  const combinedError = error ?? (protocolUnavailable ? protocolError : null);
+  const isInitialLoading = !stats && (isLoading || isProtocolLoading);
 
   const currentUserIndex = useMemo(() => {
     if (!leaderboardEntries.length) {
-      return -1
+      return -1;
     }
 
-    const addressLower = userAddress?.toLowerCase()
-    const lockLower = userLockHash?.toLowerCase()
+    const addressLower = userAddress?.toLowerCase();
+    const lockLower = userLockHash?.toLowerCase();
 
     return leaderboardEntries.findIndex((entry) => {
       if (addressLower && entry.address?.toLowerCase() === addressLower) {
-        return true
+        return true;
       }
       if (lockLower && entry.lockHash.toLowerCase() === lockLower) {
-        return true
+        return true;
       }
-      return false
-    })
-  }, [leaderboardEntries, userAddress, userLockHash])
+      return false;
+    });
+  }, [leaderboardEntries, userAddress, userLockHash]);
 
   const currentUserEntry =
-    currentUserIndex >= 0 ? leaderboardEntries[currentUserIndex] : null
+    currentUserIndex >= 0 ? leaderboardEntries[currentUserIndex] : null;
 
-  const currentUserRank = currentUserEntry ? currentUserIndex + 1 : null
+  const currentUserRank = currentUserEntry ? currentUserIndex + 1 : null;
   const currentUserPoints = currentUserEntry
     ? formatPoints(currentUserEntry.totalMinted)
-    : "0"
+    : "0";
   const currentUserLabel = currentUserEntry
     ? shorten(getIdentifier(currentUserEntry), 14, 6)
     : userAddress
     ? shorten(userAddress, 14, 6)
-    : "Wallet not connected"
+    : "Wallet not connected";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -293,7 +288,8 @@ export default function Leaderboard() {
               </h1>
             </div>
             <p className="text-lg text-muted-foreground">
-              Track Points mints across the CKBoost protocol and celebrate the most active contributors.
+              Track Points mints across the CKBoost protocol and celebrate the
+              most active contributors.
             </p>
           </div>
 
@@ -326,7 +322,9 @@ export default function Leaderboard() {
                   ) : currentUserEntry ? (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="text-2xl font-bold text-purple-600">#{currentUserRank}</div>
+                        <div className="text-2xl font-bold text-purple-600">
+                          #{currentUserRank}
+                        </div>
                         <div>
                           <div className="font-medium">{currentUserLabel}</div>
                           <div className="text-sm text-muted-foreground">
@@ -343,10 +341,14 @@ export default function Leaderboard() {
                       <div>
                         <div className="font-medium">{currentUserLabel}</div>
                         <div className="text-sm text-muted-foreground">
-                          No Points minted yet. Complete quests to join the leaderboard.
+                          No Points minted yet. Complete quests to join the
+                          leaderboard.
                         </div>
                       </div>
-                      <Badge variant="outline" className="border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-200">
+                      <Badge
+                        variant="outline"
+                        className="border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-200"
+                      >
                         Get Started
                       </Badge>
                     </div>
@@ -371,7 +373,9 @@ export default function Leaderboard() {
                       className="flex items-center gap-1"
                     >
                       <RefreshCw
-                        className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+                        className={`w-4 h-4 ${
+                          isRefreshing ? "animate-spin" : ""
+                        }`}
                       />
                       Refresh
                     </Button>
@@ -393,11 +397,11 @@ export default function Leaderboard() {
                     </div>
                   ) : (
                     leaderboardTop.map((entry, index) => {
-                      const rank = index + 1
-                      const identifier = getIdentifier(entry)
-                      const displayName = shorten(identifier, 16, 6)
-                      const lockLabel = shorten(entry.lockHash, 14, 6)
-                      const mintedPoints = formatPoints(entry.totalMinted)
+                      const rank = index + 1;
+                      const identifier = getIdentifier(entry);
+                      const displayName = shorten(identifier, 16, 6);
+                      const lockLabel = shorten(entry.lockHash, 14, 6);
+                      const mintedPoints = formatPoints(entry.totalMinted);
 
                       return (
                         <div
@@ -426,11 +430,15 @@ export default function Leaderboard() {
                           </div>
 
                           <div className="text-right">
-                            <div className="font-bold text-lg">{mintedPoints}</div>
-                            <div className="text-sm text-muted-foreground">Points minted</div>
+                            <div className="font-bold text-lg">
+                              {mintedPoints}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Points minted
+                            </div>
                           </div>
                         </div>
-                      )
+                      );
                     })
                   )}
                 </CardContent>
@@ -445,21 +453,33 @@ export default function Leaderboard() {
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Total Points minted</span>
+                    <span className="text-muted-foreground">
+                      Total Points minted
+                    </span>
                     <span className="font-semibold">
                       {formatPoints(totalsSummary.totalMinted.toString())}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Unique recipients</span>
-                    <span className="font-semibold">{totalsSummary.uniqueRecipients}</span>
+                    <span className="text-muted-foreground">
+                      Unique recipients
+                    </span>
+                    <span className="font-semibold">
+                      {totalsSummary.uniqueRecipients}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Transactions tracked</span>
-                    <span className="font-semibold">{totalsSummary.transactionsTracked}</span>
+                    <span className="text-muted-foreground">
+                      Transactions tracked
+                    </span>
+                    <span className="font-semibold">
+                      {totalsSummary.transactionsTracked}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Participants ranked</span>
+                    <span className="text-muted-foreground">
+                      Participants ranked
+                    </span>
                     <span className="font-semibold">{participantCount}</span>
                   </div>
                   {lastUpdated && (
@@ -492,8 +512,9 @@ export default function Leaderboard() {
                     </div>
                   ) : (
                     recentTransactions.map((record) => {
-                      const topRecipients = record.recipients.slice(0, 3)
-                      const extraRecipients = record.recipients.length - topRecipients.length
+                      const topRecipients = record.recipients.slice(0, 3);
+                      const extraRecipients =
+                        record.recipients.length - topRecipients.length;
 
                       return (
                         <div
@@ -505,11 +526,14 @@ export default function Leaderboard() {
                               Tx {shorten(record.txHash, 10, 6)}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              Block {record.blockNumber ? `#${record.blockNumber}` : "Pending"}
+                              Block{" "}
+                              {record.blockNumber
+                                ? `#${record.blockNumber}`
+                                : "Pending"}
                             </span>
                           </div>
                           <div className="text-sm mb-2">
-                            Total minted: {" "}
+                            Total minted:{" "}
                             <span className="font-semibold">
                               {formatPoints(record.totalMinted)} points
                             </span>
@@ -525,7 +549,13 @@ export default function Leaderboard() {
                                   key={`${record.txHash}-${recipient.lockHash}-${idx}`}
                                   className="flex items-center justify-between text-muted-foreground"
                                 >
-                                  <span>{shorten(getRecipientIdentifier(recipient), 14, 6)}</span>
+                                  <span>
+                                    {shorten(
+                                      getRecipientIdentifier(recipient),
+                                      14,
+                                      6
+                                    )}
+                                  </span>
                                   <span className="font-medium text-foreground">
                                     {formatPoints(recipient.mintedAmount)} pts
                                   </span>
@@ -534,12 +564,13 @@ export default function Leaderboard() {
                             )}
                             {extraRecipients > 0 && (
                               <div className="text-[11px] text-muted-foreground">
-                                + {extraRecipients} more recipient{extraRecipients > 1 ? "s" : ""}
+                                + {extraRecipients} more recipient
+                                {extraRecipients > 1 ? "s" : ""}
                               </div>
                             )}
                           </div>
                         </div>
-                      )
+                      );
                     })
                   )}
                 </CardContent>
@@ -552,25 +583,48 @@ export default function Leaderboard() {
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm text-muted-foreground">
                   <div>
-                    <h4 className="font-semibold text-foreground mb-2">Points Overview</h4>
+                    <h4 className="font-semibold text-foreground mb-2">
+                      Points Overview
+                    </h4>
                     <ul className="space-y-1">
-                      <li>• Points are minted when quests are approved by campaign managers.</li>
-                      <li>• Each minting transaction is tracked on-chain and linked to recipient lock scripts.</li>
-                      <li>• Leaderboard positions update automatically as new Points are minted.</li>
+                      <li>
+                        • Points are minted when quests are approved by campaign
+                        managers.
+                      </li>
+                      <li>
+                        • Each minting transaction is tracked on-chain and
+                        linked to recipient lock scripts.
+                      </li>
+                      <li>
+                        • Leaderboard positions update automatically as new
+                        Points are minted.
+                      </li>
                     </ul>
                   </div>
 
                   <div>
-                    <h4 className="font-semibold text-foreground mb-2">Ranking Tips</h4>
+                    <h4 className="font-semibold text-foreground mb-2">
+                      Ranking Tips
+                    </h4>
                     <ul className="space-y-1">
-                      <li>• Complete verified quests regularly to increase your Points total.</li>
-                      <li>• Stay connected to retain eligibility for rewards and snapshots.</li>
-                      <li>• Monitor minting activity to spot trending campaigns.</li>
+                      <li>
+                        • Complete verified quests regularly to increase your
+                        Points total.
+                      </li>
+                      <li>
+                        • Stay connected to retain eligibility for rewards and
+                        snapshots.
+                      </li>
+                      <li>
+                        • Monitor minting activity to spot trending campaigns.
+                      </li>
                     </ul>
                   </div>
 
                   <div className="text-xs pt-3 border-t">
-                    Last processed block: {stats?.lastProcessedBlock ?? "—"}. Leaderboard data refreshes whenever new Points cells are detected.
+                    Last processed block: {stats?.lastProcessedBlock ?? "—"}.
+                    Leaderboard data refreshes whenever new Points cells are
+                    detected.
                   </div>
                 </CardContent>
               </Card>
@@ -579,5 +633,5 @@ export default function Leaderboard() {
         </div>
       </main>
     </div>
-  )
+  );
 }

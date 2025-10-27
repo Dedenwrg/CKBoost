@@ -10,6 +10,9 @@ import {
   parseUserData,
   extractTypeIdFromUserCell,
 } from "../ckb/user-cells";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("UserProvider");
 
 interface UserContextType {
   userService: UserService | null;
@@ -105,10 +108,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
         const protocolTypeHash = protocolCell.cellOutput.type.hash();
 
-        console.log(
-          "[UserProvider] Protocol type hash from actual cell:",
-          protocolTypeHash
-        );
+        log.info("Protocol type hash from actual cell:", protocolTypeHash);
 
         // Create user service with both hashes
         const service = new UserService(
@@ -121,7 +121,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         // Load current user data
         await loadCurrentUserData(service);
       } catch (err) {
-        console.error("Failed to initialize user service:", err);
+        log.error("Failed to initialize user service:", err);
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setIsLoading(false);
@@ -136,7 +136,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     if (!signer || !protocolData) return;
 
     try {
-      console.log("[UserProvider] Starting to load user data...");
+      log.info("Starting to load user data...");
       const startTime = Date.now();
       const userRecommendedAddressObj = await signer.getRecommendedAddressObj();
       setUserRecommendedAddressObj(userRecommendedAddressObj);
@@ -149,18 +149,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       // Get protocol type hash from the service (it should already be initialized)
       const protocolTypeHash = service.getProtocolTypeHash();
 
-      console.log(
-        "[UserProvider] Lock script hash:",
-        lockScript.hash().slice(0, 10) + "..."
-      );
-      console.log(
-        "[UserProvider] User type code hash:",
-        userTypeCodeHash.slice(0, 10) + "..."
-      );
-      console.log(
-        "[UserProvider] Protocol type hash:",
-        protocolTypeHash.slice(0, 10) + "..."
-      );
+      log.info("Lock script hash:", lockScript.hash().slice(0, 10) + "...");
+      log.info("User type code hash:", userTypeCodeHash.slice(0, 10) + "...");
+      log.info("Protocol type hash:", protocolTypeHash.slice(0, 10) + "...");
 
       // Import the new function for getting latest user cell
       const { getLatestUserCellByLock } = await import("../ckb/user-cells");
@@ -174,7 +165,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       );
 
       if (userCell) {
-        console.log("[UserProvider] Found user cell:", {
+        log.info("Found user cell:", {
           cellOutPoint: userCell.outPoint,
           typeArgs: userCell.cellOutput.type?.args?.slice(0, 20) + "...",
           timeElapsed: `${Date.now() - startTime}ms`,
@@ -185,7 +176,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         const userData = parseUserData(userCell);
 
         if (typeId && userData) {
-          console.log("[UserProvider] Successfully loaded user data:", {
+          log.info("Successfully loaded user data:", {
             typeId: typeId.slice(0, 10) + "...",
             submissions: userData.submission_records.length,
             totalPoints: userData.total_points_earned,
@@ -219,8 +210,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
             submissionsMap.set(key, true);
           });
 
-          console.log(
-            "[UserProvider] Built submissions map with",
+          log.info(
+            "Built submissions map with",
             submissionsMap.size,
             "entries"
           );
@@ -230,14 +221,14 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           setCurrentUserSubmissions(submissionsMap);
         }
       } else {
-        console.log(
-          `[UserProvider] No user cell found for wallet (searched for ${
+        log.info(
+          `No user cell found for wallet (searched for ${
             Date.now() - startTime
           }ms)`
         );
       }
     } catch (err) {
-      console.error("[UserProvider] Failed to load user data:", err);
+      log.error("Failed to load user data:", err);
     }
   };
 
@@ -276,13 +267,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
       // After submission, wait a bit for transaction to be confirmed then refresh user data
       // The transaction needs time to be confirmed on the blockchain
-      console.log(
-        "[UserProvider] Transaction submitted, waiting for confirmation before refreshing user data..."
+      log.info(
+        "Transaction submitted, waiting for confirmation before refreshing user data..."
       );
 
       // Wait 3 seconds for transaction confirmation
       setTimeout(async () => {
-        console.log("[UserProvider] Refreshing user data after transaction...");
+        log.info("Refreshing user data after transaction...");
         await refreshUserData();
       }, 3000);
 
@@ -338,7 +329,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     const key = `${campaignTypeId}:${questId}`;
     const hasSubmitted = currentUserSubmissions.has(key);
 
-    console.log("[UserProvider] Checking submission status:", {
+    log.info("Checking submission status:", {
       campaignTypeId: campaignTypeId.slice(0, 10) + "...",
       questId,
       key,

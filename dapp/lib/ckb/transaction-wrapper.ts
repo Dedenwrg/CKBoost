@@ -4,6 +4,9 @@
  */
 
 import { ccc, KnownScript } from "@ckb-ccc/connector-react";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("TransactionWrapper");
 
 /**
  * Parse the required fee from a PoolRejectedTransactionByMinFeeRate error message
@@ -99,39 +102,36 @@ export async function sendTransactionWithFeeRetry(
       await tx.completeInputsByCapacity(signer);
       await tx.completeFeeBy(signer);
 
-      console.log(`Transaction send attempt ${attempts}/${maxAttempts}`);
+      log.info(`Transaction send attempt ${attempts}/${maxAttempts}`);
 
       // Try to send the transaction
-      console.log("JSON.stringify(tx)", ccc.stringify(tx));
+      log.log("JSON.stringify(tx)", ccc.stringify(tx));
       const txHash = await signer.sendTransaction(tx);
-      console.log("Transaction sent successfully! TxHash:", txHash);
+      log.info("Transaction sent successfully! TxHash:", txHash);
       return txHash;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error(
-        `Transaction send attempt ${attempts} failed:`,
-        errorMessage
-      );
+      log.error(`Transaction send attempt ${attempts} failed:`, errorMessage);
 
       // Check if it's a minimum fee error
       if (errorMessage.includes("PoolRejectedTransactionByMinFeeRate")) {
-        console.log(
+        log.warn(
           "Transaction rejected due to insufficient fee. Attempting to fix..."
         );
 
         // Parse the required fee from the error message
         const requiredFee = parseRequiredFee(errorMessage);
         if (!requiredFee) {
-          console.error("Could not parse required fee from error message");
+          log.error("Could not parse required fee from error message");
           throw error;
         }
 
-        console.log(`Required fee: ${requiredFee} shannons`);
+        log.info(`Required fee: ${requiredFee} shannons`);
 
         // Query fee rate from node and ensure it covers requiredFee
         const feeRate = await calculateFeeRate(signer, tx, requiredFee);
-        console.log(`Calculated fee rate: ${feeRate} shannons/KW`);
+        log.info(`Calculated fee rate: ${feeRate} shannons/KW`);
 
         // Clear existing fee outputs and rebuild with new fee rate
         // Remove any existing change outputs (usually the last output if it goes back to sender)
@@ -150,7 +150,7 @@ export async function sendTransactionWithFeeRetry(
               ccc.hexFrom(senderLockScript.args);
 
           if (isChange) {
-            console.log(`Removing change output at index ${index}`);
+            log.info(`Removing change output at index ${index}`);
           }
           return !isChange;
         });
@@ -159,13 +159,13 @@ export async function sendTransactionWithFeeRetry(
         await tx.completeInputsByCapacity(signer);
         await tx.completeFeeBy(signer, feeRate);
 
-        console.log(
+        log.info(
           "Transaction rebuilt with new fee. Requesting signature again..."
         );
 
         // Show user-friendly message
         if (attempts === 1) {
-          console.log(`
+          log.info(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️  Transaction Fee Adjustment Required
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

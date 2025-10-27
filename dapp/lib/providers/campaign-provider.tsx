@@ -13,7 +13,7 @@ import { CampaignService } from "../services/campaign-service";
 import { Campaign } from "ssri-ckboost";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { fetchCampaignByTypeId } from "../ckb/campaign-cells";
-import { debug } from "../utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { formatSSRIError } from "../utils/ssri-error-handler";
 import { useProtocol } from "./protocol-provider";
 
@@ -37,6 +37,8 @@ interface CampaignContextType {
 const CampaignContext = createContext<CampaignContextType | undefined>(
   undefined
 );
+
+const log = createScopedLogger("CampaignProvider");
 
 // Provider component
 export function CampaignProvider({ children }: { children: ReactNode }) {
@@ -67,25 +69,27 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setError(null);
 
         if (!client) {
-          debug.warn("No client available, skipping campaign load");
+          log.warn("No client available, skipping campaign load");
           setIsLoading(false);
           return;
         }
 
         // Use protocol data from context instead of fetching again
         if (protocolCell && protocolData) {
-          debug.log("Found approved campaigns:", protocolData.campaigns_approved);
-          
+          log.log("Found approved campaigns:", protocolData.campaigns_approved);
+
           // Get campaign code hash from protocol config
-          const campaignCodeHash = protocolData.protocol_config.script_code_hashes.ckb_boost_campaign_type_code_hash;
-          
+          const campaignCodeHash =
+            protocolData.protocol_config.script_code_hashes
+              .ckb_boost_campaign_type_code_hash;
+
           // Fetch each approved campaign
           const approvedCampaignCells: ccc.Cell[] = [];
-          
+
           for (const identifier of protocolData.campaigns_approved || []) {
             try {
-              debug.log("Fetching campaign with identifier:", identifier);
-              
+              log.log("Fetching campaign with identifier:", identifier);
+
               // Only fetch by type_id (type hash method has been removed)
               const campaignCell = await fetchCampaignByTypeId(
                 identifier as ccc.Hex,
@@ -93,26 +97,29 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
                 client,
                 protocolCell
               );
-              
+
               if (campaignCell) {
                 approvedCampaignCells.push(campaignCell);
-                debug.log("Loaded campaign by type ID:", identifier);
+                log.log("Loaded campaign by type ID:", identifier);
               } else {
-                debug.warn("Campaign not found with type ID:", identifier);
+                log.warn("Campaign not found with type ID:", identifier);
                 // Note: Old campaigns using type hash won't be loaded anymore
               }
             } catch (error) {
-              debug.error(`Failed to fetch campaign ${identifier}:`, error);
+              log.error(`Failed to fetch campaign ${identifier}:`, error);
             }
           }
-          
-          debug.log(`Loaded ${approvedCampaignCells.length} approved campaigns`);
+
+          log.log(`Loaded ${approvedCampaignCells.length} approved campaigns`);
           setCampaigns(approvedCampaignCells);
         } else {
-          debug.warn("Protocol data not available yet");
+          log.warn("Protocol data not available yet");
           // Fallback to fetching all campaigns connected to protocol
           if (protocolCell) {
-            const allCampaigns = await CampaignService.fetchAllCampaigns(client, protocolCell);
+            const allCampaigns = await CampaignService.fetchAllCampaigns(
+              client,
+              protocolCell
+            );
             setCampaigns(allCampaigns);
           } else {
             setCampaigns([]);
@@ -122,10 +129,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         const errorMessage = formatSSRIError({
           operation: "loading campaigns",
           context: { protocolAvailable: !!protocolData },
-          originalError: err
+          originalError: err,
         });
         setError(errorMessage);
-        debug.error("Failed to load campaigns:", err);
+        log.error("Failed to load campaigns:", err);
       } finally {
         setIsLoading(false);
       }
@@ -152,7 +159,7 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         const balance = await signer.getBalance();
         setUserBalance(ccc.fixedPointToString(balance));
       } catch (err) {
-        console.error("Failed to update user info:", err);
+        log.error("Failed to update user info:", err);
       }
     };
 
@@ -167,17 +174,19 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
       setError(null);
 
       if (!client) {
-        debug.warn("No client available, skipping campaign refresh");
+        log.warn("No client available, skipping campaign refresh");
         setIsLoading(false);
         return;
       }
 
       // Use protocol data from context
       if (protocolCell && protocolData) {
-        const campaignCodeHash = protocolData.protocol_config.script_code_hashes.ckb_boost_campaign_type_code_hash;
-        
+        const campaignCodeHash =
+          protocolData.protocol_config.script_code_hashes
+            .ckb_boost_campaign_type_code_hash;
+
         const approvedCampaignCells: ccc.Cell[] = [];
-        
+
         for (const identifier of protocolData.campaigns_approved || []) {
           try {
             // Only fetch by type_id (type hash method has been removed)
@@ -187,20 +196,23 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
               client,
               protocolCell
             );
-            
+
             if (campaignCell) {
               approvedCampaignCells.push(campaignCell);
             }
           } catch (error) {
-            debug.error(`Failed to fetch campaign ${identifier}:`, error);
+            log.error(`Failed to fetch campaign ${identifier}:`, error);
           }
         }
-        
+
         setCampaigns(approvedCampaignCells);
       } else {
         // Fallback to fetching all campaigns connected to protocol
         if (protocolCell) {
-          const allCampaigns = await CampaignService.fetchAllCampaigns(client, protocolCell);
+          const allCampaigns = await CampaignService.fetchAllCampaigns(
+            client,
+            protocolCell
+          );
           setCampaigns(allCampaigns);
         } else {
           setCampaigns([]);
@@ -246,18 +258,25 @@ export function useCampaigns() {
 }
 
 // Helper hook for campaign-specific data
-export function useCampaign(protocolCell: ccc.Cell | null, campaignTypeId?: ccc.Hex) {
+export function useCampaign(
+  protocolCell: ccc.Cell | null,
+  campaignTypeId?: ccc.Hex
+) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
-  const [campaignService, setCampaignService] = useState<CampaignService | null>(null);
-  const [campaignCell, setCampaignCell] = useState<ccc.Cell | undefined>(undefined);
+  const [campaignService, setCampaignService] =
+    useState<CampaignService | null>(null);
+  const [campaignCell, setCampaignCell] = useState<ccc.Cell | undefined>(
+    undefined
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const signer = ccc.useSigner();
   const { client } = ccc.useCcc();
-  
+
   const executor = useMemo(() => {
-    const executorUrl = process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+    const executorUrl =
+      process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
     return new ssri.ExecutorJsonRpc(executorUrl);
   }, []);
 
@@ -278,39 +297,62 @@ export function useCampaign(protocolCell: ccc.Cell | null, campaignTypeId?: ccc.
     }
 
     const network = deploymentManager.getCurrentNetwork();
-    const outPoint = deploymentManager.getContractOutPoint(network, "ckboostCampaignType");
+    const outPoint = deploymentManager.getContractOutPoint(
+      network,
+      "ckboostCampaignType"
+    );
     if (!outPoint) {
-      setError("Campaign type contract code cell not found. Make sure the protocol contract is deployed and deployment information is available.");
+      setError(
+        "Campaign type contract code cell not found. Make sure the protocol contract is deployed and deployment information is available."
+      );
       setIsLoading(false);
       return;
     }
-    const deployment = deploymentManager.getCurrentDeployment(network, "ckboostCampaignType");
+    const deployment = deploymentManager.getCurrentDeployment(
+      network,
+      "ckboostCampaignType"
+    );
 
     // If no campaignTypeId, creating a new campaign
     if (!campaignTypeId) {
       try {
         const campaignTypeScript = ccc.Script.from({
-          codeHash: deployment?.typeHash || "0x0000000000000000000000000000000000000000000000000000000000000000",
+          codeHash:
+            deployment?.typeHash ||
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
           hashType: "type" as const,
           args: "0x", // Empty args - SSRI will calculate and fill the Connected Type ID
         });
 
-        const newCampaign = new Campaign(outPoint, campaignTypeScript, protocolCell, {
-          executor: executor,
-        });
-        const newCampaignService = new CampaignService(signer, newCampaign, protocolCell);
+        const newCampaign = new Campaign(
+          outPoint,
+          campaignTypeScript,
+          protocolCell,
+          {
+            executor: executor,
+          }
+        );
+        const newCampaignService = new CampaignService(
+          signer,
+          newCampaign,
+          protocolCell
+        );
 
         setCampaign(newCampaign);
         setCampaignService(newCampaignService);
         setIsLoading(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to create campaign instance");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to create campaign instance"
+        );
         setIsLoading(false);
       }
     } else {
       // For existing campaigns, fetch the campaign cell asynchronously using campaignTypeId
       setIsLoading(true);
-      
+
       const fetchExistingCampaign = async () => {
         try {
           // Fetch campaign cell by type_id (using existing utility)
@@ -327,7 +369,9 @@ export function useCampaign(protocolCell: ccc.Cell | null, campaignTypeId?: ccc.
           );
 
           if (!fetchedCampaignCell) {
-            throw new Error("Campaign not found with the provided campaignTypeId");
+            throw new Error(
+              "Campaign not found with the provided campaignTypeId"
+            );
           }
 
           // Extract the campaign's type script (which contains ConnectedTypeID args)
@@ -338,21 +382,27 @@ export function useCampaign(protocolCell: ccc.Cell | null, campaignTypeId?: ccc.
 
           // Create Campaign SSRI instance with the actual campaign's type script
           const existingCampaign = new Campaign(
-            outPoint, 
+            outPoint,
             campaignTypeScript, // Use fetched campaign's type script with proper ConnectedTypeID args
             protocolCell,
             { executor: executor }
           );
 
-          const existingCampaignService = new CampaignService(signer, existingCampaign, protocolCell);
+          const existingCampaignService = new CampaignService(
+            signer,
+            existingCampaign,
+            protocolCell
+          );
 
           setCampaignCell(fetchedCampaignCell);
           setCampaign(existingCampaign);
           setCampaignService(existingCampaignService);
           setIsLoading(false);
         } catch (err) {
-          debug.error("Failed to fetch existing campaign:", err);
-          setError(err instanceof Error ? err.message : "Failed to fetch campaign");
+          log.error("Failed to fetch existing campaign:", err);
+          setError(
+            err instanceof Error ? err.message : "Failed to fetch campaign"
+          );
           setIsLoading(false);
         }
       };
@@ -366,6 +416,6 @@ export function useCampaign(protocolCell: ccc.Cell | null, campaignTypeId?: ccc.
     campaignService,
     campaignCell,
     isLoading,
-    error
+    error,
   };
 }

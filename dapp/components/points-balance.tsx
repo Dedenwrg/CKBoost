@@ -9,7 +9,7 @@ import {
   fetchUserPointsBalance,
   formatPointsBalance,
 } from "@/lib/ckb/points-balance";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { cn } from "@/lib/utils";
 import { StreakBonusService } from "@/lib/services/streak-bonus-service";
 import { buildStreakBonusTransaction } from "@/lib/ckb/streak-bonus";
@@ -17,6 +17,8 @@ import type { BonusStreakCalculation } from "@/netlify/lib/streak-bonus";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+
+const log = createScopedLogger("PointsBalance");
 
 export function PointsBalance() {
   const { protocolCell, isAdmin } = useProtocol();
@@ -64,7 +66,7 @@ export function PointsBalance() {
 
       const protocolTypeHash = protocolCell.cellOutput.type?.hash();
       if (!protocolTypeHash) {
-        debug.warn("Protocol type hash not found");
+        log.warn("Protocol type hash not found");
         setBalance(BigInt(0));
         setBonus(null);
         return;
@@ -83,7 +85,7 @@ export function PointsBalance() {
           userAddress: userAddressString,
         });
       } catch (bonusError) {
-        debug.warn("Failed to load streak bonus information:", bonusError);
+        log.warn("Failed to load streak bonus information:", bonusError);
       }
 
       const pointsBalance = await pointsPromise;
@@ -92,7 +94,7 @@ export function PointsBalance() {
       setBalance(pointsBalance);
       setBonus(bonusResponse);
     } catch (error) {
-      debug.error("Failed to load Points balance:", error);
+      log.error("Failed to load Points balance:", error);
       if (!mountedRef.current) return;
       setBalance(BigInt(0));
       setBonus(null);
@@ -139,7 +141,7 @@ export function PointsBalance() {
       });
       await loadBalances();
     } catch (error) {
-      debug.error("Failed to claim streak bonus:", error);
+      log.error("Failed to claim streak bonus:", error);
       toast({
         title: "Unable to claim streak bonus",
         description:
@@ -257,7 +259,7 @@ export function PointsBalance() {
       });
       await loadBalances();
     } catch (error) {
-      debug.error("Failed to mint test points:", error);
+      log.error("Failed to mint test points:", error);
       toast({
         title: "Mint failed",
         description:

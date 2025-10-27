@@ -1,8 +1,11 @@
 import { ccc } from '@ckb-ccc/core';
+import { createScopedLogger } from '../logging/index.js';
 
 /**
  * Helper functions for working with WitnessArgs and TransactionRecipe
  */
+
+const log = createScopedLogger('WitnessHelper');
 
 /**
  * Checks if a witness is a standard WitnessArgs
@@ -43,30 +46,30 @@ export function extractRecipeFromWitness(witness: ccc.HexLike): ccc.Hex | null {
  */
 export function analyzeWitness(witness: ccc.HexLike): void {
   const bytes = ccc.bytesFrom(witness);
-  console.log('\n=== Witness Analysis ===');
-  console.log('Hex:', ccc.hexFrom(bytes));
-  console.log('Length:', bytes.length, 'bytes');
+  log.info('\n=== Witness Analysis ===');
+  log.info('Hex:', ccc.hexFrom(bytes));
+  log.info('Length:', bytes.length, 'bytes');
   
   try {
     // Try standard WitnessArgs
     const witnessArgs = ccc.WitnessArgs.fromBytes(witness);
-    console.log('Type: Standard WitnessArgs');
-    console.log('Fields:');
-    console.log('  lock:', witnessArgs.lock || '(empty)');
-    console.log('  inputType:', witnessArgs.inputType || '(empty)');
-    console.log('  outputType:', witnessArgs.outputType || '(empty)');
+    log.info('Type: Standard WitnessArgs');
+    log.info('Fields:');
+    log.info('  lock:', witnessArgs.lock || '(empty)');
+    log.info('  inputType:', witnessArgs.inputType || '(empty)');
+    log.info('  outputType:', witnessArgs.outputType || '(empty)');
     
     // If output_type contains recipe, try to decode it
     if (witnessArgs.outputType && witnessArgs.outputType !== '0x') {
-      console.log('  outputType contains TransactionRecipe');
+      log.info('  outputType contains TransactionRecipe');
       try {
         // The recipe is molecule-encoded, but we can show its hex
-        console.log('  Recipe hex:', witnessArgs.outputType);
+        log.info('  Recipe hex:', witnessArgs.outputType);
       } catch {}
     }
   } catch (e) {
-    console.log('Type: Not a standard WitnessArgs');
-    console.log('Error:', e);
+    log.info('Type: Not a standard WitnessArgs');
+    log.error('Error:', e);
   }
-  console.log('===================\n');
+  log.info('===================\n');
 }

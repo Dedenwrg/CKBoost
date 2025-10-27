@@ -4,7 +4,9 @@
 import { ccc } from "@ckb-ccc/connector-react";
 import { cccA } from "@ckb-ccc/connector-react/advanced";
 import { ConnectedTypeID, type ConnectedTypeIDLike } from "ssri-ckboost/types";
-import { debug } from "../utils/debug";
+import { createScopedLogger, createTimer } from "ssri-ckboost";
+
+const log = createScopedLogger("TippingCells");
 
 /**
  * Locate a tipping cell by its type ID (ConnectedTypeID.type_id)
@@ -19,13 +21,13 @@ export async function fetchTippingByTypeId(
     throw new Error("Client required for fetchTippingByTypeId");
   }
 
-  debug.group("fetchTippingByTypeId");
-  debug.log("Searching for tipping", { typeId, tippingCodeHash });
+  log.log("fetchTippingByTypeId");
+  log.log("Searching for tipping", { typeId, tippingCodeHash });
 
   try {
     if (!protocolCell.cellOutput.type) {
-      debug.warn("Protocol cell missing type script");
-      debug.groupEnd();
+      log.warn("Protocol cell missing type script");
+
       return undefined;
     }
 
@@ -48,17 +50,17 @@ export async function fetchTippingByTypeId(
     };
 
     for await (const cell of client.findCells(searchKey)) {
-      debug.log("✅ Found tipping cell", { typeId });
-      debug.groupEnd();
+      log.log("✅ Found tipping cell", { typeId });
+
       return cell;
     }
 
-    debug.warn("No tipping cell found", { typeId });
-    debug.groupEnd();
+    log.warn("No tipping cell found", { typeId });
+
     return undefined;
   } catch (error) {
-    debug.error("Failed to fetch tipping by type ID", error);
-    debug.groupEnd();
+    log.error("Failed to fetch tipping by type ID", error);
+
     return undefined;
   }
 }
@@ -75,8 +77,8 @@ export async function fetchTippingsConnectedToProtocol(
     throw new Error("Client is required to fetch tippings");
   }
 
-  debug.group("fetchTippingsConnectedToProtocol");
-  debug.log("Searching for tippings", {
+  log.log("fetchTippingsConnectedToProtocol");
+  log.log("Searching for tippings", {
     tippingCodeHash,
     protocolTypeHash,
   });
@@ -109,7 +111,7 @@ export async function fetchTippingsConnectedToProtocol(
           proposalCells.push(cell);
         }
       } catch (error) {
-        debug.warn("Failed to decode ConnectedTypeID for tipping cell", error);
+        log.warn("Failed to decode ConnectedTypeID for tipping cell", error);
       }
 
       if (proposalCells.length >= 100) {
@@ -117,14 +119,14 @@ export async function fetchTippingsConnectedToProtocol(
       }
     }
 
-    debug.info(`✨ Found ${proposalCells.length} tippings for protocol`, {
+    log.info(`✨ Found ${proposalCells.length} tippings for protocol`, {
       protocolTypeHash,
     });
-    debug.groupEnd();
+
     return proposalCells;
   } catch (error) {
-    debug.error("Failed to fetch tippings", error);
-    debug.groupEnd();
+    log.error("Failed to fetch tippings", error);
+
     return [];
   }
 }
@@ -144,7 +146,7 @@ export function extractTypeIdFromTippingCell(
     const connected = ConnectedTypeID.decode(argsBytes) as ConnectedTypeIDLike;
     return connected.type_id as ccc.Hex;
   } catch (error) {
-    debug.warn("Failed to extract type ID from tipping cell", error);
+    log.warn("Failed to extract type ID from tipping cell", error);
     return undefined;
   }
 }

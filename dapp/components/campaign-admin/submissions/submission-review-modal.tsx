@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,12 +8,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { SubmissionContentViewer } from "@/components/submission-content-viewer"
-import { 
-  CheckCircle, 
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { SubmissionContentViewer } from "@/components/submission-content-viewer";
+import {
+  CheckCircle,
   Trophy,
   User,
   Mail,
@@ -22,30 +22,32 @@ import {
   Clock,
   ExternalLink,
   AlertCircle,
-  Copy
-} from "lucide-react"
-import { UserSubmissionRecordLike, UserDataLike } from "ssri-ckboost/types"
-import { useNostrFetch } from "@/hooks/use-nostr-fetch"
-import { formatDateConsistent, debug } from "@/lib/utils/debug"
-import { NostrSubmissionData, isNostrSubmissionData, QuestSubtask } from "@/types/submission"
+  Copy,
+} from "lucide-react";
+import { UserSubmissionRecordLike, UserDataLike } from "ssri-ckboost/types";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
+import { isNostrSubmissionData, QuestSubtask } from "@/types/submission";
+
+const log = createScopedLogger("SubmissionReviewModal");
 
 interface SubmissionReviewModalProps {
-  isOpen: boolean
-  onClose: () => void
-  submission: UserSubmissionRecordLike & { userTypeId: string }
-  userData?: UserDataLike
+  isOpen: boolean;
+  onClose: () => void;
+  submission: UserSubmissionRecordLike & { userTypeId: string };
+  userData?: UserDataLike;
   userInfo: {
-    name: string
-    email?: string
-    twitter?: string
-    discord?: string
-  }
-  questId: number
-  questPoints: number
-  isApproved: boolean
+    name: string;
+    email?: string;
+    twitter?: string;
+    discord?: string;
+  };
+  questId: number;
+  questPoints: number;
+  isApproved: boolean;
   quest?: {
-    sub_tasks?: QuestSubtask[]
-  }
+    sub_tasks?: QuestSubtask[];
+  };
 }
 
 export function SubmissionReviewModal({
@@ -57,72 +59,72 @@ export function SubmissionReviewModal({
   questId,
   questPoints,
   isApproved,
-  quest
+  quest,
 }: SubmissionReviewModalProps) {
-  const { fetchSubmission } = useNostrFetch()
-  const [submissionContent, setSubmissionContent] = useState<string>("")
-  const [isLoadingContent, setIsLoadingContent] = useState(false)
-  const [contentError, setContentError] = useState<string | null>(null)
+  const { fetchSubmission } = useNostrFetch();
+  const [submissionContent, setSubmissionContent] = useState<string>("");
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [contentError, setContentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && submission.submission_content) {
-      loadSubmissionContent()
+      loadSubmissionContent();
     }
-  }, [isOpen, submission.submission_content])
+  }, [isOpen, submission.submission_content]);
 
   async function loadSubmissionContent() {
-    setIsLoadingContent(true)
-    setContentError(null)
+    setIsLoadingContent(true);
+    setContentError(null);
 
     try {
-      const content = submission.submission_content
-      
+      const content = submission.submission_content;
+
       if (!content) {
-        setSubmissionContent("No submission content available")
-        return
+        setSubmissionContent("No submission content available");
+        return;
       }
 
       // Convert content to string if it's bytes
-      let contentStr: string
-      if (typeof content === 'string') {
-        contentStr = content
+      let contentStr: string;
+      if (typeof content === "string") {
+        contentStr = content;
       } else if (ArrayBuffer.isView(content)) {
-        contentStr = new TextDecoder().decode(content as Uint8Array)
+        contentStr = new TextDecoder().decode(content as Uint8Array);
       } else {
-        contentStr = String(content)
+        contentStr = String(content);
       }
 
       // Check if it's a nevent ID
-      if (contentStr.startsWith('nevent1')) {
-        debug.log("Fetching Nostr content for", contentStr)
-        const nostrData = await fetchSubmission(contentStr)
+      if (contentStr.startsWith("nevent1")) {
+        log.log("Fetching Nostr content for", contentStr);
+        const nostrData = await fetchSubmission(contentStr);
         if (nostrData) {
-          setSubmissionContent(nostrData.content)
+          setSubmissionContent(nostrData.content);
         } else {
-          setContentError("Failed to fetch content from Nostr")
-          setSubmissionContent(`Nostr Event ID: ${contentStr}`)
+          setContentError("Failed to fetch content from Nostr");
+          setSubmissionContent(`Nostr Event ID: ${contentStr}`);
         }
       } else {
         // Direct content
-        setSubmissionContent(contentStr)
+        setSubmissionContent(contentStr);
       }
     } catch (err) {
-      console.error("Failed to load submission content:", err)
-      setContentError("Error loading submission content")
-      setSubmissionContent("Failed to load content")
+      console.error("Failed to load submission content:", err);
+      setContentError("Error loading submission content");
+      setSubmissionContent("Failed to load content");
     } finally {
-      setIsLoadingContent(false)
+      setIsLoadingContent(false);
     }
   }
 
   function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text)
+    navigator.clipboard.writeText(text);
     // Could add a toast notification here
   }
 
-  const submissionTime = submission.submission_timestamp 
+  const submissionTime = submission.submission_timestamp
     ? new Date(Number(submission.submission_timestamp))
-    : null
+    : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -157,13 +159,13 @@ export function SubmissionReviewModal({
               <User className="w-4 h-4" />
               User Information
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-muted-foreground">Name:</span>
                 <p className="font-medium">{userInfo.name}</p>
               </div>
-              
+
               {userInfo.email && (
                 <div>
                   <span className="text-muted-foreground">Email:</span>
@@ -173,13 +175,16 @@ export function SubmissionReviewModal({
                   </p>
                 </div>
               )}
-              
+
               {userInfo.twitter && (
                 <div>
                   <span className="text-muted-foreground">Twitter:</span>
                   <p className="font-medium">
-                    <a 
-                      href={`https://twitter.com/${userInfo.twitter.replace('@', '')}`}
+                    <a
+                      href={`https://twitter.com/${userInfo.twitter.replace(
+                        "@",
+                        ""
+                      )}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-500 hover:text-blue-600 flex items-center gap-1"
@@ -191,7 +196,7 @@ export function SubmissionReviewModal({
                   </p>
                 </div>
               )}
-              
+
               {userInfo.discord && (
                 <div>
                   <span className="text-muted-foreground">Discord:</span>
@@ -242,12 +247,14 @@ export function SubmissionReviewModal({
           {/* Submission Content */}
           <div className="border rounded-lg p-4 space-y-3">
             <h3 className="font-medium">Submission Content</h3>
-            
+
             {isLoadingContent ? (
               <div className="flex items-center justify-center py-8">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Loading content...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Loading content...
+                  </p>
                 </div>
               </div>
             ) : contentError ? (
@@ -262,42 +269,60 @@ export function SubmissionReviewModal({
                     const parsed = JSON.parse(submissionContent) as unknown;
                     if (isNostrSubmissionData(parsed)) {
                       // Use quest data as primary source, map with user responses
-                      return quest?.sub_tasks?.map((questSubtask, index) => {
-                        const userSubtask = parsed.subtasks[index];
-                        
-                        return (
-                          <div key={index} className="border rounded-lg overflow-hidden">
-                            <div className="bg-muted px-4 py-3 border-b space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold">
-                                  {questSubtask.title || `Subtask ${index + 1}`}
-                                </span>
-                                {questSubtask.type && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {questSubtask.type}
-                                  </Badge>
-                                )}
+                      return (
+                        quest?.sub_tasks?.map((questSubtask, index) => {
+                          const userSubtask = parsed.subtasks[index];
+
+                          return (
+                            <div
+                              key={index}
+                              className="border rounded-lg overflow-hidden"
+                            >
+                              <div className="bg-muted px-4 py-3 border-b space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-semibold">
+                                    {questSubtask.title ||
+                                      `Subtask ${index + 1}`}
+                                  </span>
+                                  {questSubtask.type && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {questSubtask.type}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="space-y-1">
+                                  {questSubtask.description && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {questSubtask.description}
+                                    </p>
+                                  )}
+                                  {questSubtask.proof_required && (
+                                    <p className="text-xs text-muted-foreground">
+                                      <span className="font-medium">
+                                        Required proof:
+                                      </span>{" "}
+                                      {questSubtask.proof_required}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="space-y-1">
-                                {questSubtask.description && (
-                                  <p className="text-xs text-muted-foreground">
-                                    {questSubtask.description}
-                                  </p>
-                                )}
-                                {questSubtask.proof_required && (
-                                  <p className="text-xs text-muted-foreground">
-                                    <span className="font-medium">Required proof:</span> {questSubtask.proof_required}
-                                  </p>
-                                )}
+                              <div className="p-4 bg-background">
+                                <div className="text-sm font-medium text-muted-foreground mb-2">
+                                  User Response:
+                                </div>
+                                <SubmissionContentViewer
+                                  content={
+                                    userSubtask?.response || "Not provided"
+                                  }
+                                />
                               </div>
                             </div>
-                            <div className="p-4 bg-background">
-                              <div className="text-sm font-medium text-muted-foreground mb-2">User Response:</div>
-                              <SubmissionContentViewer content={userSubtask?.response || "Not provided"} />
-                            </div>
-                          </div>
-                        );
-                      }) || [];
+                          );
+                        }) || []
+                      );
                     }
                     throw new Error("Invalid JSON format");
                   } catch {
@@ -318,7 +343,7 @@ export function SubmissionReviewModal({
               </div>
             )}
 
-            {submission.submission_content?.startsWith('nevent1') && (
+            {submission.submission_content?.startsWith("nevent1") && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertCircle className="w-3 h-3" />
                 Content fetched from Nostr event
@@ -334,5 +359,5 @@ export function SubmissionReviewModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -5,7 +5,9 @@ import { ccc } from "@ckb-ccc/connector-react"
 import { useProtocol } from "@/lib/providers/protocol-provider"
 import { FundingService } from "@/lib/services/funding-service"
 import { deploymentManager } from "@/lib/ckb/deployment-manager"
-import { debug } from "@/lib/utils/debug"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("FundingProvider")
 
 interface FundingContextType {
   fundingService: FundingService | null
@@ -32,7 +34,7 @@ export function FundingProvider({ children }: { children: React.ReactNode }) {
     const fundingLockCodeHash = deploymentManager.getContractCodeHash(network, "ckboostFundingLock")
     
     if (!campaignTypeCodeHash) {
-      debug.warn("Campaign type contract not deployed")
+      log.warn("Campaign type contract not deployed")
       return null
     }
     

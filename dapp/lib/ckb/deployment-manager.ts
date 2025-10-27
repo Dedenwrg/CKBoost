@@ -3,6 +3,9 @@
 
 import deploymentsData from "../../../deployments.json";
 import { ccc } from "@ckb-ccc/connector-react";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("DeploymentManager");
 
 export type Network = "testnet" | "mainnet";
 
@@ -171,8 +174,8 @@ export class DeploymentManager {
 
     // In a real implementation, you'd want to persist this
     // For now, we'll just log it
-    console.log("New deployment added:", deployment);
-    console.log(
+    log.info("New deployment added:", deployment);
+    log.info(
       "To persist, update deployments.json with:",
       JSON.stringify(this.data, null, 2)
     );

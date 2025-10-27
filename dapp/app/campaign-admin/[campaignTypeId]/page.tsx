@@ -29,7 +29,7 @@ import type {
 } from "ssri-ckboost/types";
 import { CampaignData } from "ssri-ckboost/types";
 import { fetchCampaignByTypeId } from "@/lib/ckb/campaign-cells";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { CampaignAdminService } from "@/lib/services/campaign-admin-service";
 import { ccc } from "@ckb-ccc/connector-react";
 import { Campaign } from "ssri-ckboost";
@@ -59,6 +59,8 @@ import DraftHistory from "@/components/draft-history";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
+
+const log = createScopedLogger("CampaignAdminPage");
 
 // Type for simplified campaign form data
 interface CampaignFormData {
@@ -142,9 +144,12 @@ export default function CampaignAdminPage() {
   const [pendingNostrQueue, setPendingNostrQueue] = useState<NostrQueueItem[]>(
     []
   );
-  const [pendingNostrItems, setPendingNostrItems] = useState<NostrQueueItem[]>([]);
-  const [pendingNostrPayloads, setPendingNostrPayloads] =
-    useState<Record<string, { content: string; metadata: Record<string, string> }>>({});
+  const [pendingNostrItems, setPendingNostrItems] = useState<NostrQueueItem[]>(
+    []
+  );
+  const [pendingNostrPayloads, setPendingNostrPayloads] = useState<
+    Record<string, { content: string; metadata: Record<string, string> }>
+  >({});
   const [pendingNostrTotal, setPendingNostrTotal] = useState(0);
   const [pendingNostrIndex, setPendingNostrIndex] = useState(0);
 
@@ -176,7 +181,7 @@ export default function CampaignAdminPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          debug.error("Failed to fetch cover image from Nostr:", error);
+          log.error("Failed to fetch cover image from Nostr:", error);
           setCoverImage((prev) => ({ ...prev, isLoading: false }));
         }
       }
@@ -208,7 +213,7 @@ export default function CampaignAdminPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          debug.error("Failed to fetch long description from Nostr:", error);
+          log.error("Failed to fetch long description from Nostr:", error);
         }
       }
     };
@@ -596,18 +601,18 @@ export default function CampaignAdminPage() {
 
       try {
         setIsLoading(true);
-        debug.log("Loading campaign with typeId:", campaignTypeId);
+        log.log("Loading campaign with typeId:", campaignTypeId);
 
         const campaignCodeHash =
           protocolData?.protocol_config?.script_code_hashes
             ?.ckb_boost_campaign_type_code_hash;
         if (!campaignCodeHash) {
-          debug.error("Campaign code hash not found in protocol data");
+          log.error("Campaign code hash not found in protocol data");
           return;
         }
 
         if (!signer) {
-          debug.error("Signer not found");
+          log.error("Signer not found");
           return;
         }
 
@@ -618,7 +623,7 @@ export default function CampaignAdminPage() {
           protocolCell!
         );
         if (!campaignCell) {
-          debug.error("Campaign cell not found");
+          log.error("Campaign cell not found");
           alert("Campaign not found");
           router.push("/campaign-admin");
           return;
@@ -682,10 +687,10 @@ export default function CampaignAdminPage() {
             setLocalQuests(campaignData.quests);
           }
 
-          debug.log("Campaign loaded successfully");
+          log.log("Campaign loaded successfully");
         }
       } catch (error) {
-        debug.error("Failed to load campaign:", error);
+        log.error("Failed to load campaign:", error);
         alert("Failed to load campaign");
       } finally {
         setIsLoading(false);
@@ -729,7 +734,7 @@ export default function CampaignAdminPage() {
   };
 
   const handleCampaignModalClose = () => {
-    debug.log("handleCampaignModalClose invoked, resetting pending state");
+    log.log("handleCampaignModalClose invoked, resetting pending state");
     setPendingCampaignSave(null);
     pendingCampaignSaveRef.current = null;
     setPendingNostrQueue([]);
@@ -803,7 +808,7 @@ export default function CampaignAdminPage() {
               isLoading: false,
             });
           } catch (error) {
-            debug.error("Failed to store cover image on Nostr:", error);
+            log.error("Failed to store cover image on Nostr:", error);
             alert(
               "Failed to store cover image on Nostr. Please try again before saving."
             );
@@ -857,7 +862,7 @@ export default function CampaignAdminPage() {
           setLongDescriptionNeventId(storedLongId);
           setLongDescriptionDirty(false);
         } catch (error) {
-          debug.error("Failed to store long description on Nostr:", error);
+          log.error("Failed to store long description on Nostr:", error);
           alert(
             "Failed to store the long description on Nostr. Please try again."
           );
@@ -930,9 +935,9 @@ export default function CampaignAdminPage() {
         ckbFunding: isCreateMode ? ckbInitialFunding : undefined,
         isCreate: isCreateMode,
         campaignTypeId: !isCreateMode
-          ? ((campaignTypeId as string).startsWith("0x")
-              ? (campaignTypeId as ccc.Hex)
-              : (`0x${campaignTypeId}` as ccc.Hex))
+          ? (campaignTypeId as string).startsWith("0x")
+            ? (campaignTypeId as ccc.Hex)
+            : (`0x${campaignTypeId}` as ccc.Hex)
           : undefined,
         initialFundingEntries: isCreateMode
           ? Array.from(initialFunding.entries()).map(
@@ -944,7 +949,7 @@ export default function CampaignAdminPage() {
       if (nostrVerificationQueue.length > 0) {
         setPendingCampaignSave(pendingPayload);
         pendingCampaignSaveRef.current = pendingPayload;
-        debug.log("Pending campaign save stored for verification flow", {
+        log.log("Pending campaign save stored for verification flow", {
           queueLength: nostrVerificationQueue.length,
           pendingCampaignSave: pendingCampaignSaveRef.current,
         });
@@ -955,19 +960,18 @@ export default function CampaignAdminPage() {
           ...Object.fromEntries(
             nostrVerificationQueue
               .map((item) => {
-                if (!pendingNostrPayloads[item.neventId]) return null
-                return [item.neventId, pendingNostrPayloads[item.neventId]]
+                if (!pendingNostrPayloads[item.neventId]) return null;
+                return [item.neventId, pendingNostrPayloads[item.neventId]];
               })
-              .filter(Boolean) as Array<[
-              string,
-              { content: string; metadata: Record<string, string> }
-            ]>
+              .filter(Boolean) as Array<
+              [string, { content: string; metadata: Record<string, string> }]
+            >
           ),
         }));
         setPendingNostrTotal(nostrVerificationQueue.length);
         setPendingNostrIndex(0);
         const firstItem = nostrVerificationQueue[0];
-        debug.log("Opening storage modal for campaign verification queue", {
+        log.log("Opening storage modal for campaign verification queue", {
           queueLength: nostrVerificationQueue.length,
           firstItem,
         });
@@ -989,7 +993,7 @@ export default function CampaignAdminPage() {
 
       await performCampaignUpdate(pendingPayload);
     } catch (error) {
-      debug.error("Failed to save campaign:", error);
+      log.error("Failed to save campaign:", error);
       alert(
         `Failed to save campaign: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -1003,7 +1007,7 @@ export default function CampaignAdminPage() {
     payload: PendingCampaignSave
   ): Promise<string> => {
     try {
-      debug.log("performCampaignUpdate called", {
+      log.log("performCampaignUpdate called", {
         isCreate: payload.isCreate,
         hasUdtFunding: !!payload.udtFunding?.length,
         hasCkbFunding: !!payload.ckbFunding,
@@ -1132,7 +1136,7 @@ export default function CampaignAdminPage() {
 
       return txHash;
     } catch (error) {
-      debug.error("Failed to save campaign:", error);
+      log.error("Failed to save campaign:", error);
       if (error instanceof Error) {
         throw error;
       }
@@ -1147,16 +1151,14 @@ export default function CampaignAdminPage() {
       pendingCampaignSave ?? pendingCampaignSaveRef.current;
 
     if (!activePendingCampaignSave) {
-      debug.log("handleCampaignNostrConfirm called without pendingCampaignSave");
+      log.log("handleCampaignNostrConfirm called without pendingCampaignSave");
       return;
     }
 
     const totalItems =
-      pendingNostrTotal ||
-      pendingNostrItems.length ||
-      pendingNostrQueue.length;
+      pendingNostrTotal || pendingNostrItems.length || pendingNostrQueue.length;
 
-    debug.log("handleCampaignNostrConfirm invoked", {
+    log.log("handleCampaignNostrConfirm invoked", {
       pendingNostrIndex,
       totalItems,
       pendingNostrItemsLength: pendingNostrItems.length,
@@ -1171,7 +1173,7 @@ export default function CampaignAdminPage() {
       const nextItem = sourceItems[nextIndex];
 
       if (nextItem) {
-        debug.log("Opening next queue item in storage modal", {
+        log.log("Opening next queue item in storage modal", {
           nextIndex,
           nextItem,
           totalItems,
@@ -1194,7 +1196,7 @@ export default function CampaignAdminPage() {
       }
     }
 
-    debug.log("All queue items verified, performing campaign update");
+    log.log("All queue items verified, performing campaign update");
     const txHash = await performCampaignUpdate(activePendingCampaignSave);
     setPendingCampaignSave(null);
     pendingCampaignSaveRef.current = null;
@@ -1215,7 +1217,7 @@ export default function CampaignAdminPage() {
       !updateProtocol ||
       isCreateMode
     ) {
-      debug.error("Missing required data for campaign approval");
+      log.error("Missing required data for campaign approval");
       alert(
         "Please ensure your wallet is connected and you have admin privileges."
       );
@@ -1224,7 +1226,7 @@ export default function CampaignAdminPage() {
 
     setIsApproving(true);
     try {
-      debug.log("Approving campaign:", campaignTypeId);
+      log.log("Approving campaign:", campaignTypeId);
 
       // Ensure the type hash is properly formatted as ccc.Hex (0x + 64 hex chars)
       const formattedTypeId = campaignTypeId.startsWith("0x")
@@ -1245,13 +1247,13 @@ export default function CampaignAdminPage() {
       };
 
       await updateProtocol(updatedProtocol);
-      debug.log("Campaign approved successfully");
+      log.log("Campaign approved successfully");
       alert("Campaign approved successfully!");
 
       // Refresh to show the approved status
       await refreshCampaign();
     } catch (error) {
-      debug.error("Failed to approve campaign:", error);
+      log.error("Failed to approve campaign:", error);
       alert(
         `Failed to approve campaign: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -1272,12 +1274,12 @@ export default function CampaignAdminPage() {
         protocolData?.protocol_config.script_code_hashes
           .ckb_boost_campaign_type_code_hash;
       if (!campaignCodeHash) {
-        debug.error("Campaign code hash not found in protocol data");
+        log.error("Campaign code hash not found in protocol data");
         return;
       }
 
       if (!signer) {
-        debug.error("Signer not found");
+        log.error("Signer not found");
         return;
       }
 
@@ -1288,7 +1290,7 @@ export default function CampaignAdminPage() {
         protocolCell!
       );
       if (!campaignCell) {
-        debug.error("Campaign cell not found during refresh");
+        log.error("Campaign cell not found during refresh");
         return;
       }
 
@@ -1343,7 +1345,7 @@ export default function CampaignAdminPage() {
         setStaffLockHashes(staffHashes);
       }
     } catch (error) {
-      debug.error("Failed to refresh campaign:", error);
+      log.error("Failed to refresh campaign:", error);
     } finally {
       setIsRefreshing(false);
     }
@@ -1356,7 +1358,7 @@ export default function CampaignAdminPage() {
       quest_id: localQuests.length + 1,
     };
     setLocalQuests([...localQuests, newQuest]);
-    debug.log("Added quest to local state:", newQuest);
+    log.log("Added quest to local state:", newQuest);
 
     // Reset form for next quest
     setQuestForm(createEmptyQuestForm(localQuests.length + 2));
@@ -1400,7 +1402,7 @@ export default function CampaignAdminPage() {
     updatedQuests[editingQuestIndex] = questForm;
     setLocalQuests(updatedQuests);
 
-    debug.log(
+    log.log(
       "Updated quest in local state at index:",
       editingQuestIndex,
       questForm
@@ -1418,7 +1420,7 @@ export default function CampaignAdminPage() {
         (_, index) => index !== questIndex
       );
       setLocalQuests(updatedQuests);
-      debug.log("Deleted quest from local state at index:", questIndex);
+      log.log("Deleted quest from local state at index:", questIndex);
     }
   };
 

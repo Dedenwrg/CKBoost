@@ -5,6 +5,9 @@ import {
   type UserDataLike,
   UserSubmissionRecord,
 } from "../generated";
+import { createScopedLogger } from "../logging/index.js";
+
+const log = createScopedLogger("User");
 
 /**
  * Represents a CKBoost User contract for managing user operations.
@@ -67,7 +70,7 @@ export class User extends ssri.Trait {
     const userDataHex = ccc.hexFrom(userDataBytes);
     const txHex = ccc.hexFrom(txReq.toBytes());
 
-    console.log("Calling SSRI executor with:", {
+    log.info("Calling SSRI executor with:", {
       codeOutpoint: this.code,
       method: "CKBoostUser.submit_quest",
       scriptCodeHash: this.script.codeHash,
@@ -75,8 +78,8 @@ export class User extends ssri.Trait {
       scriptArgs: this.script.args,
     });
 
-    console.log("txHex", txHex);
-    console.log("userDataHex", userDataHex);
+    log.info("txHex", txHex);
+    log.info("userDataHex", userDataHex);
 
     // Execute SSRI method
     try {
@@ -100,7 +103,7 @@ export class User extends ssri.Trait {
         throw new Error("No result from SSRI executor");
       }
     } catch (error) {
-      console.error("SSRI execution error:", error);
+      log.error("SSRI execution error:", error);
       throw error;
     }
 
@@ -130,7 +133,7 @@ export class User extends ssri.Trait {
     const userDataHex = ccc.hexFrom(userDataBytes);
     const txHex = ccc.hexFrom(txReq.toBytes());
 
-    console.log("Calling SSRI executor with:", {
+    log.info("Calling SSRI executor with:", {
       codeOutpoint: this.code,
       method: "CKBoostUser.update_verification_data",
       scriptCodeHash: this.script.codeHash,
@@ -138,8 +141,8 @@ export class User extends ssri.Trait {
       scriptArgs: this.script.args,
     });
 
-    console.log("txHex", txHex);
-    console.log("userDataHex", userDataHex);
+    log.info("txHex", txHex);
+    log.info("userDataHex", userDataHex);
 
     try {
       const methodPath = "CKBoostUser.update_verification_data";
@@ -161,7 +164,7 @@ export class User extends ssri.Trait {
         throw new Error("No result from SSRI executor");
       }
     } catch (error) {
-      console.error("SSRI execution error:", error);
+      log.error("SSRI execution error:", error);
       throw error;
     }
 

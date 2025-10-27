@@ -29,7 +29,8 @@
   "dependencies": {
     "@ckb-ccc/core": "^1.12.2",
     "@ckb-ccc/ssri": "^0.2.19",
-    "@ckb-ccc/udt": "^0.1.21"
+    "@ckb-ccc/udt": "^0.1.21",
+    "beautify-console-log": "^1.3.17"
   },
   "devDependencies": {
     "@ckb-ccc/eip6963": "^1.0.26",

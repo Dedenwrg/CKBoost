@@ -3,6 +3,7 @@ export * from "./campaign/index.js";
 export * from "./tipping/index.js";
 export * from "./achievement/index.js";
 export * from "./user/index.js";
+export * from "./logging/index.js";
 
 
 // Export all generated types and classes under 'types' namespace

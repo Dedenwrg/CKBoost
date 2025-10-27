@@ -16,6 +16,9 @@ import { AlertCircle, Search, Copy, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ParsedSubmission, useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("NeventParserDialog");
 
 interface NeventParserDialogProps {
   open: boolean;
@@ -56,7 +59,7 @@ export function NeventParserDialog({
       setCopied(field);
       setTimeout(() => setCopied(""), 2000);
     } catch (err) {
-      console.error("Failed to copy:", err);
+      log.error("Failed to copy:", err);
     }
   };
 

@@ -20,7 +20,6 @@ import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -32,6 +31,9 @@ import { CampaignData } from "ssri-ckboost/types";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
 import { udtRegistry, type UDTToken } from "@/lib/services/udt-registry";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProfileContent");
 
 type PointsMintTransactionPayload = {
   txHash: string;
@@ -211,7 +213,7 @@ const formatTokenAmount = (value: bigint, token: UDTToken | null): string => {
       const formatted = udtRegistry.formatAmount(value, token);
       return formatNumberStringWithSeparators(formatted);
     } catch (error) {
-      console.warn("Failed to format token amount", token.symbol, error);
+      log.warn("Failed to format token amount", token.symbol, error);
     }
   }
 
@@ -359,7 +361,7 @@ export function ProfileContent({
                     token: tokenInfo,
                   });
                 } catch (tokenError) {
-                  console.warn(
+                  log.warn(
                     "Failed to derive UDT reward for profile",
                     tokenError
                   );
@@ -379,10 +381,7 @@ export function ProfileContent({
               tokens: tokenRewards,
             };
           } catch (questError) {
-            console.warn(
-              "Failed to derive quest rewards for profile",
-              questError
-            );
+            log.warn("Failed to derive quest rewards for profile", questError);
             quests[questId] = {
               title: quest.metadata?.title || `Quest #${questId}`,
               points: numToBigInt(quest.points ?? 0),
@@ -396,7 +395,7 @@ export function ProfileContent({
           quests,
         });
       } catch (error) {
-        console.warn("Failed to decode campaign cell for profile", error);
+        log.warn("Failed to decode campaign cell for profile", error);
       }
     });
 
@@ -539,7 +538,7 @@ export function ProfileContent({
                       : Number(rawTimestamp ?? 0);
                   return { block: bn, timestamp: numeric } as const;
                 } catch (error) {
-                  console.warn(
+                  log.warn(
                     "Failed to load block header for reward transaction",
                     bn,
                     error
@@ -573,7 +572,7 @@ export function ProfileContent({
         }
       } catch (error) {
         if (!cancelled) {
-          console.error("Failed to fetch reward transactions", error);
+          log.error("Failed to fetch reward transactions", error);
           setPointsTransactions([]);
           setPointsError(
             error instanceof Error

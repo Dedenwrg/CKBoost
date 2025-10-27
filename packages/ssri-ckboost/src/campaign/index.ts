@@ -5,6 +5,9 @@ import {
   ConnectedTypeID,
   type CampaignDataLike,
 } from "../generated";
+import { createScopedLogger } from "../logging/index.js";
+
+const log = createScopedLogger("Campaign");
 
 /**
  * Represents a CKBoost Campaign contract for managing campaign operations.
@@ -66,14 +69,14 @@ export class Campaign extends ssri.Trait {
     }
 
     // Serialize campaign data - just let the mol library handle it
-    console.log(
+    log.info(
       "Encoding campaign with",
       campaignData.quests?.length || 0,
       "quests"
     );
 
     // Debug: Log the campaign data structure before encoding
-    console.log("Campaign data structure before encoding:", {
+    log.info("Campaign data structure before encoding:", {
       endorserLockHash: !!campaignData.endorser_lock_hash,
       hasMetadata: !!campaignData.metadata,
       questCount: campaignData.quests?.length || 0,
@@ -84,7 +87,7 @@ export class Campaign extends ssri.Trait {
     // Debug: Log the first quest if it exists
     if (campaignData.quests && campaignData.quests.length > 0) {
       const firstQuest = campaignData.quests[0];
-      console.log("First quest structure:", {
+      log.info("First quest structure:", {
         quest_id: firstQuest.quest_id,
         hasMetadata: !!firstQuest.metadata,
         points: firstQuest.points,
@@ -99,33 +102,33 @@ export class Campaign extends ssri.Trait {
     try {
       const campaignDataBytes = CampaignData.encode(campaignData);
       campaignDataHex = ccc.hexFrom(campaignDataBytes);
-      console.log(
+      log.info(
         "Campaign encoded successfully, hex length:",
         campaignDataHex.length
       );
-      console.log("First 100 bytes of hex:", campaignDataHex.slice(0, 100));
+      log.info("First 100 bytes of hex:", campaignDataHex.slice(0, 100));
 
       // Try to decode it immediately to verify
       try {
         const decoded = CampaignData.decode(campaignDataHex);
-        console.log(
+        log.info(
           "Immediate decode verification successful, quest count:",
           decoded.quests?.length || 0
         );
       } catch (decodeErr) {
-        console.error(
+        log.error(
           "Failed to decode immediately after encoding:",
           decodeErr
         );
       }
     } catch (encodeErr) {
-      console.error("Failed to encode campaign data:", encodeErr);
+      log.error("Failed to encode campaign data:", encodeErr);
       throw encodeErr;
     }
 
     const txHex = ccc.hexFrom(txReq.toBytes());
 
-    console.log("Calling SSRI executor with:", {
+    log.info("Calling SSRI executor with:", {
       codeOutpoint: this.code,
       method: "CKBoostCampaign.update_campaign",
       scriptCodeHash: this.script.codeHash,
@@ -133,8 +136,8 @@ export class Campaign extends ssri.Trait {
       scriptArgs: this.script.args,
     });
 
-    console.log("txHex", txHex);
-    console.log("campaignDataHex", campaignDataHex);
+    log.info("txHex", txHex);
+    log.info("campaignDataHex", campaignDataHex);
 
     // Execute SSRI method
     try {
@@ -155,7 +158,7 @@ export class Campaign extends ssri.Trait {
         });
 
         // SSRI Method might fail to find the campaign cell by out point, so we need to find it manually for both input and output
-        console.log("Finding campaign cell by type:", {
+        log.info("Finding campaign cell by type:", {
           codeHash: this.script.codeHash,
           hashType: "type",
           args: this.script.args,
@@ -165,7 +168,7 @@ export class Campaign extends ssri.Trait {
           hashType: "type",
           args: this.script.args, // Empty args to match any args
         })) {
-          console.log("Found campaign cell:", cell.outPoint);
+          log.info("Found campaign cell:", cell.outPoint);
           // Check if the cell is in the inputs of the transaction. If none, add it as an input.
           if (
             !resTx.res.inputs.some(
@@ -174,7 +177,7 @@ export class Campaign extends ssri.Trait {
                 input.previousOutput.index === cell.outPoint.index
             )
           ) {
-            console.log("Adding campaign cell as input:", cell.outPoint);
+            log.info("Adding campaign cell as input:", cell.outPoint);
             resTx.res.addInput(cell);
           }
           // Check if the cell is in the outputs of the transaction. If none, add it as an output.
@@ -185,7 +188,7 @@ export class Campaign extends ssri.Trait {
                 output.type?.args === cell.cellOutput.type?.args
             )
           ) {
-            console.log("Adding new campaign cell as output:", cell.outPoint);
+            log.info("Adding new campaign cell as output:", cell.outPoint);
             const campaignCellOutput = ccc.CellOutput.from({
               lock: cell.cellOutput.lock,
               type: cell.cellOutput.type,
@@ -203,7 +206,7 @@ export class Campaign extends ssri.Trait {
         );
 
         if (campaignCellOutputIndex === -1) {
-          console.log(
+          log.info(
             "Campaign cell output not found in transaction. TxHex:",
             ccc.hexFrom(resTx.res.toBytes())
           );
@@ -274,8 +277,8 @@ export class Campaign extends ssri.Trait {
         throw new Error("Failed to update campaign");
       }
     } catch (error) {
-      console.error("SSRI executor error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
+      log.error("SSRI executor error:", error);
+      log.error("Error details:", JSON.stringify(error, null, 2));
       throw error;
     }
   }
@@ -293,7 +296,7 @@ export class Campaign extends ssri.Trait {
     campaignTypeScript: ccc.Script,
     udtScript: ccc.ScriptLike
   ): Promise<ccc.Cell[]> {
-    console.log(`🔍 Searching for campaign UDT cells by lock script:`, {
+    log.info(`🔍 Searching for campaign UDT cells by lock script:`, {
       campaignTypeScript: campaignTypeScript.codeHash.slice(0, 10) + "...",
       udtScript: ccc.Script.from(udtScript).codeHash.slice(0, 10) + "...",
     });
@@ -309,7 +312,7 @@ export class Campaign extends ssri.Trait {
     );
     const campaignTypeHash = campaignTypeScript.hash();
 
-    console.log(`🔑 Funding lock details:`, {
+    log.info(`🔑 Funding lock details:`, {
       fundingLockCodeHash: fundingLockCodeHash.slice(0, 10) + "...",
       campaignTypeHash: campaignTypeHash.slice(0, 10) + "...",
     });
@@ -338,7 +341,7 @@ export class Campaign extends ssri.Trait {
         cell.cellOutput.type.args === targetUdtScript.args
       ) {
         campaignUdtCells.push(cell);
-        console.log(`✅ Found campaign UDT cell:`, {
+        log.info(`✅ Found campaign UDT cell:`, {
           outPoint: cell.outPoint,
           capacity: cell.cellOutput.capacity.toString(),
           udtCodeHash: cell.cellOutput.type.codeHash.slice(0, 10) + "...",
@@ -347,14 +350,14 @@ export class Campaign extends ssri.Trait {
       }
     }
 
-    console.log(`📊 Funding lock UDT search results:`, {
+    log.info(`📊 Funding lock UDT search results:`, {
       totalFundingLockCells: "checked all funding-locked cells",
       matchingUdtCells: campaignUdtCells.length,
       targetUdtCodeHash: targetUdtScript.codeHash.slice(0, 10) + "...",
     });
 
     if (campaignUdtCells.length === 0) {
-      console.warn(
+      log.warn(
         `❌ No funding lock UDT cells found for UDT ${targetUdtScript.codeHash.slice(0, 10)}...`
       );
     }
@@ -440,7 +443,7 @@ export class Campaign extends ssri.Trait {
 
     const txHex = ccc.hexFrom(txReq.toBytes());
 
-    console.log("Calling SSRI executor for approve_completion with:", {
+    log.info("Calling SSRI executor for approve_completion with:", {
       codeOutpoint: this.code,
       method: "CKBoostCampaign.approve_completion",
       questId,
@@ -478,7 +481,7 @@ export class Campaign extends ssri.Trait {
         });
 
         // SSRI Method might fail to find the campaign cell by out point, so we need to find it manually for both input and output
-        console.log("Finding campaign cell by type:", {
+        log.info("Finding campaign cell by type:", {
           codeHash: this.script.codeHash,
           hashType: "type",
           args: this.script.args,
@@ -488,7 +491,7 @@ export class Campaign extends ssri.Trait {
           hashType: "type",
           args: this.script.args, // Empty args to match any args
         })) {
-          console.log("Found campaign cell:", cell.outPoint);
+          log.info("Found campaign cell:", cell.outPoint);
           // Check if the cell is in the inputs of the transaction. If none, add it as an input.
           if (
             !resTx.res.inputs.some(
@@ -497,7 +500,7 @@ export class Campaign extends ssri.Trait {
                 input.previousOutput.index === cell.outPoint.index
             )
           ) {
-            console.log("Adding campaign cell as input:", cell.outPoint);
+            log.info("Adding campaign cell as input:", cell.outPoint);
             resTx.res.addInput(cell);
           }
           // Check if the cell is in the outputs of the transaction. If none, add it as an output.
@@ -508,7 +511,7 @@ export class Campaign extends ssri.Trait {
                 output.type?.args === cell.cellOutput.type?.args
             )
           ) {
-            console.log("Adding new campaign cell as output:", cell.outPoint);
+            log.info("Adding new campaign cell as output:", cell.outPoint);
             const campaignCellOutput = ccc.CellOutput.from({
               lock: cell.cellOutput.lock,
               type: cell.cellOutput.type,
@@ -546,7 +549,7 @@ export class Campaign extends ssri.Trait {
           throw new Error(`Quest ${questId} has no points reward`);
         }
 
-        console.log("Creating Points UDT cells:", {
+        log.info("Creating Points UDT cells:", {
           pointsUdtCodeHash,
           protocolTypeHash,
           pointsAmount,
@@ -560,7 +563,7 @@ export class Campaign extends ssri.Trait {
         );
 
         // First, let's see what user cells exist
-        console.log(
+        log.info(
           `\n🔍 Searching for ALL user cells with type code hash: ${userTypeCodeHash}`
         );
         const allUserCells = signer.client.findCells({
@@ -576,7 +579,7 @@ export class Campaign extends ssri.Trait {
         let debugCellCount = 0;
         for await (const cell of allUserCells) {
           debugCellCount++;
-          console.log(`Found user cell #${debugCellCount}:`, {
+          log.info(`Found user cell #${debugCellCount}:`, {
             outPoint: cell.outPoint,
             typeArgs: cell.cellOutput.type?.args?.slice(0, 80) + "...",
             typeArgsLength: cell.cellOutput.type?.args?.length,
@@ -584,30 +587,30 @@ export class Campaign extends ssri.Trait {
           });
           if (debugCellCount >= 5) break; // Only show first 5 for debugging
         }
-        console.log(`Total user cells found for debugging: ${debugCellCount}`);
+        log.info(`Total user cells found for debugging: ${debugCellCount}`);
 
         // Create Points UDT cells for each approved user
         for (const userTypeId of userTypeIds) {
           const userTypeIdHex = ccc.hexFrom(userTypeId);
 
-          console.log(`\n🎯 Processing user ${userTypeIdHex.slice(0, 10)}...`);
-          console.log(
+          log.info(`\n🎯 Processing user ${userTypeIdHex.slice(0, 10)}...`);
+          log.info(
             `Looking for user cell with type code hash: ${userTypeCodeHash}`
           );
-          console.log(`User type ID to match: ${userTypeIdHex}`);
+          log.info(`User type ID to match: ${userTypeIdHex}`);
 
           const userConnectedTypeId = {
             type_id: userTypeIdHex,
             connected_key: protocolTypeHash,
           };
-          console.log("userConnectedTypeId", userConnectedTypeId);
+          log.info("userConnectedTypeId", userConnectedTypeId);
 
           // Encode the ConnectedTypeID for the search
           const encodedConnectedTypeId =
             ConnectedTypeID.encode(userConnectedTypeId);
           const encodedConnectedTypeIdHex = ccc.hexFrom(encodedConnectedTypeId);
 
-          console.log(`📝 Encoded ConnectedTypeID for search:`, {
+          log.info(`📝 Encoded ConnectedTypeID for search:`, {
             encoded: encodedConnectedTypeIdHex,
             length: encodedConnectedTypeIdHex.length,
             typeId: userTypeIdHex,
@@ -627,7 +630,7 @@ export class Campaign extends ssri.Trait {
           });
 
           const userCellResult = await userCells.next();
-          console.log(`📊 User cell iterator result:`, {
+          log.info(`📊 User cell iterator result:`, {
             done: userCellResult?.done,
             hasValue: !!userCellResult?.value,
             valueType: userCellResult?.value
@@ -640,16 +643,16 @@ export class Campaign extends ssri.Trait {
 
           // The iterator returns {done: boolean, value: Cell}
           if (!userCellResult || userCellResult.done || !userCellResult.value) {
-            console.warn(
+            log.warn(
               `❌ User cell not found for type ID: ${userTypeIdHex}, skipping Points minting`
             );
-            console.warn(`Search criteria used:`, {
+            log.warn(`Search criteria used:`, {
               codeHash: userTypeCodeHash,
               hashType: "type",
               args: encodedConnectedTypeIdHex,
               argsLength: encodedConnectedTypeIdHex.length,
             });
-            console.warn(`Expected ConnectedTypeID structure:`, {
+            log.warn(`Expected ConnectedTypeID structure:`, {
               typeId: userTypeIdHex,
               connectedKey: protocolTypeHash,
             });
@@ -658,7 +661,7 @@ export class Campaign extends ssri.Trait {
 
           const userCell = userCellResult.value;
 
-          console.log(`Found user cell:`, {
+          log.info(`Found user cell:`, {
             outPoint: userCell.outPoint,
             lockCodeHash: userCell.cellOutput.lock.codeHash,
             lockArgs: userCell.cellOutput.lock.args,
@@ -685,9 +688,9 @@ export class Campaign extends ssri.Trait {
             depType: "code",
           });
 
-          console.log("Added CellDep with outpoint:", userCell.outPoint);
+          log.info("Added CellDep with outpoint:", userCell.outPoint);
 
-          console.log(`Creating Points UDT cell:`, {
+          log.info(`Creating Points UDT cell:`, {
             capacity: pointsCell.capacity.toString(),
             lockCodeHash: userLock.codeHash,
             lockArgs: userLock.args,
@@ -698,25 +701,25 @@ export class Campaign extends ssri.Trait {
 
           try {
             // Log transaction state before adding Points cell
-            console.log(`📝 Transaction state before adding Points cell:`, {
+            log.info(`📝 Transaction state before adding Points cell:`, {
               outputCount: resTx.res.outputs.length,
               outputsDataCount: resTx.res.outputsData.length,
             });
 
             resTx.res.addOutput(pointsCell, ccc.numToBytes(pointsAmount, 16));
-            console.log(
+            log.info(
               `✅ Successfully added Points UDT cell for user ${userTypeIdHex.slice(0, 10)}... with ${pointsAmount} points`
             );
 
             // Log current transaction state after adding
-            console.log(`📈 Transaction after adding Points cell:`, {
+            log.info(`📈 Transaction after adding Points cell:`, {
               outputCount: resTx.res.outputs.length,
               outputsDataCount: resTx.res.outputsData.length,
               lastOutputIndex: resTx.res.outputs.length - 1,
             });
 
             const lastOutput = resTx.res.outputs[resTx.res.outputs.length - 1];
-            console.log(
+            log.info(
               `🎯 Output ${resTx.res.outputs.length - 1} (Points UDT):`,
               {
                 capacity: lastOutput.capacity.toString(),
@@ -731,12 +734,12 @@ export class Campaign extends ssri.Trait {
             // Verify the output data was added correctly
             const lastOutputData =
               resTx.res.outputsData[resTx.res.outputsData.length - 1];
-            console.log(`💾 Output data for Points UDT:`, {
+            log.info(`💾 Output data for Points UDT:`, {
               dataLength: lastOutputData.length,
               dataHex: ccc.hexFrom(lastOutputData).slice(0, 40) + "...",
             });
           } catch (error) {
-            console.error(
+            log.error(
               `❌ Failed to add Points UDT cell for user ${userTypeIdHex}:`,
               error
             );
@@ -745,11 +748,11 @@ export class Campaign extends ssri.Trait {
         }
 
         // Handle UDT reward distribution
-        console.log(`\n💰 Processing UDT rewards distribution...`);
+        log.info(`\n💰 Processing UDT rewards distribution...`);
 
         // Get UDT rewards from quest
         const udtRewards = quest?.rewards_on_completion?.[0]?.udt_assets || [];
-        console.log(
+        log.info(
           `Found ${udtRewards.length} UDT reward types for quest ${questId}`
         );
 
@@ -758,7 +761,7 @@ export class Campaign extends ssri.Trait {
           const amountPerUser = Number(udtAsset.amount) || 0;
 
           if (amountPerUser > 0) {
-            console.log(`\n🎯 Processing UDT reward:`, {
+            log.info(`\n🎯 Processing UDT reward:`, {
               udtCodeHash: ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
               amountPerUser,
               userCount: userTypeIds.length,
@@ -773,7 +776,7 @@ export class Campaign extends ssri.Trait {
             );
 
             if (campaignUdtCells.length === 0) {
-              console.warn(
+              log.warn(
                 `⚠️ No campaign UDT cells found for reward distribution, skipping UDT ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
               );
               continue;
@@ -784,14 +787,14 @@ export class Campaign extends ssri.Trait {
               this.calculateTotalUdtBalance(campaignUdtCells);
             const totalRequired = BigInt(amountPerUser * userTypeIds.length);
 
-            console.log(`💰 UDT balance check:`, {
+            log.info(`💰 UDT balance check:`, {
               totalAvailable: totalAvailable.toString(),
               totalRequired: totalRequired.toString(),
               sufficient: totalAvailable >= totalRequired,
             });
 
             if (totalAvailable < totalRequired) {
-              console.error(
+              log.error(
                 `❌ Insufficient UDT balance for rewards. Required: ${totalRequired}, Available: ${totalAvailable}`
               );
               throw new Error(
@@ -819,7 +822,7 @@ export class Campaign extends ssri.Trait {
                 inputCells.push(campaignUdtCell);
                 remainingToDistribute -= cellBalance;
 
-                console.log(`📥 Added UDT input cell:`, {
+                log.info(`📥 Added UDT input cell:`, {
                   outPoint: campaignUdtCell.outPoint,
                   balance: cellBalance.toString(),
                   remainingToDistribute: remainingToDistribute.toString(),
@@ -832,7 +835,7 @@ export class Campaign extends ssri.Trait {
             for (const userTypeId of userTypeIds) {
               const userTypeIdHex = ccc.hexFrom(userTypeId);
 
-              console.log(
+              log.info(
                 `\n🎁 Creating UDT reward for user ${userTypeIdHex.slice(0, 10)}... (${rewardIndex + 1}/${userTypeIds.length})`
               );
 
@@ -864,7 +867,7 @@ export class Campaign extends ssri.Trait {
                 userCellResult.done ||
                 !userCellResult.value
               ) {
-                console.warn(
+                log.warn(
                   `❌ User cell not found for UDT reward: ${userTypeIdHex}, skipping`
                 );
                 continue;
@@ -892,7 +895,7 @@ export class Campaign extends ssri.Trait {
                 ccc.numToBytes(amountPerUser, 16)
               );
 
-              console.log(`✅ Created UDT reward cell:`, {
+              log.info(`✅ Created UDT reward cell:`, {
                 userTypeId: userTypeIdHex.slice(0, 10) + "...",
                 udtCodeHash:
                   ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
@@ -916,24 +919,24 @@ export class Campaign extends ssri.Trait {
               resTx.res.addOutput(changeCell, ccc.numToBytes(changeAmount, 16));
             }
 
-            console.log(
+            log.info(
               `✅ Completed UDT reward distribution for ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
             );
           } else {
-            console.log(
+            log.info(
               `⏭️ Skipping UDT reward with zero amount: ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
             );
           }
         }
 
         // Final transaction logging
-        console.log(`🔍 Final transaction before return:`);
-        console.log(`  Inputs: ${resTx.res.inputs.length}`);
-        console.log(`  Outputs: ${resTx.res.outputs.length}`);
-        console.log(`  OutputsData: ${resTx.res.outputsData.length}`);
+        log.info(`🔍 Final transaction before return:`);
+        log.info(`  Inputs: ${resTx.res.inputs.length}`);
+        log.info(`  Outputs: ${resTx.res.outputs.length}`);
+        log.info(`  OutputsData: ${resTx.res.outputsData.length}`);
 
         resTx.res.outputs.forEach((output, index) => {
-          console.log(`  Output ${index}:`, {
+          log.info(`  Output ${index}:`, {
             capacity: output.capacity.toString(),
             lockCodeHash: output.lock.codeHash.slice(0, 10) + "...",
             lockArgs: output.lock.args.slice(0, 10) + "...",
@@ -952,8 +955,8 @@ export class Campaign extends ssri.Trait {
         throw new Error("Failed to approve quest completions");
       }
     } catch (error) {
-      console.error("SSRI executor error:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
+      log.error("SSRI executor error:", error);
+      log.error("Error details:", JSON.stringify(error, null, 2));
       throw error;
     }
   }

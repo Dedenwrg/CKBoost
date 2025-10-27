@@ -1,4 +1,7 @@
 import { ccc } from "@ckb-ccc/connector-react"
+import { createScopedLogger } from "ssri-ckboost"
+
+const log = createScopedLogger("AddressUtils")
 
 /**
  * Convert a CKB address to a lock hash
@@ -9,7 +12,7 @@ export async function addressToLockHash(address: string, client: ccc.Client): Pr
     const script = addr.script
     return script.hash()
   } catch (error) {
-    console.error("Failed to convert address to lock hash:", error)
+    log.error("Failed to convert address to lock hash:", error)
     throw new Error("Invalid CKB address")
   }
 }

@@ -1,6 +1,8 @@
 import { ccc } from "@ckb-ccc/connector-react";
-import { debug } from "../utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { ConnectedTypeID } from "ssri-ckboost/types";
+
+const log = createScopedLogger("UdtCells");
 
 /**
  * Fetch UDT cells locked with funding-lock for a specific campaign
@@ -12,7 +14,7 @@ export async function fetchUDTCellsByFundingLock(
   protocolCellTypeHash: ccc.Hex,
   signer: ccc.Signer
 ): Promise<ccc.Cell[]> {
-  debug.log("Fetching UDT cells for campaign", campaignTypeId);
+  log.log("Fetching UDT cells for campaign", campaignTypeId);
 
   try {
     // First, we need to construct the campaign type script to get its hash
@@ -54,12 +56,12 @@ export async function fetchUDTCellsByFundingLock(
       }
     }
 
-    debug.log(
+    log.log(
       `Found ${udtCells.length} UDT cells locked by funding lock for campaign ${campaignTypeId}`
     );
     return udtCells;
   } catch (error) {
-    debug.error(
+    log.error(
       "Failed to fetch UDT cells locked by funding lock for campaign:",
       error
     );
@@ -75,7 +77,7 @@ export async function fetchUDTCellsByType(
   signer: ccc.Signer
 ): Promise<ccc.Cell[]> {
   const script = ccc.Script.from(udtTypeScript);
-  debug.log("Fetching UDT cells by type", script.codeHash);
+  log.log("Fetching UDT cells by type", script.codeHash);
 
   try {
     const collector = signer.client.findCells({
@@ -89,10 +91,10 @@ export async function fetchUDTCellsByType(
       cells.push(cell);
     }
 
-    debug.log(`Found ${cells.length} cells for UDT type`);
+    log.log(`Found ${cells.length} cells for UDT type`);
     return cells;
   } catch (error) {
-    debug.error("Failed to fetch UDT cells by type:", error);
+    log.error("Failed to fetch UDT cells by type:", error);
     throw error;
   }
 }
@@ -145,7 +147,7 @@ export async function findSufficientUDTCells(
   const udtScript = ccc.Script.from(udtTypeScript);
   const lockScript = ccc.Script.from(ownerLockScript);
 
-  debug.log("Finding sufficient UDT cells", {
+  log.log("Finding sufficient UDT cells", {
     udtType: udtScript.codeHash,
     requiredAmount: requiredAmount.toString(),
     owner: lockScript.hash(),
@@ -181,12 +183,12 @@ export async function findSufficientUDTCells(
       );
     }
 
-    debug.log(
+    log.log(
       `Selected ${selectedCells.length} cells with total amount ${collectedAmount}`
     );
     return selectedCells;
   } catch (error) {
-    debug.error("Failed to find sufficient UDT cells:", error);
+    log.error("Failed to find sufficient UDT cells:", error);
     throw error;
   }
 }
@@ -229,7 +231,7 @@ export async function getUDTMetadata(
       decimals: 8,
     };
   } catch (error) {
-    debug.error("Failed to get UDT metadata:", error);
+    log.error("Failed to get UDT metadata:", error);
     return {};
   }
 }

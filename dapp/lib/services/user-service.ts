@@ -11,7 +11,6 @@ import {
 } from "../ckb/user-cells";
 import { NostrStorageService } from "./nostr-storage-service";
 import { deploymentManager } from "../ckb/deployment-manager";
-import { debug } from "../utils/debug";
 import {
   UserData,
   UserDataLike,
@@ -22,6 +21,9 @@ import { TelegramVerificationData } from "../types/identity";
 import { ClientPublicTestnet } from "@ckb-ccc/connector-react";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { injectProxyAuthenticationCell } from "../utils/api";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("UserService");
 
 /**
  * User service that provides high-level user operations
@@ -51,7 +53,7 @@ export class UserService {
     // Initialize deployment info on construction
     this.initializeDeploymentInfo();
 
-    debug.log("UserService initialized", {
+    log.log("UserService initialized", {
       userTypeCodeHash,
       protocolTypeHash: protocolTypeHash.slice(0, 10) + "...",
       useNostrStorage,
@@ -70,7 +72,7 @@ export class UserService {
   ): Promise<ccc.Hex> {
     await injectProxyAuthenticationCell(signer, baseDraftTx);
     await baseDraftTx.completeInputsByCapacity(signer);
-    console.log(
+    log.log(
       "baseDraftTx after completeInputsByCapacity",
       ccc.stringify(baseDraftTx)
     );
@@ -104,7 +106,7 @@ export class UserService {
       ccc.KnownScript.JoyId
     );
     await baseDraftTx.completeFeeBy(signer);
-    console.log("baseDraftTx after completeFeeBy", ccc.stringify(baseDraftTx));
+    log.log("baseDraftTx after completeFeeBy", ccc.stringify(baseDraftTx));
 
     const resp = await fetch("/api/telegram-authenticate", {
       method: "POST",
@@ -112,13 +114,13 @@ export class UserService {
       body: ccc.hexFrom(baseDraftTx.toBytes()),
     });
     if (!resp.ok) {
-      console.error("Telegram validation failed at server");
+      log.error("Telegram validation failed at server");
       throw new Error("Telegram validation failed at server");
     }
     const responseJson = await resp.json();
-    console.log("response from telegram-authenticate", responseJson);
+    log.info("response from telegram-authenticate", responseJson);
     const authenticatedTx = ccc.Transaction.fromBytes(responseJson.txHex);
-    console.log("authenticatedTx from bytes", ccc.stringify(authenticatedTx));
+    log.log("authenticatedTx from bytes", ccc.stringify(authenticatedTx));
     for (let i = 0; i < authenticatedTx.inputs.length; i++) {
       const inputCell = await signer.client.getCell(
         authenticatedTx.inputs[i].previousOutput
@@ -142,14 +144,11 @@ export class UserService {
         );
       }
     }
-    console.log(
+    log.log(
       "authenticatedTx after modifying inputs and outputs",
       ccc.stringify(authenticatedTx)
     );
-    console.log(
-      "authenticatedTx after signing",
-      ccc.stringify(authenticatedTx)
-    );
+    log.log("authenticatedTx after signing", ccc.stringify(authenticatedTx));
     return await signer.sendTransaction(authenticatedTx);
   }
 
@@ -170,13 +169,13 @@ export class UserService {
       );
 
       if (!deployment || !outPoint) {
-        debug.warn("User type contract not found in deployments.json");
+        log.warn("User type contract not found in deployments.json");
       } else {
         this.userTypeCodeCell = ccc.OutPoint.from({
           txHash: outPoint.txHash,
           index: outPoint.index,
         });
-        debug.log("User type contract loaded", {
+        log.log("User type contract loaded", {
           txHash: outPoint.txHash.slice(0, 10) + "...",
           index: outPoint.index,
         });
@@ -185,12 +184,12 @@ export class UserService {
       // Initialize Nostr service lazily
       if (this.useNostrStorage && !this.nostrService) {
         this.nostrService = new NostrStorageService();
-        debug.log("Nostr storage service initialized");
+        log.log("Nostr storage service initialized");
       }
 
       this.initialized = true;
     } catch (error) {
-      debug.error("Failed to initialize deployment info:", error);
+      log.error("Failed to initialize deployment info:", error);
       // Don't throw - allow service to function with reduced capabilities
     }
   }
@@ -247,7 +246,7 @@ export class UserService {
     // Check if the submissionContent is already a nevent ID
     if (submissionContent.startsWith("nevent1")) {
       // It's already a nevent ID, don't store to Nostr again
-      debug.log("Submission content is already a nevent ID", {
+      log.log("Submission content is already a nevent ID", {
         neventId: submissionContent.slice(0, 20) + "...",
       });
       contentToStore = submissionContent;
@@ -257,7 +256,7 @@ export class UserService {
     else if (this.useNostrStorage && this.nostrService) {
       const userAddress = await this.signer.getRecommendedAddress();
 
-      debug.log("Storing submission on Nostr...", {
+      log.log("Storing submission on Nostr...", {
         campaignTypeId: campaignTypeId.slice(0, 10) + "...",
         questId,
         contentSize: submissionContent.length,
@@ -271,22 +270,19 @@ export class UserService {
           content: submissionContent,
           timestamp: Date.now(),
         });
-        debug.log("Stored on Nostr with nevent ID", {
+        log.log("Stored on Nostr with nevent ID", {
           neventId: neventId.slice(0, 20) + "...",
           savedBytes: submissionContent.length - neventId.length,
         });
       } catch (nostrError) {
-        debug.warn(
-          "Failed to store on Nostr, will store on-chain:",
-          nostrError
-        );
+        log.warn("Failed to store on Nostr, will store on-chain:", nostrError);
         // Continue without Nostr storage
       }
 
       // Store only the nevent ID on-chain (much smaller)
       if (neventId) {
         contentToStore = neventId;
-        debug.log("Using Nostr reference for on-chain storage", {
+        log.log("Using Nostr reference for on-chain storage", {
           originalSize: submissionContent.length,
           storedSize: neventId.length,
           reduction:
@@ -296,12 +292,12 @@ export class UserService {
       } else {
         // Fallback to storing full content if Nostr failed
         contentToStore = submissionContent;
-        debug.warn("Nostr storage failed, falling back to on-chain storage");
+        log.warn("Nostr storage failed, falling back to on-chain storage");
       }
     } else {
       // Store the full content on-chain (expensive!)
       contentToStore = submissionContent;
-      debug.warn("Storing full content on-chain", {
+      log.warn("Storing full content on-chain", {
         contentSize: submissionContent.length,
         estimatedCost: "~" + Math.ceil(submissionContent.length / 100) + " CKB",
       });
@@ -317,7 +313,7 @@ export class UserService {
 
     if (existingUserData && existingUserData.typeId) {
       // User exists, update with submission
-      debug.log("Updating existing user with submission", {
+      log.log("Updating existing user with submission", {
         userTypeId: existingUserData.typeId.slice(0, 10) + "...",
         existingSubmissions:
           existingUserData.userData?.submission_records.length || 0,
@@ -334,7 +330,7 @@ export class UserService {
       );
     } else {
       // Create new user with submission
-      debug.log("Creating new user with first submission", {
+      log.log("Creating new user with first submission", {
         userName: userVerificationData?.name || "Anonymous",
         hasTwitter: !!userVerificationData?.twitter,
         hasDiscord: !!userVerificationData?.discord,
@@ -351,7 +347,7 @@ export class UserService {
       );
     }
 
-    debug.log("Quest submission successful", {
+    log.log("Quest submission successful", {
       txHash: txHash.slice(0, 10) + "...",
       isNewUser: !existingUserData,
       usedNostr: !!neventId,
@@ -410,17 +406,17 @@ export class UserService {
     );
 
     if (!userCell) {
-      debug.log("No user cell found for type ID:", userTypeId);
+      log.log("No user cell found for type ID:", userTypeId);
       return [];
     }
 
     const userData = parseUserData(userCell);
     if (!userData) {
-      debug.log("Failed to parse user data from cell");
+      log.log("Failed to parse user data from cell");
       return [];
     }
 
-    debug.log("Found user data with submissions:", {
+    log.log("Found user data with submissions:", {
       typeId: userTypeId.slice(0, 10) + "...",
       totalSubmissions: userData.submission_records.length,
       submissions: userData.submission_records.map((r) => ({
@@ -437,7 +433,7 @@ export class UserService {
         let campaignTypeId: string;
 
         // Log the raw campaign_type_id for debugging
-        debug.log("Processing submission record:", {
+        log.log("Processing submission record:", {
           raw_campaign_type_id: record.campaign_type_id,
           type: typeof record.campaign_type_id,
           isUint8Array:
@@ -474,12 +470,12 @@ export class UserService {
               ccc.bytesFrom(record.campaign_type_id)
             );
           } catch (e) {
-            debug.error("Failed to convert campaign_type_id to hex:", e);
+            log.error("Failed to convert campaign_type_id to hex:", e);
             campaignTypeId = "0x"; // Fallback to empty hex
           }
         }
 
-        debug.log("Converted campaign type ID:", {
+        log.log("Converted campaign type ID:", {
           original: record.campaign_type_id,
           converted: campaignTypeId,
           questId: record.quest_id,
@@ -498,7 +494,7 @@ export class UserService {
         // Check if content is a Nostr reference
         // The submission_content might be hex-encoded
         let decodedContent = record.submission_content;
-        debug.log("Raw submission content:", {
+        log.log("Raw submission content:", {
           content: record.submission_content.slice(0, 50) + "...",
           length: record.submission_content.length,
         });
@@ -509,7 +505,7 @@ export class UserService {
             // Remove 0x prefix and decode
             const hexContent = record.submission_content.slice(2);
             decodedContent = Buffer.from(hexContent, "hex").toString("utf-8");
-            debug.log(
+            log.log(
               "Decoded from 0x hex:",
               decodedContent.slice(0, 50) + "..."
             );
@@ -519,14 +515,14 @@ export class UserService {
               record.submission_content,
               "hex"
             ).toString("utf-8");
-            debug.log(
+            log.log(
               "Decoded from pure hex:",
               decodedContent.slice(0, 50) + "..."
             );
           }
         } catch (e) {
           // If decoding fails, use original content
-          debug.log("Failed to decode submission content from hex", e);
+          log.log("Failed to decode submission content from hex", e);
         }
 
         if (decodedContent.startsWith("nevent1")) {
@@ -605,7 +601,7 @@ export class UserService {
       });
 
     // Create new submission record
-    debug.log("Creating submission record with:", {
+    log.log("Creating submission record with:", {
       campaignTypeId: campaignTypeId.slice(0, 10) + "...",
       questId,
       submissionContent: submissionContent.slice(0, 50) + "...",
@@ -627,14 +623,11 @@ export class UserService {
     if (existingSubmissionIndex >= 0) {
       // Update existing submission (resubmission case)
       updatedSubmissions[existingSubmissionIndex] = newSubmission;
-      debug.log(
-        "Updating existing submission at index",
-        existingSubmissionIndex
-      );
+      log.log("Updating existing submission at index", existingSubmissionIndex);
     } else {
       // Add new submission
       updatedSubmissions.push(newSubmission);
-      debug.log("Adding new submission to user");
+      log.log("Adding new submission to user");
     }
 
     // Create updated user data
@@ -691,9 +684,9 @@ export class UserService {
         ),
       };
       const s = JSON.stringify(payload);
-      debug.log(`[UserService.update] after-ssri-return ${s}`);
+      log.log(`after-ssri-return ${s}`);
     } catch (e) {
-      debug.log("[UserService.update] log error after-ssri-return", String(e));
+      log.log("log error after-ssri-return", String(e));
     }
 
     // Ensure output capacity is auto-calculated by CCC for updated user cell
@@ -722,9 +715,7 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(
-        `[UserService.update] after-set-capacity-0 ${JSON.stringify(payload)}`
-      );
+      log.log(`after-set-capacity-0 ${JSON.stringify(payload)}`);
     } catch {}
 
     // Add the protocol cell as a dependency (required for validation)
@@ -733,7 +724,7 @@ export class UserService {
       depType: "code",
     });
 
-    console.log("Transaction before complete fees", updateTx);
+    log.log("Transaction before complete fees", updateTx);
 
     // Complete fees and send transaction (following campaign-service pattern)
     await updateTx.completeInputsByCapacity(this.signer);
@@ -749,9 +740,7 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(
-        `[UserService.update] after-complete-inputs ${JSON.stringify(payload)}`
-      );
+      log.log(`after-complete-inputs ${JSON.stringify(payload)}`);
     } catch {}
     await updateTx.completeFeeBy(this.signer);
     try {
@@ -766,12 +755,10 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(
-        `[UserService.update] after-complete-fee ${JSON.stringify(payload)}`
-      );
+      log.log(`after-complete-fee ${JSON.stringify(payload)}`);
     } catch {}
 
-    debug.log("Updating user cell with submission", {
+    log.log("Updating user cell with submission", {
       userTypeId: userTypeId.slice(0, 10) + "...",
       totalSubmissions: updatedSubmissions.length,
       lastActivity: new Date(
@@ -779,11 +766,11 @@ export class UserService {
       ).toISOString(),
     });
 
-    console.log("updateTx before sending", updateTx);
+    log.log("updateTx before sending", updateTx);
 
     const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx);
 
-    debug.log("User cell updated", {
+    log.log("User cell updated", {
       txHash: txHash.slice(0, 10) + "...",
     });
 
@@ -829,7 +816,7 @@ export class UserService {
     };
 
     // Create new submission record
-    debug.log("Creating submission record with:", {
+    log.log("Creating submission record with:", {
       campaignTypeId: campaignTypeId.slice(0, 10) + "...",
       questId,
       submissionContent: submissionContent.slice(0, 50) + "...",
@@ -909,11 +896,9 @@ export class UserService {
           typeof d === "string" ? d.length : String(d).length
         ),
       };
-      debug.log(
-        `[UserService.create] after-ssri-return ${JSON.stringify(payload)}`
-      );
+      log.log(`after-ssri-return ${JSON.stringify(payload)}`);
     } catch (e) {
-      debug.log("[UserService.create] log error after-ssri-return", String(e));
+      log.log("[UserService.create] log error after-ssri-return", String(e));
     }
 
     // Find the user cell output (should be the first output with the user type script)
@@ -968,9 +953,7 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(
-        `[UserService.create] after-set-capacity-0 ${JSON.stringify(payload)}`
-      );
+      log.log(`after-set-capacity-0 ${JSON.stringify(payload)}`);
     } catch {}
 
     // Add the protocol cell as a dependency (required for validation)
@@ -981,7 +964,7 @@ export class UserService {
 
     // Complete fees and send transaction
 
-    console.log("createTx before complete fees", createTx);
+    log.log("createTx before complete fees", createTx);
     await createTx.completeInputsByCapacity(this.signer);
     try {
       const sender = await this.signer.getRecommendedAddressObj();
@@ -995,9 +978,7 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(
-        `[UserService.create] after-complete-inputs ${JSON.stringify(payload)}`
-      );
+      log.log(`after-complete-inputs ${JSON.stringify(payload)}`);
     } catch {}
     await createTx.completeFeeBy(this.signer);
     try {
@@ -1012,22 +993,20 @@ export class UserService {
           isChangeCandidate: !o.type && o.lock.hash() === senderHash,
         })),
       };
-      debug.log(
-        `[UserService.create] after-complete-fee ${JSON.stringify(payload)}`
-      );
+      log.log(`after-complete-fee ${JSON.stringify(payload)}`);
     } catch {}
 
-    debug.log("Creating user cell with submission", {
+    log.log("Creating user cell with submission", {
       userTypeHash: this.userTypeCodeHash.slice(0, 10) + "...",
       protocolTypeHash: this.protocolTypeHash.slice(0, 10) + "...",
       userName: verificationData?.name || "Anonymous",
       hasSubmission: true,
     });
-    console.log("createTx after complete fees", createTx);
+    log.log("createTx after complete fees", createTx);
     // Send transaction
     const txHash = await sendTransactionWithFeeRetry(this.signer, createTx);
 
-    debug.log("User cell created", {
+    log.log("User cell created", {
       txHash: txHash.slice(0, 10) + "...",
       userName: verificationData?.name || "Anonymous",
     });
@@ -1190,12 +1169,12 @@ export class UserService {
    */
   setUseNostrStorage(useNostr: boolean) {
     this.useNostrStorage = useNostr;
-    debug.log("Nostr storage toggled", { enabled: useNostr });
+    log.log("Nostr storage toggled", { enabled: useNostr });
 
     // Initialize Nostr service if needed
     if (useNostr && !this.nostrService) {
       this.nostrService = new NostrStorageService();
-      debug.log("Nostr service initialized on demand");
+      log.log("Nostr service initialized on demand");
     }
   }
 
@@ -1226,7 +1205,7 @@ export class UserService {
         index: userTypeOutPoint.index,
       });
 
-      debug.log("User type contract loaded on demand", {
+      log.log("User type contract loaded on demand", {
         txHash: userTypeOutPoint.txHash.slice(0, 10) + "...",
       });
     }
@@ -1259,7 +1238,7 @@ export class UserService {
     const existingUser = await this.getUserByLockHash(lockHash);
 
     if (!existingUser || !existingUser.typeId) {
-      debug.log("No user found, creating before verification update");
+      log.log("No user found, creating before verification update");
       return this.createUserWithVerification(userVerificationData);
     }
 
@@ -1304,7 +1283,7 @@ export class UserService {
       tx
     );
 
-    console.log("updateTx", updateTx);
+    log.log("updateTx", updateTx);
 
     // Add protocol cell as a dep (required to read protocol data in type script)
     const protocolCell = await fetchProtocolCell(this.signer.client);
@@ -1321,7 +1300,7 @@ export class UserService {
         updateTx
       );
 
-    debug.log("User verification data updated", {
+    log.log("User verification data updated", {
       txHash: txHash.slice(0, 10) + "...",
       userTypeId: existingUser.typeId.slice(0, 10) + "...",
     });
@@ -1350,7 +1329,7 @@ export class UserService {
           data: telegramVerificationData,
         },
       ];
-      debug.log("No user found for Telegram verification, creating one");
+      log.log("No user found for Telegram verification, creating one");
       return this.createUserWithVerification({
         telegram_personal_chat_id: telegramVerificationData.id,
         identity_verification_data: ccc.bytesFrom(
@@ -1385,7 +1364,7 @@ export class UserService {
       currentIdentityVerificationData,
       "utf8"
     );
-    debug.log("Current identity verification data string", {
+    log.log("Current identity verification data string", {
       currentIdentityVerificationDataString,
     });
 
@@ -1395,16 +1374,16 @@ export class UserService {
       currentIdentityVerificationDataArray = JSON.parse(
         currentIdentityVerificationDataString
       );
-      debug.log("Existing identity data parsed", {
+      log.log("Existing identity data parsed", {
         currentIdentityVerificationDataArray,
       });
       if (!Array.isArray(currentIdentityVerificationDataArray)) {
-        debug.log("Existing identity data is not an array, creating new");
+        log.log("Existing identity data is not an array, creating new");
         currentIdentityVerificationDataArray = [];
       }
     } catch {
       // If parsing fails, start with empty object
-      debug.log("No existing identity data found, creating new");
+      log.log("No existing identity data found, creating new");
       currentIdentityVerificationDataArray = [];
     }
 
@@ -1527,7 +1506,7 @@ export class UserService {
       ).toString("utf8");
       identityData = JSON.parse(identityString);
     } catch {
-      debug.log("Failed to parse identity verification data");
+      log.log("Failed to parse identity verification data");
       identityData = {};
     }
 
@@ -1579,7 +1558,7 @@ export class UserService {
       };
     }
 
-    debug.log("User verification status", {
+    log.log("User verification status", {
       userTypeId: targetTypeId.slice(0, 10) + "...",
       status,
       verificationFlags: verificationFlags.toString(2), // Binary representation
@@ -1634,7 +1613,7 @@ export class UserService {
       }
     }
 
-    debug.log("Campaign eligibility check", {
+    log.log("Campaign eligibility check", {
       eligible,
       userFlags: userFlags.toString(2),
       requiredFlags: campaignVerificationRequirements.map((f) => f.toString(2)),

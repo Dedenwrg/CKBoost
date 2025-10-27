@@ -1,7 +1,10 @@
 import type { Handler } from "@netlify/functions";
+import { createLogger } from "@/netlify/lib/log";
 
 const EXPLORER_ENDPOINT =
   "https://testnet-api.explorer.nervos.org/api/v1/suggest_queries";
+
+const logger = createLogger("resolve-lock-script");
 
 export const handler: Handler = async (event) => {
   const hash = event.queryStringParameters?.hash;
@@ -88,7 +91,7 @@ export const handler: Handler = async (event) => {
       },
     };
   } catch (error) {
-    console.error("Failed to resolve lock script", error);
+    logger.error("Failed to resolve lock script", error);
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "Unexpected error resolving lock script" }),

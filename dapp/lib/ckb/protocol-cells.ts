@@ -4,6 +4,9 @@
 import { ccc } from "@ckb-ccc/connector-react";
 import { ProtocolTransaction } from "../types/protocol";
 import { deploymentManager } from "./deployment-manager";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("ProtocolCells");
 
 // Import type definitions from our types file (currently unused but may be needed for future Molecule parsing)
 // Get protocol type script from deployments.json
@@ -51,7 +54,7 @@ export async function fetchProtocolCellByOutPoint(
 
     return cell;
   } catch (error) {
-    console.error("Failed to fetch protocol cell by outpoint:", error);
+    log.error("Failed to fetch protocol cell by outpoint:", error);
     throw new Error(
       "Failed to fetch protocol cell by outpoint. The cell may not exist or has been consumed."
     );
@@ -84,7 +87,7 @@ export async function fetchProtocolCell(
       );
     }
 
-    console.log("Searching for protocol cell with type script:", {
+    log.info("Searching for protocol cell with type script:", {
       codeHash: protocolTypeScript.codeHash,
       hashType: protocolTypeScript.hashType,
       args: protocolTypeScript.args,
@@ -99,13 +102,13 @@ export async function fetchProtocolCell(
 
     // Get first cell from async generator
     const firstCell = await cellsGenerator.next();
-    console.log("Cell search result:", {
+    log.info("Cell search result:", {
       done: firstCell.done,
       hasValue: !!firstCell.value,
     });
 
     if (firstCell.done || !firstCell.value) {
-      console.warn(
+      log.warn(
         "No protocol cell found on blockchain with the configured type script"
       );
       // Provide more specific guidance based on the type script args
@@ -125,7 +128,7 @@ export async function fetchProtocolCell(
     const cell = firstCell.value;
     return cell;
   } catch (error) {
-    console.error("Failed to fetch protocol cell:", error);
+    log.error("Failed to fetch protocol cell:", error);
 
     // Re-throw with the original error message if it's already descriptive
     if (
@@ -159,11 +162,11 @@ export async function fetchProtocolTransactions(
   try {
     // TODO: Implement real transaction history fetching
     // This would involve querying the CKB indexer for transactions that modified the protocol cell
-    console.log(client, limit);
-    console.warn("Protocol transaction history fetching not yet implemented");
+    log.log(client, limit);
+    log.warn("Protocol transaction history fetching not yet implemented");
     return [];
   } catch (error) {
-    console.error("Failed to fetch protocol transactions:", error);
+    log.error("Failed to fetch protocol transactions:", error);
     throw error;
   }
 }

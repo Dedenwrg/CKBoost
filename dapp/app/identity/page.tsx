@@ -30,6 +30,9 @@ import { TelegramWidgetSection } from "@/components/identity/TelegramWidgetSecti
 import { VerificationMethodCard } from "@/components/identity/VerificationMethodCard";
 import { TelegramVerificationData } from "@/lib/types/identity";
 import { useUser } from "@/lib/providers/user-provider";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("IdentityPage");
 
 const VERIFICATION_METHODS = [
   {
@@ -142,7 +145,7 @@ export default function VerifyIdentity() {
           const addr = await signer.getRecommendedAddress();
           setWalletAddress(addr);
         } catch (error) {
-          console.error("Failed to get wallet address:", error);
+          log.error("Failed to get wallet address:", error);
         }
       } else {
         setWalletAddress(null);
@@ -246,7 +249,7 @@ export default function VerifyIdentity() {
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsSubmitting(false);
-    console.log("Manual verification submitted:", manualApplication);
+    log.info("Manual verification submitted:", manualApplication);
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -308,7 +311,7 @@ export default function VerifyIdentity() {
       setIsSubmitting(true);
 
       if (!userService) {
-        console.error("User service not found");
+        log.error("User service not found");
         return;
       }
 
@@ -321,7 +324,7 @@ export default function VerifyIdentity() {
       setTelegramRedirectData(null);
       await loadVerificationStatus();
     } catch (e) {
-      console.error("Failed to bind Telegram to wallet", e);
+      log.error("Failed to bind Telegram to wallet", e);
     } finally {
       setIsSubmitting(false);
     }

@@ -16,6 +16,9 @@ import { useProtocol } from "@/lib/providers/protocol-provider";
 import { useToast } from "@/components/ui/use-toast";
 import { ccc } from "@ckb-ccc/connector-react";
 import { InsufficientTippingFundingError } from "@/lib/services/tipping-service";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("Tippings");
 
 const parseBigInt = (value: ccc.NumLike | undefined | null): bigint => {
   if (value === undefined || value === null) return 0n;
@@ -59,7 +62,7 @@ export function Tippings() {
           setViewerLockHash(hash);
         }
       } catch (err) {
-        console.error("Failed to derive viewer lock hash", err);
+        log.error("Failed to derive viewer lock hash", err);
         if (!cancelled) {
           setViewerLockHash(null);
         }
@@ -221,7 +224,7 @@ export function Tippings() {
                 )} submitted.`,
         });
       } catch (error) {
-        console.error("Failed to approve tipping", error);
+        log.error("Failed to approve tipping", error);
         if (error instanceof InsufficientTippingFundingError) {
           toast({
             title: "Insufficient funding",

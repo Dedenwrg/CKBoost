@@ -9,14 +9,7 @@ import React, {
 } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
-import {
-  Award,
-  Loader2,
-  ShieldCheck,
-  Sparkles,
-  Trophy,
-  Wrench,
-} from "lucide-react";
+import { Loader2, ShieldCheck, Sparkles, Trophy } from "lucide-react";
 import {
   AchievementService,
   type AchievementQueryResponse,
@@ -31,6 +24,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("AchievementsSection");
 
 interface PreviewState {
   result: AchievementQueryResponse | null;
@@ -96,7 +92,7 @@ export function AchievementsSection(): React.JSX.Element {
     try {
       return new AchievementService(client, typeCodeHash);
     } catch (error) {
-      console.warn("[AchievementsSection] Failed to init service", error);
+      log.warn("Failed to init service", error);
       return null;
     }
   }, [client]);
@@ -127,7 +123,7 @@ export function AchievementsSection(): React.JSX.Element {
     if (!result) {
       throw new Error("Failed to claim achievements.");
     }
-    console.log({
+    log.info({
       title: "Achievements claimed",
       description: "Achievements claimed successfully.",
       variant: "success",
@@ -163,7 +159,7 @@ export function AchievementsSection(): React.JSX.Element {
         isLoading: false,
       });
     } catch (error) {
-      console.error("[AchievementsSection] Failed to load achievements", error);
+      log.error("Failed to load achievements", error);
       const message =
         error instanceof Error ? error.message : "Unable to load achievements.";
       setServiceError(message);
@@ -186,9 +182,7 @@ export function AchievementsSection(): React.JSX.Element {
       setAchievements([]);
       return;
     }
-    loadAchievements().catch((error) =>
-      console.error("[AchievementsSection] load failed", error)
-    );
+    loadAchievements().catch((error) => log.error("load failed", error));
   }, [achievementService, client, loadAchievements, protocolData, userAddress]);
 
   useEffect(() => {
@@ -227,7 +221,7 @@ export function AchievementsSection(): React.JSX.Element {
       })
       .catch((error) => {
         if (cancelled) return;
-        console.error("[AchievementsSection] Automatic preview failed", error);
+        log.error("Automatic preview failed", error);
         setPreviewState({
           result: null,
           error:
@@ -307,7 +301,7 @@ export function AchievementsSection(): React.JSX.Element {
           setPreviewState({ result, error: null, isLoading: false });
         }
       } catch (error) {
-        console.error("[AchievementsSection] Preview failed", error);
+        log.error("Preview failed", error);
         setPreviewState({
           result: null,
           error:

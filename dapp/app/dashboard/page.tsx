@@ -26,15 +26,16 @@ import {
   Clock,
   Coins,
 } from "lucide-react";
-import { formatDateConsistent } from "@/lib/utils/debug";
+import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { useUser } from "@/lib/providers/user-provider";
 import { useCampaigns } from "@/lib";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
 import type { UserSubmissionRecordLike } from "ssri-ckboost/types";
 import { udtRegistry } from "@/lib/services/udt-registry";
-import { debug } from "@/lib/utils/debug";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
+
+const log = createScopedLogger("DashboardPage");
 
 interface SubmissionDisplayEntry {
   key: string;
@@ -70,7 +71,7 @@ const normalizeHex = (value: unknown): string | null => {
     }
     return ccc.hexFrom(ccc.bytesFrom(value as ccc.BytesLike));
   } catch (error) {
-    debug.warn("Failed to normalise hex value", { value, error });
+    log.warn("Failed to normalise hex value", { value, error });
     return null;
   }
 };
@@ -246,7 +247,7 @@ export default function Dashboard() {
         ) as CampaignDataLike;
         map.set(typeId.toLowerCase(), campaignData);
       } catch (error) {
-        debug.warn("Failed to decode campaign data", error);
+        log.warn("Failed to decode campaign data", error);
       }
     });
     return map;
@@ -389,7 +390,7 @@ export default function Dashboard() {
               });
             }
           } catch (error) {
-            debug.warn("Failed to process accepted UDT script", error);
+            log.warn("Failed to process accepted UDT script", error);
           }
         }
 
@@ -443,7 +444,7 @@ export default function Dashboard() {
           setTokenBalances(entries);
         }
       } catch (error) {
-        debug.warn("Failed to load user token balances", error);
+        log.warn("Failed to load user token balances", error);
         if (!cancelled) {
           setTokenBalances([]);
           setPointsBalance((prev) => prev ?? 0n);

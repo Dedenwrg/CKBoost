@@ -1,13 +1,15 @@
 import { ccc } from "@ckb-ccc/connector-react";
 // Leaderboard service traces Points minting history and aggregates rankings
 import { deploymentManager } from "../ckb/deployment-manager";
-import { debug } from "../utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import type {
   LeaderboardCacheSnapshot,
   LeaderboardEntry,
   LeaderboardStats,
   PointsMintRecord,
 } from "../types/leaderboard";
+
+const log = createScopedLogger("LeaderboardService");
 
 export interface LeaderboardCacheAdapter {
   load(): Promise<LeaderboardCacheSnapshot | undefined>;
@@ -116,7 +118,7 @@ export class LeaderboardService {
     });
 
     const liveCells = await this.fetchLivePointsCells();
-    debug.log("LeaderboardService", {
+    log.log("LeaderboardService", {
       action: "collectLeaderboardStats",
       liveCells: liveCells.length,
       baseline: baseline.toString(),
@@ -173,7 +175,7 @@ export class LeaderboardService {
 
     const txResponse = await this.client.getTransaction(outPoint.txHash);
     if (!txResponse) {
-      debug.warn("LeaderboardService", "Transaction not found", {
+      log.warn("LeaderboardService", "Transaction not found", {
         outPoint: key,
       });
       return;
@@ -322,7 +324,7 @@ export class LeaderboardService {
     );
 
     if (mintedTotal !== mintedDelta) {
-      debug.warn("LeaderboardService", "Mint total mismatch", {
+      log.warn("LeaderboardService", "Mint total mismatch", {
         txHash,
         mintedDelta: mintedDelta.toString(),
         mintedTotal: mintedTotal.toString(),
@@ -391,7 +393,7 @@ export class LeaderboardService {
       try {
         address = ccc.Address.fromScript(output.lock, this.client).toString();
       } catch (error) {
-        debug.warn("LeaderboardService", "Failed to derive address", {
+        log.warn("LeaderboardService", "Failed to derive address", {
           lockHash,
           error: error instanceof Error ? error.message : String(error),
         });

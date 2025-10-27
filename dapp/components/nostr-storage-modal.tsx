@@ -35,8 +35,10 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { isNostrSubmissionData } from "@/types/submission";
+
+const log = createScopedLogger("NostrStorageModal");
 
 interface TippingNostrPayload {
   format: string;
@@ -711,13 +713,13 @@ export function NostrStorageModal({
     setTxHash(null);
 
     try {
-      debug.log("Verifying Nostr storage for:", neventId);
+      log.log("Verifying Nostr storage for:", neventId);
 
       // Try to fetch the submission from Nostr
       const result = await fetchSubmission(neventId);
 
       if (result && result.content) {
-        debug.log("✅ Successfully retrieved content from Nostr");
+        log.log("✅ Successfully retrieved content from Nostr");
         setVerifiedContent(result.content);
         setVerifiedNeventId(neventId);
         setVerifiedMetadata(result.metadata || {});
@@ -726,7 +728,7 @@ export function NostrStorageModal({
         throw new Error("Content could not be retrieved from Nostr relays");
       }
     } catch (err) {
-      debug.error("Failed to verify Nostr storage:", err);
+      log.error("Failed to verify Nostr storage:", err);
       setErrorMessage(
         err instanceof Error
           ? err.message
@@ -801,7 +803,7 @@ export function NostrStorageModal({
       return;
     }
 
-    debug.log("NostrStorageModal handleConfirm invoked", {
+    log.log("NostrStorageModal handleConfirm invoked", {
       status,
       hasPendingQueueItems,
       hasCurrentPayload,
@@ -820,7 +822,7 @@ export function NostrStorageModal({
     try {
       setTxStatus("submitting");
       const result = await onConfirm();
-      debug.log("NostrStorageModal handleConfirm onConfirm resolved", {
+      log.log("NostrStorageModal handleConfirm onConfirm resolved", {
         resultType: typeof result,
         hasResult: !!result,
         hasPendingQueueItems,
@@ -832,7 +834,7 @@ export function NostrStorageModal({
         // Intermediate confirmation (e.g. additional campaign assets)
         setTxStatus("idle");
         if (!hasPendingQueueItems) {
-          debug.log(
+          log.log(
             "NostrStorageModal handleConfirm closing modal after intermediate confirmation"
           );
           onClose();
@@ -841,7 +843,7 @@ export function NostrStorageModal({
       // When there are no further queue items, close the modal automatically.
       // Otherwise, the caller will reopen the modal with the next item.
     } catch (err) {
-      debug.error("Failed to confirm transaction:", err);
+      log.error("Failed to confirm transaction:", err);
       const errorMsg =
         err instanceof Error ? err.message : "Failed to submit transaction";
       setTxError(errorMsg);

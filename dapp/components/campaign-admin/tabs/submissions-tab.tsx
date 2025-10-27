@@ -1,140 +1,188 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Clock, CheckCircle, Trophy, Users, RefreshCw, AlertCircle } from "lucide-react"
-import { useCampaignAdmin } from "@/lib/providers/campaign-admin-provider"
-import { CampaignDataLike, UserSubmissionRecordLike, UserDataLike } from "ssri-ckboost/types"
-import { SubmissionList } from "../submissions/submission-list"
-import { SubmissionStatsCards } from "../submissions/submission-stats-cards"
-import { debug } from "@/lib/utils/debug"
-import { ccc } from "@ckb-ccc/connector-react"
+import { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Clock,
+  CheckCircle,
+  Trophy,
+  Users,
+  RefreshCw,
+  AlertCircle,
+} from "lucide-react";
+import { useCampaignAdmin } from "@/lib/providers/campaign-admin-provider";
+import {
+  CampaignDataLike,
+  UserSubmissionRecordLike,
+  UserDataLike,
+} from "ssri-ckboost/types";
+import { SubmissionList } from "../submissions/submission-list";
+import { SubmissionStatsCards } from "../submissions/submission-stats-cards";
+import { createScopedLogger } from "ssri-ckboost";
+import { ccc } from "@ckb-ccc/connector-react";
+
+const log = createScopedLogger("SubmissionsTab");
 
 interface SubmissionsTabProps {
-  campaignTypeId: ccc.Hex
+  campaignTypeId: ccc.Hex;
 }
 
 export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
-  const { campaignAdminService, campaign: campaignInstance, isLoadingCampaign: isServiceLoading, error: adminError } = useCampaignAdmin(campaignTypeId)
-  const [submissions, setSubmissions] = useState<Map<number, Array<UserSubmissionRecordLike & { userTypeId: string }>>>()
-  const [userDetails, setUserDetails] = useState<Map<string, UserDataLike>>()
-  const [campaignData, setCampaignData] = useState<CampaignDataLike | null>(null)
+  const {
+    campaignAdminService,
+    campaign: campaignInstance,
+    isLoadingCampaign: isServiceLoading,
+    error: adminError,
+  } = useCampaignAdmin(campaignTypeId);
+  const [submissions, setSubmissions] =
+    useState<
+      Map<number, Array<UserSubmissionRecordLike & { userTypeId: string }>>
+    >();
+  const [userDetails, setUserDetails] = useState<Map<string, UserDataLike>>();
+  const [campaignData, setCampaignData] = useState<CampaignDataLike | null>(
+    null
+  );
   const [stats, setStats] = useState<{
-    totalSubmissions: number,
-    pendingReview: number,
-    approved: number
-  }>()
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved">("all")
+    totalSubmissions: number;
+    pendingReview: number;
+    approved: number;
+  }>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "pending" | "approved"
+  >("all");
 
   const loadSubmissions = useCallback(async () => {
     if (!campaignAdminService) {
-      setError("Campaign admin service not available")
-      setIsLoading(false)
-      return
+      setError("Campaign admin service not available");
+      setIsLoading(false);
+      return;
     }
 
     try {
-      setError(null)
-      const data = await campaignAdminService.fetchCampaignSubmissions(campaignTypeId)
-      setSubmissions(data.submissions)
-      setUserDetails(data.userDetails)
-      setCampaignData(data.campaignData)
-      setStats(data.stats)
-      debug.log("Loaded submissions", data.stats)
-      debug.log("Campaign quests:", data.campaignData?.quests?.map(q => ({ 
-        id: q.quest_id, 
-        title: q.metadata?.title 
-      })))
+      setError(null);
+      const data = await campaignAdminService.fetchCampaignSubmissions(
+        campaignTypeId
+      );
+      setSubmissions(data.submissions);
+      setUserDetails(data.userDetails);
+      setCampaignData(data.campaignData);
+      setStats(data.stats);
+      log.log("Loaded submissions", data.stats);
+      log.log(
+        "Campaign quests:",
+        data.campaignData?.quests?.map((q) => ({
+          id: q.quest_id,
+          title: q.metadata?.title,
+        }))
+      );
     } catch (err) {
-      console.error("Failed to load submissions:", err)
-      setError("Failed to load submissions. Please try again.")
+      console.error("Failed to load submissions:", err);
+      setError("Failed to load submissions. Please try again.");
     } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
-  }, [campaignAdminService, campaignTypeId])
+  }, [campaignAdminService, campaignTypeId]);
 
   useEffect(() => {
     if (!isServiceLoading && campaignAdminService) {
-      loadSubmissions()
+      loadSubmissions();
     }
-  }, [campaignTypeId, isServiceLoading, campaignAdminService, loadSubmissions])
+  }, [campaignTypeId, isServiceLoading, campaignAdminService, loadSubmissions]);
 
   async function handleRefresh() {
-    setIsRefreshing(true)
-    await loadSubmissions()
+    setIsRefreshing(true);
+    await loadSubmissions();
   }
-
 
   function getFilteredSubmissions() {
     if (!submissions || filterStatus === "all") {
-      return submissions || new Map()
+      return submissions || new Map();
     }
 
-    const filtered = new Map<number, Array<UserSubmissionRecordLike & { userTypeId: string }>>()
-    
+    const filtered = new Map<
+      number,
+      Array<UserSubmissionRecordLike & { userTypeId: string }>
+    >();
+
     for (const [questId, questSubmissions] of submissions) {
-      const quest = campaignData?.quests?.find(q => Number(q.quest_id) === questId)
-      const approvedUserIds = quest?.accepted_submission_user_type_ids || []
-      
-      const filteredSubmissions = questSubmissions.filter(submission => {
-        const isApproved = approvedUserIds.includes(submission.userTypeId)
+      const quest = campaignData?.quests?.find(
+        (q) => Number(q.quest_id) === questId
+      );
+      const approvedUserIds = quest?.accepted_submission_user_type_ids || [];
+
+      const filteredSubmissions = questSubmissions.filter((submission) => {
+        const isApproved = approvedUserIds.includes(submission.userTypeId);
         if (filterStatus === "approved") {
-          return isApproved
+          return isApproved;
         } else if (filterStatus === "pending") {
-          return !isApproved
+          return !isApproved;
         }
-        return true
-      })
-      
+        return true;
+      });
+
       if (filteredSubmissions.length > 0) {
-        filtered.set(questId, filteredSubmissions)
+        filtered.set(questId, filteredSubmissions);
       }
     }
-    
-    return filtered
+
+    return filtered;
   }
 
-  async function handleBatchApprove(questId: number, userTypeIds: string[]): Promise<void> {
+  async function handleBatchApprove(
+    questId: number,
+    userTypeIds: string[]
+  ): Promise<void> {
     if (!campaignAdminService || !submissions) {
-      throw new Error("Service not available")
+      throw new Error("Service not available");
     }
 
     // Points are handled automatically by the smart contract based on quest configuration
 
     if (userTypeIds.length === 0) {
-      throw new Error("No submissions selected for approval")
+      throw new Error("No submissions selected for approval");
     }
 
     // Check if campaign instance is available
     if (!campaignInstance) {
       if (isServiceLoading) {
-        throw new Error("Campaign is still loading, please wait a moment and try again")
+        throw new Error(
+          "Campaign is still loading, please wait a moment and try again"
+        );
       }
       if (adminError) {
-        throw new Error(`Campaign error: ${adminError}`)
+        throw new Error(`Campaign error: ${adminError}`);
       }
-      throw new Error("Campaign instance not available")
+      throw new Error("Campaign instance not available");
     }
 
     try {
-      const txHash = await campaignAdminService.approveCompletion(campaignTypeId, questId, userTypeIds as ccc.Hex[])
-      
+      const txHash = await campaignAdminService.approveCompletion(
+        campaignTypeId,
+        questId,
+        userTypeIds as ccc.Hex[]
+      );
+
       // Store the transaction hash if needed
       if (txHash) {
-        debug.log("Batch approval transaction:", txHash)
+        log.log("Batch approval transaction:", txHash);
       }
-      
+
       // Refresh submissions after batch approval
-      await loadSubmissions()
+      await loadSubmissions();
     } catch (err) {
-      console.error("Failed to batch approve submissions:", err)
-      throw err // Re-throw to be handled by the dialog
+      console.error("Failed to batch approve submissions:", err);
+      throw err; // Re-throw to be handled by the dialog
     }
   }
 
@@ -144,11 +192,13 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
           <p className="text-muted-foreground">
-            {isServiceLoading ? "Loading campaign..." : "Loading submissions..."}
+            {isServiceLoading
+              ? "Loading campaign..."
+              : "Loading submissions..."}
           </p>
         </div>
       </div>
-    )
+    );
   }
 
   if (error || adminError) {
@@ -160,7 +210,7 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
           <Button onClick={handleRefresh}>Try Again</Button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -179,7 +229,9 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
           onClick={handleRefresh}
           disabled={isRefreshing}
         >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+          />
           Refresh
         </Button>
       </div>
@@ -234,12 +286,13 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
             <div className="text-center">
               <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">
-                No quests have been created yet. Create quests first to receive submissions.
+                No quests have been created yet. Create quests first to receive
+                submissions.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
     </div>
-  )
+  );
 }

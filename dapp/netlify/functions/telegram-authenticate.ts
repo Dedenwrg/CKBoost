@@ -7,9 +7,11 @@ import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { UserData } from "ssri-ckboost/types";
 import { VerificationDataEntries } from "@/lib/types/identity";
 import { TelegramVerificationData } from "../../lib/types/identity";
-import { log } from "console";
 import { bytesFrom } from "../../../../ccc/packages/core/src/bytes/index";
 import { stringify } from "../../../../ccc/packages/core/src/utils/index";
+import { createLogger } from "@/netlify/lib/log";
+
+const validatorLogger = createLogger("telegram-authenticate:validate");
 
 // Types for safer payload handling
 type Hex = string;
@@ -31,8 +33,7 @@ export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
   const isDev =
     process.env.NETLIFY_DEV === "true" || process.env.NODE_ENV !== "production";
-  const log = (...args: unknown[]) =>
-    console.log(`[telegram-authenticate][${reqId}]`, ...args);
+  const logger = createLogger(`telegram-authenticate:${reqId}`);
   const mask = (val?: string | number | null) => {
     if (val === undefined || val === null) return val;
     const s = String(val);
@@ -40,23 +41,23 @@ export const handler: Handler = async (event) => {
     return `${s.slice(0, 6)}…${s.slice(-4)}`;
   };
 
-  log("request", {
+  logger.info("request", {
     method: event.httpMethod,
     path: event.path,
     query: event.rawQuery || event.queryStringParameters,
   });
 
-  log("JSON Body", event.body);
+  logger.log("JSON Body", event.body);
 
   if (event.httpMethod !== "POST") {
-    log("method_not_allowed");
+    logger.warn("method_not_allowed");
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
   try {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
-      log("config_error", { botTokenPresent: !!botToken });
+      logger.error("config_error", { botTokenPresent: !!botToken });
       return { statusCode: 500, body: "Missing TELEGRAM_BOT_TOKEN" };
     }
 
@@ -64,7 +65,7 @@ export const handler: Handler = async (event) => {
     try {
       tx = ccc.Transaction.fromBytes(event.body as ccc.Hex);
     } catch (e) {
-      log("body_parse_error", { message: (e as Error)?.message });
+      logger.error("body_parse_error", { message: (e as Error)?.message });
       return {
         statusCode: 400,
         headers: { "Content-Type": "application/json" },
@@ -73,7 +74,7 @@ export const handler: Handler = async (event) => {
     }
 
     if (!tx) {
-      log("missing_tx");
+      logger.error("missing_tx");
       return {
         statusCode: 400,
         body: JSON.stringify({ success: false, error: "missing_tx" }),
@@ -87,7 +88,7 @@ export const handler: Handler = async (event) => {
     const rpcUrl =
       process.env.NEXT_PUBLIC_CKB_RPC_URL || "https://testnet.ckb.dev";
     if (!serverKey) {
-      log("config_error_post", { hasServerKey: !!serverKey });
+      logger.error("config_error_post", { hasServerKey: !!serverKey });
       return {
         statusCode: 500,
         body: JSON.stringify({ success: false, error: "missing_private_key" }),
@@ -110,7 +111,7 @@ export const handler: Handler = async (event) => {
         o.type?.codeHash === userCellCodeHash && o.type?.hashType === "type"
     );
     if (userCellOutputIndex === -1) {
-      log("auth_output_not_found");
+      logger.error("auth_output_not_found");
       return {
         statusCode: 400,
         body: JSON.stringify({ success: false, error: "auth_output_missing" }),
@@ -120,7 +121,7 @@ export const handler: Handler = async (event) => {
       | ccc.Hex
       | undefined;
     if (!rawData || rawData === "0x") {
-      log("auth_output_empty_data", { userCellOutputIndex });
+      logger.error("auth_output_empty_data", { userCellOutputIndex });
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -139,14 +140,14 @@ export const handler: Handler = async (event) => {
         userData.verification_data.identity_verification_data;
       const bytes = ccc.bytesFrom(userVerificationDataArrayHex);
       const s = Buffer.from(bytes).toString("utf8");
-      log("user_verification_data_array_string", s);
+      logger.log("user_verification_data_array_string", s);
       userVerificationDataArray = JSON.parse(s) as VerificationDataEntries[];
-      log(
+      logger.log(
         "user_verification_data_array",
         JSON.stringify(userVerificationDataArray)
       );
     } catch (e) {
-      log("auth_output_data_parse_error", { message: (e as Error)?.message });
+      logger.error("auth_output_data_parse_error", { message: (e as Error)?.message });
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -158,7 +159,7 @@ export const handler: Handler = async (event) => {
     let invalidated = false;
     try {
       for (const verificationData of userVerificationDataArray) {
-        log("validating verification data", {
+        logger.info("validating verification data", {
           source: verificationData.source,
           data: verificationData.data,
         });
@@ -177,7 +178,7 @@ export const handler: Handler = async (event) => {
       }
     } catch (e) {
       const err = e as Error;
-      log("validator_router_error", {
+      logger.error("validator_router_error", {
         message: err?.message,
         type: err?.name,
       });
@@ -191,20 +192,20 @@ export const handler: Handler = async (event) => {
         }),
       };
     }
-    log("invalidated", invalidated);
+    logger.info("invalidated", invalidated);
     if (invalidated) {
       throw new Error("invalidated_error");
     } else {
-      log("validated_success");
+      logger.info("validated_success");
       let proxyAuthenticatedTx: ccc.Transaction | undefined;
 
       // Compute tx hash and sign with authenticator key (attestation)
       try {
-        log("Before signing for proxy authentication", ccc.stringify(tx));
+        logger.info("Before signing for proxy authentication", ccc.stringify(tx));
         proxyAuthenticatedTx = await serverSigner.signTransaction(tx);
-        log("proxy_authenticated_tx", ccc.stringify(proxyAuthenticatedTx));
+        logger.log("proxy_authenticated_tx", ccc.stringify(proxyAuthenticatedTx));
       } catch (e) {
-        log("signing_error", { message: (e as Error)?.message });
+        logger.error("signing_error", { message: (e as Error)?.message });
         // Still return validation success if signing fails
       }
 
@@ -223,7 +224,7 @@ export const handler: Handler = async (event) => {
     }
   } catch (err) {
     const e = err as Error;
-    log("unhandled_error", {
+    logger.error("unhandled_error", {
       message: e?.message,
       stack: e?.stack?.split("\n").slice(0, 3).join(" | "),
     });
@@ -241,14 +242,14 @@ async function validateTelegramAuth(url: string) {
     // inValidateDataAfter: ttl,
   });
   let user: TelegramUserData & { auth_date?: number | string };
-  log("url", url);
+  validatorLogger.info("url", url);
   const data = urlStrToAuthDataMap(url);
   try {
     user = await validator.validate(data);
-    console.log("validated user", user);
+    validatorLogger.info("validated user", user);
   } catch (e) {
     const err = e as Error;
-    log("validateTelegramAuth", {
+    validatorLogger.error("validateTelegramAuth", {
       message: err?.message,
       type: err?.name,
       dataMapKeys: Array.from(data.keys()),

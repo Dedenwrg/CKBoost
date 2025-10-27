@@ -12,11 +12,13 @@ import {
   extractTypeIdFromUserCell,
 } from "@/lib/ckb/user-cells";
 import { fetchCampaignByTypeId as fetchCampaignCell } from "@/lib/ckb/campaign-cells";
-import { debug } from "@/lib/utils/debug";
 import { Campaign } from "ssri-ckboost";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
+import { createScopedLogger } from "ssri-ckboost";
+
+const log = createScopedLogger("CampaignAdminService");
 
 /**
  * Comprehensive service for campaign admin operations
@@ -117,7 +119,7 @@ export class CampaignAdminService {
     try {
       return CampaignData.decode(cell.outputData);
     } catch (err) {
-      debug.error("Failed to parse campaign data", err);
+      log.error("Failed to parse campaign data", err);
       return null;
     }
   }
@@ -206,7 +208,7 @@ export class CampaignAdminService {
 
       // Add UDT funding if provided
       if (udtFunding && udtFunding.length > 0) {
-        console.log("Adding UDT funding to campaign transaction");
+        log.info("Adding UDT funding to campaign transaction");
 
         // Import FundingService dynamically to avoid circular dependencies
         const { FundingService } = await import(
@@ -310,7 +312,7 @@ export class CampaignAdminService {
           udtAssets
         );
 
-        console.log("UDT funding added to transaction");
+        log.info("UDT funding added to transaction");
       }
 
       // Add CKB funding if provided
@@ -365,7 +367,7 @@ export class CampaignAdminService {
           fundingLock,
           ckbFunding
         );
-        console.log("CKB funding added to transaction");
+        log.info("CKB funding added to transaction");
       }
 
       // Complete fees and send transaction
@@ -375,8 +377,8 @@ export class CampaignAdminService {
       // Log the transaction bytes before sending
       const txBytes = updateTx.toBytes();
       const txHex = ccc.hexFrom(txBytes);
-      console.log("=== TRANSACTION BYTES TO RPC ===");
-      console.log("Transaction Structure:", {
+      log.info("=== TRANSACTION BYTES TO RPC ===");
+      log.info("Transaction Structure:", {
         version: updateTx.version,
         cellDeps: updateTx.cellDeps.map((dep: ccc.CellDep) => ({
           outPoint: {
@@ -414,9 +416,9 @@ export class CampaignAdminService {
           typeof witness === "string" ? witness : ccc.hexFrom(witness)
         ),
       });
-      console.log("Transaction Hex:", txHex);
-      console.log("Transaction Size:", txBytes.length, "bytes");
-      console.log("=== END TRANSACTION BYTES ===");
+      log.info("Transaction Hex:", txHex);
+      log.info("Transaction Size:", txBytes.length, "bytes");
+      log.info("=== END TRANSACTION BYTES ===");
       const network = deploymentManager.getCurrentNetwork();
       const protocolLockCodeHash = deploymentManager.getContractCodeHash(
         network,
@@ -466,10 +468,10 @@ export class CampaignAdminService {
 
       const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx);
 
-      console.log("Campaign updated:", { campaignTypeId, txHash });
+      log.info("Campaign updated:", { campaignTypeId, txHash });
       return txHash;
     } catch (error) {
-      console.error("Failed to update campaign:", error);
+      log.error("Failed to update campaign:", error);
       throw error;
     }
   }
@@ -493,7 +495,7 @@ export class CampaignAdminService {
       approved: number;
     };
   }> {
-    debug.log(
+    log.log(
       "Fetching submissions for campaign",
       campaignTypeId.slice(0, 10) + "..."
     );
@@ -521,7 +523,7 @@ export class CampaignAdminService {
       this.userTypeCodeHash,
       this.signer
     );
-    debug.log(`Found ${userCells.length} total user cells`);
+    log.log(`Found ${userCells.length} total user cells`);
 
     // Process submissions
     const submissions = new Map<
@@ -590,7 +592,7 @@ export class CampaignAdminService {
           }
         }
       } catch (err) {
-        debug.error("Failed to process user cell", err);
+        log.error("Failed to process user cell", err);
         continue;
       }
     }
@@ -601,7 +603,7 @@ export class CampaignAdminService {
         return total + (quest.accepted_submission_user_type_ids?.length || 0);
       }, 0) || 0;
 
-    debug.log("Submission fetch complete", {
+    log.log("Submission fetch complete", {
       totalSubmissions,
       uniqueUsers: userDetails.size,
       pendingReview,
@@ -649,7 +651,7 @@ export class CampaignAdminService {
       // This will query user cells that have submissions for this quest
       // Filter out already approved submissions
 
-      console.log("Fetching pending submissions for quest:", {
+      log.info("Fetching pending submissions for quest:", {
         campaignTypeId,
         questId,
       });
@@ -662,7 +664,7 @@ export class CampaignAdminService {
 
       return [];
     } catch (error) {
-      console.error("Failed to fetch pending submissions:", error);
+      log.error("Failed to fetch pending submissions:", error);
       throw error;
     }
   }
@@ -712,7 +714,7 @@ export class CampaignAdminService {
       // Return approved user type IDs
       return quest.accepted_submission_user_type_ids || [];
     } catch (error) {
-      console.error("Failed to get approved completions:", error);
+      log.error("Failed to get approved completions:", error);
       throw error;
     }
   }
@@ -732,7 +734,7 @@ export class CampaignAdminService {
     }>
   ): Promise<string> {
     // TODO: Implement with simple transfer to funding-lock
-    console.log("UDT funding will be available in Stage 2:", {
+    log.info("UDT funding will be available in Stage 2:", {
       campaignTypeId,
       udtAssets,
     });
@@ -774,7 +776,7 @@ export class CampaignAdminService {
       throw new Error("At least one user type ID must be provided");
     }
 
-    debug.log("Approving quest completions", {
+    log.log("Approving quest completions", {
       campaign: campaignTypeId.slice(0, 10) + "...",
       questId,
       userTypeIds,
@@ -800,7 +802,7 @@ export class CampaignAdminService {
     try {
       // Stage 1: Approve completions with Points minting
       // The smart contract will handle Points minting through the Points UDT
-      console.log("Trying approveCompletion");
+      log.info("Trying approveCompletion");
       const { res: tx } = await this.campaign.approveCompletion(
         this.signer,
         campaignData,
@@ -816,7 +818,7 @@ export class CampaignAdminService {
       if (!pointsUdtOutPoint) {
         throw new Error("Points UDT contract not found in deployments.json");
       } else {
-        console.log("Points UDT outpoint", pointsUdtOutPoint);
+        log.info("Points UDT outpoint", pointsUdtOutPoint);
       }
 
       tx.addCellDeps({
@@ -895,7 +897,7 @@ export class CampaignAdminService {
       await tx.completeFeeBy(this.signer);
       const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
 
-      console.log("Quest completions approved with Points minting:", {
+      log.info("Quest completions approved with Points minting:", {
         campaignTypeId,
         questId,
         userTypeIds,
@@ -906,7 +908,7 @@ export class CampaignAdminService {
 
       return txHash;
     } catch (error) {
-      console.error("Failed to approve quest completions:", error);
+      log.error("Failed to approve quest completions:", error);
       throw error;
     }
   }

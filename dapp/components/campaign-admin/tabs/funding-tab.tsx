@@ -39,11 +39,13 @@ import { FundingDashboard } from "../funding/funding-dashboard";
 import { UDTSelector } from "../quest/udt-selector";
 import { udtRegistry, UDTToken } from "@/lib/services/udt-registry";
 import { useMultipleUDTBalances } from "@/hooks/use-udt-balance";
-import { debug } from "@/lib/utils/debug";
+import { createScopedLogger } from "ssri-ckboost";
 import { ccc } from "@ckb-ccc/connector-react";
 import { cn } from "@/lib/utils";
 import { FundingService } from "@/lib/services/funding-service";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+
+const log = createScopedLogger("FundingTab");
 
 interface FundingTabProps {
   campaignTypeId: ccc.Hex;
@@ -257,18 +259,18 @@ export function FundingTab({ campaignTypeId, initialQuotas }: FundingTabProps) {
           }
         }
       } catch (error) {
-        debug.log("Could not load actual locked UDTs, using mock data:", error);
+        log.log("Could not load actual locked UDTs, using mock data:", error);
       }
 
       setLockedUDTs(actualLockedUDTs);
       setLockedUDTsList(actualLockedList);
 
-      debug.log("Loaded funding data", {
+      log.log("Loaded funding data", {
         campaign: campaign?.metadata?.title,
         lockedTokens: actualLockedList.length,
       });
     } catch (error) {
-      debug.error("Failed to load funding data", error);
+      log.error("Failed to load funding data", error);
       setError(
         error instanceof Error ? error.message : "Failed to load funding data"
       );
@@ -300,7 +302,7 @@ export function FundingTab({ campaignTypeId, initialQuotas }: FundingTabProps) {
 
     setIsFunding(true);
     try {
-      debug.log("Funding campaign with:", {
+      log.log("Funding campaign with:", {
         token: fundingToken.token.symbol,
         amount: fundingToken.amount,
       });
@@ -359,14 +361,14 @@ export function FundingTab({ campaignTypeId, initialQuotas }: FundingTabProps) {
         udtAsset,
       ]);
 
-      debug.log("Campaign funded successfully:", txHash);
+      log.log("Campaign funded successfully:", txHash);
       alert(`Campaign funded successfully!\n\nTransaction: ${txHash}`);
 
       setIsFundDialogOpen(false);
       setFundingToken({ amount: "" });
       handleRefresh();
     } catch (error) {
-      debug.error("Failed to fund campaign", error);
+      log.error("Failed to fund campaign", error);
       alert(
         `Failed to fund campaign: ${
           error instanceof Error ? error.message : "Unknown error"
@@ -392,7 +394,7 @@ export function FundingTab({ campaignTypeId, initialQuotas }: FundingTabProps) {
     setIsUnlocking(true);
     try {
       // TODO: Implement actual UDT unlocking from campaign
-      debug.log("Unlocking from campaign:", {
+      log.log("Unlocking from campaign:", {
         token: unlockingToken.token.symbol,
         amount: unlockAmount,
       });
@@ -405,7 +407,7 @@ export function FundingTab({ campaignTypeId, initialQuotas }: FundingTabProps) {
       setUnlockAmount("");
       handleRefresh();
     } catch (error) {
-      debug.error("Failed to unlock funds", error);
+      log.error("Failed to unlock funds", error);
       setError(
         error instanceof Error ? error.message : "Failed to unlock funds"
       );

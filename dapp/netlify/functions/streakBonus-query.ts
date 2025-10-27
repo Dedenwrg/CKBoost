@@ -12,9 +12,11 @@ import {
   type StreakBonusQueryResponse,
 } from "@/netlify/lib/streak-bonus";
 import { UserData } from "ssri-ckboost/types";
+import { createLogger } from "@/netlify/lib/log";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
+const logger = createLogger("streakBonus-query");
 
 type RequestPayload = {
   userAddress?: string;
@@ -274,7 +276,10 @@ const fetchRewardTransactions = async ({
   const lowerUserTypeHash = userTypeCodeHash.toLowerCase();
   const expectedUserLockHash = userLockScript.hash().toLowerCase();
 
-  const scriptEquals = (scriptA: ccc.Script | undefined, scriptB: ccc.Script) => {
+  const scriptEquals = (
+    scriptA: ccc.Script | undefined,
+    scriptB: ccc.Script
+  ) => {
     if (!scriptA) return false;
     try {
       return scriptA.hash().toLowerCase() === scriptB.hash().toLowerCase();
@@ -319,8 +324,8 @@ const fetchRewardTransactions = async ({
           inputTotal += amount;
           inputs.push({ index, amount: amount.toString() });
         } catch (error) {
-          console.warn(
-            `[streakBonus-query] Failed to load input cell for tx ${match.txHash} index ${index}:`,
+          logger.warn(
+            `Failed to load input cell for tx ${match.txHash} index ${index}:`,
             error
           );
         }
@@ -348,7 +353,9 @@ const fetchRewardTransactions = async ({
           const inputType = cached.cellOutput.type;
           if (!inputType) continue;
           if (inputType.codeHash.toLowerCase() !== lowerUserTypeHash) continue;
-          if (cached.cellOutput.lock.hash().toLowerCase() !== expectedUserLockHash)
+          if (
+            cached.cellOutput.lock.hash().toLowerCase() !== expectedUserLockHash
+          )
             continue;
           previousUserDataHex = cached.outputData;
           break;
@@ -361,15 +368,17 @@ const fetchRewardTransactions = async ({
         try {
           const previousUserData = UserData.decode(previousUserDataHex);
           const nextUserData = UserData.decode(outputDataHex as ccc.HexLike);
-          const prevLast = ccc.numFrom(previousUserData.last_bonus_streak_at ?? 0n);
+          const prevLast = ccc.numFrom(
+            previousUserData.last_bonus_streak_at ?? 0n
+          );
           const nextLast = ccc.numFrom(nextUserData.last_bonus_streak_at ?? 0n);
           if (nextLast > prevLast) {
             isStreakBonus = true;
             break;
           }
         } catch (error) {
-          console.warn(
-            `[streakBonus-query] Failed to decode user data for streak detection in tx ${match.txHash}`,
+          logger.warn(
+            `Failed to decode user data for streak detection in tx ${match.txHash}`,
             error
           );
         }
@@ -385,10 +394,7 @@ const fetchRewardTransactions = async ({
         isStreakBonus,
       });
     } catch (error) {
-      console.warn(
-        `[streakBonus-query] Failed to process transaction ${match.txHash}`,
-        error
-      );
+      logger.warn(`Failed to process transaction ${match.txHash}`, error);
     }
   }
 
