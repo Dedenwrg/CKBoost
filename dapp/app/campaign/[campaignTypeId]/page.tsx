@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useState, useEffect, JSX } from "react";
+import { useState, useEffect, useMemo, JSX } from "react";
 import { useParams } from "next/navigation";
 import { Navigation } from "@/components/navigation";
 import {
@@ -35,8 +35,16 @@ import { ccc } from "@ckb-ccc/connector-react";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { isCampaignApproved } from "@/lib/ckb/campaign-cells";
-import { CampaignData, CampaignDataLike } from "ssri-ckboost/types";
-import type { AssetListLike, UDTAssetLike } from "ssri-ckboost/types";
+import {
+  CampaignData,
+  CampaignDataLike,
+  ConnectedTypeID,
+} from "ssri-ckboost/types";
+import type {
+  AssetListLike,
+  EndorserInfoLike,
+  UDTAssetLike,
+} from "ssri-ckboost/types";
 import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
 
 const log = createScopedLogger("CampaignPage");
@@ -94,6 +102,42 @@ const formatLongDescriptionHtml = (content: string): string => {
   return `<p>${escapeHtml(content).replace(/\n/g, "<br />")}</p>`;
 };
 
+const SHANNON_FACTOR = 10n ** 8n;
+
+const formatCkbAmount = (
+  value: ccc.NumLike | bigint | number | string | null | undefined
+): string => {
+  if (value === null || value === undefined) {
+    return "0";
+  }
+
+  try {
+    const bigintValue =
+      typeof value === "bigint"
+        ? value
+        : typeof value === "number"
+        ? BigInt(Math.floor(value))
+        : BigInt(ccc.numFrom(value as ccc.NumLike));
+
+    const integer = bigintValue / SHANNON_FACTOR;
+    const fractional = bigintValue % SHANNON_FACTOR;
+
+    if (fractional === 0n) {
+      return integer.toLocaleString();
+    }
+
+    const fractionalStr = fractional
+      .toString()
+      .padStart(8, "0")
+      .replace(/0+$/, "");
+
+    return `${integer.toLocaleString()}.${fractionalStr}`;
+  } catch (error) {
+    log.warn("Failed to format CKB amount", error);
+    return "0";
+  }
+};
+
 export default function CampaignDetailPage() {
   const params = useParams();
   const campaignTypeId = params.campaignTypeId as ccc.Hex;
@@ -127,6 +171,7 @@ export default function CampaignDetailPage() {
   const [fundingData, setFundingData] = useState<Map<ccc.Hex, bigint>>(
     new Map()
   );
+  const [fundingCkb, setFundingCkb] = useState<bigint>(0n);
   const [isLoadingFunding, setIsLoadingFunding] = useState(true);
 
   // Fetch UDT funding data for the campaign (only when signer is available)
@@ -167,6 +212,46 @@ export default function CampaignDetailPage() {
           signer
         );
 
+        let nativeCkbBalance = 0n;
+
+        try {
+          const connectedTypeArgs = ConnectedTypeID.encode({
+            type_id: campaignTypeId,
+            connected_key: protocolCellTypeHash,
+          });
+
+          const campaignTypeScript = ccc.Script.from({
+            codeHash: campaignTypeCodeHash,
+            hashType: "type" as const,
+            args: connectedTypeArgs,
+          });
+
+          const campaignTypeHash = campaignTypeScript.hash();
+
+          const fundingLockScript = ccc.Script.from({
+            codeHash: fundingLockCodeHash,
+            hashType: "type" as const,
+            args: campaignTypeHash,
+          });
+
+          const fundingCells = signer.client.findCells({
+            script: fundingLockScript,
+            scriptType: "lock",
+            scriptSearchMode: "exact",
+          });
+
+          for await (const cell of fundingCells) {
+            if (!cell.cellOutput.type) {
+              const capacity = cell.cellOutput.capacity;
+              if (capacity !== undefined && capacity !== null) {
+                nativeCkbBalance += BigInt(ccc.numFrom(capacity));
+              }
+            }
+          }
+        } catch (error) {
+          log.warn("Failed to calculate funding CKB balance", error);
+        }
+
         const groupedCells = groupUDTCellsByType(udtCells);
         const fundingMap = new Map<ccc.Hex, bigint>();
 
@@ -176,6 +261,7 @@ export default function CampaignDetailPage() {
         }
 
         setFundingData(fundingMap);
+        setFundingCkb(nativeCkbBalance);
         log.log("Fetched funding data:", fundingMap);
       } catch (error) {
         log.error("Failed to fetch funding data:", error);
@@ -371,6 +457,50 @@ export default function CampaignDetailPage() {
     checkSubmissionStatuses();
   }, [currentUserTypeId, campaign, campaignTypeId, hasUserSubmittedQuest]);
 
+  const ckbRewardStats = useMemo(() => {
+    let totalPerCompletion = 0n;
+    let totalDistributed = 0n;
+    let questsWithCkb = 0;
+
+    campaign?.quests?.forEach((quest: (typeof campaign.quests)[0]) => {
+      let perCompletion = 0n;
+
+      quest.rewards_on_completion?.forEach((rewardList: AssetListLike) => {
+        if (!rewardList.ckb_amount) {
+          return;
+        }
+        try {
+          perCompletion += BigInt(ccc.numFrom(rewardList.ckb_amount));
+        } catch (error) {
+          log.warn("Failed to parse quest CKB reward amount", error);
+        }
+      });
+
+      if (perCompletion === 0n) {
+        return;
+      }
+
+      questsWithCkb += 1;
+      totalPerCompletion += perCompletion;
+
+      const completions =
+        quest.accepted_submission_user_type_ids?.length ?? 0;
+      if (completions > 0) {
+        totalDistributed += perCompletion * BigInt(completions);
+      }
+    });
+
+    const averagePerQuest =
+      questsWithCkb > 0 ? totalPerCompletion / BigInt(questsWithCkb) : 0n;
+
+    return {
+      totalPerCompletion,
+      totalDistributed,
+      averagePerQuest,
+      questsWithCkb,
+    };
+  }, [campaign?.quests]);
+
   // Show loading state while waiting for campaign data
   if (isLoading || (!client && !campaign)) {
     return (
@@ -439,6 +569,14 @@ export default function CampaignDetailPage() {
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const getEndorserInfo = (
+    endorserLockHash: ccc.Hex
+  ): EndorserInfoLike | undefined => {
+    return protocolData?.endorsers_whitelist.find(
+      (e) => e.endorser_lock_hash === endorserLockHash
+    );
   };
 
   const getDifficultyColor = (difficulty: string | undefined) => {
@@ -515,6 +653,69 @@ export default function CampaignDetailPage() {
       },
       0
     ) || 0;
+
+  const questPreviewLimit = 3;
+
+  const getQuestRewardSummary = (
+    quest: CampaignDataLike["quests"][number]
+  ): string => {
+    const parts: string[] = [];
+
+    const points = Number(quest.points || 0);
+    if (!Number.isNaN(points) && points > 0) {
+      parts.push(`${points} pts`);
+    }
+
+    let totalCkb = 0;
+    const udtRewards: string[] = [];
+    if (quest.rewards_on_completion && quest.rewards_on_completion.length > 0) {
+      quest.rewards_on_completion.forEach((rewardList: AssetListLike) => {
+        if (rewardList.ckb_amount) {
+          const ckbAmount = Number(rewardList.ckb_amount);
+          if (!Number.isNaN(ckbAmount) && ckbAmount > 0) {
+            totalCkb += ckbAmount / 10 ** 8;
+          }
+        }
+        if (rewardList.udt_assets && rewardList.udt_assets.length > 0) {
+          rewardList.udt_assets.forEach((asset: UDTAssetLike) => {
+            try {
+              const script = ccc.Script.from(asset.udt_script);
+              const token = udtRegistry.getTokenByScriptHash(script.hash());
+              const amountRaw = Number(asset.amount);
+              if (Number.isNaN(amountRaw) || amountRaw <= 0) {
+                return;
+              }
+              const formattedAmount = token
+                ? udtRegistry.formatAmount(amountRaw, token)
+                : (amountRaw / 10 ** 8).toString();
+              const symbol = token?.symbol || "UDT";
+              udtRewards.push(`${formattedAmount} ${symbol}`);
+            } catch (error) {
+              log.warn("Failed to format UDT reward", error);
+              const fallbackAmount = Number(asset.amount);
+              if (!Number.isNaN(fallbackAmount) && fallbackAmount > 0) {
+                udtRewards.push(`${fallbackAmount} UDT`);
+              }
+            }
+          });
+        }
+      });
+    }
+
+    if (totalCkb > 0) {
+      const formattedCkb =
+        totalCkb % 1 === 0
+          ? totalCkb.toLocaleString()
+          : totalCkb.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      parts.push(`${formattedCkb} CKB`);
+    }
+
+    if (udtRewards.length > 0) {
+      parts.push(...udtRewards);
+    }
+
+    return parts.length > 0 ? parts.join(" • ") : "No rewards listed";
+  };
 
   // Debug quest structure
   if (campaign?.quests && campaign.quests.length > 0) {
@@ -693,8 +894,8 @@ export default function CampaignDetailPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Created By</p>
                     <p className="text-sm font-medium truncate">
-                      {/* TODO: Add endorser name */}
-                      {"Unknown"}
+                      {getEndorserInfo(ccc.hexFrom(campaign.endorser_lock_hash))
+                        ?.endorser_name ?? "Unknown"}
                     </p>
                   </div>
                   <Star className="w-8 h-8 text-yellow-600" />
@@ -736,6 +937,69 @@ export default function CampaignDetailPage() {
                     <p className="text-muted-foreground whitespace-pre-wrap">
                       {campaign.metadata?.short_description ||
                         "No detailed description available."}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle>Quests</CardTitle>
+                  </div>
+                  {campaign?.quests && campaign.quests.length > 0 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setActiveTab("quests")}
+                    >
+                      View All Quests
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {campaign?.quests && campaign.quests.length > 0 ? (
+                    <>
+                      {campaign.quests
+                        .slice(0, questPreviewLimit)
+                        .map((quest, index) => {
+                          const questId = Number(quest.quest_id || index + 1);
+                          const questTitle =
+                            quest.metadata?.title || `Quest ${questId}`;
+                          const shortDescription =
+                            quest.metadata?.short_description ||
+                            quest.metadata?.long_description ||
+                            "No description provided.";
+                          const rewardSummary = getQuestRewardSummary(quest);
+                          return (
+                            <div
+                              key={`quest-preview-${questId}`}
+                              className="space-y-2 border-b border-border/60 pb-4 last:border-none last:pb-0"
+                            >
+                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <h4 className="font-medium text-sm sm:text-base">
+                                  {questTitle}
+                                </h4>
+                                <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                                  {rewardSummary}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {shortDescription}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      {campaign.quests.length > questPreviewLimit && (
+                        <p className="text-xs text-muted-foreground">
+                          Showing first {questPreviewLimit} of{" "}
+                          {campaign.quests.length} quests.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No quests available yet for this campaign.
                     </p>
                   )}
                 </CardContent>
@@ -1356,7 +1620,7 @@ export default function CampaignDetailPage() {
                 <CardHeader>
                   <CardTitle>Rewards Summary</CardTitle>
                   <CardDescription>
-                    Points configured and UDT distributed so far
+                    Points configured and token distributions (CKB & UDT) so far
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1369,6 +1633,17 @@ export default function CampaignDetailPage() {
                       </div>
                       <span className="text-2xl font-bold">
                         {totalPoints} Points
+                      </span>
+                    </div>
+
+                    {/* CKB Distributed */}
+                    <div className="p-4 border rounded-lg flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-5 h-5 text-blue-600" />
+                        <span className="font-medium">Total CKB</span>
+                      </div>
+                      <span className="text-2xl font-bold">
+                        {formatCkbAmount(ckbRewardStats.totalDistributed)} CKB
                       </span>
                     </div>
 
@@ -1462,10 +1737,10 @@ export default function CampaignDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Available UDT Rewards */}
+              {/* Available Rewards */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Available UDT Rewards</CardTitle>
+                  <CardTitle>Available Rewards</CardTitle>
                   <CardDescription>
                     Remaining token rewards bound to this campaign
                   </CardDescription>
@@ -1572,15 +1847,69 @@ export default function CampaignDetailPage() {
                             value.available + value.totalDistributed;
                         });
 
-                        if (udtRewardsSummary.size === 0) {
-                          return (
-                            <div className="text-center py-8 text-muted-foreground">
-                              No UDT rewards configured for this campaign
+                        const rewardElements: JSX.Element[] = [];
+
+                        if (
+                          ckbRewardStats.totalPerCompletion > 0n ||
+                          fundingCkb > 0n
+                        ) {
+                          const formattedAvailableCkb =
+                            formatCkbAmount(fundingCkb);
+                          const formattedAverageCkb = formatCkbAmount(
+                            ckbRewardStats.averagePerQuest
+                          );
+                          const ckbCompletionQuota =
+                            ckbRewardStats.averagePerQuest > 0n
+                              ? Number(
+                                  fundingCkb / ckbRewardStats.averagePerQuest
+                                )
+                              : 0;
+
+                          rewardElements.push(
+                            <div
+                              key="ckb"
+                              className="p-4 border rounded-lg space-y-3"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Coins className="w-5 h-5 text-blue-600" />
+                                  <span className="font-medium text-lg">
+                                    CKB
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs text-muted-foreground">
+                                    Available
+                                  </p>
+                                  <span className="text-2xl font-bold">
+                                    {formattedAvailableCkb} CKB
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4 pt-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Average per Quest
+                                  </p>
+                                  <p className="font-medium">
+                                    {formattedAverageCkb} CKB
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Available Completions (Estimated)
+                                  </p>
+                                  <p className="font-medium">
+                                    {ckbCompletionQuota.toLocaleString()} quests
+                                  </p>
+                                </div>
+                              </div>
                             </div>
                           );
                         }
 
-                        return Array.from(udtRewardsSummary.entries()).map(
+                        Array.from(udtRewardsSummary.entries()).forEach(
                           ([symbol, info]) => {
                             const formattedAvailable = info.tokenInfo
                               ? udtRegistry.formatAmount(
@@ -1601,7 +1930,7 @@ export default function CampaignDetailPage() {
                                   )
                                 : 0;
 
-                            return (
+                            rewardElements.push(
                               <div
                                 key={symbol}
                                 className="p-4 border rounded-lg space-y-3"
@@ -1645,6 +1974,16 @@ export default function CampaignDetailPage() {
                             );
                           }
                         );
+
+                        if (rewardElements.length === 0) {
+                          return (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No token rewards configured for this campaign
+                            </div>
+                          );
+                        }
+
+                        return rewardElements;
                       })()
                     )}
                   </div>
