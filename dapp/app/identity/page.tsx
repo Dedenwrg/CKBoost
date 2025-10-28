@@ -53,7 +53,7 @@ const VERIFICATION_METHODS = [
     difficulty: "Easy",
     timeEstimate: "2-5 minutes",
     requirements: ["Active X (Twitter) account"],
-    status: "available",
+    status: "coming_soon",
   },
   {
     id: "discord",
@@ -63,7 +63,7 @@ const VERIFICATION_METHODS = [
     difficulty: "Easy",
     timeEstimate: "2-5 minutes",
     requirements: ["Active Discord account"],
-    status: "available",
+    status: "coming_soon",
   },
   {
     id: "reddit",
@@ -73,7 +73,7 @@ const VERIFICATION_METHODS = [
     difficulty: "Easy",
     timeEstimate: "2-5 minutes",
     requirements: ["Active Reddit account"],
-    status: "available",
+    status: "coming_soon",
   },
   {
     id: "kyc",
@@ -87,7 +87,7 @@ const VERIFICATION_METHODS = [
       "Proof of address",
       "Selfie verification",
     ],
-    status: "available",
+    status: "coming_soon",
   },
   {
     id: "did",
@@ -116,7 +116,7 @@ const VERIFICATION_METHODS = [
       "Supporting evidence",
       "Admin review",
     ],
-    status: "available",
+    status: "coming_soon",
   },
 ];
 
