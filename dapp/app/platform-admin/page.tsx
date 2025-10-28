@@ -2719,8 +2719,8 @@ export default function PlatformAdminDashboard() {
                       tip.data.metadata.short_description || "";
                     const typeTags =
                       tip.data.metadata.contribution_type_tags || [];
-                    const proposer = shortenHex(tip.data.proposer_lock_hash);
-                    const recipient = shortenHex(tip.data.target_lock_hash);
+                    const proposer = ccc.hexFrom(tip.data.proposer_lock_hash);
+                    const recipient = ccc.hexFrom(tip.data.target_lock_hash);
                     const ckbAmountRaw = tip.data.rewards?.ckb_amount;
                     const ckbAmount = formatCkbAmount(ckbAmountRaw);
                     const pointsAmount = formatPointsAmount(
