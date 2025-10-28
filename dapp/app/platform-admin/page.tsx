@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, JSX } from "react";
 import { Navigation } from "@/components/navigation";
 import { ccc } from "@ckb-ccc/connector-react";
 import {
@@ -8,7 +8,16 @@ import {
   extractTypeIdFromCampaignCell,
   isCampaignApproved,
 } from "@/lib/ckb/campaign-cells";
-import { CampaignData } from "ssri-ckboost/types";
+import {
+  parseUserData,
+  extractTypeIdFromUserCell,
+  isUserCellConnectedToProtocol,
+} from "@/lib/ckb/user-cells";
+import {
+  CampaignData,
+  EndorserInfoLike,
+  type CampaignDataLike,
+} from "ssri-ckboost/types";
 import {
   createScopedLogger,
   createTimer,
@@ -50,7 +59,6 @@ import {
   X,
   FileText,
   Star,
-  TrendingUp,
   Zap,
   Search,
   Filter,
@@ -61,7 +69,12 @@ import Link from "next/link";
 import { ProtocolManagement } from "@/components/admin/protocol-management";
 import { AchievementsManagement } from "@/components/admin/achievements-management";
 import { useProtocol } from "@/lib/providers/protocol-provider";
-import { useTippingsData } from "@/lib/providers/tipping-provider";
+import {
+  useTippingsData,
+  type TippingInfo,
+} from "@/lib/providers/tipping-provider";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { udtRegistry } from "@/lib/services/udt-registry";
 
 const log = createScopedLogger("PlatformAdminPage");
 
@@ -81,39 +94,6 @@ const CURRENT_USER = {
     "manage_leaderboard",
   ],
 };
-
-// Mock pending campaign applications
-const PENDING_CAMPAIGNS = [
-  {
-    id: 1,
-    title: "NFT Art Showcase Campaign",
-    description: "Promote NFT creation and showcase on CKB blockchain",
-    submitter: "NFT Creator DAO",
-    submitterEmail: "contact@nftcreator.dao",
-    category: "NFT",
-    requestedBudget: 2000,
-    duration: "60 days",
-    questsPlanned: 8,
-    submittedDate: "2024-01-20",
-    status: "pending",
-    documents: ["proposal.pdf", "budget.xlsx", "roadmap.md"],
-  },
-  {
-    id: 2,
-    title: "DeFi Liquidity Mining Education",
-    description:
-      "Educate users about liquidity mining concepts and DeFi protocols on CKB",
-    submitter: "CKB DeFi Alliance",
-    submitterEmail: "team@ckbdefi.org",
-    category: "Education",
-    requestedBudget: 4500,
-    duration: "90 days",
-    questsPlanned: 12,
-    submittedDate: "2024-01-18",
-    status: "under_review",
-    documents: ["educational-plan.pdf", "timeline.pdf"],
-  },
-];
 
 // Mock leaderboard rewards to configure - Enhanced version
 const LEADERBOARD_REWARDS = [
@@ -309,272 +289,136 @@ const LEADERBOARD_REWARDS = [
   },
 ];
 
-// Enhanced platform users with comprehensive data from admin/users/page.tsx
-const PLATFORM_USERS = [
-  {
-    id: 1,
-    pubkey:
-      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqds6ed78yze6eyfyvd537z66ur620n96rtsfrf67g",
-    displayName: "CKBMaster",
-    email: "ckbmaster@ckboost.com",
-    firstActivity: "2023-10-15",
-    lastActive: "2024-02-28",
-    status: "active",
-    verified: true,
-    verificationStatus: {
-      telegram: true,
-      kyc: false,
-      did: false,
-      manualReview: false,
-    },
-    verificationMethod: "telegram",
-    verificationDate: "2023-10-16",
-    role: "user",
-    totalPoints: 2450,
-    questsCompleted: 18,
-    campaignsJoined: 4,
-    tokensEarned: { CKB: 850, SPORE: 420, DEFI: 180 },
-    currentRank: 1,
-    sybilRisk: "low",
-    linkedAccounts: {
-      telegram: "@ckbmaster_verified",
-      did: null,
-      kyc: null,
-    },
-    activities: {
-      questsStarted: 22,
-      questsCompleted: 18,
-      completionRate: 81.8,
-      averagePointsPerQuest: 136,
-      longestStreak: 12,
-      currentStreak: 3,
-    },
-    campaignParticipation: [
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
-        campaignName: "CKB Ecosystem Growth Initiative",
-        questsCompleted: 3,
-        pointsEarned: 650,
-      },
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000002",
-        campaignName: "DeFi Education Campaign",
-        questsCompleted: 4,
-        pointsEarned: 580,
-      },
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000003",
-        campaignName: "Community Builder Program",
-        questsCompleted: 6,
-        pointsEarned: 720,
-      },
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000065",
-        campaignName: "CKB Testnet Launch Campaign",
-        questsCompleted: 5,
-        pointsEarned: 500,
-      },
-    ],
-  },
-  {
-    id: 2,
-    pubkey:
-      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqvglkprurm00l7hrs3rfqmmzyy3ll7djdsujdm6",
-    displayName: "BlockchainBee",
-    email: "bee@ckboost.com",
-    firstActivity: "2023-11-02",
-    lastActive: "2024-02-27",
-    status: "active",
-    verified: true,
-    verificationStatus: {
-      telegram: false,
-      kyc: true,
-      did: false,
-      manualReview: false,
-    },
-    verificationMethod: "kyc",
-    verificationDate: "2023-11-03",
-    role: "user",
-    totalPoints: 2180,
-    questsCompleted: 15,
-    campaignsJoined: 3,
-    tokensEarned: { CKB: 720, SPORE: 380, DEFI: 150 },
-    currentRank: 2,
-    sybilRisk: "low",
-    linkedAccounts: {
-      telegram: null,
-      did: null,
-      kyc: "verified_2023_11_03",
-    },
-    activities: {
-      questsStarted: 18,
-      questsCompleted: 15,
-      completionRate: 83.3,
-      averagePointsPerQuest: 145,
-      longestStreak: 8,
-      currentStreak: 5,
-    },
-    campaignParticipation: [
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
-        campaignName: "CKB Ecosystem Growth Initiative",
-        questsCompleted: 2,
-        pointsEarned: 450,
-      },
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000002",
-        campaignName: "DeFi Education Campaign",
-        questsCompleted: 6,
-        pointsEarned: 780,
-      },
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000004",
-        campaignName: "NFT Creator Bootcamp",
-        questsCompleted: 7,
-        pointsEarned: 950,
-      },
-    ],
-  },
-  {
-    id: 3,
-    pubkey:
-      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqdj4xq5uer6gr8ndxzuj0nwmf34rnk9ysa0ksk",
-    displayName: "CryptoNinja",
-    email: "ninja@ckboost.com",
-    firstActivity: "2023-12-10",
-    lastActive: "2024-02-26",
-    status: "active",
-    verified: false,
-    verificationStatus: {
-      telegram: false,
-      kyc: false,
-      did: false,
-      manualReview: false,
-    },
-    verificationMethod: null,
-    verificationDate: null,
-    role: "user",
-    totalPoints: 1850,
-    questsCompleted: 12,
-    campaignsJoined: 2,
-    tokensEarned: { CKB: 620, SPORE: 280, DEFI: 120 },
-    currentRank: 5,
-    sybilRisk: "medium",
-    linkedAccounts: {
-      telegram: null,
-      did: null,
-      kyc: null,
-    },
-    activities: {
-      questsStarted: 16,
-      questsCompleted: 12,
-      completionRate: 75.0,
-      averagePointsPerQuest: 154,
-      longestStreak: 6,
-      currentStreak: 0,
-    },
-    campaignParticipation: [
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000002",
-        campaignName: "DeFi Education Campaign",
-        questsCompleted: 5,
-        pointsEarned: 650,
-      },
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000003",
-        campaignName: "Community Builder Program",
-        questsCompleted: 7,
-        pointsEarned: 1200,
-      },
-    ],
-  },
-  {
-    id: 4,
-    pubkey:
-      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq289vl7splj5lz7lq2hc0z0kw97mp9a0jtlq4vwy",
-    displayName: "SuspiciousUser",
-    email: "suspicious@ckboost.com",
-    firstActivity: "2024-01-22",
-    lastActive: "2024-02-28",
-    status: "flagged",
-    verified: false,
-    verificationStatus: {
-      telegram: false,
-      kyc: false,
-      did: false,
-      manualReview: false,
-    },
-    verificationMethod: null,
-    verificationDate: null,
-    role: "user",
-    totalPoints: 150,
-    questsCompleted: 2,
-    campaignsJoined: 1,
-    tokensEarned: { CKB: 50, SPORE: 25, DEFI: 10 },
-    currentRank: 45,
-    sybilRisk: "high",
-    linkedAccounts: {
-      telegram: null,
-      did: null,
-      kyc: null,
-    },
-    activities: {
-      questsStarted: 8,
-      questsCompleted: 2,
-      completionRate: 25.0,
-      averagePointsPerQuest: 75,
-      longestStreak: 1,
-      currentStreak: 0,
-    },
-    campaignParticipation: [
-      {
-        campaignTypeId:
-          "0x0000000000000000000000000000000000000000000000000000000000000001",
-        campaignName: "CKB Ecosystem Growth Initiative",
-        questsCompleted: 2,
-        pointsEarned: 150,
-      },
-    ],
-  },
+type VerificationStatus = {
+  telegram: boolean;
+  kyc: boolean;
+  did: boolean;
+  manualReview: boolean;
+};
+
+type LinkedAccounts = {
+  telegram: string | null;
+  did: string | null;
+  kyc: string | null;
+};
+
+type CampaignParticipation = {
+  campaignTypeId: string;
+  campaignName: string;
+  questsCompleted: number;
+  pointsEarned: bigint | null;
+};
+
+type UserActivities = {
+  questsCompleted: number;
+  completionRate: number;
+  currentStreak: number | null;
+  averagePointsPerQuest: number | null;
+};
+
+type UserSummary = {
+  id: string;
+  lockHash: string;
+  address: string | null;
+  typeId: string | null;
+  displayName: string;
+  email: string;
+  status: "active" | "inactive";
+  verified: boolean;
+  verificationStatus: VerificationStatus;
+  verificationMethod: string | null;
+  role: "admin" | "user";
+  totalPoints: bigint;
+  questsCompleted: number;
+  campaignsJoined: number;
+  currentRank: number;
+  sybilRisk: "low" | "medium" | "high" | "unknown";
+  linkedAccounts: LinkedAccounts;
+  activities: UserActivities;
+  campaignParticipation: CampaignParticipation[];
+  firstActivity: number | null;
+  lastActive: number | null;
+  pubkey: string;
+};
+
+type PendingVerification = {
+  id: string;
+  displayName: string;
+  email: string;
+  verificationMethod: string | null;
+  submittedAt: string | null;
+  sybilRisk: UserSummary["sybilRisk"];
+};
+
+type StatsWindowKey = "1d" | "7d" | "30d" | "90d" | "365d" | "total";
+
+type CampaignActivity = {
+  cell: ccc.Cell;
+  data: CampaignDataLike;
+  createdAt: number | null;
+};
+
+type TippingActivity = {
+  proposal: TippingInfo;
+  timestamp: number | null;
+};
+
+type PlatformStatsResponse = {
+  lastUpdated: string;
+  pointsMinted: Record<StatsWindowKey, string>;
+  questSubmissions: Record<StatsWindowKey, number>;
+  newUsers: Record<StatsWindowKey, number>;
+};
+
+type FundingTotals = {
+  campaigns: {
+    ckb: bigint;
+    udts: Array<{
+      scriptHash: string;
+      symbol: string;
+      amount: bigint;
+      formatted: string;
+    }>;
+    campaignCount: number;
+  };
+  tipping: {
+    ckb: bigint;
+    udts: Array<{
+      scriptHash: string;
+      symbol: string;
+      amount: bigint;
+      formatted: string;
+    }>;
+    cellCount: number;
+  };
+};
+
+const STAT_WINDOWS: Array<{ key: StatsWindowKey; label: string }> = [
+  { key: "1d", label: "24 Hours" },
+  { key: "7d", label: "7 Days" },
+  { key: "30d", label: "30 Days" },
+  { key: "90d", label: "90 Days" },
+  { key: "365d", label: "1 Year" },
+  { key: "total", label: "Total" },
 ];
 
-// Mock pending verification requests
-const PENDING_VERIFICATIONS = [
-  {
-    id: 101,
-    pubkey:
-      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq289vl7splj5lz7lq2hc0z0kw97mp9a0jtlq4vwy",
-    displayName: "NewUser123",
-    email: "newuser@ckboost.com",
-    verificationMethod: "manual",
-    submittedAt: "2024-02-25T14:30:00Z",
-    application:
-      "I'm a blockchain developer with 3 years of experience. I've contributed to several open-source projects and would like to participate in the CKB ecosystem. My GitHub: github.com/newuser123, Twitter: @newuser123_dev",
-    status: "pending",
-    sybilRisk: "low",
-  },
-  {
-    id: 102,
-    pubkey:
-      "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqwku7gvfmqc9vkqqufnzp08nqdkw7ll0u7fcwmvvp",
-    displayName: "CommunityHelper",
-    email: "helper@ckboost.com",
-    verificationMethod: "telegram",
-    submittedAt: "2024-02-27T09:15:00Z",
-    telegramUsername: "@community_helper_official",
-    status: "pending",
-    sybilRisk: "low",
-  },
-];
+const shortenIdentifier = (value: string, head = 8, tail = 6): string => {
+  if (!value || value.length <= head + tail) {
+    return value;
+  }
+  return `${value.slice(0, head)}...${value.slice(-tail)}`;
+};
+
+const formatBigInt = (value: bigint | null | undefined): string => {
+  if (value === null || value === undefined) {
+    return "0";
+  }
+  try {
+    return value.toLocaleString();
+  } catch {
+    return value.toString();
+  }
+};
 
 export default function PlatformAdminDashboard() {
   const {
@@ -589,18 +433,31 @@ export default function PlatformAdminDashboard() {
     isLoading: tippingLoading,
     error: tippingError,
   } = useTippingsData();
+  const { client } = ccc.useCcc();
   const [activeTab, setActiveTab] = useState("overview");
   const [isRewardDialogOpen, setIsRewardDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedVerification, setSelectedVerification] = useState("all");
   const [selectedRole, setSelectedRole] = useState("all");
-  const [selectedUser, setSelectedUser] = useState<
-    (typeof PLATFORM_USERS)[0] | null
-  >(null);
+  const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
   const [isUserDetailsOpen, setIsUserDetailsOpen] = useState(false);
   const [connectedCampaigns, setConnectedCampaigns] = useState<ccc.Cell[]>([]);
+  const [allCampaignCells, setAllCampaignCells] = useState<ccc.Cell[]>([]);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [platformStats, setPlatformStats] =
+    useState<PlatformStatsResponse | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [fundingTotals, setFundingTotals] = useState<FundingTotals>({
+    campaigns: { ckb: 0n, udts: [], campaignCount: 0 },
+    tipping: { ckb: 0n, udts: [], cellCount: 0 },
+  });
+  const [fundingLoading, setFundingLoading] = useState(false);
+  const [fundingError, setFundingError] = useState<string | null>(null);
 
   const approvalThresholds = useMemo(() => {
     const thresholds =
@@ -677,6 +534,8 @@ export default function PlatformAdminDashboard() {
 
         log.log(`Received ${campaigns.length} connected campaigns`);
 
+        setAllCampaignCells(campaigns);
+
         // Filter out approved campaigns - only show pending review campaigns
         const approvedCampaignIds = protocolData.campaigns_approved || [];
         const pendingCampaigns = campaigns.filter((campaign) => {
@@ -722,6 +581,483 @@ export default function PlatformAdminDashboard() {
       isCancelled = true;
     };
   }, [signer, protocolCell, protocolData, protocolLoading]);
+
+  useEffect(() => {
+    if (!client || !protocolData || !protocolCell) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadUsers = async () => {
+      setUsersLoading(true);
+      setUsersError(null);
+
+      try {
+        const userTypeCodeHash =
+          protocolData.protocol_config.script_code_hashes
+            .ckb_boost_user_type_code_hash;
+        const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+
+        if (!userTypeCodeHash || !protocolTypeHash) {
+          if (!cancelled) {
+            setUsers([]);
+          }
+          return;
+        }
+
+        const searchKey = {
+          script: {
+            codeHash: userTypeCodeHash,
+            hashType: "type" as const,
+            args: "",
+          },
+          scriptType: "type" as const,
+          scriptSearchMode: "prefix" as const,
+          withData: true,
+        };
+
+        const latestByLock = new Map<
+          string,
+          { cell: ccc.Cell; blockNumber: bigint }
+        >();
+
+        for await (const cell of client.findCells(searchKey)) {
+          if (!cell.outputData || cell.outputData === "0x") {
+            continue;
+          }
+
+          if (!isUserCellConnectedToProtocol(cell, protocolTypeHash)) {
+            continue;
+          }
+
+          let blockNumber = 0n;
+          try {
+            const txInfo = await client.getTransaction(cell.outPoint.txHash);
+            if (txInfo?.blockNumber) {
+              blockNumber = BigInt(txInfo.blockNumber);
+            }
+          } catch (error) {
+            log.warn("Failed to resolve transaction for user cell", error);
+          }
+
+          const lockHash = cell.cellOutput.lock.hash().toLowerCase();
+          const existing = latestByLock.get(lockHash);
+          if (!existing || blockNumber >= existing.blockNumber) {
+            latestByLock.set(lockHash, { cell, blockNumber });
+          }
+        }
+
+        const campaignNameLookup = new Map<string, string>();
+        connectedCampaigns.forEach((campaign) => {
+          try {
+            const data = CampaignData.decode(campaign.outputData);
+            const campaignTypeId =
+              extractTypeIdFromCampaignCell(campaign)?.toLowerCase();
+            if (campaignTypeId) {
+              campaignNameLookup.set(campaignTypeId, data.metadata.title);
+            }
+          } catch (error) {
+            log.warn("Failed to decode campaign data for user mapping", error);
+          }
+        });
+
+        const summaries: UserSummary[] = [];
+
+        for (const { cell } of latestByLock.values()) {
+          const userData = parseUserData(cell);
+          if (!userData) {
+            continue;
+          }
+
+          const lockScript = cell.cellOutput.lock;
+          const lockHash = lockScript.hash().toLowerCase();
+
+          let address: string | null = null;
+          try {
+            const addr = await ccc.Address.fromScript(lockScript, client);
+            address = addr.toString();
+          } catch (error) {
+            log.warn("Failed to derive address from user lock script", error);
+          }
+
+          const typeId = extractTypeIdFromUserCell(cell);
+
+          const totalPointsRaw = ccc.numFrom(
+            userData.total_points_earned ?? 0n
+          );
+          const totalPoints =
+            typeof totalPointsRaw === "bigint"
+              ? totalPointsRaw
+              : BigInt(totalPointsRaw);
+
+          const questsCompleted = userData.submission_records.length;
+
+          const lastActivityRaw = ccc.numFrom(
+            userData.last_activity_timestamp ?? 0n
+          );
+          const lastActivitySeconds =
+            typeof lastActivityRaw === "bigint"
+              ? Number(lastActivityRaw)
+              : Number(lastActivityRaw);
+          const lastActive =
+            Number.isFinite(lastActivitySeconds) && lastActivitySeconds > 0
+              ? lastActivitySeconds * 1000
+              : null;
+          const status =
+            lastActive && Date.now() - lastActive > 1000 * 60 * 60 * 24 * 30
+              ? "inactive"
+              : "active";
+
+          const telegramIdValue = ccc.numFrom(
+            userData.verification_data.telegram_personal_chat_id ?? 0
+          );
+          const hasTelegram =
+            (typeof telegramIdValue === "bigint" && telegramIdValue > 0n) ||
+            (typeof telegramIdValue === "number" && telegramIdValue > 0);
+
+          const identityData =
+            userData.verification_data.identity_verification_data;
+          const identityHex =
+            typeof identityData === "string"
+              ? identityData
+              : identityData
+              ? ccc.hexFrom(identityData)
+              : "0x";
+          const hasIdentity =
+            identityHex !== "0x" && identityHex.trim().length > 2;
+
+          const verificationStatus: VerificationStatus = {
+            telegram: hasTelegram,
+            kyc: hasIdentity,
+            did: false,
+            manualReview: false,
+          };
+
+          const verificationMethod = hasIdentity
+            ? "kyc"
+            : hasTelegram
+            ? "telegram"
+            : null;
+
+          const linkedAccounts: LinkedAccounts = {
+            telegram: hasTelegram ? "linked" : null,
+            did: null,
+            kyc: hasIdentity ? "verified" : null,
+          };
+
+          const sybilRisk: UserSummary["sybilRisk"] = hasIdentity
+            ? "low"
+            : hasTelegram
+            ? "medium"
+            : "unknown";
+
+          const completionRate = questsCompleted > 0 ? 100 : 0;
+          const averagePointsPerQuest =
+            questsCompleted > 0
+              ? Number(totalPoints / BigInt(questsCompleted))
+              : null;
+
+          const participationMap = new Map<
+            string,
+            { questsCompleted: number }
+          >();
+          userData.submission_records.forEach((record) => {
+            let campaignTypeId: string;
+            if (typeof record.campaign_type_id === "string") {
+              campaignTypeId = record.campaign_type_id.toLowerCase();
+            } else {
+              campaignTypeId = ccc
+                .hexFrom(record.campaign_type_id as ccc.BytesLike)
+                .toLowerCase();
+            }
+
+            const current = participationMap.get(campaignTypeId);
+            if (current) {
+              current.questsCompleted += 1;
+            } else {
+              participationMap.set(campaignTypeId, { questsCompleted: 1 });
+            }
+          });
+
+          const campaignParticipation: CampaignParticipation[] = Array.from(
+            participationMap.entries()
+          ).map(([campaignTypeId, info]) => ({
+            campaignTypeId,
+            campaignName:
+              campaignNameLookup.get(campaignTypeId) ??
+              shortenIdentifier(campaignTypeId),
+            questsCompleted: info.questsCompleted,
+            pointsEarned: null,
+          }));
+
+          const adminLockHashes =
+            protocolData.protocol_config.admin_lock_hash_vec.map((hash) =>
+              typeof hash === "string"
+                ? hash.toLowerCase()
+                : ccc.hexFrom(hash as ccc.BytesLike).toLowerCase()
+            );
+
+          const displayName = address
+            ? shortenIdentifier(address, 12, 6)
+            : typeId
+            ? shortenIdentifier(typeId)
+            : shortenIdentifier(lockHash);
+
+          summaries.push({
+            id: lockHash,
+            lockHash,
+            address,
+            typeId,
+            displayName,
+            email: address ?? "",
+            status,
+            verified: verificationStatus.telegram || verificationStatus.kyc,
+            verificationStatus,
+            verificationMethod,
+            role: adminLockHashes.includes(lockHash) ? "admin" : "user",
+            totalPoints,
+            questsCompleted,
+            campaignsJoined: campaignParticipation.length,
+            currentRank: 0,
+            sybilRisk,
+            linkedAccounts,
+            activities: {
+              questsCompleted,
+              completionRate,
+              currentStreak: null,
+              averagePointsPerQuest,
+            },
+            campaignParticipation,
+            firstActivity: null,
+            lastActive,
+            pubkey: address ?? lockHash,
+          });
+        }
+
+        summaries.sort((a, b) => {
+          if (a.totalPoints === b.totalPoints) {
+            return a.displayName.localeCompare(b.displayName);
+          }
+          return a.totalPoints > b.totalPoints ? -1 : 1;
+        });
+
+        summaries.forEach((user, index) => {
+          user.currentRank = index + 1;
+        });
+
+        if (!cancelled) {
+          setUsers(summaries);
+        }
+      } catch (error) {
+        log.error("Failed to load platform users", error);
+        if (!cancelled) {
+          setUsersError(
+            error instanceof Error ? error.message : "Failed to load users"
+          );
+          setUsers([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setUsersLoading(false);
+        }
+      }
+    };
+
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, protocolData, protocolCell, allCampaignCells]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      setStatsError(null);
+
+      try {
+        const response = await fetch("/.netlify/functions/platform-stats");
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || "Failed to load platform stats");
+        }
+        const payload = (await response.json()) as PlatformStatsResponse;
+        if (!cancelled) {
+          setPlatformStats(payload);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setStatsError(
+            error instanceof Error ? error.message : "Unable to load stats"
+          );
+          setPlatformStats(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setStatsLoading(false);
+        }
+      }
+    };
+
+    void fetchStats();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!signer || !protocolCell || !protocolData) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadFunding = async () => {
+      setFundingLoading(true);
+      setFundingError(null);
+
+      try {
+        const network = deploymentManager.getCurrentNetwork();
+        const fundingLockCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostFundingLock"
+        );
+
+        if (!fundingLockCodeHash) {
+          throw new Error("Funding lock contract not configured");
+        }
+
+        const aggregateCells = async (
+          scriptArgs: string | undefined | null
+        ) => {
+          if (!scriptArgs) {
+            return {
+              ckb: 0n,
+              udts: new Map<string, bigint>(),
+              cellCount: 0,
+            };
+          }
+          const script = ccc.Script.from({
+            codeHash: fundingLockCodeHash,
+            hashType: "type" as const,
+            args: scriptArgs,
+          });
+
+          const udtTotals = new Map<string, bigint>();
+          let ckbTotal = 0n;
+          let cellCount = 0;
+
+          const collector = signer.client.findCells({
+            script,
+            scriptType: "lock" as const,
+            scriptSearchMode: "exact" as const,
+            withData: true,
+          });
+
+          for await (const cell of collector) {
+            try {
+              cellCount += 1;
+              const capacityRaw = ccc.numFrom(cell.cellOutput.capacity);
+              const capacity =
+                typeof capacityRaw === "bigint"
+                  ? capacityRaw
+                  : BigInt(capacityRaw);
+              ckbTotal += capacity;
+
+              if (cell.cellOutput.type) {
+                const typeHash = cell.cellOutput.type.hash();
+                const current = udtTotals.get(typeHash) ?? 0n;
+                const amount = readUdtAmount(cell.outputData);
+                udtTotals.set(typeHash, current + amount);
+              }
+            } catch (error) {
+              log.warn("Failed to aggregate funding cell", error);
+            }
+          }
+
+          return { ckb: ckbTotal, udts: udtTotals, cellCount };
+        };
+        const campaignTypeHashes = new Set<string>();
+        allCampaignCells.forEach((cell) => {
+          const typeHash = cell.cellOutput.type?.hash();
+          if (typeHash) {
+            campaignTypeHashes.add(typeHash);
+          }
+        });
+
+        const campaignTotals = {
+          ckb: 0n,
+          udts: new Map<string, bigint>(),
+          campaignCount: campaignTypeHashes.size,
+        };
+
+        for (const typeHash of campaignTypeHashes) {
+          const summary = await aggregateCells(typeHash);
+          campaignTotals.ckb += summary.ckb;
+          summary.udts.forEach((amount, hash) => {
+            const current = campaignTotals.udts.get(hash) ?? 0n;
+            campaignTotals.udts.set(hash, current + amount);
+          });
+        }
+
+        const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+        const tippingTotals = await aggregateCells(protocolTypeHash);
+
+        const normalizeUdts = (
+          udtMap: Map<string, bigint>
+        ): Array<{
+          scriptHash: string;
+          symbol: string;
+          amount: bigint;
+          formatted: string;
+        }> => {
+          return Array.from(udtMap.entries()).map(([hash, amount]) => {
+            const token = udtRegistry.getTokenByScriptHash(hash);
+            const symbol = token?.symbol ?? hash.slice(0, 8);
+            const formatted = token
+              ? udtRegistry.formatAmount(amount, token)
+              : formatBigInt(amount);
+            return { scriptHash: hash, symbol, amount, formatted };
+          });
+        };
+
+        if (!cancelled) {
+          setFundingTotals({
+            campaigns: {
+              ckb: campaignTotals.ckb,
+              udts: normalizeUdts(campaignTotals.udts),
+              campaignCount: campaignTotals.campaignCount,
+            },
+            tipping: {
+              ckb: tippingTotals.ckb,
+              udts: normalizeUdts(tippingTotals.udts),
+              cellCount: tippingTotals.cellCount,
+            },
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setFundingError(
+            error instanceof Error ? error.message : "Failed to load funding"
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setFundingLoading(false);
+        }
+      }
+    };
+
+    void loadFunding();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [signer, protocolCell, protocolData, allCampaignCells]);
 
   const [newReward, setNewReward] = useState({
     period: "",
@@ -871,6 +1207,60 @@ export default function PlatformAdminDashboard() {
     }
   };
 
+  const formatCkbFromShannons = (value: bigint): string => {
+    const integer = value / SHANNON_FACTOR;
+    const fractional = value % SHANNON_FACTOR;
+    if (fractional === 0n) {
+      return integer.toLocaleString();
+    }
+    const fractionalStr = fractional
+      .toString()
+      .padStart(8, "0")
+      .replace(/0+$/, "");
+    return `${integer.toLocaleString()}.${fractionalStr}`;
+  };
+
+  const formatRelativeTime = (timestamp: number | null | undefined) => {
+    if (!timestamp || Number.isNaN(timestamp)) {
+      return "—";
+    }
+    const diff = Date.now() - timestamp;
+    if (diff <= 0) return "just now";
+    const units: Array<[number, Intl.RelativeTimeFormatUnit]> = [
+      [60 * 1000, "minute"],
+      [60 * 60 * 1000, "hour"],
+      [24 * 60 * 60 * 1000, "day"],
+      [7 * 24 * 60 * 60 * 1000, "week"],
+      [30 * 24 * 60 * 60 * 1000, "month"],
+      [365 * 24 * 60 * 60 * 1000, "year"],
+    ];
+    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+    for (let i = units.length - 1; i >= 0; i -= 1) {
+      const [unitMs, unit] = units[i];
+      if (diff >= unitMs) {
+        const value = Math.round(-diff / unitMs);
+        return rtf.format(value, unit);
+      }
+    }
+    return rtf.format(-Math.round(diff / 1000), "second");
+  };
+
+  const readUdtAmount = (data: string | undefined | null): bigint => {
+    if (!data || data === "0x" || data.length < 34) {
+      return 0n;
+    }
+    try {
+      const bytes = ccc.bytesFrom(data);
+      if (bytes.length < 16) {
+        return 0n;
+      }
+      const slice = bytes.subarray(0, 16);
+      return ccc.numLeFromBytes(slice);
+    } catch {
+      return 0n;
+    }
+  };
+
   const shortenHex = (
     value: ccc.HexLike | string | null | undefined,
     head = 10,
@@ -951,35 +1341,40 @@ export default function PlatformAdminDashboard() {
     });
   };
 
-  const totalPendingCampaigns = PENDING_CAMPAIGNS.filter(
-    (c) => c.status === "pending"
-  ).length;
-  const totalUsers = PLATFORM_USERS.length;
-  const totalActiveUsers = PLATFORM_USERS.filter(
-    (u) => u.status === "active"
-  ).length;
+  const totalPendingCampaigns = connectedCampaigns.length;
+  const totalUsers = users.length;
+  const totalActiveUsers = users.filter((u) => u.status === "active").length;
   const totalPendingTips = useMemo(() => {
     return tippingProposals.filter((tip) => {
       const status = tip.data.status?.toLowerCase?.() ?? "";
       return status === "created" || status === "pending";
     }).length;
   }, [tippingProposals]);
-  const totalRewards = LEADERBOARD_REWARDS.reduce(
-    (sum, r) => sum + r.totalPrize.CKB,
-    0
-  );
-
   const pendingTipsDisplay = tippingLoading ? "..." : totalPendingTips;
   const pendingTipsBadgeLabel = tippingLoading
     ? "Loading..."
     : `${totalPendingTips} Pending Review`;
 
+  const totalPointsIssued = useMemo(() => {
+    if (!platformStats) {
+      return null;
+    }
+    try {
+      return BigInt(platformStats.pointsMinted.total);
+    } catch {
+      return null;
+    }
+  }, [platformStats]);
+
   // User management functions
-  const filteredUsers = PLATFORM_USERS.filter((user) => {
+  const filteredUsers = users.filter((user) => {
+    const lowerSearch = searchTerm.toLowerCase();
     const matchesSearch =
-      user.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.pubkey.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+      lowerSearch.length === 0 ||
+      user.displayName.toLowerCase().includes(lowerSearch) ||
+      user.pubkey.toLowerCase().includes(lowerSearch) ||
+      user.lockHash.toLowerCase().includes(lowerSearch) ||
+      (user.address?.toLowerCase().includes(lowerSearch) ?? false);
     const matchesStatus =
       selectedStatus === "all" || user.status === selectedStatus;
     const matchesVerification =
@@ -991,13 +1386,214 @@ export default function PlatformAdminDashboard() {
     return matchesSearch && matchesStatus && matchesVerification && matchesRole;
   });
 
-  const handleUserClick = (user: (typeof PLATFORM_USERS)[0]) => {
+  const handleUserClick = (user: UserSummary) => {
     setSelectedUser(user);
     setIsUserDetailsOpen(true);
   };
 
+  const pendingVerifications: PendingVerification[] = useMemo(() => {
+    return users
+      .filter((user) => !user.verified)
+      .map((user) => ({
+        id: user.id,
+        displayName: user.displayName,
+        email: user.email || "Not provided",
+        verificationMethod: user.verificationMethod,
+        submittedAt: user.firstActivity
+          ? new Date(user.firstActivity).toISOString()
+          : null,
+        sybilRisk: user.sybilRisk,
+      }));
+  }, [users]);
+
+  const approvedCampaignTypeIds = useMemo(() => {
+    const approved = new Set<string>();
+    const list = protocolData?.campaigns_approved;
+    if (!list) {
+      return approved;
+    }
+    list.forEach((identifier) => {
+      try {
+        const hex =
+          typeof identifier === "string"
+            ? identifier
+            : ccc.hexFrom(identifier as ccc.BytesLike);
+        approved.add(hex.toLowerCase());
+      } catch (error) {
+        log.warn("Failed to normalize approved campaign id", error);
+      }
+    });
+    return approved;
+  }, [protocolData]);
+
+  const getEndorserInfo = (
+    endorserLockHash: ccc.Hex
+  ): EndorserInfoLike | undefined => {
+    return protocolData?.endorsers_whitelist.find(
+      (e) => e.endorser_lock_hash === endorserLockHash
+    );
+  };
+
+  const recentActivities = useMemo(() => {
+    const events: Array<{
+      id: string;
+      title: string;
+      description: string;
+      icon: JSX.Element;
+      timestamp: number | null;
+      accent: string;
+    }> = [];
+
+    const toMs = (value: number): number | null => {
+      if (!value || Number.isNaN(value)) {
+        return null;
+      }
+      return value > 10_000_000_000 ? value : value * 1000;
+    };
+
+    const eventMap = new Map<
+      string,
+      {
+        id: string;
+        title: string;
+        description: string;
+        icon: JSX.Element;
+        timestamp: number | null;
+        accent: string;
+      }
+    >();
+
+    allCampaignCells.forEach((cell) => {
+      try {
+        const data = CampaignData.decode(cell.outputData) as CampaignDataLike;
+        const createdRaw = data.created_at
+          ? Number(ccc.numFrom(data.created_at))
+          : 0;
+        const createdAt = toMs(createdRaw);
+        const endorser = data.endorser_lock_hash
+          ? shortenHex(data.endorser_lock_hash, 10, 6)
+          : "Unknown";
+        const endorserInfo = getEndorserInfo(
+          ccc.hexFrom(data.endorser_lock_hash)
+        );
+        const id = `campaign-${cell.outPoint.txHash}-${cell.outPoint.index}`;
+        const typeId =
+          extractTypeIdFromCampaignCell(cell)?.toLowerCase() ?? null;
+        eventMap.set(id, {
+          id,
+          title: `Campaign created: ${data.metadata.title}`,
+          description: `Endorser ${endorserInfo?.endorser_name ?? "Unknown"}`,
+          icon: (
+            <FileText className="w-4 h-4 text-yellow-600" aria-hidden="true" />
+          ),
+          timestamp: createdAt,
+          accent: "bg-yellow-100",
+        });
+        if (typeId && approvedCampaignTypeIds.has(typeId)) {
+          const startingRaw =
+            data.starting_time !== undefined && data.starting_time !== null
+              ? Number(ccc.numFrom(data.starting_time))
+              : 0;
+          const approvalAt = toMs(startingRaw) ?? createdAt;
+          const approvalDetails = [
+            `Endorser ${endorserInfo?.endorser_name ?? endorser}`,
+            approvalAt ? `Approved on ${formatDate(approvalAt)}` : null,
+          ].filter(Boolean);
+          eventMap.set(`campaign-approved-${typeId}`, {
+            id: `campaign-approved-${typeId}`,
+            title: `Campaign approved: ${data.metadata.title}`,
+            description: approvalDetails.join(" • "),
+            icon: (
+              <CheckCircle
+                className="w-4 h-4 text-indigo-600"
+                aria-hidden="true"
+              />
+            ),
+            timestamp: approvalAt,
+            accent: "bg-indigo-100",
+          });
+        }
+      } catch (error) {
+        log.warn("Failed to decode campaign for activity", error);
+      }
+    });
+
+    tippingProposals.forEach((tip, index) => {
+      try {
+        const createdRaw = tip.data.metadata.creation_timestamp
+          ? Number(ccc.numFrom(tip.data.metadata.creation_timestamp))
+          : 0;
+        const createdAt = toMs(createdRaw);
+        const title = tip.metadata.contribution_title;
+        const rewardAmount = formatCkbAmount(tip.data.rewards.ckb_amount);
+        const id = `tipping-proposal-${tip.typeId ?? index}`;
+        eventMap.set(id, {
+          id,
+          title: `New tipping proposal: ${title}`,
+          description: `${rewardAmount} CKB requested`,
+          icon: (
+            <DollarSign className="w-4 h-4 text-green-600" aria-hidden="true" />
+          ),
+          timestamp: createdAt,
+          accent: "bg-green-100",
+        });
+      } catch (error) {
+        log.warn("Failed to decode tipping proposal for activity", error);
+      }
+    });
+
+    tippingProposals.forEach((tip, index) => {
+      const status = tip.data.status?.toLowerCase?.() ?? "";
+      if (status !== "approved" && status !== "granted") {
+        return;
+      }
+      try {
+        const grantedRaw = tip.data.granted_at
+          ? Number(ccc.numFrom(tip.data.granted_at))
+          : 0;
+        const createdRaw = tip.data.metadata.creation_timestamp
+          ? Number(ccc.numFrom(tip.data.metadata.creation_timestamp))
+          : 0;
+        const timestamp = grantedRaw ? toMs(grantedRaw) : toMs(createdRaw);
+        const title = tip.metadata.contribution_title;
+        const rewardAmount = formatCkbAmount(tip.data.rewards.ckb_amount);
+        const statusLabel = (tip.data.status ?? "approved")
+          .toString()
+          .toLowerCase();
+        const formattedStatus =
+          statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1);
+        const id = `tipping-approval-${tip.typeId ?? index}`;
+        eventMap.set(id, {
+          id,
+          title: `Tipping ${formattedStatus}`,
+          description: `${title} • ${rewardAmount} CKB`,
+          icon: (
+            <CheckCircle className="w-4 h-4 text-blue-600" aria-hidden="true" />
+          ),
+          timestamp,
+          accent: "bg-blue-100",
+        });
+      } catch (error) {
+        log.warn("Failed to decode tipping approval for activity", error);
+      }
+    });
+
+    const sortedEvents = Array.from(eventMap.values()).sort((a, b) => {
+      const aTime = a.timestamp ?? Number.NEGATIVE_INFINITY;
+      const bTime = b.timestamp ?? Number.NEGATIVE_INFINITY;
+      return bTime - aTime;
+    });
+
+    return sortedEvents.slice(0, 5);
+  }, [
+    allCampaignCells,
+    approvedCampaignTypeIds,
+    formatCkbAmount,
+    tippingProposals,
+  ]);
+
   const handleVerificationAction = (
-    verificationId: number,
+    verificationId: string,
     action: "approve" | "reject"
   ) => {
     log.info(`${action} verification ${verificationId}`);
@@ -1032,7 +1628,7 @@ export default function PlatformAdminDashboard() {
   };
 
   // Get user's verification status summary
-  const getUserVerificationSummary = (user: (typeof PLATFORM_USERS)[0]) => {
+  const getUserVerificationSummary = (user: UserSummary) => {
     if (user.verificationStatus.kyc || user.verificationStatus.did) {
       return {
         status: "identity_verified",
@@ -1174,9 +1770,13 @@ export default function PlatformAdminDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total Users</p>
-                    <p className="text-2xl font-bold">{totalUsers}</p>
+                    <p className="text-2xl font-bold">
+                      {usersLoading ? "…" : totalUsers.toLocaleString()}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {totalActiveUsers} active
+                      {usersLoading
+                        ? "Loading user activity..."
+                        : `${totalActiveUsers} active`}
                     </p>
                   </div>
                   <div className="p-3 bg-blue-100 rounded-full">
@@ -1207,11 +1807,17 @@ export default function PlatformAdminDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">
-                      Leaderboard Rewards
+                      Points Issued (Total)
                     </p>
-                    <p className="text-2xl font-bold">{totalRewards}</p>
+                    <p className="text-2xl font-bold">
+                      {statsLoading
+                        ? "…"
+                        : totalPointsIssued
+                        ? formatBigInt(totalPointsIssued)
+                        : "0"}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      CKB allocated
+                      CKBoost Points distributed on-chain
                     </p>
                   </div>
                   <div className="p-3 bg-purple-100 rounded-full">
@@ -1240,124 +1846,204 @@ export default function PlatformAdminDashboard() {
 
             <TabsContent value="overview" className="space-y-6">
               <div className="grid lg:grid-cols-2 gap-6">
-                {/* Recent Platform Activity */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Recent Platform Activity</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-yellow-100 rounded-full">
-                          <FileText className="w-4 h-4 text-yellow-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            New campaign application
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            &quot;NFT Art Showcase Campaign&quot; submitted by
-                            NFT Creator DAO
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          1h ago
-                        </span>
+                    {recentActivities.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No recent activity detected. New campaigns and tipping
+                        events will appear here automatically.
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {recentActivities.map((activity) => (
+                          <div
+                            key={activity.id}
+                            className="flex items-center gap-3"
+                          >
+                            <div
+                              className={`p-2 rounded-full ${activity.accent}`}
+                            >
+                              {activity.icon}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">
+                                {activity.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {activity.description}
+                              </p>
+                            </div>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {formatRelativeTime(activity.timestamp)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-full">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            Tippings approved
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            150 CKB tip to CKBExpert for documentation
-                            contributions
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          3h ago
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                          <Users className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            New user registered
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            CryptoEnthusiast joined the platform
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          5h ago
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-full">
-                          <Trophy className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            Leaderboard updated
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            January 2024 monthly rewards distributed
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          1d ago
-                        </span>
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
 
-                {/* Platform Health Metrics */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Platform Health</CardTitle>
+                    <CardTitle>Funding Overview</CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          User Satisfaction
-                        </span>
-                        <span className="text-sm font-medium">94%</span>
+                  <CardContent className="space-y-4">
+                    {fundingError && (
+                      <div className="p-3 text-sm border rounded bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                        {fundingError}
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Campaign Success Rate
-                        </span>
-                        <span className="text-sm font-medium">87%</span>
+                    )}
+
+                    {fundingLoading ? (
+                      <p className="text-sm text-muted-foreground">
+                        Loading funding information...
+                      </p>
+                    ) : (
+                      <div className="space-y-6">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-semibold">
+                              Campaign Funding
+                            </h4>
+                            <span className="text-xs text-muted-foreground">
+                              {fundingTotals.campaigns.campaignCount.toLocaleString()}{" "}
+                              campaigns
+                            </span>
+                          </div>
+                          <p className="text-sm">
+                            <span className="font-medium">
+                              {formatCkbFromShannons(
+                                fundingTotals.campaigns.ckb
+                              )}
+                            </span>{" "}
+                            CKB locked
+                          </p>
+                          {fundingTotals.campaigns.udts.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {fundingTotals.campaigns.udts.map((token) => (
+                                <div
+                                  key={`campaign-token-${token.scriptHash}`}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  {token.symbol}: {token.formatted}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-semibold">
+                              Tipping Pool
+                            </h4>
+                            <span className="text-xs text-muted-foreground">
+                              {fundingTotals.tipping.cellCount.toLocaleString()}{" "}
+                              cells
+                            </span>
+                          </div>
+                          <p className="text-sm">
+                            <span className="font-medium">
+                              {formatCkbFromShannons(fundingTotals.tipping.ckb)}
+                            </span>{" "}
+                            CKB locked
+                          </p>
+                          {fundingTotals.tipping.udts.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                              {fundingTotals.tipping.udts.map((token) => (
+                                <div
+                                  key={`tipping-token-${token.scriptHash}`}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  {token.symbol}: {token.formatted}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Average Review Time
-                        </span>
-                        <span className="text-sm font-medium">2.1 days</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Community Engagement
-                        </span>
-                        <span className="text-sm font-medium">89%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          Platform Uptime
-                        </span>
-                        <span className="text-sm font-medium">99.8%</span>
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Platform Metrics</CardTitle>
+                    {platformStats && (
+                      <span className="text-xs text-muted-foreground">
+                        Updated{" "}
+                        {formatRelativeTime(
+                          Date.parse(platformStats.lastUpdated)
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {statsError && (
+                    <p className="text-sm text-red-600 dark:text-red-300">
+                      {statsError}
+                    </p>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {statsLoading ? (
+                    <p className="text-sm text-muted-foreground">
+                      Loading statistics from the network...
+                    </p>
+                  ) : !platformStats ? (
+                    <p className="text-sm text-muted-foreground">
+                      Statistics are unavailable. Please try again later.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-xs uppercase text-muted-foreground">
+                            <th className="py-2 pr-4">Window</th>
+                            <th className="py-2 pr-4">Points Issued</th>
+                            <th className="py-2 pr-4">Quest Submissions</th>
+                            <th className="py-2">New Users</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {STAT_WINDOWS.map((window) => {
+                            const minted = BigInt(
+                              platformStats.pointsMinted[window.key]
+                            );
+                            const submissions =
+                              platformStats.questSubmissions[window.key];
+                            const newUsersCount =
+                              platformStats.newUsers[window.key];
+                            return (
+                              <tr
+                                key={window.key}
+                                className="border-t border-border/40"
+                              >
+                                <td className="py-2 pr-4 font-medium">
+                                  {window.label}
+                                </td>
+                                <td className="py-2 pr-4">
+                                  {formatBigInt(minted)}
+                                </td>
+                                <td className="py-2 pr-4">
+                                  {submissions.toLocaleString()}
+                                </td>
+                                <td className="py-2">
+                                  {newUsersCount.toLocaleString()}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="campaigns" className="space-y-6">
@@ -1545,17 +2231,17 @@ export default function PlatformAdminDashboard() {
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6">
-              {/* Pending Verifications */}
-              {PENDING_VERIFICATIONS.length > 0 && (
+              {/* TODO: Implement Pending Manual Verifications*/}
+              {pendingVerifications.length < 0 && (
                 <Card className="bg-yellow-50 dark:bg-yellow-900 border-yellow-200 dark:border-yellow-700">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
                       <Clock className="w-5 h-5" />
-                      Pending Verifications ({PENDING_VERIFICATIONS.length})
+                      Pending Verifications ({pendingVerifications.length})
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {PENDING_VERIFICATIONS.map((verification) => (
+                    {pendingVerifications.map((verification) => (
                       <div
                         key={verification.id}
                         className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg border"
@@ -1580,7 +2266,8 @@ export default function PlatformAdminDashboard() {
                                 verification.verificationMethod
                               )}
                               <span className="text-xs capitalize">
-                                {verification.verificationMethod} verification
+                                {verification.verificationMethod ?? "manual"}{" "}
+                                verification
                               </span>
                               <Badge
                                 className={getSybilRiskColor(
@@ -1699,68 +2386,84 @@ export default function PlatformAdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {filteredUsers.map((user) => (
-                      <div
-                        key={user.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                        onClick={() => handleUserClick(user)}
-                      >
-                        <div className="flex items-center gap-4">
-                          <Avatar>
-                            <AvatarFallback>
-                              {user.displayName.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                {user.displayName}
-                              </span>
-                              {user.verified && (
-                                <Shield className="w-4 h-4 text-green-600" />
-                              )}
-                              <Badge
-                                variant={
-                                  user.role === "admin" ? "default" : "outline"
-                                }
-                              >
-                                {user.role}
-                              </Badge>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {user.email}
-                            </div>
-                            <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                              <span>Rank #{user.currentRank}</span>
-                              <span>
-                                {user.totalPoints.toLocaleString()} points
-                              </span>
-                              <span>
-                                {user.questsCompleted} quests completed
-                              </span>
-                              <Badge
-                                className={getSybilRiskColor(user.sybilRisk)}
-                              >
-                                {user.sybilRisk} risk
-                              </Badge>
-                              <Badge
-                                className={
-                                  getUserVerificationSummary(user).color
-                                }
-                              >
-                                {getUserVerificationSummary(user).text}
-                              </Badge>
+                    {usersError && (
+                      <div className="p-4 border rounded-lg bg-red-50 dark:bg-red-900/30 text-sm text-red-700 dark:text-red-300">
+                        {usersError}
+                      </div>
+                    )}
+
+                    {usersLoading && (
+                      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                        Loading users from the blockchain...
+                      </div>
+                    )}
+
+                    {!usersLoading &&
+                      !usersError &&
+                      filteredUsers.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                          onClick={() => handleUserClick(user)}
+                        >
+                          <div className="flex items-center gap-4">
+                            <Avatar>
+                              <AvatarFallback>
+                                {user.displayName.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                  {user.displayName}
+                                </span>
+                                {user.verified && (
+                                  <Shield className="w-4 h-4 text-green-600" />
+                                )}
+                                <Badge
+                                  variant={
+                                    user.role === "admin"
+                                      ? "default"
+                                      : "outline"
+                                  }
+                                >
+                                  {user.role}
+                                </Badge>
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {user.email || user.address || "—"}
+                              </div>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
+                                <span>Rank #{user.currentRank}</span>
+                                <span>
+                                  {formatBigInt(user.totalPoints)} points
+                                </span>
+                                <span>
+                                  {user.questsCompleted} quests completed
+                                </span>
+                                <Badge
+                                  className={getSybilRiskColor(user.sybilRisk)}
+                                >
+                                  {user.sybilRisk} risk
+                                </Badge>
+                                <Badge
+                                  className={
+                                    getUserVerificationSummary(user).color
+                                  }
+                                >
+                                  {getUserVerificationSummary(user).text}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
+                          <Button variant="outline" size="sm">
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Details
+                          </Button>
                         </div>
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Details
-                        </Button>
-                      </div>
-                    ))}
+                      ))}
 
-                    {filteredUsers.length === 0 && (
+                    {!usersLoading && filteredUsers.length === 0 && (
                       <div className="text-center py-8 text-muted-foreground">
                         <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
                         <p>No users found matching your criteria</p>
@@ -1807,7 +2510,11 @@ export default function PlatformAdminDashboard() {
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Email</Label>
-                            <div className="text-sm">{selectedUser.email}</div>
+                            <div className="text-sm">
+                              {selectedUser.email ||
+                                selectedUser.address ||
+                                "—"}
+                            </div>
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Role</Label>
@@ -1892,7 +2599,7 @@ export default function PlatformAdminDashboard() {
                             </div>
                             <div className="text-center p-3 border dark:border-gray-700 rounded-lg">
                               <div className="text-2xl font-bold">
-                                {selectedUser.activities.currentStreak}
+                                {selectedUser.activities.currentStreak ?? "—"}
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 Current Streak
@@ -1900,7 +2607,8 @@ export default function PlatformAdminDashboard() {
                             </div>
                             <div className="text-center p-3 border dark:border-gray-700 rounded-lg">
                               <div className="text-2xl font-bold">
-                                {selectedUser.activities.averagePointsPerQuest}
+                                {selectedUser.activities
+                                  .averagePointsPerQuest ?? "—"}
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 Avg Points/Quest
@@ -1915,10 +2623,16 @@ export default function PlatformAdminDashboard() {
                             Campaign Participation
                           </Label>
                           <div className="space-y-2">
+                            {selectedUser.campaignParticipation.length ===
+                              0 && (
+                              <div className="text-sm text-muted-foreground">
+                                No campaign participation recorded yet.
+                              </div>
+                            )}
                             {selectedUser.campaignParticipation.map(
                               (campaign, index) => (
                                 <div
-                                  key={index}
+                                  key={`${campaign.campaignTypeId}-${index}`}
                                   className="flex items-center justify-between p-3 border dark:border-gray-700 rounded-lg"
                                 >
                                   <div>
@@ -1931,7 +2645,11 @@ export default function PlatformAdminDashboard() {
                                     </div>
                                   </div>
                                   <Badge variant="outline">
-                                    {campaign.pointsEarned} points
+                                    {campaign.pointsEarned
+                                      ? `${formatBigInt(
+                                          campaign.pointsEarned
+                                        )} points`
+                                      : "—"}
                                   </Badge>
                                 </div>
                               )
@@ -1956,7 +2674,10 @@ export default function PlatformAdminDashboard() {
               <div className="grid gap-6">
                 {tippingLoading ? (
                   Array.from({ length: 2 }).map((_, index) => (
-                    <Card key={`tip-skeleton-${index}`} className="border border-dashed">
+                    <Card
+                      key={`tip-skeleton-${index}`}
+                      className="border border-dashed"
+                    >
                       <CardHeader className="space-y-3">
                         <div className="h-5 w-1/3 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
                         <div className="h-4 w-2/3 rounded bg-gray-100 dark:bg-gray-900 animate-pulse" />
@@ -1982,7 +2703,8 @@ export default function PlatformAdminDashboard() {
                       <div className="text-3xl">📝</div>
                       <p>No tip proposals found yet.</p>
                       <p className="text-sm">
-                        Approved tipping submissions will appear here for review.
+                        Approved tipping submissions will appear here for
+                        review.
                       </p>
                     </CardContent>
                   </Card>
@@ -2044,8 +2766,12 @@ export default function PlatformAdminDashboard() {
                           <div className="flex items-start justify-between gap-6">
                             <div className="space-y-3">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <CardTitle className="text-lg">{title}</CardTitle>
-                                <Badge className={statusClass}>{statusLabel}</Badge>
+                                <CardTitle className="text-lg">
+                                  {title}
+                                </CardTitle>
+                                <Badge className={statusClass}>
+                                  {statusLabel}
+                                </Badge>
                                 {typeTags.slice(0, 3).map((tag) => (
                                   <Badge
                                     key={tag}
@@ -2093,21 +2819,35 @@ export default function PlatformAdminDashboard() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm text-muted-foreground">
-                            <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                            <Badge
+                              variant="outline"
+                              className="bg-gray-50 dark:bg-gray-900"
+                            >
                               Supporters {supporters} / {requiredApprovals}
                             </Badge>
-                            <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                            <Badge
+                              variant="outline"
+                              className="bg-gray-50 dark:bg-gray-900"
+                            >
                               Submitted {createdAt}
                             </Badge>
                             {typeIdDisplay && (
-                              <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                              <Badge
+                                variant="outline"
+                                className="bg-gray-50 dark:bg-gray-900"
+                              >
                                 Type ID {typeIdDisplay}
                               </Badge>
                             )}
                             {!!(tip.data.rewards?.udt_assets?.length ?? 0) && (
-                              <Badge variant="outline" className="bg-gray-50 dark:bg-gray-900">
+                              <Badge
+                                variant="outline"
+                                className="bg-gray-50 dark:bg-gray-900"
+                              >
                                 {tip.data.rewards?.udt_assets?.length} UDT asset
-                                {tip.data.rewards?.udt_assets?.length === 1 ? "" : "s"}
+                                {tip.data.rewards?.udt_assets?.length === 1
+                                  ? ""
+                                  : "s"}
                               </Badge>
                             )}
                           </div>
@@ -2155,7 +2895,7 @@ export default function PlatformAdminDashboard() {
             <TabsContent value="rewards" className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-semibold">
-                  Leaderboard Reward Management
+                  Leaderboard Reward Management (MOCK)
                 </h2>
                 <Dialog
                   open={isRewardDialogOpen}

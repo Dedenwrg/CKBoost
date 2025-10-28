@@ -40,21 +40,23 @@ export const normalizeEndorserLockHash = (
       return value.trim().toLowerCase();
     }
 
-    if (value instanceof Uint8Array || ArrayBuffer.isView(value)) {
-      return ccc.hexFrom(new Uint8Array(value as ArrayBufferView)).toLowerCase();
+    if (value instanceof Uint8Array) {
+      return ccc.hexFrom(value).toLowerCase();
     }
 
-    if (
-      typeof value === "object" &&
-      "buffer" in (value as Record<string, unknown>) &&
-      typeof (value as { buffer: ArrayBuffer }).buffer === "object"
-    ) {
-      return ccc
-        .hexFrom(new Uint8Array((value as { buffer: ArrayBuffer }).buffer))
-        .toLowerCase();
+    if (ArrayBuffer.isView(value)) {
+      const view = value as ArrayBufferView;
+      const bytes = new Uint8Array(
+        view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)
+      );
+      return ccc.hexFrom(bytes).toLowerCase();
     }
 
-    return ccc.hexFrom(value as ccc.BytesLike).toLowerCase();
+    if (value instanceof ArrayBuffer) {
+      return ccc.hexFrom(new Uint8Array(value)).toLowerCase();
+    }
+
+    return ccc.hexFrom(ccc.bytesFrom(value as ccc.BytesLike)).toLowerCase();
   } catch (error) {
     log.warn("Failed to normalise endorser lock hash", { value, error });
     return null;
@@ -159,4 +161,3 @@ export const createEndorserResolver = (
     },
   };
 };
-
