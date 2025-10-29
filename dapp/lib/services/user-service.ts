@@ -1387,9 +1387,20 @@ export class UserService {
       currentIdentityVerificationDataArray = [];
     }
 
+    // Deduplicate by source: remove any existing entries with the same source
+    const sourceToUpdate = "telegram";
+    currentIdentityVerificationDataArray =
+      currentIdentityVerificationDataArray.filter(
+        (entry: { source: string }) => entry.source !== sourceToUpdate
+      );
+    log.log("Removed existing entries for source", {
+      source: sourceToUpdate,
+      remainingEntries: currentIdentityVerificationDataArray.length,
+    });
+
     // Add the new verification data
     currentIdentityVerificationDataArray.push({
-      source: "telegram",
+      source: sourceToUpdate,
       data: telegramVerificationData,
     });
 
