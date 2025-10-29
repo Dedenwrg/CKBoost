@@ -51,6 +51,7 @@ interface SubmissionDisplayEntry {
   questTitle: string;
   points: number;
   status: "pending" | "approved";
+  userTypeId: string | null;
   submissionTimestamp: number | null;
   deadlineTimestamp: number | null;
 }
@@ -117,6 +118,8 @@ const buildSubmissionEntries = (
 ): SubmissionDisplayEntry[] => {
   if (!submissions || submissions.length === 0) return [];
 
+  const normalizedUserTypeId = userTypeId ? userTypeId.toLowerCase() : null;
+
   return submissions.flatMap((submission, index) => {
     const campaignTypeId = normalizeHex(submission.campaign_type_id);
     if (!campaignTypeId) {
@@ -130,12 +133,13 @@ const buildSubmissionEntries = (
     );
 
     const acceptedIds = quest?.accepted_submission_user_type_ids || [];
-    const isApproved = userTypeId
-      ? acceptedIds.some(
-          (candidate) =>
-            normalizeHex(candidate)?.toLowerCase() === userTypeId.toLowerCase()
-        )
-      : false;
+    const isApproved =
+      normalizedUserTypeId !== null
+        ? acceptedIds.some(
+            (candidate) =>
+              normalizeHex(candidate)?.toLowerCase() === normalizedUserTypeId
+          )
+        : false;
 
     const questTitle = quest?.metadata?.title || `Quest #${questId}`;
     const campaignTitle = campaignData?.metadata?.title || "Unknown campaign";
@@ -154,6 +158,7 @@ const buildSubmissionEntries = (
         questTitle,
         points,
         status: isApproved ? "approved" : "pending",
+        userTypeId: normalizedUserTypeId,
         submissionTimestamp,
         deadlineTimestamp,
       },
@@ -271,19 +276,37 @@ export default function Dashboard() {
   );
 
   const approvedSubmissions = useMemo(
-    () => submissionEntries.filter((entry) => entry.status === "approved"),
-    [submissionEntries]
+    () =>
+      submissionEntries.filter(
+        (entry) =>
+          entry.status === "approved" &&
+          entry.userTypeId ===
+            (currentUserTypeId ? currentUserTypeId.toLowerCase() : null)
+      ),
+    [submissionEntries, currentUserTypeId]
   );
   const pendingSubmissions = useMemo(
-    () => submissionEntries.filter((entry) => entry.status === "pending"),
-    [submissionEntries]
+    () =>
+      submissionEntries.filter(
+        (entry) =>
+          entry.status === "pending" &&
+          entry.userTypeId ===
+            (currentUserTypeId ? currentUserTypeId.toLowerCase() : null)
+      ),
+    [submissionEntries, currentUserTypeId]
   );
   const campaignsParticipated = useMemo(() => {
+    const normalizedUserTypeId = currentUserTypeId
+      ? currentUserTypeId.toLowerCase()
+      : null;
+    const userEntries = submissionEntries.filter(
+      (entry) => entry.userTypeId === normalizedUserTypeId
+    );
     const unique = new Set(
-      submissionEntries.map((entry) => entry.campaignTypeId.toLowerCase())
+      userEntries.map((entry) => entry.campaignTypeId.toLowerCase())
     );
     return unique.size;
-  }, [submissionEntries]);
+  }, [submissionEntries, currentUserTypeId]);
 
   const upcomingDeadlines = useMemo(() => {
     const now = Date.now();
@@ -296,11 +319,17 @@ export default function Dashboard() {
   }, [pendingSubmissions]);
 
   const recentActivity = useMemo(() => {
+    const normalizedUserTypeId = currentUserTypeId
+      ? currentUserTypeId.toLowerCase()
+      : null;
     return [...submissionEntries]
-      .filter((entry) => entry.submissionTimestamp)
+      .filter(
+        (entry) =>
+          entry.submissionTimestamp && entry.userTypeId === normalizedUserTypeId
+      )
       .sort((a, b) => b.submissionTimestamp! - a.submissionTimestamp!)
       .slice(0, 6);
-  }, [submissionEntries]);
+  }, [submissionEntries, currentUserTypeId]);
 
   useEffect(() => {
     if (!signer || !client || !protocolCell || !protocolData) {
