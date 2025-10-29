@@ -66,6 +66,7 @@ interface DeadlineEntry {
   questId: number;
   questTitle: string;
   deadlineTimestamp: number;
+  submissionStatus?: "pending" | "approved" | null;
 }
 
 const shorten = (
@@ -325,6 +326,25 @@ export default function Dashboard() {
     const deadlineEntries: DeadlineEntry[] = [];
     const approvedCampaignIds =
       (protocolData?.campaigns_approved as ccc.Hex[] | undefined) || [];
+    const normalizedUserTypeId = currentUserTypeId
+      ? currentUserTypeId.toLowerCase()
+      : null;
+
+    // Create a map of user submissions by campaignTypeId:questId
+    const submissionMap = new Map<string, "pending" | "approved">();
+    if (normalizedUserTypeId) {
+      submissionEntries.forEach((entry) => {
+        if (entry.userTypeId === normalizedUserTypeId) {
+          const key = `${entry.campaignTypeId.toLowerCase()}:${entry.questId}`;
+          // Prefer approved status if available, otherwise pending
+          if (entry.status === "approved") {
+            submissionMap.set(key, "approved");
+          } else if (entry.status === "pending" && !submissionMap.has(key)) {
+            submissionMap.set(key, "pending");
+          }
+        }
+      });
+    }
 
     // Iterate through all campaigns
     campaigns.forEach((cell) => {
@@ -364,6 +384,12 @@ export default function Dashboard() {
           const questTitle =
             quest.metadata?.title || `Quest #${Number(quest.quest_id)}`;
 
+          // Check if user has submitted to this quest
+          const submissionKey = `${campaignTypeId.toLowerCase()}:${Number(
+            quest.quest_id
+          )}`;
+          const submissionStatus = submissionMap.get(submissionKey);
+
           deadlineEntries.push({
             key: `${campaignTypeId}:${quest.quest_id}`,
             campaignTypeId,
@@ -371,6 +397,7 @@ export default function Dashboard() {
             questId: Number(quest.quest_id),
             questTitle,
             deadlineTimestamp: questDeadline,
+            submissionStatus: submissionStatus || null,
           });
         });
       } catch (error) {
@@ -382,7 +409,7 @@ export default function Dashboard() {
     return deadlineEntries
       .sort((a, b) => a.deadlineTimestamp - b.deadlineTimestamp)
       .slice(0, 5);
-  }, [campaigns, protocolData]);
+  }, [campaigns, protocolData, submissionEntries, currentUserTypeId]);
 
   const recentActivity = useMemo(() => {
     const normalizedUserTypeId = currentUserTypeId
@@ -1004,9 +1031,28 @@ export default function Dashboard() {
                           key={`deadline-${entry.key}`}
                           className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg"
                         >
-                          <div>
-                            <div className="font-medium text-sm">
-                              {entry.questTitle}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium text-sm">
+                                {entry.questTitle}
+                              </div>
+                              {entry.submissionStatus === "approved" && (
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200"
+                                >
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Approved
+                                </Badge>
+                              )}
+                              {entry.submissionStatus === "pending" && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-blue-300 text-blue-600 dark:border-blue-500 dark:text-blue-200"
+                                >
+                                  Pending
+                                </Badge>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {entry.campaignTitle}
