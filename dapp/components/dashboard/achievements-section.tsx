@@ -345,16 +345,17 @@ export function AchievementsSection(): React.JSX.Element {
             )}
             Refresh
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleClaimAchievements()}
+            disabled={
+              isDisabled || isLoading || grantableAchievements.length === 0
+            }
+          >
+            Claim Achievements
+          </Button>
         </div>
-        <div className="flex items-center gap-2"></div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleClaimAchievements()}
-          disabled={isDisabled || isLoading}
-        >
-          Claim Achievements
-        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         {!userAddress && (
@@ -387,6 +388,9 @@ export function AchievementsSection(): React.JSX.Element {
               <p className="text-xs text-muted-foreground">
                 Successfully recorded on-chain.
               </p>
+              {claimedAchievements.map((achievement) => (
+                <Badge key={achievement.id}>{achievement.title}</Badge>
+              ))}
             </div>
             <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -399,17 +403,13 @@ export function AchievementsSection(): React.JSX.Element {
               <p className="text-xs text-muted-foreground">
                 Based on the last previewed transaction.
               </p>
+              {previewState.result &&
+                previewState.result.success &&
+                previewState.result.grantable.map((achievement) => (
+                  <Badge key={achievement}>{achievement}</Badge>
+                ))}
             </div>
           </div>
-        )}
-        {previewState.result && (
-          <pre className="rounded-xl border border-border/60 bg-muted/40 p-4">
-            {JSON.stringify(
-              previewState.result.success ? previewState.result.grantable : [],
-              null,
-              2
-            )}
-          </pre>
         )}
       </CardContent>
     </Card>
