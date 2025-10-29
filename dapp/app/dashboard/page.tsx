@@ -190,7 +190,7 @@ const formatActivityText = (entry: SubmissionDisplayEntry): string => {
   if (entry.status === "approved") {
     return `Quest "${entry.questTitle}" approved (+${entry.points} points)`;
   }
-  return `Quest "${entry.questTitle}" awaiting review`;
+  return `Submitted to "${entry.questTitle}" - awaiting review`;
 };
 
 export default function Dashboard() {
@@ -415,11 +415,48 @@ export default function Dashboard() {
     const normalizedUserTypeId = currentUserTypeId
       ? currentUserTypeId.toLowerCase()
       : null;
-    return [...submissionEntries]
-      .filter(
-        (entry) =>
-          entry.submissionTimestamp && entry.userTypeId === normalizedUserTypeId
-      )
+
+    // Expand entries to show both submission and approval events for approved submissions
+    const activityEntries: SubmissionDisplayEntry[] = [];
+    const seenKeys = new Set<string>();
+
+    submissionEntries.forEach((entry) => {
+      if (
+        !entry.submissionTimestamp ||
+        entry.userTypeId !== normalizedUserTypeId
+      ) {
+        return;
+      }
+
+      const entryKey = `${entry.campaignTypeId}:${entry.questId}`;
+
+      // Always add submission event
+      if (!seenKeys.has(`${entryKey}:submission`)) {
+        activityEntries.push({
+          ...entry,
+          key: `${entry.key}:submission`,
+          status: "pending",
+        });
+        seenKeys.add(`${entryKey}:submission`);
+      }
+
+      // If approved, also add approval event
+      if (
+        entry.status === "approved" &&
+        !seenKeys.has(`${entryKey}:approval`)
+      ) {
+        activityEntries.push({
+          ...entry,
+          key: `${entry.key}:approval`,
+          status: "approved",
+          // Use submission timestamp + 1ms so approval appears after submission in timeline
+          submissionTimestamp: entry.submissionTimestamp + 1,
+        });
+        seenKeys.add(`${entryKey}:approval`);
+      }
+    });
+
+    return activityEntries
       .sort((a, b) => b.submissionTimestamp! - a.submissionTimestamp!)
       .slice(0, 6);
   }, [submissionEntries, currentUserTypeId]);
