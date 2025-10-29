@@ -122,7 +122,6 @@ export interface ProtocolContextType {
   // Query functions
   getEndorser: (lockHash: string) => EndorserInfoLike | undefined;
   getTipping: (id: string) => TippingDataLike | undefined;
-  getApprovedCampaign: (id: string) => CampaignDataLike | undefined;
 
   // Change detection
   detectChanges: (formData: unknown) => ProtocolChanges;

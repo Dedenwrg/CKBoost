@@ -92,7 +92,7 @@ impl CKBoostProtocol for CKBoostProtocolType {
         } else {
             debug_trace!("Script args present - looking for existing protocol cell");
             debug_trace!("find_out_point_by_type");
-            // TODO (ckb-ssri-std): This might not be able to properly propagate the error if not found
+            // (ISSUE #10) (ckb-ssri-std): This might not be able to properly propagate the error if not found
             let result = find_out_point_by_type(current_script.clone());
             debug_trace!("find_out_point_by_type done");
             debug_trace!("protocol_result: {:?}", result);

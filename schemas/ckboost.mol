@@ -320,7 +320,7 @@ vector AchievementDataVec <AchievementData>;
 
 table UserVerificationData {
     telegram_personal_chat_id: Uint128,
-    identity_verification_data: Bytes, // TODO: Leave this part agnostic for now
+    identity_verification_data: Bytes, // This should be agnostic
 }
 
 table UserSubmissionRecord {

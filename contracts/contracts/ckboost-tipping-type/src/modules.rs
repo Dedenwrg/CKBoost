@@ -133,7 +133,7 @@ impl CKBoostTipping for CKBoostTippingType {
                 tipping_input_index = tx.as_ref().map(|t| t.raw().inputs().len()).unwrap_or(0);
                 tipping_output_index =
                     Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
-                // TODO: find_cell_by_out_point here fails for memory. Skipping
+                // (ISSUE #10): find_cell_by_out_point here fails for memory. Skipping
                 // // Add tipping cell as input
                 // let tipping_input = CellInput::new_builder()
                 //     .previous_output(tipping_outpoint.clone())

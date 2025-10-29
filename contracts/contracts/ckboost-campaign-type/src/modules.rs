@@ -135,7 +135,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
 
                 debug_trace!("Trying to find campaign cell by out point");
                 // Get the current campaign cell to preserve lock script
-                // TODO: find_cell_by_out_point here fails for memory. Skipping
+                // (ISSUE #10): find_cell_by_out_point here fails for memory. Skipping
                 // let current_campaign_cell =
                 //     find_cell_by_out_point(campaign_outpoint).map_err(|e| {
                 //         debug_info!("ERROR loading campaign cell: {:?}", e);
@@ -468,7 +468,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
         debug_info!("connected_type_id: {:?}", connected_type_id);
 
         // Find and add existing campaign cell as input
-        // TODO: SSRI may fail in find_out_point_by_type for memory. Skipping
+        // (ISSUE #10): SSRI may fail in find_out_point_by_type for memory. Skipping
         // let campaign_outpoint = find_out_point_by_type(current_script.clone())?;
         // let campaign_input = CellInput::new_builder()
         //     .previous_output(campaign_outpoint.clone())

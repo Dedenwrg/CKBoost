@@ -56,7 +56,6 @@ interface ProtocolContextType {
   // Helper getters
   getEndorser: (address: string) => EndorserInfoLike | undefined;
   getTipping: (index: number) => TippingDataLike | undefined;
-  getApprovedCampaign: (id: string) => CampaignDataLike | undefined;
   resolveEndorser: (
     address: string | null | undefined
   ) => ResolvedEndorser | undefined;
@@ -111,8 +110,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
   const isWalletConnected = !!signer;
 
   const endorserResolver = useMemo(
-    () =>
-      createEndorserResolver(protocolData?.endorsers_whitelist ?? []),
+    () => createEndorserResolver(protocolData?.endorsers_whitelist ?? []),
     [protocolData?.endorsers_whitelist]
   );
 
@@ -243,10 +241,7 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
             const isUserEndorser = endorserResolver.has(userLockHash);
             setIsEndorser(isUserEndorser);
           } catch (adminCheckErr) {
-            log.error(
-              "Failed to check admin/endorser status:",
-              adminCheckErr
-            );
+            log.error("Failed to check admin/endorser status:", adminCheckErr);
             setIsAdmin(false);
             setIsEndorser(false);
           }
@@ -623,12 +618,6 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
       | undefined;
   };
 
-  const getApprovedCampaign = (id: string): CampaignDataLike | undefined => {
-    // TODO: To implement.
-    throw new Error(`To be implemented ${id} `);
-    // return protocolData?.campaigns_approved?.find((campaignTypeIdHex: ccc.Hex) => c.status === id);
-  };
-
   const resolveEndorser = (
     address: string | null | undefined
   ): ResolvedEndorser | undefined => {
@@ -656,7 +645,6 @@ export function ProtocolProvider({ children }: { children: ReactNode }) {
     // Helper getters
     getEndorser,
     getTipping,
-    getApprovedCampaign,
     resolveEndorser,
     endorserResolver,
 

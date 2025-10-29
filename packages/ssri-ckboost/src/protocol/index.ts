@@ -274,12 +274,4 @@ export class Protocol extends ssri.Trait {
           : 0,
     };
   }
-
-  // TODO: Add more methods as needed
-  // - getCampaigns()
-  // - getTippings()
-  // - getEndorsers()
-  // - approveCampaign()
-  // - createTipping()
-  // - voteTipping()
 }

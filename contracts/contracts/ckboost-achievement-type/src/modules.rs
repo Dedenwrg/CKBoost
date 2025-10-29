@@ -280,7 +280,7 @@ impl CKBoostAchievement for CKBoostAchievementType {
         debug_trace!("current_script: {:?}", current_script);
 
         // Ensure arguments contain a valid ConnectedTypeID reference
-        // TODO: Get the input and output achievement cell. At the moment it's failing for memory issue
+        // (ISSUE #10): Get the input and output achievement cell. At the moment it's failing for memory issue
 
         let output_data_index = tx
             .as_ref()
