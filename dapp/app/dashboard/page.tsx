@@ -36,7 +36,10 @@ import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { useUser } from "@/lib/providers/user-provider";
 import { useCampaigns } from "@/lib";
-import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
+import {
+  extractTypeIdFromCampaignCell,
+  isCampaignApproved,
+} from "@/lib/ckb/campaign-cells";
 import type { UserSubmissionRecordLike } from "ssri-ckboost/types";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
@@ -54,6 +57,15 @@ interface SubmissionDisplayEntry {
   userTypeId: string | null;
   submissionTimestamp: number | null;
   deadlineTimestamp: number | null;
+}
+
+interface DeadlineEntry {
+  key: string;
+  campaignTypeId: string;
+  campaignTitle: string;
+  questId: number;
+  questTitle: string;
+  deadlineTimestamp: number;
 }
 
 const shorten = (
@@ -310,13 +322,67 @@ export default function Dashboard() {
 
   const upcomingDeadlines = useMemo(() => {
     const now = Date.now();
-    return pendingSubmissions
-      .filter(
-        (entry) => entry.deadlineTimestamp && entry.deadlineTimestamp > now
-      )
-      .sort((a, b) => a.deadlineTimestamp! - b.deadlineTimestamp!)
+    const deadlineEntries: DeadlineEntry[] = [];
+    const approvedCampaignIds =
+      (protocolData?.campaigns_approved as ccc.Hex[] | undefined) || [];
+
+    // Iterate through all campaigns
+    campaigns.forEach((cell) => {
+      try {
+        const campaignTypeId = extractTypeIdFromCampaignCell(cell);
+        if (!campaignTypeId) {
+          return;
+        }
+
+        // Check if campaign is approved
+        if (!isCampaignApproved(campaignTypeId, approvedCampaignIds)) {
+          return;
+        }
+
+        const campaignData = CampaignData.decode(
+          cell.outputData
+        ) as CampaignDataLike;
+
+        // Check if campaign is still active (not ended)
+        const endTime = toMillis(ccc.numFrom(campaignData.ending_time));
+        if (!endTime || endTime <= now) {
+          return; // Campaign has ended
+        }
+
+        const campaignTitle =
+          campaignData.metadata?.title || "Unknown campaign";
+
+        // Iterate through all quests in the campaign
+        campaignData.quests?.forEach((quest) => {
+          const questDeadline = toMillis(
+            ccc.numFrom(quest.completion_deadline)
+          );
+          if (!questDeadline || questDeadline <= now) {
+            return; // Quest deadline has passed or doesn't exist
+          }
+
+          const questTitle =
+            quest.metadata?.title || `Quest #${Number(quest.quest_id)}`;
+
+          deadlineEntries.push({
+            key: `${campaignTypeId}:${quest.quest_id}`,
+            campaignTypeId,
+            campaignTitle,
+            questId: Number(quest.quest_id),
+            questTitle,
+            deadlineTimestamp: questDeadline,
+          });
+        });
+      } catch (error) {
+        log.warn("Failed to process campaign for deadlines", error);
+      }
+    });
+
+    // Sort by deadline (soonest first) and return top 5
+    return deadlineEntries
+      .sort((a, b) => a.deadlineTimestamp - b.deadlineTimestamp)
       .slice(0, 5);
-  }, [pendingSubmissions]);
+  }, [campaigns, protocolData]);
 
   const recentActivity = useMemo(() => {
     const normalizedUserTypeId = currentUserTypeId
@@ -941,6 +1007,9 @@ export default function Dashboard() {
                           <div>
                             <div className="font-medium text-sm">
                               {entry.questTitle}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {entry.campaignTitle}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               Due {deadline}
