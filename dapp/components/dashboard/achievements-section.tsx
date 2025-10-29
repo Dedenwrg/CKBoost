@@ -6,10 +6,12 @@ import React, {
   useMemo,
   useState,
   FormEvent,
+  useRef,
 } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
-import { Loader2, ShieldCheck, Sparkles, Trophy } from "lucide-react";
+import { Loader2, ShieldCheck, Sparkles, Trophy, Target } from "lucide-react";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import {
   AchievementService,
   type AchievementQueryResponse,
@@ -24,6 +26,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { createScopedLogger } from "ssri-ckboost";
 
 const log = createScopedLogger("AchievementsSection");
@@ -38,6 +46,62 @@ const EMPTY_PREVIEW: PreviewState = {
   result: null,
   error: null,
   isLoading: false,
+};
+
+const extractHtmlFromContent = (raw: string): string => {
+  if (!raw) return "";
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      format?: string;
+      contentHtml?: string;
+      content?: string;
+      description_html?: string;
+    } | null;
+
+    if (parsed && typeof parsed === "object") {
+      // Achievement metadata format
+      if (typeof parsed.description_html === "string") {
+        return parsed.description_html;
+      }
+      // Campaign long description format
+      if (
+        parsed.format === "ckboost-campaign-long-description" &&
+        typeof parsed.contentHtml === "string"
+      ) {
+        return parsed.contentHtml;
+      }
+      // Generic HTML format
+      if (parsed.format === "html" && typeof parsed.content === "string") {
+        return parsed.content;
+      }
+    }
+  } catch {
+    // Not JSON, fall back to raw string
+  }
+
+  return raw;
+};
+
+const formatMetadataHtml = (content: string): string => {
+  if (!content) {
+    return "";
+  }
+
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+  if (hasHtmlTags) {
+    return content;
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  return `<p>${escapeHtml(content).replace(/\n/g, "<br />")}</p>`;
 };
 
 const summarizeAchievement = (achievement: UserAchievement): string => {
@@ -68,6 +132,7 @@ const formatGrantedAt = (achievement: UserAchievement): string | null => {
 export function AchievementsSection(): React.JSX.Element {
   const { client } = ccc.useCcc();
   const signer = ccc.useSigner();
+  const { fetchSubmission } = useNostrFetch();
   const {
     userAddress,
     protocolData,
@@ -81,6 +146,13 @@ export function AchievementsSection(): React.JSX.Element {
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [previewState, setPreviewState] = useState<PreviewState>(EMPTY_PREVIEW);
   const [txHexInput, setTxHexInput] = useState("");
+  const [resolvedMetadata, setResolvedMetadata] = useState<
+    Map<
+      string,
+      { content: string | null; error: string | null; loading: boolean }
+    >
+  >(new Map());
+  const fetchingRef = useRef<Set<string>>(new Set());
 
   const achievementService = useMemo(() => {
     if (!client) return null;
@@ -253,6 +325,16 @@ export function AchievementsSection(): React.JSX.Element {
     return previewState.result.grantable;
   }, [previewState]);
 
+  const availableAchievements = useMemo(() => {
+    const grantableSet = new Set(grantableAchievements);
+    return achievements.filter(
+      (achievement) =>
+        !achievement.completed &&
+        !grantableSet.has(achievement.title) &&
+        !grantableSet.has(achievement.id)
+    );
+  }, [achievements, grantableAchievements]);
+
   const handlePreview = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -317,6 +399,75 @@ export function AchievementsSection(): React.JSX.Element {
 
   const isDisabled =
     !achievementService || protocolLoading || !!protocolError || !userAddress;
+
+  // Fetch metadata for achievements with nevent IDs
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      const metadataToFetch = availableAchievements.filter((achievement) => {
+        const neventId = achievement.metadataNeventId;
+        return (
+          neventId?.startsWith("nevent1") &&
+          !resolvedMetadata.has(neventId) &&
+          !fetchingRef.current.has(neventId)
+        );
+      });
+
+      if (metadataToFetch.length === 0) return;
+
+      for (const achievement of metadataToFetch) {
+        const neventId = achievement.metadataNeventId!;
+
+        // Mark as fetching
+        fetchingRef.current.add(neventId);
+
+        // Mark as loading
+        setResolvedMetadata((prev) => {
+          const next = new Map(prev);
+          next.set(neventId, { content: null, error: null, loading: true });
+          return next;
+        });
+
+        try {
+          const submission = await fetchSubmission(neventId);
+          if (!submission?.content) {
+            throw new Error("Unable to load metadata from Nostr.");
+          }
+
+          const html = formatMetadataHtml(
+            extractHtmlFromContent(submission.content)
+          );
+
+          setResolvedMetadata((prev) => {
+            const next = new Map(prev);
+            next.set(neventId, {
+              content: html,
+              error: null,
+              loading: false,
+            });
+            return next;
+          });
+        } catch (error) {
+          log.error("Failed to fetch achievement metadata", error);
+          setResolvedMetadata((prev) => {
+            const next = new Map(prev);
+            next.set(neventId, {
+              content: null,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to load metadata.",
+              loading: false,
+            });
+            return next;
+          });
+        } finally {
+          fetchingRef.current.delete(neventId);
+        }
+      }
+    };
+
+    fetchMetadata();
+  }, [availableAchievements, fetchSubmission, resolvedMetadata]);
 
   return (
     <Card className="overflow-hidden">
@@ -410,6 +561,87 @@ export function AchievementsSection(): React.JSX.Element {
                 ))}
             </div>
           </div>
+        )}
+
+        {availableAchievements.length > 0 && (
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem
+              value="available-achievements"
+              className="border-none"
+            >
+              <AccordionTrigger className="rounded-lg border border-border/60 bg-muted/40 px-4 py-3 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-blue-500" />
+                  <span className="font-medium">
+                    Available Achievements ({availableAchievements.length})
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Achievements you haven&apos;t earned yet. Complete the
+                    requirements to make them grantable.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {availableAchievements.map((achievement) => {
+                      const neventId = achievement.metadataNeventId;
+                      const metadata =
+                        neventId && neventId.startsWith("nevent1")
+                          ? resolvedMetadata.get(neventId)
+                          : null;
+
+                      return (
+                        <div
+                          key={achievement.id}
+                          className="group rounded-lg border border-border/60 bg-muted/20 p-4 transition-colors hover:bg-muted/40"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 space-y-2">
+                              <h4 className="font-medium leading-tight">
+                                {achievement.title || achievement.id}
+                              </h4>
+                              {metadata?.loading && (
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  Loading metadata...
+                                </div>
+                              )}
+                              {metadata?.error && (
+                                <p className="text-xs text-red-500">
+                                  {metadata.error}
+                                </p>
+                              )}
+                              {metadata?.content && (
+                                <div
+                                  className="text-xs text-muted-foreground prose prose-sm max-w-none"
+                                  dangerouslySetInnerHTML={{
+                                    __html: metadata.content,
+                                  }}
+                                />
+                              )}
+                              {!metadata &&
+                                neventId &&
+                                neventId.startsWith("nevent1") && (
+                                  <p className="text-xs text-muted-foreground font-mono break-all">
+                                    {neventId.slice(0, 20)}...
+                                  </p>
+                                )}
+                              {!achievement.title && !neventId && (
+                                <p className="text-xs text-muted-foreground">
+                                  ID: {achievement.id}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
       </CardContent>
     </Card>
