@@ -483,8 +483,7 @@ export default function CampaignDetailPage() {
       questsWithCkb += 1;
       totalPerCompletion += perCompletion;
 
-      const completions =
-        quest.accepted_submission_user_type_ids?.length ?? 0;
+      const completions = quest.accepted_submission_user_type_ids?.length ?? 0;
       if (completions > 0) {
         totalDistributed += perCompletion * BigInt(completions);
       }
@@ -1620,7 +1619,7 @@ export default function CampaignDetailPage() {
                 <CardHeader>
                   <CardTitle>Rewards Summary</CardTitle>
                   <CardDescription>
-                    Points configured and token distributions (CKB & UDT) so far
+                    Points and rewards (CKB & UDT) distributed so far
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1637,10 +1636,10 @@ export default function CampaignDetailPage() {
                     </div>
 
                     {/* CKB Distributed */}
-                    <div className="p-4 border rounded-lg flex items-center justify-between">
+                    <div className="p-4 border rounded-lg flex items-center justify-between text-right">
                       <div className="flex items-center gap-2">
                         <Coins className="w-5 h-5 text-blue-600" />
-                        <span className="font-medium">Total CKB</span>
+                        <span className="font-medium">CKB</span>
                       </div>
                       <span className="text-2xl font-bold">
                         {formatCkbAmount(ckbRewardStats.totalDistributed)} CKB
@@ -1721,9 +1720,6 @@ export default function CampaignDetailPage() {
                                 </span>
                               </div>
                               <div className="text-right">
-                                <p className="text-xs text-muted-foreground">
-                                  Distributed
-                                </p>
                                 <span className="text-2xl font-bold">
                                   {formatted} {symbol}
                                 </span>
