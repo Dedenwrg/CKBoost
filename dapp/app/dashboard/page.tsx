@@ -515,6 +515,7 @@ export default function Dashboard() {
         const pointsCodeHash =
           scriptHashes?.ckb_boost_points_udt_type_code_hash;
 
+        // Load Points balance but don't add it to the display map
         if (pointsCodeHash) {
           const pointsScript = ccc.Script.from({
             codeHash: pointsCodeHash,
@@ -522,17 +523,19 @@ export default function Dashboard() {
             args: protocolTypeHash,
           });
           const amount = await gatherAmountForScript(pointsScript);
-          const hash = pointsScript.hash().toLowerCase();
-          balancesMap.set(hash, {
-            raw: amount,
-            script: pointsScript,
-            isPoints: true,
-          });
           if (!cancelled) {
             setPointsBalance(amount);
           }
         } else if (!cancelled) {
           setPointsBalance(0n);
+        }
+
+        // Fetch CKB balance
+        let ckbBalance = 0n;
+        try {
+          ckbBalance = await client.getBalance([lockScript]);
+        } catch (error) {
+          log.warn("Failed to fetch CKB balance", error);
         }
 
         const acceptedUdts = scriptHashes?.accepted_udt_type_scripts ?? [];
@@ -570,37 +573,65 @@ export default function Dashboard() {
             isPoints: boolean;
           }> = [];
 
+          // Add CKB balance first (always show it)
+          const formatCKB = (value: bigint): string => {
+            const divisor = 10n ** 8n;
+            const integerPart = value / divisor;
+            const fractionalPart = value % divisor;
+
+            if (fractionalPart === 0n) {
+              return integerPart.toLocaleString();
+            }
+
+            const fractionalStr = fractionalPart
+              .toString()
+              .padStart(8, "0")
+              .replace(/0+$/, "");
+            return `${integerPart.toLocaleString()}.${fractionalStr}`;
+          };
+
+          entries.push({
+            key: "ckb-native",
+            symbol: "CKB",
+            formatted: formatCKB(ckbBalance),
+            raw: ckbBalance,
+            scriptHash: "",
+            isPoints: false,
+          });
+
+          // Add other UDT tokens (excluding Points)
           balancesMap.forEach((value, hash) => {
+            // Skip Points entries
+            if (value.isPoints) {
+              return;
+            }
+
             const scriptHash = hash;
             const tokenInfo = udtRegistry.getTokenByScriptHash(scriptHash);
-            const symbol = value.isPoints
-              ? "Points"
-              : tokenInfo?.symbol ?? shorten(scriptHash, 6, 6);
+            const symbol = tokenInfo?.symbol ?? shorten(scriptHash, 6, 6);
             let formatted: string;
-            if (value.isPoints) {
-              formatted = value.raw.toLocaleString();
-            } else if (tokenInfo) {
+            if (tokenInfo) {
               formatted = udtRegistry.formatAmount(value.raw, tokenInfo);
             } else {
               formatted = value.raw.toString();
             }
 
-            if (value.isPoints || value.raw > 0n) {
+            if (value.raw > 0n) {
               entries.push({
                 key: scriptHash,
                 symbol,
                 formatted,
                 raw: value.raw,
                 scriptHash,
-                isPoints: value.isPoints,
+                isPoints: false,
               });
             }
           });
 
           entries.sort((a, b) => {
-            if (a.isPoints !== b.isPoints) {
-              return a.isPoints ? -1 : 1;
-            }
+            // CKB always first
+            if (a.symbol === "CKB") return -1;
+            if (b.symbol === "CKB") return 1;
             if (a.raw === b.raw) {
               return a.symbol.localeCompare(b.symbol);
             }
@@ -633,10 +664,10 @@ export default function Dashboard() {
   const combinedError = userError || campaignsError || protocolError;
   const pointsBalanceDisplay = useMemo(() => {
     if (!userAddress) {
-      return "—";
+      return "?";
     }
     if (pointsBalance === null) {
-      return tokenBalancesLoading ? "—" : "0";
+      return tokenBalancesLoading ? "?" : "0";
     }
     return pointsBalance.toLocaleString();
   }, [userAddress, pointsBalance, tokenBalancesLoading]);
@@ -778,7 +809,7 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="text-4xl">🎯</div>
+                  <div className="text-4xl">??</div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                     Welcome back, {displayName}
                   </h1>
@@ -988,7 +1019,7 @@ export default function Dashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Coins className="w-5 h-5 text-purple-600" />
-                    Token Balances
+                    Asset Balances
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -1017,7 +1048,7 @@ export default function Dashboard() {
                       >
                         <div className="flex flex-col">
                           <span className="font-medium">{token.symbol}</span>
-                          {!token.isPoints && (
+                          {!token.isPoints && token.scriptHash && (
                             <span className="text-xs text-muted-foreground">
                               {shorten(token.scriptHash, 6, 6)}
                             </span>
@@ -1028,7 +1059,7 @@ export default function Dashboard() {
                     ))
                   )}
                   <div className="text-xs text-muted-foreground">
-                    Balances are calculated from on-chain UDT cells held by your
+                    Balances are calculated from on-chain CKB and UDT cells held by your
                     wallet.
                   </div>
                 </CardContent>
