@@ -537,7 +537,7 @@ pub mod approve_completion {
                     DeterministicError::Encoding
                 })?;
 
-            // TODO: Not handling this for now
+            // ISSUE #12: Not handling this for now
             // // Verify campaign status is active (4)
             // if input_campaign_data.status() != 4u8.into() {
             //     debug!("Campaign is not active, status: {}", input_campaign_data.status());
@@ -1113,7 +1113,7 @@ pub mod complete_quest {
                 return Err(DeterministicError::BusinessRuleViolation);
             }
 
-            // TODO: Not handling this for now
+            // ISSUE #12: Not handling this for now
             // // Verify campaign status is active (4)
             // if input_campaign_data.status() != 4u8.into() {
             //     return Err(DeterministicError::BusinessRuleViolation);

@@ -1797,7 +1797,7 @@ export default function CampaignDetailPage() {
                                     ) || {
                                       totalPerQuest: 0,
                                       totalDistributed: 0,
-                                      totalFunded: 0, // TODO: Get from funding cell
+                                      totalFunded: 0,
                                       available: 0,
                                       tokenInfo: token,
                                       averagePerQuest: 0,

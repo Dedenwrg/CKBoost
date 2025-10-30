@@ -393,7 +393,7 @@ export function FundingTab({ campaignTypeId, initialQuotas }: FundingTabProps) {
 
     setIsUnlocking(true);
     try {
-      // TODO: Implement actual UDT unlocking from campaign
+      // ISSUE #15: Implement actual UDT unlocking from campaign
       log.log("Unlocking from campaign:", {
         token: unlockingToken.token.symbol,
         amount: unlockAmount,

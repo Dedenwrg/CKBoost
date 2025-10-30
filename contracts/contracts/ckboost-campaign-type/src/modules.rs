@@ -479,7 +479,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
         // let current_campaign_cell =
         //     find_cell_by_out_point(campaign_outpoint).map_err(|_| Error::CampaignCellNotFound)?;
 
-        // TODO: Not handling this for now
+        // ISSUE #12: Not handling this for now
         // // Verify campaign is active (status = 4)
         // if campaign_data.status() != 4u8.into() {
         //     return Err(Error::CampaignNotActive);

@@ -267,7 +267,7 @@ pub mod update_tipping {
                 }
             }
 
-            // TODO: Other forms of rewards are not permitted yet
+            // ISSUE #13: Other forms of rewards are not permitted yet
             if rewards.udt_assets().len() > 0 {
                 debug_trace!("BusinessRuleViolation: UDT rewards are not permitted yet");
                 return Err(DeterministicError::BusinessRuleViolation);
@@ -537,6 +537,5 @@ pub mod update_tipping {
             Ok(())
         }
         // **Tipping tipping immutability**: Tipping tipping data must remain unchanged during protocol updates to maintain tipping integrity
-        //TODO: pub fn supporter_proxy_validation(
     }
 }

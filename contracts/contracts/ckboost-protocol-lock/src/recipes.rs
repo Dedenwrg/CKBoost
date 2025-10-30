@@ -8,26 +8,6 @@ pub mod helper {
     use ckboost_shared::types::CampaignData;
     use molecule::prelude::Entity;
 
-    /// Find campaign cell in inputs and validate it exists
-    pub fn find_campaign_cell_in_inputs(campaign_type_id: &[u8]) -> Result<(), DeterministicError> {
-        let mut index = 0;
-        loop {
-            match load_cell_type_hash(index, Source::Input) {
-                Ok(Some(_type_hash)) => {
-                    // TODO: Parse ConnectedTypeID from cell and check if type_id matches
-                    // For now, we assume any type script is a campaign cell
-                    debug_trace!("Found campaign cell in inputs at index {}", index);
-                    return Ok(());
-                }
-                Err(ckb_std::error::SysError::IndexOutOfBound) => break,
-                _ => {}
-            }
-            index += 1;
-        }
-        debug_trace!("Campaign cell not found in inputs");
-        Err(DeterministicError::CellRelationshipRuleViolation)
-    }
-
     /// Validate user is in the approved list for a quest
     pub fn validate_user_in_approved_list(
         campaign_data: &CampaignData,
@@ -150,7 +130,7 @@ pub mod user_claim {
         }
 
         if found_proof {
-            // TODO: Further validate the proof contains valid quest_id and user_type_id
+            // ISSUE #14: Further validate the proof contains valid quest_id and user_type_id
             // For now, presence of proof is sufficient
             debug_trace!("User claim is valid with approval proof");
             Ok(())

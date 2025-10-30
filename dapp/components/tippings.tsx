@@ -221,7 +221,6 @@ export function Tippings() {
           supporter_lock_hashes: updatedSupporters as ccc.HexLike[],
           status: status,
           granted_at:
-            // TODO: Add a check to see if the tipping is already granted
             status === "granted"
               ? BigInt(Date.now())
               : tipping.data.granted_at ?? 0n,

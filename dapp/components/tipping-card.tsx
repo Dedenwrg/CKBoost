@@ -84,10 +84,7 @@ export function TippingCard({
   }, [tipping.data.proposer_lock_hash]);
 
   const proposerInfo = useMemo(
-    () =>
-      proposerLockHash
-        ? resolveEndorser(proposerLockHash) ?? null
-        : null,
+    () => (proposerLockHash ? resolveEndorser(proposerLockHash) ?? null : null),
     [resolveEndorser, proposerLockHash]
   );
 
@@ -807,11 +804,11 @@ export function TippingCard({
         <Separator />
         <SocialInteractions
           tipping_type_id={tipping.typeId ?? ""}
-          // TODO: Get likes and comments from the tipping
+          // ISSUE #11: Get likes and comments from the tipping
           initialLikes={0}
           initialComments={tipping.comments}
           isLiked={false}
-          // TODO: Get onLike and onComment from the tipping
+          // ISSUE #11: Get onLike and onComment from the tipping
           onLike={() => {}}
           onComment={() => {}}
           onShare={() => {}}
