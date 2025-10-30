@@ -959,13 +959,6 @@ export function ProfileContent({
             </Card>
 
             <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-semibold">Public Achievements</h3>
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <Star className="w-4 h-4" />
-                  Visible to campaign moderators
-                </Badge>
-              </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <Card>
                   <CardHeader className="pb-2">
