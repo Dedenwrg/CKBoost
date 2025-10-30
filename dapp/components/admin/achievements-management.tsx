@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+} from "react";
 import { ccc } from "@ckb-ccc/connector-react";
 import {
   Card,
@@ -40,6 +46,7 @@ import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ConnectedTypeID, type ConnectedTypeIDLike } from "ssri-ckboost/types";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 import { createScopedLogger } from "ssri-ckboost";
 const log = createScopedLogger("AchievementsManagement");
@@ -67,6 +74,62 @@ const slugify = (value: string): string =>
     .trim()
     .replace(/[^a-z0-9]+/gu, "-")
     .replace(/^-+|-+$/gu, "");
+
+const extractHtmlFromContent = (raw: string): string => {
+  if (!raw) return "";
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      format?: string;
+      contentHtml?: string;
+      content?: string;
+      description_html?: string;
+    } | null;
+
+    if (parsed && typeof parsed === "object") {
+      // Achievement metadata format
+      if (typeof parsed.description_html === "string") {
+        return parsed.description_html;
+      }
+      // Campaign long description format
+      if (
+        parsed.format === "ckboost-campaign-long-description" &&
+        typeof parsed.contentHtml === "string"
+      ) {
+        return parsed.contentHtml;
+      }
+      // Generic HTML format
+      if (parsed.format === "html" && typeof parsed.content === "string") {
+        return parsed.content;
+      }
+    }
+  } catch {
+    // Not JSON, fall back to raw string
+  }
+
+  return raw;
+};
+
+const formatMetadataHtml = (content: string): string => {
+  if (!content) {
+    return "";
+  }
+
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(content);
+  if (hasHtmlTags) {
+    return content;
+  }
+
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  return `<p>${escapeHtml(content).replace(/\n/g, "<br />")}</p>`;
+};
 
 type AchievementCellStatus =
   | { found: false }
@@ -138,10 +201,17 @@ export function AchievementsManagement(): React.JSX.Element {
   const [appending, setAppending] = useState(false);
   const [publishingKey, setPublishingKey] = useState<string | null>(null);
   const { storeAchievementMetadata } = useNostrStorage();
+  const { fetchSubmission } = useNostrFetch();
+  const [resolvedMetadata, setResolvedMetadata] = useState<
+    Map<
+      string,
+      { content: string | null; error: string | null; loading: boolean }
+    >
+  >(new Map());
+  const fetchingRef = useRef<Set<string>>(new Set());
 
   const protocolAchievementTypeHashes = useMemo(() => {
-    const hashes =
-      protocolData?.protocol_config?.achievement_type_hashes ?? [];
+    const hashes = protocolData?.protocol_config?.achievement_type_hashes ?? [];
     return hashes
       .map((hash) =>
         typeof hash === "string"
@@ -221,13 +291,14 @@ export function AchievementsManagement(): React.JSX.Element {
       definitions: AchievementDefinitionInput[];
       updatedDrafts: AchievementDraft[];
     }> => {
-      const definitions: AchievementDefinitionInput[] =
-        existingEntries.map((entry) => ({
+      const definitions: AchievementDefinitionInput[] = existingEntries.map(
+        (entry) => ({
           achievement_title: entry.raw.achievement_title,
           achievement_metadata: entry.raw.achievement_metadata,
           receiver_user_record_vec:
             entry.raw.receiver_user_record_vec ?? entry.records ?? [],
-        }));
+        })
+      );
 
       const updatedDrafts: AchievementDraft[] = [];
       const usedIds = new Set<string>();
@@ -382,6 +453,75 @@ export function AchievementsManagement(): React.JSX.Element {
   useEffect(() => {
     loadStatus().catch((error) => log.error("initial load failed", error));
   }, [loadStatus]);
+
+  // Fetch metadata for achievements with nevent IDs
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      const metadataToFetch = onChainAchievements.filter((entry) => {
+        const neventId = entry.metadataNeventId;
+        return (
+          neventId?.startsWith("nevent1") &&
+          !resolvedMetadata.has(neventId) &&
+          !fetchingRef.current.has(neventId)
+        );
+      });
+
+      if (metadataToFetch.length === 0) return;
+
+      for (const entry of metadataToFetch) {
+        const neventId = entry.metadataNeventId!;
+
+        // Mark as fetching
+        fetchingRef.current.add(neventId);
+
+        // Mark as loading
+        setResolvedMetadata((prev) => {
+          const next = new Map(prev);
+          next.set(neventId, { content: null, error: null, loading: true });
+          return next;
+        });
+
+        try {
+          const submission = await fetchSubmission(neventId);
+          if (!submission?.content) {
+            throw new Error("Unable to load metadata from Nostr.");
+          }
+
+          const html = formatMetadataHtml(
+            extractHtmlFromContent(submission.content)
+          );
+
+          setResolvedMetadata((prev) => {
+            const next = new Map(prev);
+            next.set(neventId, {
+              content: html,
+              error: null,
+              loading: false,
+            });
+            return next;
+          });
+        } catch (error) {
+          log.error("Failed to fetch achievement metadata", error);
+          setResolvedMetadata((prev) => {
+            const next = new Map(prev);
+            next.set(neventId, {
+              content: null,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Failed to load metadata.",
+              loading: false,
+            });
+            return next;
+          });
+        } finally {
+          fetchingRef.current.delete(neventId);
+        }
+      }
+    };
+
+    fetchMetadata();
+  }, [onChainAchievements, fetchSubmission, resolvedMetadata]);
 
   const handleAddDraft = useCallback(() => {
     setDrafts((prev) => [...prev, createDraft()]);
@@ -776,7 +916,8 @@ export function AchievementsManagement(): React.JSX.Element {
           <div>
             <CardTitle>Achievements Cell Status</CardTitle>
             <CardDescription>
-              Monitor the achievements cell connected to the current protocol and confirm it is registered.
+              Monitor the achievements cell connected to the current protocol
+              and confirm it is registered.
             </CardDescription>
           </div>
           <Button
@@ -948,13 +1089,15 @@ export function AchievementsManagement(): React.JSX.Element {
                   <AlertTitle>Protocol config update required</AlertTitle>
                   <AlertDescription>
                     <span>
-                      Achievements cell type hash {status.typeHash} is not listed in
-                      <code>protocol_config.achievement_type_hashes</code>. Add it to
-                      ensure dashboards and clients can detect this cell.
+                      Achievements cell type hash {status.typeHash} is not
+                      listed in
+                      <code>protocol_config.achievement_type_hashes</code>. Add
+                      it to ensure dashboards and clients can detect this cell.
                     </span>
                     {protocolAchievementTypeHashes.length > 0 && (
                       <span className="mt-1 block">
-                        Registered values: {protocolAchievementTypeHashes.join(', ')}
+                        Registered values:{" "}
+                        {protocolAchievementTypeHashes.join(", ")}
                       </span>
                     )}
                   </AlertDescription>
@@ -979,6 +1122,11 @@ export function AchievementsManagement(): React.JSX.Element {
                   <div className="space-y-3">
                     {onChainAchievements.map((entry, index) => {
                       const nevent = entry.metadataNeventId;
+                      const metadata =
+                        nevent && nevent.startsWith("nevent1")
+                          ? resolvedMetadata.get(nevent)
+                          : null;
+
                       return (
                         <div
                           key={`on-chain-${nevent || entry.title || index}`}
@@ -992,9 +1140,37 @@ export function AchievementsManagement(): React.JSX.Element {
                               {entry.title || "(Untitled achievement)"}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Metadata stored off-chain.
-                          </p>
+                          {metadata?.loading && (
+                            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Loading metadata...
+                            </div>
+                          )}
+                          {metadata?.error && (
+                            <p className="mt-2 text-xs text-red-500">
+                              {metadata.error}
+                            </p>
+                          )}
+                          {metadata?.content && (
+                            <div
+                              className="mt-2 text-xs text-muted-foreground prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{
+                                __html: metadata.content,
+                              }}
+                            />
+                          )}
+                          {!metadata &&
+                            nevent &&
+                            nevent.startsWith("nevent1") && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Metadata stored off-chain.
+                              </p>
+                            )}
+                          {!nevent && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              No metadata reference.
+                            </p>
+                          )}
                           <p className="mt-1 text-xs text-muted-foreground">
                             Granted records: {entry.records.length}
                           </p>
@@ -1023,7 +1199,8 @@ export function AchievementsManagement(): React.JSX.Element {
         <CardHeader>
           <CardTitle>Manage Achievements</CardTitle>
           <CardDescription>
-            Draft new achievements to append to the active achievements cell. Deploy a new cell only when one is not yet connected.
+            Draft new achievements to append to the active achievements cell.
+            Deploy a new cell only when one is not yet connected.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -1170,33 +1347,34 @@ export function AchievementsManagement(): React.JSX.Element {
                   </>
                 )}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleDeploy}
-                disabled={
-                  deploying ||
-                  appending ||
-                  !hasValidEntries ||
-                  !isWalletConnected ||
-                  !signer ||
-                  deploymentUnavailable ||
-                  missingProtocolCell ||
-                  status?.found === true
-                }
-              >
-                {deploying ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Deploying
-                  </>
-                ) : (
-                  <>
-                    <FileJson className="mr-2 h-4 w-4" />
-                    Deploy achievements cell
-                  </>
-                )}
-              </Button>
+              {!status?.found && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDeploy}
+                  disabled={
+                    deploying ||
+                    appending ||
+                    !hasValidEntries ||
+                    !isWalletConnected ||
+                    !signer ||
+                    deploymentUnavailable ||
+                    missingProtocolCell
+                  }
+                >
+                  {deploying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deploying
+                    </>
+                  ) : (
+                    <>
+                      <FileJson className="mr-2 h-4 w-4" />
+                      Deploy achievements cell
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>

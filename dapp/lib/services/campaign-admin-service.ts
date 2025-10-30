@@ -624,52 +624,6 @@ export class CampaignAdminService {
   }
 
   /**
-   * Fetch pending submissions for a quest
-   * Used by admins to review submissions before approval
-   *
-   * @param campaignTypeId - Campaign type ID
-   * @param questId - Quest ID
-   * @returns Array of pending submissions with user data
-   */
-  async fetchPendingSubmissions(
-    campaignTypeId: ccc.Hex,
-    questId: number
-  ): Promise<
-    Array<{
-      userTypeId: ccc.Hex;
-      submissionData: UserSubmissionRecordLike; // UserSubmissionRecord from contract
-      submittedAt: number;
-      userAddress: string;
-    }>
-  > {
-    if (!this.signer) {
-      throw new Error("Signer is required to fetch submissions");
-    }
-
-    try {
-      // TODO: Implement actual fetching logic
-      // This will query user cells that have submissions for this quest
-      // Filter out already approved submissions
-
-      log.info("Fetching pending submissions for quest:", {
-        campaignTypeId,
-        questId,
-      });
-
-      // Placeholder implementation
-      // In production, this would:
-      // 1. Fetch all user cells with submissions for this campaign/quest
-      // 2. Filter out users whose type_ids are in accepted_submission_user_type_ids
-      // 3. Return submission details for review
-
-      return [];
-    } catch (error) {
-      log.error("Failed to fetch pending submissions:", error);
-      throw error;
-    }
-  }
-
-  /**
    * Get approved completions for a quest
    * Returns list of user type IDs that have been approved
    *
@@ -717,34 +671,6 @@ export class CampaignAdminService {
       log.error("Failed to get approved completions:", error);
       throw error;
     }
-  }
-
-  /**
-   * Fund campaign with UDT tokens for distribution
-   *
-   * @param campaignTypeId - Campaign type ID
-   * @param udtAssets - Array of UDT assets to fund
-   * @returns Transaction hash (placeholder)
-   */
-  async fundCampaignWithUDTokens(
-    campaignTypeId: ccc.Hex,
-    udtAssets: Array<{
-      scriptHash: ccc.Hex;
-      amount: bigint;
-    }>
-  ): Promise<string> {
-    // TODO: Implement with simple transfer to funding-lock
-    log.info("UDT funding will be available in Stage 2:", {
-      campaignTypeId,
-      udtAssets,
-    });
-
-    throw new Error("UDT funding is not yet implemented (Stage 2 feature)");
-
-    // Future implementation will:
-    // 1. Create transaction to transfer UDTs to campaign cell
-    // 2. Update campaign data with funded amounts
-    // 3. Enable UDT distribution for quests
   }
 
   /**
