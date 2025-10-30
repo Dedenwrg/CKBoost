@@ -716,7 +716,7 @@ export default function Dashboard() {
                     Submitted {submittedAt}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <Badge
                     variant={
                       entry.status === "approved" ? "secondary" : "outline"
@@ -1064,19 +1064,28 @@ export default function Dashboard() {
                         : null;
 
                       return (
-                        <div
+                        <Link
                           key={`deadline-${entry.key}`}
-                          className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg"
+                          href={`/campaign/${entry.campaignTypeId}`}
+                          className="block"
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="font-medium text-sm">
+                          <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors cursor-pointer">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm mb-1">
                                 {entry.questTitle}
                               </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {entry.campaignTitle}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Due {deadline}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1 items-end ml-2 flex-shrink-0">
                               {entry.submissionStatus === "approved" && (
                                 <Badge
                                   variant="secondary"
-                                  className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200"
+                                  className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200 w-fit"
                                 >
                                   <CheckCircle className="w-3 h-3 mr-1" />
                                   Approved
@@ -1085,29 +1094,23 @@ export default function Dashboard() {
                               {entry.submissionStatus === "pending" && (
                                 <Badge
                                   variant="outline"
-                                  className="border-blue-300 text-blue-600 dark:border-blue-500 dark:text-blue-200"
+                                  className="border-blue-300 text-blue-600 dark:border-blue-500 dark:text-blue-200 w-fit"
                                 >
                                   Pending
                                 </Badge>
                               )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {entry.campaignTitle}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Due {deadline}
+                              {daysLeft !== null && (
+                                <Badge
+                                  variant={
+                                    daysLeft <= 3 ? "destructive" : "secondary"
+                                  }
+                                >
+                                  {daysLeft}d left
+                                </Badge>
+                              )}
                             </div>
                           </div>
-                          {daysLeft !== null && (
-                            <Badge
-                              variant={
-                                daysLeft <= 3 ? "destructive" : "secondary"
-                              }
-                            >
-                              {daysLeft}d left
-                            </Badge>
-                          )}
-                        </div>
+                        </Link>
                       );
                     })
                   )}
