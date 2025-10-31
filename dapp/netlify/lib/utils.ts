@@ -34,18 +34,54 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
     validate: (userData: UserDataLike) => {
       const verificationData =
         userData.verification_data.identity_verification_data;
-      const hasVerification =
-        verificationData !== undefined &&
-        verificationData !== null &&
-        ccc.hexFrom(verificationData).toLowerCase() !== "0x";
 
-      if (!hasVerification) {
+      // Check if verification data exists
+      if (
+        verificationData === undefined ||
+        verificationData === null ||
+        ccc.hexFrom(verificationData).toLowerCase() === "0x"
+      ) {
         log.info(
-          "Telegram verification achievement requires completed identity verification data."
+          "Telegram verification achievement requires valid identity verification data."
         );
         return false;
       }
-      return true;
+
+      // Parse identity_verification_data as JSON
+      try {
+        const hex = ccc.hexFrom(verificationData);
+        const bytes = ccc.bytesFrom(hex);
+        const jsonString = Buffer.from(bytes).toString("utf8");
+        const parsedData = JSON.parse(jsonString);
+
+        // Check if parsed data is an array
+        if (!Array.isArray(parsedData)) {
+          log.info(
+            "Telegram verification achievement requires identity verification data to be an array."
+          );
+          return false;
+        }
+
+        // Check if there's at least one entry with source "telegram"
+        const hasTelegramEntry = parsedData.some(
+          (entry: { source?: string }) => entry.source === "telegram"
+        );
+
+        if (!hasTelegramEntry) {
+          log.info(
+            "Telegram verification achievement requires an entry with source 'telegram'."
+          );
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        log.info(
+          "Failed to parse identity verification data as JSON:",
+          error instanceof Error ? error.message : String(error)
+        );
+        return false;
+      }
     },
   },
   {
@@ -57,6 +93,7 @@ export const ACHIEVEMENT_RULES: readonly AchievementRule[] = [
         log.info(
           "First submission achievement requires at least one submission."
         );
+        return false;
       }
       return true;
     },
