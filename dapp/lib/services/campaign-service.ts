@@ -1,9 +1,7 @@
 // Campaign Service - Abstracts data fetching logic
 // This service provides high-level campaign operations by delegating to the cell layer
 
-import {
-  CampaignData,
-} from "ssri-ckboost/types";
+import { CampaignData } from "ssri-ckboost/types";
 import { ccc } from "@ckb-ccc/connector-react";
 import { Campaign } from "ssri-ckboost";
 import { deploymentManager } from "../ckb/deployment-manager";
@@ -20,7 +18,11 @@ export class CampaignService {
   private campaign: Campaign;
   private protocolCell: ccc.Cell;
 
-  constructor(signer: ccc.Signer | undefined, campaign: Campaign, protocolCell: ccc.Cell) {
+  constructor(
+    signer: ccc.Signer | undefined,
+    campaign: Campaign,
+    protocolCell: ccc.Cell
+  ) {
     this.signer = signer;
     this.campaign = campaign;
     this.protocolCell = protocolCell;
@@ -42,41 +44,21 @@ export class CampaignService {
   }
 
   /**
-   * Get Points balance for a user in this protocol
-   * Points are protocol-scoped tokens
-   * 
-   * @param userAddress - User's address
-   * @returns Points balance
-   */
-  async getUserPointsBalance(userAddress: string): Promise<bigint> {
-    if (!this.signer) {
-      return BigInt(0);
-    }
-
-    try {
-      // TODO: Implement Points balance fetching
-      // This will query Points UDT cells owned by the user
-      // Points UDT uses protocol type hash as args
-      log.info("Fetching Points balance for user:", userAddress);
-
-      // Placeholder - return 0 for now
-      return BigInt(0);
-    } catch (error) {
-      log.error("Failed to fetch Points balance:", error);
-      return BigInt(0);
-    }
-  }
-
-  /**
    * Static method to get all campaigns connected to a protocol
    * Used when we don't have a service instance yet
    * @param client - CCC client for blockchain data
    * @param protocolCell - Protocol cell to find connected campaigns
    * @returns Array of all campaigns
    */
-  static async fetchAllCampaigns(client: ccc.Client, protocolCell: ccc.Cell): Promise<ccc.Cell[]> {
+  static async fetchAllCampaigns(
+    client: ccc.Client,
+    protocolCell: ccc.Cell
+  ): Promise<ccc.Cell[]> {
     const network = deploymentManager.getCurrentNetwork();
-    const campaignCodeHash = deploymentManager.getContractCodeHash(network, "ckboostCampaignType");
+    const campaignCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostCampaignType"
+    );
     if (!campaignCodeHash) {
       throw new Error("Campaign type contract not deployed");
     }
@@ -140,5 +122,4 @@ export class CampaignService {
       );
     });
   }
-
 }

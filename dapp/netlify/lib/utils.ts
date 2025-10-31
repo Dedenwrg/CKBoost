@@ -141,7 +141,7 @@ export const getGrantableAchievements = async (
       "Unable to locate existing on-chain user cell for the supplied address."
     );
   }
-  // TODO: Here we assume only one achievement cell exists.
+  // ISSUE #18: Here we assume only one achievement cell exists.
   const achievementCell = await findAchievementCell(
     signer.client,
     achievementTypeCodeHash

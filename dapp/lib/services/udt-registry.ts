@@ -8,20 +8,20 @@ const log = createScopedLogger("UdtRegistry");
  * UDT Token definition
  */
 export interface UDTToken {
-  network: "testnet" | "mainnet",
+  network: "testnet" | "mainnet";
   symbol: string;
   name: string;
   decimals: number;
   script: ccc.ScriptLike;
   contractScript: ccc.ScriptLike;
   iconUrl?: string;
-  ssri?: boolean
+  ssri?: boolean;
 }
 
 /**
  * Local UDT Registry
- * TODO: This will be replaced with an external service in the future
- * 
+ * ISSUE #19: This will be replaced with an external service in the future
+ *
  * These are example testnet UDT scripts - replace with actual deployed UDT scripts
  */
 const UDT_REGISTRY: UDTToken[] = [
@@ -31,16 +31,18 @@ const UDT_REGISTRY: UDTToken[] = [
     name: "Test RUSD Coin",
     decimals: 8,
     script: {
-      codeHash: "0x1142755a044bf2ee358cba9f2da187ce928c91cd4dc8692ded0337efa677d21a" as ccc.Hex,
+      codeHash:
+        "0x1142755a044bf2ee358cba9f2da187ce928c91cd4dc8692ded0337efa677d21a" as ccc.Hex,
       hashType: "type" as ccc.HashType,
-      args: "0x878fcc6f1f08d48e87bb1c3b3d5083f23f8a39c5d5c764f253b55b998526439b" as ccc.Hex // Example args for USDC
+      args: "0x878fcc6f1f08d48e87bb1c3b3d5083f23f8a39c5d5c764f253b55b998526439b" as ccc.Hex, // Example args for USDC
     },
     contractScript: {
-      codeHash: "0x00000000000000000000000000000000000000000000000000545950455f4944",
+      codeHash:
+        "0x00000000000000000000000000000000000000000000000000545950455f4944",
       hashType: "type",
-      args: "0x97d30b723c0b2c66e9cb8d4d0df4ab5d7222cbb00d4a9a2055ce2e5d7f0d8b0f"
+      args: "0x97d30b723c0b2c66e9cb8d4d0df4ab5d7222cbb00d4a9a2055ce2e5d7f0d8b0f",
     },
-    ssri: false
+    ssri: false,
   },
   {
     network: "testnet",
@@ -48,16 +50,18 @@ const UDT_REGISTRY: UDTToken[] = [
     name: "Test BTC wrapped for RUSD",
     decimals: 8,
     script: {
-      codeHash: "0x25c29dc317811a6f6f3985a7a9ebc4838bd388d19d0feeecf0bcd60f6c0975bb" as ccc.Hex,
+      codeHash:
+        "0x25c29dc317811a6f6f3985a7a9ebc4838bd388d19d0feeecf0bcd60f6c0975bb" as ccc.Hex,
       hashType: "type" as ccc.HashType,
-      args: "0x6d0cc2e3a8059f36dbee473e14b2b05d19a4d69f5bfd2a7abdc71fd32eece546" as ccc.Hex // Example args for USDT
+      args: "0x6d0cc2e3a8059f36dbee473e14b2b05d19a4d69f5bfd2a7abdc71fd32eece546" as ccc.Hex, // Example args for USDT
     },
     contractScript: {
-      codeHash: "0x00000000000000000000000000000000000000000000000000545950455f4944",
+      codeHash:
+        "0x00000000000000000000000000000000000000000000000000545950455f4944",
       hashType: "type",
-      args: "0x44ec8b96663e06cc94c8c468a4d46d7d9af69eaf418f6390c9f11bb763dda0ae"
+      args: "0x44ec8b96663e06cc94c8c468a4d46d7d9af69eaf418f6390c9f11bb763dda0ae",
     },
-    ssri: false
+    ssri: false,
   },
 ];
 
@@ -71,7 +75,7 @@ export class UDTRegistryService {
   constructor() {
     this.registry = new Map();
     // Initialize with local registry
-    UDT_REGISTRY.forEach(token => {
+    UDT_REGISTRY.forEach((token) => {
       this.registry.set(token.symbol.toUpperCase(), token);
     });
   }
@@ -98,7 +102,7 @@ export class UDTRegistryService {
       const script = ccc.Script.from({
         codeHash: token.script.codeHash,
         hashType: token.script.hashType,
-        args: token.script.args
+        args: token.script.args,
       });
       if (script.hash().toLowerCase() === scriptHash.toLowerCase()) {
         return token;
@@ -115,54 +119,58 @@ export class UDTRegistryService {
     const divisor = BigInt(10 ** token.decimals);
     const integerPart = value / divisor;
     const fractionalPart = value % divisor;
-    
+
     if (fractionalPart === 0n) {
       return integerPart.toString();
     }
-    
+
     // Pad fractional part with leading zeros
-    const fractionalStr = fractionalPart.toString().padStart(token.decimals, '0');
+    const fractionalStr = fractionalPart
+      .toString()
+      .padStart(token.decimals, "0");
     // Remove trailing zeros
-    const trimmedFractional = fractionalStr.replace(/0+$/, '');
-    
+    const trimmedFractional = fractionalStr.replace(/0+$/, "");
+
     return `${integerPart}.${trimmedFractional}`;
   }
-
 
   /**
    * Get UDT balance for a wallet
    */
-  async getBalance(token: UDTToken, signer: ccc.Signer): Promise<{
+  async getBalance(
+    token: UDTToken,
+    signer: ccc.Signer
+  ): Promise<{
     raw: bigint;
     formatted: string;
   }> {
     try {
       // Special-case native CKB: use client.getBalance for lock capacity
-      if (token.symbol.toUpperCase() === 'CKB') {
+      if (token.symbol.toUpperCase() === "CKB") {
         const lockScript = (await signer.getRecommendedAddressObj()).script;
         const raw = await signer.client.getBalance([lockScript]);
         return {
           raw,
-          formatted: this.formatAmount(raw, token)
+          formatted: this.formatAmount(raw, token),
         };
       }
 
       const udtScript = ccc.Script.from({
         codeHash: token.script.codeHash,
         hashType: token.script.hashType,
-        args: token.script.args
+        args: token.script.args,
       });
-      
+
       // Get user's address to find their UDT cells
       const lockScript = (await signer.getRecommendedAddressObj()).script;
-      
+
       // Find all cells with this UDT type that belong to the user
       const collector = signer.client.findCellsByLock(
         lockScript,
         udtScript,
-        true,
+        true
       );
-      
+
       const cells: ccc.Cell[] = [];
       for await (const cell of collector) {
         // Check if the cell's lock script matches the user's lock script
@@ -170,18 +178,18 @@ export class UDTRegistryService {
           cells.push(cell);
         }
       }
-      
+
       const balance = calculateUDTBalance(cells);
-      
+
       return {
         raw: balance,
-        formatted: this.formatAmount(balance, token)
+        formatted: this.formatAmount(balance, token),
       };
     } catch (error) {
       log.error(`Failed to get balance for ${token.symbol}:`, error);
       return {
         raw: 0n,
-        formatted: "0"
+        formatted: "0",
       };
     }
   }
@@ -195,58 +203,65 @@ export class UDTRegistryService {
     signer: ccc.Signer
   ): Promise<{ valid: boolean; balance: bigint; required: bigint }> {
     const balance = await this.getBalance(token, signer);
-    const required = typeof requiredAmount === 'string' 
-      ? ccc.udtBalanceFrom(requiredAmount)
-      : BigInt(requiredAmount);
-    
+    const required =
+      typeof requiredAmount === "string"
+        ? ccc.udtBalanceFrom(requiredAmount)
+        : BigInt(requiredAmount);
+
     return {
       valid: balance.raw >= required,
       balance: balance.raw,
-      required
+      required,
     };
   }
 
   /**
    * Create a UDT asset structure for quest rewards
    */
-  createUDTAsset(token: UDTToken, amount: bigint | string): {
+  createUDTAsset(
+    token: UDTToken,
+    amount: bigint | string
+  ): {
     udt_script: ccc.ScriptLike;
     amount: bigint;
   } {
-    const rawAmount = typeof amount === 'string'
-      ? BigInt(Number(amount) * 10 ** token.decimals)
-      : BigInt(amount);
-    
+    const rawAmount =
+      typeof amount === "string"
+        ? BigInt(Number(amount) * 10 ** token.decimals)
+        : BigInt(amount);
+
     return {
       udt_script: {
         codeHash: token.script.codeHash,
         hashType: token.script.hashType,
-        args: token.script.args
+        args: token.script.args,
       },
-      amount: rawAmount
+      amount: rawAmount,
     };
   }
 
   /**
    * Get display info for a UDT script
    */
-  getDisplayInfo(udtScript: ccc.ScriptLike): {
-    symbol: string;
-    name: string;
-    decimals: number;
-  } | undefined {
+  getDisplayInfo(udtScript: ccc.ScriptLike):
+    | {
+        symbol: string;
+        name: string;
+        decimals: number;
+      }
+    | undefined {
     const script = ccc.Script.from(udtScript);
     const scriptHash = script.hash();
     const token = this.getTokenByScriptHash(scriptHash);
-    
+
     if (!token) {
       return undefined;
     }
-    
+
     return {
       symbol: token.symbol,
       name: token.name,
-      decimals: token.decimals
+      decimals: token.decimals,
     };
   }
 }

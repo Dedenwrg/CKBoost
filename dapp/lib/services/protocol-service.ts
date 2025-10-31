@@ -13,7 +13,6 @@ import { ProtocolMetrics, ProtocolTransaction } from "../types/protocol";
 import {
   fetchProtocolCell,
   fetchProtocolCellByOutPoint,
-  fetchProtocolTransactions,
 } from "../ckb/protocol-cells";
 import { Protocol } from "ssri-ckboost";
 import { deploymentManager } from "../ckb/deployment-manager";
@@ -177,7 +176,88 @@ export class ProtocolService {
     limit: number = 50
   ): Promise<ProtocolTransaction[]> {
     try {
-      return await fetchProtocolTransactions(this.client, limit);
+      // Get protocol type script
+      const network = deploymentManager.getCurrentNetwork();
+      const deployment = deploymentManager.getCurrentDeployment(
+        network,
+        "ckboostProtocolType"
+      );
+
+      if (!deployment || !deployment.typeHash) {
+        throw new Error(
+          `Protocol type contract not found in deployments.json for ${network}`
+        );
+      }
+
+      const protocolTypeScript = {
+        codeHash: deployment.typeHash,
+        hashType: "type" as const,
+        args: process.env.NEXT_PUBLIC_PROTOCOL_TYPE_ARGS || "0x",
+      };
+
+      // Search for transactions involving protocol cells
+      const searchKey = {
+        script: protocolTypeScript,
+        scriptType: "type" as const,
+        scriptSearchMode: "exact" as const,
+        groupByTransaction: true as const,
+      };
+
+      const pageSize = Math.min(limit, 50);
+      const transactions: ProtocolTransaction[] = [];
+
+      for await (const match of this.client.findTransactions(
+        searchKey,
+        "desc",
+        pageSize
+      )) {
+        try {
+          const txInfo = await this.client.getTransaction(match.txHash);
+          if (!txInfo) {
+            continue;
+          }
+
+          const blockNumber = txInfo.blockNumber
+            ? BigInt(txInfo.blockNumber)
+            : undefined;
+
+          if (!blockNumber) {
+            throw new Error("Block number not found");
+          }
+
+          const block = await this.client.getBlockByNumber(blockNumber);
+          if (!block) {
+            throw new Error("Block not found");
+          }
+          const timestamp = block.header.timestamp;
+          if (!timestamp) {
+            throw new Error("Timestamp not found");
+          }
+
+          // Determine transaction type based on transaction content
+          // For now, default to "update_config" - can be enhanced later
+          const txType: ProtocolTransaction["type"] = "update_config";
+
+          transactions.push({
+            txHash: match.txHash,
+            type: txType,
+            description: `Protocol ${txType}`,
+            status: blockNumber ? "confirmed" : "pending",
+            timestamp: timestamp.toString(),
+          });
+
+          if (transactions.length >= limit) {
+            break;
+          }
+        } catch (error) {
+          log.warn("Failed to process protocol transaction:", {
+            txHash: match.txHash,
+            error,
+          });
+        }
+      }
+
+      return transactions;
     } catch (error) {
       log.warn("Failed to fetch protocol transactions:", error);
       throw error;

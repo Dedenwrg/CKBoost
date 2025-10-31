@@ -100,7 +100,7 @@ export class UserService {
         );
       }
     }
-    // TODO: Add cell deps contingently for corresponding signer.
+    // ISSUE #16: Add cell deps contingently for corresponding signer.
     await baseDraftTx.addCellDepsOfKnownScripts(
       signer.client,
       ccc.KnownScript.JoyId

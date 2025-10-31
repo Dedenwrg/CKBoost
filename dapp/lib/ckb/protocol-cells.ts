@@ -148,25 +148,3 @@ export async function fetchProtocolCell(
     );
   }
 }
-
-/**
- * Get protocol transaction history
- * @param client - CCC client instance
- * @param limit - Maximum number of transactions to fetch
- * @returns Array of protocol transactions
- */
-export async function fetchProtocolTransactions(
-  client: ccc.Client,
-  limit: number = 50
-): Promise<ProtocolTransaction[]> {
-  try {
-    // TODO: Implement real transaction history fetching
-    // This would involve querying the CKB indexer for transactions that modified the protocol cell
-    log.log(client, limit);
-    log.warn("Protocol transaction history fetching not yet implemented");
-    return [];
-  } catch (error) {
-    log.error("Failed to fetch protocol transactions:", error);
-    throw error;
-  }
-}

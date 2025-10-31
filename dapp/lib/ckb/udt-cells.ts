@@ -207,7 +207,7 @@ export async function getUDTMetadata(
   try {
     // This would use the UDT SSRI trait to fetch metadata
     // For now, return placeholder data
-    // TODO: Integrate with @ckb-ccc/udt package for real metadata
+    // ISSUE #19: Integrate with @ckb-ccc/udt package for real metadata
 
     const script = ccc.Script.from(udtTypeScript);
     const typeHash = script.hash();
