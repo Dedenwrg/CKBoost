@@ -31,6 +31,7 @@ import {
   Activity,
   Clock,
   Coins,
+  Wallet,
 } from "lucide-react";
 import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
 import { useProtocol } from "@/lib/providers/protocol-provider";
@@ -204,7 +205,7 @@ export default function Dashboard() {
     isLoading: protocolLoading,
   } = useProtocol();
   const signer = ccc.useSigner();
-  const { client } = ccc.useCcc();
+  const { client, open } = ccc.useCcc();
   const {
     currentUserData,
     currentUserTypeId,
@@ -798,6 +799,51 @@ export default function Dashboard() {
       </div>
     );
   };
+
+  // Check wallet connection first
+  if (!signer) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <Card className="max-w-md w-full">
+                <CardHeader className="text-center">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mb-4">
+                    <Wallet className="h-8 w-8 text-blue-600 dark:text-blue-300" />
+                  </div>
+                  <CardTitle className="text-2xl">Wallet Connection Required</CardTitle>
+                  <CardDescription className="text-base mt-2">
+                    Please connect your wallet to access your dashboard and view your progress.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center gap-4">
+                  <Button
+                    onClick={async () => {
+                      try {
+                        await open();
+                      } catch (error) {
+                        log.error("Connection failed:", error);
+                      }
+                    }}
+                    size="lg"
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                  >
+                    <Wallet className="w-5 h-5 mr-2" />
+                    Connect Wallet
+                  </Button>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Connect your CKB wallet to view your quest submissions, points balance, and achievements.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
