@@ -1069,7 +1069,7 @@ export function AchievementsManagement(): React.JSX.Element {
                 {status.lockTypeId && (
                   <div>
                     <span className="block text-[0.65rem] uppercase text-muted-foreground">
-                      Lock ConnectedTypeID · type_id
+                      Lock ConnectedTypeID · Type ID (Lock Hash)
                     </span>
                     <span className="break-all">{status.lockTypeId}</span>
                   </div>
@@ -1077,7 +1077,7 @@ export function AchievementsManagement(): React.JSX.Element {
                 {status.lockProtocolKey && (
                   <div>
                     <span className="block text-[0.65rem] uppercase text-muted-foreground">
-                      Lock ConnectedTypeID · protocol
+                      Lock ConnectedTypeID · Connected Key
                     </span>
                     <span className="break-all">{status.lockProtocolKey}</span>
                   </div>
