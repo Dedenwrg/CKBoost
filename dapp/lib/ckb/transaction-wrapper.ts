@@ -81,7 +81,7 @@ export async function sendTransactionWithFeeRetry(
 
   while (attempts < maxAttempts) {
     attempts++;
-    // TODO: Provide cell deps for known scripts that are often missing
+    // ISSUE #16: Provide cell deps for known scripts that are often missing
     await tx.addCellDepsOfKnownScripts(
       signer.client,
       KnownScript.Secp256k1Blake160

@@ -2233,7 +2233,7 @@ export default function PlatformAdminDashboard() {
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6">
-              {/* TODO: Implement Pending Manual Verifications*/}
+              {/* ISSUE #17: Implement Pending Manual Verifications*/}
               {pendingVerifications.length < 0 && (
                 <Card className="bg-yellow-50 dark:bg-yellow-900 border-yellow-200 dark:border-yellow-700">
                   <CardHeader>

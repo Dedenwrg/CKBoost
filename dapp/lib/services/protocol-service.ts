@@ -63,7 +63,6 @@ export class ProtocolService {
       args: process.env.NEXT_PUBLIC_PROTOCOL_TYPE_ARGS || "0x", // Protocol cell type args
     };
 
-    // TODO: Get executor from environment
     const executorUrl =
       process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
     const executor = new ssri.ExecutorJsonRpc(executorUrl);
@@ -195,7 +194,9 @@ export class ProtocolService {
       // For empty or minimal protocol cells, return default structure
       // This allows the app to function while the protocol cell is being deployed
       if (cellData === "0x" || !cellData || cellData.length < 10) {
-        log.info("Protocol cell is empty or minimal, returning default structure");
+        log.info(
+          "Protocol cell is empty or minimal, returning default structure"
+        );
 
         // Create default values using the new type system
         // For Uint64Type - use bigint
@@ -287,7 +288,10 @@ export class ProtocolService {
           .join("")
       );
     } catch (error) {
-      log.error("Failed to generate ProtocolData with Molecule serialization:", error);
+      log.error(
+        "Failed to generate ProtocolData with Molecule serialization:",
+        error
+      );
       throw new Error(
         "Failed to serialize protocol data. Please ensure the data structure is valid."
       );

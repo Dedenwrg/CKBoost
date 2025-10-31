@@ -800,38 +800,6 @@ Lines        : 93.84% ( 183/195 )
                   </Badge>
                 )}
               </div>
-              {/* Claim button for CKB (M1 availability) */}
-              {ckbPerCompletion && ckbPerCompletion > 0 && (
-                <div className="mt-2">
-                  <Button
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => {
-                      // For Milestone 1, CKB rewards are paid upon approval or via sponsor pool.
-                      // Enable claim button to signal availability and unify UX.
-                      try {
-                        log.info(
-                          "CKB claim requested for",
-                          ckbPerCompletion,
-                          "CKB"
-                        );
-                        // TODO: Integrate on-chain claim when campaign CKB pool is live.
-                        // This will build a tx spending funding-locked CKB to the user lock.
-                        alert(
-                          "CKB claim requested. In Milestone 1, CKB payouts are distributed upon approval or from sponsor pool once funded."
-                        );
-                      } catch (e) {
-                        log.error("CKB claim failed", e);
-                        alert(
-                          "Failed to initiate CKB claim. Please try again later."
-                        );
-                      }
-                    }}
-                  >
-                    Claim CKB
-                  </Button>
-                </div>
-              )}
             </div>
           )}
         </>
