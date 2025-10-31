@@ -813,9 +813,12 @@ export default function Dashboard() {
                   <div className="w-16 h-16 mx-auto rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mb-4">
                     <Wallet className="h-8 w-8 text-blue-600 dark:text-blue-300" />
                   </div>
-                  <CardTitle className="text-2xl">Wallet Connection Required</CardTitle>
+                  <CardTitle className="text-2xl">
+                    Wallet Connection Required
+                  </CardTitle>
                   <CardDescription className="text-base mt-2">
-                    Please connect your wallet to access your dashboard and view your progress.
+                    Please connect your wallet to access your dashboard and view
+                    your progress.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
@@ -834,7 +837,8 @@ export default function Dashboard() {
                     Connect Wallet
                   </Button>
                   <p className="text-sm text-muted-foreground text-center">
-                    Connect your CKB wallet to view your quest submissions, points balance, and achievements.
+                    Connect your CKB wallet to view your quest submissions,
+                    points balance, and achievements.
                   </p>
                 </CardContent>
               </Card>
@@ -1105,8 +1109,8 @@ export default function Dashboard() {
                     ))
                   )}
                   <div className="text-xs text-muted-foreground">
-                    Balances are calculated from on-chain CKB and UDT cells held by your
-                    wallet.
+                    Balances are calculated from on-chain CKB and UDT cells held
+                    by your wallet.
                   </div>
                 </CardContent>
               </Card>
