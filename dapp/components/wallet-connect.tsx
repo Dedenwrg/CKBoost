@@ -27,61 +27,30 @@ import { cn } from "@/lib/utils";
 import { ccc } from "@ckb-ccc/connector-react";
 import { NeventParserDialog } from "@/components/nevent-parser-dialog";
 import { useProtocol } from "@/lib/providers/protocol-provider";
+import { useVerification } from "@/lib/hooks/use-verification";
+import { calculateVerificationStatus } from "@/lib/config/verification-config";
 import { createScopedLogger } from "ssri-ckboost";
 
 const log = createScopedLogger("WalletConnect");
-
-// Mock verification status - in real app, this would come from authentication
-const USER_VERIFICATION_STATUS = {
-  telegram: true,
-  kyc: false,
-  did: false,
-  manualReview: false,
-};
-
-// Helper function to get verification status info
-const getVerificationStatus = () => {
-  const verificationCount = Object.values(USER_VERIFICATION_STATUS).filter(
-    Boolean
-  ).length;
-  const totalVerifications = Object.values(USER_VERIFICATION_STATUS).length;
-
-  if (verificationCount === 0) {
-    return {
-      icon: UserCheck,
-      color: "text-gray-600",
-      bgColor: "bg-gray-100",
-      text: "Unverified",
-      description: "Identity not verified",
-    };
-  } else if (verificationCount === totalVerifications) {
-    return {
-      icon: CheckCircle,
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-      text: "Fully Verified",
-      description: "All verifications complete",
-    };
-  } else {
-    return {
-      icon: AlertCircle,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-100",
-      text: "Partially Verified",
-      description: `${verificationCount} of ${totalVerifications} verifications complete`,
-    };
-  }
-};
 
 export function WalletConnect() {
   const { open } = ccc.useCcc();
   const signer = ccc.useSigner();
   const { isAdmin, isEndorser } = useProtocol();
+  const { verificationStatus: verificationData } = useVerification();
   const [address, setAddress] = React.useState<string>("");
   const [isConnecting, setIsConnecting] = React.useState(false);
   const [showNeventParser, setShowNeventParser] = React.useState(false);
-  const verificationStatus = getVerificationStatus();
-  const VerificationIcon = verificationStatus.icon;
+  
+  // Calculate verification status from real data using modular config
+  const verificationStatus = calculateVerificationStatus(verificationData);
+  
+  // Map icon names to components
+  const VerificationIcon = verificationStatus.icon === 'CheckCircle' 
+    ? CheckCircle 
+    : verificationStatus.icon === 'AlertCircle'
+    ? AlertCircle
+    : UserCheck;
 
   React.useEffect(() => {
     const getAddress = async () => {
@@ -162,19 +131,18 @@ export function WalletConnect() {
               <span className="font-mono text-sm">
                 {formatAddress(address)}
               </span>
-              {Object.values(USER_VERIFICATION_STATUS).some(Boolean) && (
+              {verificationStatus.verifiedCount > 0 && (
                 <Badge
                   variant="secondary"
                   className={cn(
                     "text-xs",
-                    Object.values(USER_VERIFICATION_STATUS).filter(Boolean)
-                      .length === Object.values(USER_VERIFICATION_STATUS).length
+                    verificationStatus.verifiedCount === verificationStatus.totalCount
                       ? "bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-100"
                       : "bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-100"
                   )}
                 >
                   <Shield className="w-3 h-3 mr-1" />
-                  {getVerificationStatus().text}
+                  {verificationStatus.text}
                 </Badge>
               )}
             </div>
@@ -210,8 +178,7 @@ export function WalletConnect() {
                   {verificationStatus.description}
                 </div>
               </div>
-              {Object.values(USER_VERIFICATION_STATUS).filter(Boolean).length <
-                Object.values(USER_VERIFICATION_STATUS).length && (
+              {verificationStatus.verifiedCount < verificationStatus.totalCount && (
                 <Link href="/identity">
                   <Button size="sm" variant="outline" className="text-xs">
                     Verify
