@@ -845,7 +845,7 @@ pub mod approve_completion {
 
                     if points_rewards.is_empty() {
                         debug_trace!("Quest expects points but no points rewards found");
-                        // This is OK - rewards might be distributed later
+                        return Err(DeterministicError::BusinessRuleViolation);
                     } else {
                         // Validate each points reward has the correct amount
                         // Note: Points validation would be done by the Points UDT type script

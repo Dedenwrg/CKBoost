@@ -82,6 +82,7 @@ pub mod update_tipping {
     use ckb_deterministic::transaction_recipe::TransactionRecipeExt;
     use ckb_std::ckb_constants::Source;
     use ckb_std::high_level::load_cell_capacity;
+    use ckb_std::high_level::load_cell_data;
     use ckb_std::high_level::load_witness_args;
     use ckboost_shared::cell_collector::get_udt_identifier;
     use ckboost_shared::transaction_context::TransactionContext;
@@ -168,8 +169,8 @@ pub mod update_tipping {
                                     .iter()
                                     .filter(|cell| cell.lock_hash.as_slice() == target_lock_bytes)
                                     .try_fold(0u128, |acc, cell| {
-                                        load_cell_capacity(cell.index, cell.source)
-                                            .map(|capacity| acc + capacity as u128)
+                                        load_cell_data(cell.index, cell.source)
+                                            .map(|data| acc + u128::from_le_bytes(data.as_slice().try_into().unwrap()))
                                             .map_err(|err| {
                                                 debug_trace!(
                                                     "BusinessRuleViolation: Failed to load points cell capacity: {:?}",

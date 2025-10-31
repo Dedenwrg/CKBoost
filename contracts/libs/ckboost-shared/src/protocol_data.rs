@@ -574,11 +574,10 @@ pub fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
             }
             Err(_) => {
                 debug_trace!("No admin lock hash found in inputs");
-                return Err(Error::ItemMissing);
+                return Ok(false);
             }
         }
     }
-    return Ok(false);
 }
 
 #[cfg(test)]
