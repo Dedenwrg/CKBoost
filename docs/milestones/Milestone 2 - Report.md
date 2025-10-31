@@ -22,7 +22,7 @@ Work during this iteration centres on expanding the identity system beyond the i
 ### Gamification & Profiles
 
 - ✅ Chain-backed leaderboard page with live Points UDT aggregation and per-user positioning (`dapp/app/leaderboard/page.tsx`, `dapp/lib/services/leaderboard-service.ts`)
-- ✅ Contributor dashboard summarises submissions, campaign progress, token balances, and activity timeline (`dapp/app/dashboard/page.tsx`)
+- ✅ Contributor dashboard summarizes submissions, campaign progress, token balances, and activity timeline (`dapp/app/dashboard/page.tsx`)
 - ✅ Navigation and layout updates expose leaderboard, tipping, and verification entry points across the dApp
 - ✅ Streak bonus implemented
 - ✅ Achievement implemented
@@ -37,7 +37,7 @@ Work during this iteration centres on expanding the identity system beyond the i
 
 - ✅ Protocol administration components expose tipping configuration, script hashes, and pending changes (`dapp/components/admin/protocol/*`)
 - ✅ Deployment documentation for Telegram identity infrastructure (`dapp/DEPLOYMENT.md`)
-- ✅ Updated `deploy-contracts.sh` to recognise tipping contracts alongside existing script bundle
+- ✅ Updated `deploy-contracts.sh` to recognize tipping contracts alongside existing script bundle
 
 ## 📝 Remaining Scope Before Milestone Acceptance
 

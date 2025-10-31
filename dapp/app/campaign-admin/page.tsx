@@ -704,7 +704,9 @@ export default function CampaignAdminDashboard() {
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="campaigns">My Campaigns</TabsTrigger>
-              <TabsTrigger value="staff">Staff Management</TabsTrigger>
+              <TabsTrigger disabled value="staff">
+                Staff Management
+              </TabsTrigger>
               <TabsTrigger value="reviews">Pending Reviews</TabsTrigger>
             </TabsList>
 
