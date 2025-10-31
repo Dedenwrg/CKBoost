@@ -517,6 +517,7 @@ export class AchievementService {
     protocolTypeHash: ccc.Hex;
     achievements: AchievementDefinitionInput[];
   }): Promise<string> {
+    console.log("Updating achievement cell", params);
     const signer = params.signer ?? this.requireSigner();
     const achievementCell = await this.getAchievementCell(
       params.protocolTypeHash
@@ -528,10 +529,9 @@ export class AchievementService {
     );
 
     const dataLike = this.normalizeDefinitions(params.achievements);
-    const txDraft = await this.buildAchievementUpdateTransaction(
-      achievementCell,
-      dataLike
-    );
+
+    const txDraft = ccc.Transaction.from({});
+    await txDraft.addInput(achievementCell);
 
     const response = await achievementInstance.updateAchievement(
       signer,
@@ -540,6 +540,25 @@ export class AchievementService {
     );
 
     const tx = response.res;
+    await tx.addOutput(
+      achievementCell.cellOutput,
+      ccc.hexFrom(AchievementDataVec.encode(dataLike))
+    );
+    await tx.addCellDeps({
+      outPoint: params.protocolCell.outPoint,
+      depType: "code",
+    });
+    const protocolLockCodeOutPoint = deploymentManager.getContractOutPoint(
+      deploymentManager.getCurrentNetwork(),
+      "ckboostProtocolLock"
+    );
+    if (!protocolLockCodeOutPoint) {
+      throw new Error("Protocol lock code out point not found");
+    }
+    tx.addCellDeps({
+      outPoint: protocolLockCodeOutPoint,
+      depType: "code",
+    });
     await tx.completeInputsByCapacity(signer);
     await tx.completeFeeBy(signer);
     const txHash = await sendTransactionWithFeeRetry(signer, tx);
@@ -617,27 +636,5 @@ export class AchievementService {
     );
 
     return this.achievementInstance;
-  }
-
-  private async buildAchievementUpdateTransaction(
-    achievementCell: ccc.Cell,
-    data: AchievementDataLike[]
-  ): Promise<ccc.Transaction> {
-    const tx = ccc.Transaction.from({});
-    await tx.addInput(achievementCell);
-
-    const encoded = AchievementDataVec.encode(data);
-    const hex = ccc.hexFrom(encoded);
-
-    await tx.addOutput(
-      ccc.CellOutput.from({
-        capacity: achievementCell.cellOutput.capacity,
-        lock: achievementCell.cellOutput.lock,
-        type: achievementCell.cellOutput.type,
-      }),
-      hex
-    );
-
-    return tx;
   }
 }

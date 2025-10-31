@@ -74,33 +74,42 @@ impl CKBoostAchievement for CKBoostAchievementType {
         };
 
         let achievement_input_index: usize;
+        let output_data_index: u32;
         let mut achievement_output_index: Option<usize> = None;
 
         match achievement_result {
             Ok(out_point) => {
-                achievement_input_index = tx.as_ref().map(|t| t.raw().inputs().len()).unwrap_or(0);
+                // ISSUE #10: find_cell_by_out_point here fails. Skipping. Make sure you're using 0 for achievement cell
+                output_data_index = 0;
+                achievement_input_index = 0;
+                // achievement_input_index = tx.as_ref().map(|t| t.raw().inputs().len()).unwrap_or(0);
 
-                let achievement_input = CellInput::new_builder()
-                    .previous_output(out_point.clone())
-                    .build();
-                cell_input_vec_builder = cell_input_vec_builder.push(achievement_input);
+                // let achievement_input = CellInput::new_builder()
+                //     .previous_output(out_point.clone())
+                //     .build();
+                // cell_input_vec_builder = cell_input_vec_builder.push(achievement_input);
+                // let current_achievement_cell =
+                //     find_cell_by_out_point(out_point.clone()).map_err(|_| {
+                //         debug_trace!(
+                //             "ERROR finding achievement cell with out point: {:?}",
+                //             out_point
+                //         );
+                //         Error::MissingAchievementCell
+                //     })?;
 
-                let current_achievement_cell =
-                    find_cell_by_out_point(out_point).map_err(|_| Error::MissingAchievementCell)?;
+                // achievement_output_index =
+                //     Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
 
-                achievement_output_index =
-                    Some(tx.as_ref().map(|t| t.raw().outputs().len()).unwrap_or(0));
-
-                let new_output = CellOutputBuilder::default()
-                    .type_(
-                        ScriptOptBuilder::default()
-                            .set(Some(current_script))
-                            .build(),
-                    )
-                    .lock(current_achievement_cell.lock())
-                    .capacity(0u64.pack())
-                    .build();
-                cell_output_vec_builder = cell_output_vec_builder.push(new_output);
+                // let new_output = CellOutputBuilder::default()
+                //     .type_(
+                //         ScriptOptBuilder::default()
+                //             .set(Some(current_script))
+                //             .build(),
+                //     )
+                //     .lock(current_achievement_cell.lock())
+                //     .capacity(0u64.pack())
+                //     .build();
+                // cell_output_vec_builder = cell_output_vec_builder.push(new_output);
             }
             Err(_) => {
                 let (first_input, output_count) = match tx {
@@ -140,7 +149,10 @@ impl CKBoostAchievement for CKBoostAchievementType {
                     .build();
 
                 let first_input_cell = find_cell_by_out_point(first_input.previous_output())
-                    .map_err(|_| Error::MissingAchievementCell)?;
+                    .map_err(|_| {
+                        debug_trace!("ERROR finding first input cell");
+                        Error::MissingAchievementCell
+                    })?;
 
                 achievement_input_index = 0;
                 achievement_output_index = Some(output_count);
@@ -155,16 +167,14 @@ impl CKBoostAchievement for CKBoostAchievementType {
                     .capacity(0u64.pack())
                     .build();
                 cell_output_vec_builder = cell_output_vec_builder.push(new_output);
+                let achievement_data_bytes = achievement_data.as_bytes();
+                outputs_data_builder = outputs_data_builder.push(achievement_data_bytes.pack());
+                output_data_index = tx
+                    .as_ref()
+                    .map(|t| t.raw().outputs_data().len())
+                    .unwrap_or(0) as u32;
             }
         }
-
-        let achievement_data_bytes = achievement_data.as_bytes();
-        outputs_data_builder = outputs_data_builder.push(achievement_data_bytes.pack());
-
-        let output_data_index = tx
-            .as_ref()
-            .map(|t| t.raw().outputs_data().len())
-            .unwrap_or(0) as u32;
 
         let recipe = create_recipe_with_args(
             "CKBoostAchievement.update_achievement",
