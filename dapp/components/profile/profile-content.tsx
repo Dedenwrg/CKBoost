@@ -27,11 +27,14 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCampaigns } from "@/lib/providers/campaign-provider";
-import { CampaignData } from "ssri-ckboost/types";
+import { CampaignData, TippingData } from "ssri-ckboost/types";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
 import { udtRegistry, type UDTToken } from "@/lib/services/udt-registry";
 import { createScopedLogger } from "ssri-ckboost";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { fetchTippingByTypeId } from "@/lib/ckb/tipping-cells";
 
 const log = createScopedLogger("ProfileContent");
 
@@ -196,6 +199,25 @@ const formatBigIntAmount = (value: bigint): string => {
   }
 };
 
+const SHANNON_FACTOR = 10n ** 8n;
+
+const formatCkbAmount = (shannons: bigint): string => {
+  try {
+    const integer = shannons / SHANNON_FACTOR;
+    const fractional = shannons % SHANNON_FACTOR;
+    if (fractional === 0n) {
+      return integer.toLocaleString();
+    }
+    const fractionalStr = fractional
+      .toString()
+      .padStart(8, "0")
+      .replace(/0+$/, "");
+    return `${integer.toLocaleString()}.${fractionalStr}`;
+  } catch {
+    return shannons.toString();
+  }
+};
+
 const formatNumberStringWithSeparators = (value: string): string => {
   const [wholePart, fractionalPart] = value.split(".");
   const hasNegative = wholePart.startsWith("-");
@@ -217,6 +239,7 @@ const formatTokenAmount = (value: bigint, token: UDTToken | null): string => {
     }
   }
 
+  // For tokens without token info, use bigint formatting
   return formatBigIntAmount(value);
 };
 
@@ -294,8 +317,40 @@ const rewardCategoryStyles: Record<
 
 const buildSyntheticRewardEvent = (
   tx: PointsMintTransaction,
-  points: bigint
+  points: bigint,
+  tippingData?: {
+    points: bigint;
+    ckb: bigint;
+    typeId?: string;
+    title?: string;
+  }
 ): RewardEventDetail => {
+  // Check if this is a tipping reward
+  if (tippingData && (tippingData.points > 0n || tippingData.ckb > 0n)) {
+    const tokenRewards: TokenRewardDetail[] = [];
+
+    if (tippingData.ckb > 0n) {
+      tokenRewards.push({
+        symbol: "CKB",
+        amount: tippingData.ckb,
+        scriptHash: null,
+        token: null,
+      });
+    }
+
+    return {
+      id: `${tx.txHash}:tipping-reward`,
+      type: "tipping",
+      title: tippingData.title || "Tipping proposal reward",
+      subtitle: null,
+      link: tippingData.typeId
+        ? `/tipping?tipping=${tippingData.typeId}`
+        : null,
+      points: tippingData.points,
+      tokenRewards,
+    };
+  }
+
   const inputCount = tx.inputs?.length ?? 0;
   const outputCount = tx.outputs?.length ?? 0;
 
@@ -350,6 +405,7 @@ export function ProfileContent({
   fallbackAddress,
 }: ProfileContentProps) {
   const { client } = ccc.useCcc();
+  const { protocolCell, protocolData } = useProtocol();
   const {
     campaigns,
     isLoading: campaignsLoading,
@@ -364,6 +420,12 @@ export function ProfileContent({
   >([]);
   const [pointsLoading, setPointsLoading] = useState(false);
   const [pointsError, setPointsError] = useState<string | null>(null);
+  const [tippingRewards, setTippingRewards] = useState<
+    Map<
+      string,
+      { points: bigint; ckb: bigint; typeId?: string; title?: string }
+    >
+  >(new Map());
   const explorerBaseUrl =
     process.env.NEXT_PUBLIC_CKB_NETWORK === "mainnet"
       ? "https://explorer.nervos.org/transaction/"
@@ -747,7 +809,36 @@ export function ProfileContent({
       }
 
       if (events.length === 0) {
-        events.push(buildSyntheticRewardEvent(tx, remainingPoints));
+        const tippingReward = tippingRewards.get(tx.txHash);
+        const syntheticEvent = buildSyntheticRewardEvent(
+          tx,
+          remainingPoints,
+          tippingReward
+        );
+        events.push(syntheticEvent);
+
+        // Aggregate tokens from tipping reward
+        if (tippingReward && syntheticEvent.tokenRewards) {
+          syntheticEvent.tokenRewards.forEach((token) => {
+            const key = (token.scriptHash ?? `symbol:${token.symbol}`)
+              .toLowerCase()
+              .trim();
+            const existing = tokenTotals.get(key);
+            if (existing) {
+              tokenTotals.set(key, {
+                ...existing,
+                amount: existing.amount + token.amount,
+              });
+            } else {
+              tokenTotals.set(key, {
+                symbol: token.symbol,
+                amount: token.amount,
+                scriptHash: token.scriptHash,
+                token: token.token ?? null,
+              });
+            }
+          });
+        }
       } else if (remainingPoints > 0n) {
         events.push({
           id: `${tx.txHash}:residual`,
@@ -777,7 +868,153 @@ export function ProfileContent({
     });
 
     return rows.sort((a, b) => b.timestampValue - a.timestampValue);
-  }, [pointsTransactions, submissionEntries, campaignMap, explorerBaseUrl]);
+  }, [
+    pointsTransactions,
+    submissionEntries,
+    campaignMap,
+    explorerBaseUrl,
+    tippingRewards,
+  ]);
+
+  // Fetch tipping rewards for transactions that don't match submissions
+  useEffect(() => {
+    if (
+      !client ||
+      !protocolCell ||
+      !protocolData ||
+      pointsTransactions.length === 0
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchTippingRewards = async () => {
+      try {
+        const network = deploymentManager.getCurrentNetwork();
+        const tippingCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostTippingType"
+        );
+
+        if (!tippingCodeHash) {
+          log.warn("Tipping code hash not found");
+          return;
+        }
+
+        const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+        if (!protocolTypeHash) {
+          return;
+        }
+
+        const rewardsMap = new Map<
+          string,
+          { points: bigint; ckb: bigint; typeId?: string; title?: string }
+        >();
+
+        // Check each transaction for tipping cells
+        for (const tx of pointsTransactions) {
+          try {
+            const txResponse = await client.getTransaction(tx.txHash);
+            if (!txResponse?.transaction) continue;
+
+            const transaction = txResponse.transaction;
+
+            // Check outputs for tipping cells
+            for (let i = 0; i < transaction.outputs.length; i++) {
+              const output = transaction.outputs[i];
+              const typeScript = output.type;
+
+              if (
+                typeScript &&
+                typeScript.codeHash === tippingCodeHash &&
+                typeScript.hashType === "type"
+              ) {
+                // Check if connected to protocol
+                try {
+                  const argsBytes = ccc.bytesFrom(typeScript.args);
+                  const connected =
+                    ckboost.types.ConnectedTypeID.decode(argsBytes);
+                  if (connected.connected_key !== protocolTypeHash) {
+                    continue;
+                  }
+
+                  // Parse tipping data
+                  const outputData = transaction.outputsData[i];
+                  const tippingData = TippingData.decode(outputData);
+
+                  // Check if status is "granted" (tipping was executed)
+                  const status = tippingData.status;
+                  if (status !== "granted") {
+                    continue;
+                  }
+
+                  // Extract rewards
+                  const rewards = tippingData.rewards;
+                  const pointsAmount = numToBigInt(rewards.points_amount ?? 0);
+                  const ckbAmount = numToBigInt(rewards.ckb_amount ?? 0);
+
+                  if (pointsAmount > 0n || ckbAmount > 0n) {
+                    const typeId = ccc.hexFrom(connected.type_id);
+
+                    // Fetch tipping title from the tipping cell
+                    let tippingTitle: string | undefined;
+                    try {
+                      const tippingCell = await fetchTippingByTypeId(
+                        typeId,
+                        tippingCodeHash,
+                        client,
+                        protocolCell
+                      );
+                      if (tippingCell) {
+                        const tippingCellData = TippingData.decode(
+                          tippingCell.outputData
+                        );
+                        tippingTitle =
+                          tippingCellData.metadata?.contribution_title;
+                      }
+                    } catch (error) {
+                      log.warn(
+                        `Failed to fetch tipping title for ${typeId}`,
+                        error
+                      );
+                    }
+
+                    rewardsMap.set(tx.txHash, {
+                      points: pointsAmount,
+                      ckb: ckbAmount,
+                      typeId,
+                      title: tippingTitle,
+                    });
+                    break; // Found tipping reward for this transaction
+                  }
+                } catch (error) {
+                  log.warn(
+                    `Failed to parse tipping cell in tx ${tx.txHash}`,
+                    error
+                  );
+                }
+              }
+            }
+          } catch (error) {
+            log.warn(`Failed to fetch transaction ${tx.txHash}`, error);
+          }
+        }
+
+        if (!cancelled) {
+          setTippingRewards(rewardsMap);
+        }
+      } catch (error) {
+        log.error("Failed to fetch tipping rewards", error);
+      }
+    };
+
+    fetchTippingRewards();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, protocolCell, protocolData, pointsTransactions]);
 
   const totalPoints = formatPointsAmount(userData?.total_points_earned ?? 0);
   const totalSubmissions = userData?.submission_records?.length ?? 0;
@@ -1245,10 +1482,12 @@ export function ProfileContent({
                                     className="px-3 py-1"
                                   >
                                     +
-                                    {formatTokenAmount(
-                                      token.amount,
-                                      token.token
-                                    )}{" "}
+                                    {token.symbol === "CKB"
+                                      ? formatCkbAmount(token.amount)
+                                      : formatTokenAmount(
+                                          token.amount,
+                                          token.token
+                                        )}{" "}
                                     {token.symbol}
                                   </Badge>
                                 ))}

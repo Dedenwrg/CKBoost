@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TippingCard } from "./tipping-card";
 import { TippingFundingPanel } from "./tipping-funding-panel";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   TippingInfo,
   useTippingContext,
@@ -35,10 +36,12 @@ export function Tippings() {
   const { isAdmin, isEndorser, protocolData, endorserResolver } = useProtocol();
   const signer = ccc.useSigner();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const [tippings, setTippings] = useState<TippingInfo[]>(contextTippings);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
+  const tippingRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
     setTippings(contextTippings);
@@ -153,6 +156,30 @@ export function Tippings() {
       );
     });
   }, [endorserResolver, isAdmin, searchTerm, tippings, viewerLockHash]);
+
+  // Auto-scroll to tipping if typeId is in URL params
+  useEffect(() => {
+    const tippingTypeId = searchParams.get("tipping");
+    if (!tippingTypeId || isLoading || filteredTippings.length === 0) {
+      return;
+    }
+
+    // Wait a bit for DOM to render
+    const timer = setTimeout(() => {
+      const element = tippingRefs.current.get(tippingTypeId);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Highlight the element briefly
+        element.style.transition = "box-shadow 0.3s ease";
+        element.style.boxShadow = "0 0 0 4px rgba(59, 130, 246, 0.5)";
+        setTimeout(() => {
+          element.style.boxShadow = "";
+        }, 2000);
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [searchParams, isLoading, filteredTippings]);
 
   const handleApprove = useCallback(
     async (tipping: TippingInfo) => {
@@ -379,20 +406,32 @@ export function Tippings() {
 
       {/* Proposals List */}
       <div className="space-y-6">
-        {filteredTippings.map((tipping) => (
-          <TippingCard
-            key={tipping.typeId ?? ccc.hexFrom(tipping.data.target_lock_hash)}
-            tipping={tipping}
-            canApprove={isAdmin || isEndorser}
-            viewerLockHash={viewerLockHash}
-            isViewerAdmin={isAdmin}
-            isViewerEndorser={isEndorser}
-            onApprove={handleApprove}
-            onLike={handleLike}
-            onComment={handleComment}
-            onAdditionalTip={handleAdditionalTip}
-          />
-        ))}
+        {filteredTippings.map((tipping) => {
+          const tippingKey =
+            tipping.typeId ?? ccc.hexFrom(tipping.data.target_lock_hash);
+          return (
+            <div
+              key={tippingKey}
+              ref={(el) => {
+                if (el && tipping.typeId) {
+                  tippingRefs.current.set(tipping.typeId, el);
+                }
+              }}
+            >
+              <TippingCard
+                tipping={tipping}
+                canApprove={isAdmin || isEndorser}
+                viewerLockHash={viewerLockHash}
+                isViewerAdmin={isAdmin}
+                isViewerEndorser={isEndorser}
+                onApprove={handleApprove}
+                onLike={handleLike}
+                onComment={handleComment}
+                onAdditionalTip={handleAdditionalTip}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {filteredTippings.length === 0 && !isLoading && (
