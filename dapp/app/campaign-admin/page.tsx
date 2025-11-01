@@ -32,7 +32,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -57,7 +56,6 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  DollarSign,
   UserPlus,
   Crown,
   Trash2,
@@ -111,6 +109,16 @@ export default function CampaignAdminDashboard() {
     }[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [recentActivity, setRecentActivity] = useState<
+    Array<{
+      type: "submission" | "completed" | "participant";
+      campaignTitle: string;
+      questTitle?: string;
+      userTypeId: string;
+      timestamp: number;
+      isApproved: boolean;
+    }>
+  >([]);
 
   // Fetch campaigns owned by the current user
   useEffect(() => {
@@ -299,7 +307,7 @@ export default function CampaignAdminDashboard() {
     fetchCampaigns();
   }, [signer, protocolCell, protocolData]);
 
-  // Fetch pending submissions count for campaigns
+  // Fetch pending submissions count for campaigns and calculate stats
   useEffect(() => {
     if (!signer || ownedCampaigns.length === 0) return;
 
@@ -322,8 +330,10 @@ export default function CampaignAdminDashboard() {
         const userCells = await fetchAllUserCells(userTypeCodeHash, signer);
         log.log(`Found ${userCells.length} total user cells`);
 
-        // Count pending submissions per campaign
+        // Count pending submissions, completed quests, and participants per campaign
         const pendingCounts: Record<string, number> = {};
+        const completedCounts: Record<string, number> = {};
+        const participantSets: Record<string, Set<string>> = {};
 
         for (const userCell of userCells) {
           const userData = parseUserData(userCell);
@@ -369,10 +379,22 @@ export default function CampaignAdminDashboard() {
                   return acceptedHex === userTypeId;
                 });
 
-                // Only count as pending if not already accepted
-                if (!isAccepted) {
-                  const key = campaign.typeId;
-                  pendingCounts[key] = (pendingCounts[key] || 0) + 1;
+                const campaignKey = campaign.typeId;
+
+                // Track participant (unique users who submitted)
+                if (!participantSets[campaignKey]) {
+                  participantSets[campaignKey] = new Set();
+                }
+                participantSets[campaignKey].add(userTypeId);
+
+                if (isAccepted) {
+                  // Count as completed
+                  completedCounts[campaignKey] =
+                    (completedCounts[campaignKey] || 0) + 1;
+                } else {
+                  // Count as pending
+                  pendingCounts[campaignKey] =
+                    (pendingCounts[campaignKey] || 0) + 1;
                 }
               }
             }
@@ -380,6 +402,22 @@ export default function CampaignAdminDashboard() {
         }
 
         log.log("Pending submissions per campaign:", pendingCounts);
+        log.log("Completed quests per campaign:", completedCounts);
+        log.log("Participants per campaign:", participantSets);
+
+        // Update campaign stats
+        setOwnedCampaigns((prevCampaigns) =>
+          prevCampaigns.map((campaign) => {
+            const key = campaign.typeId;
+            return {
+              ...campaign,
+              participants: participantSets[key]?.size || 0,
+              completedQuests: completedCounts[key] || 0,
+              pendingReviews: pendingCounts[key] || 0,
+            };
+          })
+        );
+
         setCampaignPendingCounts(pendingCounts);
       } catch (error) {
         log.error("Failed to fetch pending submissions:", error);
@@ -388,6 +426,100 @@ export default function CampaignAdminDashboard() {
     };
 
     fetchPendingSubmissions();
+  }, [signer, ownedCampaigns]);
+
+  // Fetch recent activity from user submissions
+  useEffect(() => {
+    if (!signer || ownedCampaigns.length === 0) {
+      setRecentActivity([]);
+      return;
+    }
+
+    const fetchRecentActivity = async () => {
+      try {
+        log.log("Fetching recent activity");
+
+        const network = deploymentManager.getCurrentNetwork();
+        const userTypeCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostUserType"
+        );
+
+        if (!userTypeCodeHash) {
+          log.warn("User type code hash not found");
+          return;
+        }
+
+        // Fetch all user cells
+        const userCells = await fetchAllUserCells(userTypeCodeHash, signer);
+        log.log(`Found ${userCells.length} total user cells`);
+
+        // Create a map of campaign type IDs to campaign data for quick lookup
+        const campaignMap = new Map<string, CampaignDataLike>();
+        ownedCampaigns.forEach((campaign) => {
+          campaignMap.set(campaign.typeId, campaign);
+        });
+
+        // Collect activity events
+        const activities: typeof recentActivity = [];
+
+        for (const userCell of userCells) {
+          const userData = parseUserData(userCell);
+          if (!userData || !userData.submission_records) continue;
+
+          const userTypeId = extractTypeIdFromUserCell(userCell);
+          if (!userTypeId) continue;
+
+          // Process each submission record
+          for (const submission of userData.submission_records) {
+            const submissionCampaignTypeId = ccc.hexFrom(
+              submission.campaign_type_id
+            );
+
+            // Only include submissions for campaigns owned by the user
+            const campaign = campaignMap.get(submissionCampaignTypeId);
+            if (!campaign) continue;
+
+            const questId = Number(submission.quest_id);
+            const quest = campaign.quests?.find(
+              (q) => Number(q.quest_id) === questId
+            );
+
+            if (!quest) continue;
+
+            // Check if submission is approved
+            const acceptedUserTypeIds =
+              quest.accepted_submission_user_type_ids || [];
+            const isApproved = acceptedUserTypeIds.some((acceptedId) => {
+              const acceptedHex =
+                typeof acceptedId === "string"
+                  ? acceptedId
+                  : ccc.hexFrom(acceptedId);
+              return acceptedHex === userTypeId;
+            });
+
+            const timestamp = Number(submission.submission_timestamp) * 1000;
+
+            activities.push({
+              type: isApproved ? "completed" : "submission",
+              campaignTitle: campaign.metadata?.title || "Untitled Campaign",
+              questTitle: quest.metadata?.title || `Quest ${questId}`,
+              userTypeId,
+              timestamp,
+              isApproved,
+            });
+          }
+        }
+
+        // Sort by timestamp (most recent first) and limit to 10
+        activities.sort((a, b) => b.timestamp - a.timestamp);
+        setRecentActivity(activities.slice(0, 10));
+      } catch (error) {
+        log.error("Failed to fetch recent activity:", error);
+      }
+    };
+
+    fetchRecentActivity();
   }, [signer, ownedCampaigns]);
 
   // Check for pending funding from recently created campaigns
@@ -586,7 +718,7 @@ export default function CampaignAdminDashboard() {
                 </p>
                 <div className="flex items-center gap-2">
                   <Badge className="bg-amber-100 text-amber-800">
-                    👑 Campaign Administrator
+                    ?? Campaign Administrator
                   </Badge>
                   {CURRENT_USER.role === "both" && (
                     <Link href="/platform-admin">
@@ -594,7 +726,7 @@ export default function CampaignAdminDashboard() {
                         variant="outline"
                         className="bg-red-100 text-red-800 cursor-pointer hover:bg-red-200"
                       >
-                        🛡️ Platform Admin Access
+                        ??? Platform Admin Access
                       </Badge>
                     </Link>
                   )}
@@ -711,125 +843,78 @@ export default function CampaignAdminDashboard() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              <div className="grid lg:grid-cols-2 gap-6">
-                {/* Recent Activity */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-100 rounded-full">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Quest completed</p>
-                          <p className="text-xs text-muted-foreground">
-                            "Deploy Smart Contract" was completed by CKBMaster
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          2h ago
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-100 rounded-full">
-                          <Users className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">New participant</p>
-                          <p className="text-xs text-muted-foreground">
-                            BlockchainDev joined "CKB Ecosystem Growth
-                            Initiative"
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          4h ago
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-full">
-                          <UserPlus className="w-4 h-4 text-purple-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">
-                            Staff member added
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Community Manager was added to review team
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          6h ago
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-orange-100 rounded-full">
-                          <AlertCircle className="w-4 h-4 text-orange-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">Review needed</p>
-                          <p className="text-xs text-muted-foreground">
-                            "Raid the CKB Announcement" submission from
-                            CryptoNinja
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          8h ago
-                        </span>
-                      </div>
+              {/* Recent Activity */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                  <CardDescription>
+                    Activity from campaigns you created or manage
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {recentActivity.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground">
+                        No recent activity. Activity will appear here as users
+                        submit quests for your campaigns.
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {recentActivity.map((activity, index) => {
+                        const timeAgo = (() => {
+                          const now = Date.now();
+                          const diff = now - activity.timestamp;
+                          const minutes = Math.floor(diff / 60000);
+                          const hours = Math.floor(diff / 3600000);
+                          const days = Math.floor(diff / 86400000);
 
-                {/* Performance Metrics */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Performance Metrics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">
-                            Quest Completion Rate
-                          </span>
-                          <span className="text-sm font-medium">84%</span>
-                        </div>
-                        <Progress value={84} className="h-2" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">
-                            Participant Engagement
-                          </span>
-                          <span className="text-sm font-medium">92%</span>
-                        </div>
-                        <Progress value={92} className="h-2" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">
-                            Budget Utilization
-                          </span>
-                          <span className="text-sm font-medium">25%</span>
-                        </div>
-                        <Progress value={25} className="h-2" />
-                      </div>
-                      <div>
-                        <div className="flex justify-between mb-2">
-                          <span className="text-sm text-muted-foreground">
-                            Review Efficiency
-                          </span>
-                          <span className="text-sm font-medium">96%</span>
-                        </div>
-                        <Progress value={96} className="h-2" />
-                      </div>
+                          if (minutes < 1) return "Just now";
+                          if (minutes < 60) return `${minutes}m ago`;
+                          if (hours < 24) return `${hours}h ago`;
+                          return `${days}d ago`;
+                        })();
+
+                        const userDisplay = `${activity.userTypeId.slice(
+                          0,
+                          8
+                        )}...${activity.userTypeId.slice(-6)}`;
+
+                        return (
+                          <div key={index} className="flex items-center gap-3">
+                            {activity.type === "completed" ? (
+                              <div className="p-2 bg-green-100 rounded-full">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              </div>
+                            ) : (
+                              <div className="p-2 bg-orange-100 rounded-full">
+                                <AlertCircle className="w-4 h-4 text-orange-600" />
+                              </div>
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium">
+                                {activity.type === "completed"
+                                  ? "Quest completed"
+                                  : "New submission"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                "{activity.questTitle}"{" "}
+                                {activity.type === "completed"
+                                  ? "was completed"
+                                  : "submission"}{" "}
+                                by {userDisplay} in "{activity.campaignTitle}"
+                              </p>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {timeAgo}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="campaigns" className="space-y-6">
@@ -959,7 +1044,7 @@ export default function CampaignAdminDashboard() {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
                             <div className="text-center">
                               <div className="flex items-center justify-center gap-1 text-blue-600 mb-1">
                                 <Users className="w-4 h-4" />
