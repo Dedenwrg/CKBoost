@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -64,8 +71,16 @@ export default function ProposeTippingPage() {
     }
   }, [typeIdParam]);
 
+  const [recipientInputMode, setRecipientInputMode] = useState<
+    "address" | "script"
+  >("address");
+  const [recipientAddress, setRecipientAddress] = useState("");
+  const [recipientLockHash, setRecipientLockHash] = useState("");
+  const [resolvedRecipientLockHash, setResolvedRecipientLockHash] =
+    useState("");
+  const [recipientError, setRecipientError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
-    targetLockHash: "",
     contributionTitle: "",
     contributionType: "analysis",
     typeTags: "analysis",
@@ -106,6 +121,82 @@ export default function ProposeTippingPage() {
       cancelled = true;
     };
   }, [signer]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const updateRecipientLockHash = async () => {
+      if (recipientInputMode === "address") {
+        if (!recipientAddress.trim()) {
+          if (!cancelled) {
+            setResolvedRecipientLockHash("");
+            setRecipientError(null);
+          }
+          return;
+        }
+
+        if (!signer) {
+          if (!cancelled) {
+            setResolvedRecipientLockHash("");
+            setRecipientError("Connect wallet to convert address to lock hash");
+          }
+          return;
+        }
+
+        try {
+          const address = await ccc.Address.fromString(
+            recipientAddress.trim(),
+            signer.client
+          );
+          const hash = address.script.hash();
+          if (!cancelled) {
+            setResolvedRecipientLockHash(hash);
+            setRecipientError(null);
+          }
+        } catch (error) {
+          console.warn("Failed to derive recipient lock hash", error);
+          if (!cancelled) {
+            setResolvedRecipientLockHash("");
+            setRecipientError("Invalid CKB address");
+          }
+        }
+      } else {
+        const lockHashValue = recipientLockHash.trim();
+        if (!lockHashValue) {
+          if (!cancelled) {
+            setResolvedRecipientLockHash("");
+            setRecipientError(null);
+          }
+          return;
+        }
+
+        const normalized = lockHashValue.startsWith("0x")
+          ? lockHashValue
+          : `0x${lockHashValue}`;
+
+        if (!LOCK_HASH_REGEX.test(normalized)) {
+          if (!cancelled) {
+            setResolvedRecipientLockHash("");
+            setRecipientError(
+              "Lock hash must be a 0x-prefixed 32-byte hex string"
+            );
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setResolvedRecipientLockHash(normalized.toLowerCase());
+          setRecipientError(null);
+        }
+      }
+    };
+
+    void updateRecipientLockHash();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [recipientInputMode, recipientAddress, recipientLockHash, signer]);
 
   const creationTimestamp = useMemo(() => BigInt(Date.now()), []);
 
@@ -182,6 +273,53 @@ export default function ProposeTippingPage() {
     setIsSubmitting(true);
 
     try {
+      let finalTargetLockHash = resolvedRecipientLockHash;
+
+      if (recipientInputMode === "address") {
+        if (recipientError) {
+          throw new Error(recipientError);
+        }
+
+        if (!finalTargetLockHash) {
+          if (!signer) {
+            throw new Error(
+              "Connect wallet to convert recipient address to lock hash"
+            );
+          }
+
+          if (!recipientAddress.trim()) {
+            throw new Error("Recipient address is required");
+          }
+
+          const address = await ccc.Address.fromString(
+            recipientAddress.trim(),
+            signer.client
+          );
+          finalTargetLockHash = address.script.hash();
+        }
+      } else {
+        const rawLockHash = recipientLockHash.trim();
+        if (!rawLockHash) {
+          throw new Error("Recipient lock hash is required");
+        }
+
+        const normalizedLockHash = rawLockHash.startsWith("0x")
+          ? rawLockHash
+          : `0x${rawLockHash}`;
+
+        if (!LOCK_HASH_REGEX.test(normalizedLockHash)) {
+          throw new Error(
+            "Recipient lock hash must be a 0x-prefixed 32-byte hex string"
+          );
+        }
+
+        finalTargetLockHash = normalizedLockHash.toLowerCase();
+      }
+
+      if (!finalTargetLockHash) {
+        throw new Error("Unable to resolve recipient lock hash");
+      }
+
       let longDescriptionForChain = formData.longDescription;
 
       if (
@@ -189,7 +327,7 @@ export default function ProposeTippingPage() {
         !longDescriptionForChain.startsWith("nevent1") &&
         nostrConnected
       ) {
-        const identifier = formData.targetLockHash || proposerLockHash;
+        const identifier = finalTargetLockHash || proposerLockHash;
         if (identifier) {
           try {
             const userAddress =
@@ -200,7 +338,7 @@ export default function ProposeTippingPage() {
               version: "1.0",
               timestamp: Date.now(),
               metadata: {
-                targetLockHash: formData.targetLockHash,
+                targetLockHash: finalTargetLockHash,
                 proposerLockHash,
                 contributionTitle: formData.contributionTitle,
                 shortDescription: formData.shortDescription,
@@ -246,7 +384,7 @@ export default function ProposeTippingPage() {
       }
 
       const tippingData: TippingDataLike = {
-        target_lock_hash: formData.targetLockHash,
+        target_lock_hash: finalTargetLockHash,
         proposer_lock_hash: proposerLockHash,
         supporter_lock_hashes: [],
         metadata: {
@@ -335,8 +473,17 @@ export default function ProposeTippingPage() {
   };
 
   const isFormValid = () => {
+    const hasRecipient =
+      !!resolvedRecipientLockHash &&
+      ((recipientInputMode === "address" &&
+        recipientAddress.trim() !== "" &&
+        !recipientError) ||
+        (recipientInputMode === "script" &&
+          recipientLockHash.trim() !== "" &&
+          !recipientError));
+
     return (
-      formData.targetLockHash &&
+      hasRecipient &&
       formData.contributionTitle &&
       formData.shortDescription &&
       hasMeaningfulLongDescription()
@@ -362,8 +509,13 @@ export default function ProposeTippingPage() {
     const randomSuffix = Math.floor(Math.random() * 1000);
     const mockLockHash = `0x02c93173368ec56f72ec023f63148461b80e7698eddd62cbd9dbe31a13f2b330`;
 
+    setRecipientInputMode("script");
+    setRecipientAddress("");
+    setRecipientLockHash(mockLockHash);
+    setResolvedRecipientLockHash(mockLockHash);
+    setRecipientError(null);
+
     setFormData({
-      targetLockHash: mockLockHash,
       contributionTitle: `Insightful Community Analysis #${randomSuffix}`,
       contributionType: "analysis",
       typeTags: "analysis, community, research",
@@ -448,21 +600,27 @@ export default function ProposeTippingPage() {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="targetLockHash">
-                      Recipient Lock Hash *
+                    <Label htmlFor="recipientInputMode">
+                      Recipient Input Method *
                     </Label>
-                    <Input
-                      id="targetLockHash"
-                      value={formData.targetLockHash}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          targetLockHash: e.target.value,
-                        })
+                    <Select
+                      value={recipientInputMode}
+                      onValueChange={(value) =>
+                        setRecipientInputMode(value as "address" | "script")
                       }
-                      placeholder="0x..."
-                      required
-                    />
+                    >
+                      <SelectTrigger id="recipientInputMode">
+                        <SelectValue placeholder="Select input method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="address">CKB Address</SelectItem>
+                        <SelectItem value="script">Lock Hash</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground">
+                      Choose whether to input a CKB address or lock hash
+                      directly.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="contributionType">Type *</Label>
@@ -486,6 +644,54 @@ export default function ProposeTippingPage() {
                     </select>
                   </div>
                 </div>
+
+                {recipientInputMode === "address" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recipientAddress">Recipient Address *</Label>
+                    <Input
+                      id="recipientAddress"
+                      value={recipientAddress}
+                      onChange={(e) => setRecipientAddress(e.target.value)}
+                      placeholder="ckt1..."
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      The CKB address of the recipient.
+                    </p>
+                    {resolvedRecipientLockHash && !recipientError && (
+                      <p className="text-xs text-muted-foreground font-mono break-all">
+                        Derived lock hash: {resolvedRecipientLockHash}
+                      </p>
+                    )}
+                    {recipientError && (
+                      <p className="text-sm text-destructive">{recipientError}</p>
+                    )}
+                  </div>
+                )}
+
+                {recipientInputMode === "script" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="recipientLockHash">Recipient Lock Hash *</Label>
+                    <Input
+                      id="recipientLockHash"
+                      value={recipientLockHash}
+                      onChange={(e) => setRecipientLockHash(e.target.value)}
+                      placeholder="0x..."
+                      required
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      The lock hash of the recipient (32 bytes).
+                    </p>
+                    {!recipientError && resolvedRecipientLockHash && (
+                      <p className="text-xs text-muted-foreground font-mono break-all">
+                        Using lock hash: {resolvedRecipientLockHash}
+                      </p>
+                    )}
+                    {recipientError && (
+                      <p className="text-sm text-destructive">{recipientError}</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
@@ -619,6 +825,7 @@ export default function ProposeTippingPage() {
 }
 const SHANNON_FACTOR = 10n ** 8n;
 const MIN_CKB_REWARD = 100n * SHANNON_FACTOR;
+const LOCK_HASH_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
 function parseCkbToShannons(input: string): bigint {
   const trimmed = input.trim();

@@ -41,11 +41,6 @@ export function TelegramWidgetSection({
             showAvatar={true}
             lang="en"
           />
-          <Button asChild variant="outline">
-            <a href="/identity?id=952228338&first_name=Alive24&username=Aaaaaaaalive24&photo_url=https%3A%2F%2Ft.me%2Fi%2Fuserpic%2F320%2FTNTgylEHuKsRyYCtFje_kHUSULB8C03Ou4GvzgI0eUg.jpg&auth_date=1757327119&hash=499df31299197971310af3cee1b9c69446ca505990729f9f3beb2ffd7eceb45d&source=telegram">
-              Mock Telegram Login
-            </a>
-          </Button>
         </div>
       ) : (
         <Button onClick={open} className="w-full">
