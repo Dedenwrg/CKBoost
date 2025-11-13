@@ -933,17 +933,23 @@ export default function CampaignDetailPage() {
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <CardHeader className="flex flex-col items-center gap-4 text-center">
                   <div>
-                    <CardTitle>Quests</CardTitle>
+                    <CardTitle className="text-2xl font-semibold">
+                      Quests
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Jump straight into the quest list to start earning points.
+                    </p>
                   </div>
                   {campaign?.quests && campaign.quests.length > 0 && (
                     <Button
-                      variant="secondary"
-                      size="sm"
+                      size="lg"
                       onClick={() => setActiveTab("quests")}
+                      aria-label="Open quests tab and start participating"
+                      className="w-full max-w-xs bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl border-0 hover:from-purple-500 hover:to-blue-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500"
                     >
-                      View All Quests
+                      Get Started!
                     </Button>
                   )}
                 </CardHeader>

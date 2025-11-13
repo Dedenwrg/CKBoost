@@ -539,8 +539,17 @@ export function CampaignCard({
 
         {/* Action Button - Always at bottom */}
         <div className="mt-4 pt-4">
-          <Link href={`/campaign/${campaign.typeId || campaign.typeHash || ''}`} className="block">
-            <Button className="w-full">View Campaign</Button>
+          <Link
+            href={`/campaign/${campaign.typeId || campaign.typeHash || ""}`}
+            className="block"
+          >
+            <Button
+              size="lg"
+              aria-label="Go to campaign and start completing quests"
+              className="w-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 text-white font-semibold shadow-lg shadow-purple-500/30 hover:shadow-xl border-0 hover:from-purple-500 hover:to-blue-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500"
+            >
+              Get Started!
+            </Button>
           </Link>
         </div>
       </CardContent>
