@@ -30,6 +30,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageLoading } from "@/components/ui/page-loading";
 import {
   Select,
   SelectContent,
@@ -458,6 +459,13 @@ export default function PlatformAdminDashboard() {
   });
   const [fundingLoading, setFundingLoading] = useState(false);
   const [fundingError, setFundingError] = useState<string | null>(null);
+  const pageLoading =
+    protocolLoading ||
+    isLoadingCampaigns ||
+    usersLoading ||
+    statsLoading ||
+    fundingLoading ||
+    tippingLoading;
 
   const approvalThresholds = useMemo(() => {
     const thresholds =
@@ -1656,6 +1664,15 @@ export default function PlatformAdminDashboard() {
       text: "Unverified",
     };
   };
+
+  if (pageLoading) {
+    return (
+      <PageLoading
+        title="Loading Platform Administration"
+        description="Syncing protocol stats, campaign connections, and tipping proposals."
+      />
+    );
+  }
 
   // Redirect non-admins away from this page; skip if protocol cell is not found
   if (!isAdmin && protocolCell) {

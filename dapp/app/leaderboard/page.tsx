@@ -26,6 +26,7 @@ import type {
 } from "@/lib";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { createScopedLogger } from "ssri-ckboost";
+import { PageLoading } from "@/components/ui/page-loading";
 
 const log = createScopedLogger("LeaderboardPage");
 
@@ -273,6 +274,15 @@ export default function Leaderboard() {
     : userAddress
     ? shorten(userAddress, 14, 6)
     : "Wallet not connected";
+
+  if (isInitialLoading) {
+    return (
+      <PageLoading
+        title="Loading Leaderboard"
+        description="Aggregating live Points minting stats from CKBoost validators."
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">

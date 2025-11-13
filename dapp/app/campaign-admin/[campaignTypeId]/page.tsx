@@ -59,6 +59,7 @@ import DraftHistory from "@/components/draft-history";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
+import { PageLoading } from "@/components/ui/page-loading";
 
 const log = createScopedLogger("CampaignAdminPage");
 
@@ -1427,17 +1428,12 @@ export default function CampaignAdminPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center py-16">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading campaign...</p>
-            </div>
-          </div>
-        </main>
-      </div>
+      <PageLoading
+        title={
+          isCreateMode ? "Preparing Campaign Draft" : "Loading Campaign Details"
+        }
+        description="Syncing campaign metadata, quests, and funding data."
+      />
     );
   }
 

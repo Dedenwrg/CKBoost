@@ -52,6 +52,7 @@ import { getDifficultyString } from "@/lib";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { QuestSubmissionForm } from "@/components/quest-submission-form";
 import { useUser } from "@/lib/providers/user-provider";
+import { PageLoading } from "@/components/ui/page-loading";
 
 const extractHtmlFromContent = (raw: string): string => {
   if (!raw) return "";
@@ -173,6 +174,7 @@ export default function CampaignDetailPage() {
   );
   const [fundingCkb, setFundingCkb] = useState<bigint>(0n);
   const [isLoadingFunding, setIsLoadingFunding] = useState(true);
+  const protocolReady = Boolean(protocolData);
 
   // Fetch UDT funding data for the campaign (only when signer is available)
   useEffect(() => {
@@ -500,24 +502,13 @@ export default function CampaignDetailPage() {
     };
   }, [campaign?.quests]);
 
-  // Show loading state while waiting for campaign data
-  if (isLoading || (!client && !campaign)) {
+  // Show loading state while waiting for campaign data or protocol context
+  if (isLoading || !protocolReady || (!client && !campaign)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center py-16">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">
-                {!client
-                  ? "Connecting to blockchain..."
-                  : "Loading campaign details..."}
-              </p>
-            </div>
-          </div>
-        </main>
-      </div>
+      <PageLoading
+        title="Loading Campaign"
+        description="Fetching campaign details, quests, and funding data from the CKBoost protocol."
+      />
     );
   }
 

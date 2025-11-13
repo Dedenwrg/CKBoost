@@ -61,6 +61,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import { PageLoading } from "@/components/ui/page-loading";
 
 // Campaign admin configuration
 const CURRENT_USER = {
@@ -629,6 +630,15 @@ export default function CampaignAdminDashboard() {
 
   // Check if user has access (either owns campaigns, is an endorser, or is a platform admin)
   const hasAccess = isAdmin || isEndorser || ownedCampaigns.length > 0;
+
+  if (isLoading) {
+    return (
+      <PageLoading
+        title="Loading Campaign Admin"
+        description="Gathering your campaigns, review queues, and recent activity."
+      />
+    );
+  }
 
   // Show access denied message if user doesn't have access
   if (!hasAccess && !isLoading) {

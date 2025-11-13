@@ -44,6 +44,7 @@ import {
 import type { UserSubmissionRecordLike } from "ssri-ckboost/types";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
+import { PageLoading } from "@/components/ui/page-loading";
 
 const log = createScopedLogger("DashboardPage");
 
@@ -849,6 +850,15 @@ export default function Dashboard() {
     );
   }
 
+  if (loading) {
+    return (
+      <PageLoading
+        title="Loading Your Dashboard"
+        description="Syncing your quests, submissions, and points from the CKBoost protocol."
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <Navigation />
@@ -859,7 +869,6 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="text-4xl">??</div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                     Welcome back, {displayName}
                   </h1>
