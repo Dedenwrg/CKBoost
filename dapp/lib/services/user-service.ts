@@ -637,6 +637,7 @@ export class UserService {
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: updatedSubmissions,
       profile_data: currentUserData.profile_data,
+      last_bonus_streak_at: currentUserData.last_bonus_streak_at,
     } as UserDataLike;
 
     // Create executor for SSRI operations

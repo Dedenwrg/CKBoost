@@ -12,7 +12,10 @@ pub fn fallback() -> Result<(), Error> {
     debug!("Points UDT fallback validation");
 
     // Get protocol type hash from Points UDT args
-    let script = load_script().map_err(|_| Error::ItemMissing)?;
+    let script = load_script().map_err(|e| {
+        debug!("Error loading script: {:?} in Points UDT fallback", e);
+        Error::ItemMissing
+    })?;
     let args: Bytes = script.args().unpack();
 
     if args.len() != 32 {

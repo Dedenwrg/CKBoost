@@ -22,6 +22,7 @@ pub fn fallback() -> Result<(), Error> {
         return Ok(());
     }
 
+    debug_trace!("Not admin. Creating transaction context");
     let context = create_transaction_context()?;
 
     // Debug log the method path to see what's actually being received

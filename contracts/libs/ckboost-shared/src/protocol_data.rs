@@ -542,7 +542,7 @@ pub fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
     let admin_lock_hash_vec = protocol_data.protocol_config().admin_lock_hash_vec();
     if admin_lock_hash_vec.is_empty() {
         debug_trace!("No admin lock hash found in protocol data");
-        return Err(Error::ItemMissing);
+        return Ok(false);
     }
     let mut index = 0;
     // Check the lock hash of all simple CKB cells in inputs. Skip if the cell has type script.

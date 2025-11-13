@@ -32,12 +32,12 @@
         "typeHash": "0x0bf18a83f13ec240d84b322ee8b1827b811137024749c7d5fbf4d6bdeed81778"
       },
       "ckboostUserType": {
-        "transactionHash": "0x0d0be7db5359b02f19d1b2bd6cc96a9702f892a1bbf85c39d697c964912cedf2",
+        "transactionHash": "0x8e2ba338509387e30e23abb4060396b1017a1822b655f2ed7ce4eef0366caff6",
         "index": 0,
-        "deployedAt": "2025-10-26T18:50:46.090Z",
+        "deployedAt": "2025-11-13T19:41:23.166Z",
         "contractName": "ckboost-user-type",
-        "tag": "v20251026-1849",
-        "dataHash": "0x0bbc4cd3782f74a24c37267fb466cd7da10144454a040f4f9e7d686e20b08d41",
+        "tag": "v20251113-1941",
+        "dataHash": "0x9a79e52a6a1c32835b9fabcffccf0ba03e53fb9dba1a57a300155b9570a207d3",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -47,12 +47,12 @@
         "typeHash": "0xe78893f4703d27e6dc9a8a6495ab86f2e14d51f83c0eb21de0ae5e4437027fe6"
       },
       "ckboostPointsUdt": {
-        "transactionHash": "0x8bb68748cf1c3e63c038092d918d1f9c1b4708e5163a8bf3b1e966a474084c09",
+        "transactionHash": "0x43c9aa59b0ecd20dd8b1463bef17e04bdf1da5ace3e86edf5f6e9a29d0e255f0",
         "index": 0,
-        "deployedAt": "2025-10-31T01:44:04.674Z",
+        "deployedAt": "2025-11-13T19:47:14.313Z",
         "contractName": "ckboost-points-udt",
-        "tag": "v20251031-0143",
-        "dataHash": "0x614b139157f0a14a2829bbf43ee897a8c4138fae9a3469c81746a9cfc00c1700",
+        "tag": "v20251113-1947",
+        "dataHash": "0x96bc3795ffc10ef42771d40d80456b1e2e630bc281ae64d1c7cea5239a7ad4a9",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -6384,6 +6384,54 @@
         },
         "isTypeId": true,
         "typeHash": "0x7130876c4a85364fc964fd5677632b6c174d10bcd3bc9ab8323d66f709c99f98"
+      },
+      {
+        "contractName": "ckboost-user-type",
+        "transactionHash": "0x8e2ba338509387e30e23abb4060396b1017a1822b655f2ed7ce4eef0366caff6",
+        "index": 0,
+        "deployedAt": "2025-11-13T19:41:23.166Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0x9a79e52a6a1c32835b9fabcffccf0ba03e53fb9dba1a57a300155b9570a207d3",
+        "contractSize": 360600,
+        "tag": "v20251113-1941",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0x0d0be7db5359b02f19d1b2bd6cc96a9702f892a1bbf85c39d697c964912cedf2",
+          "index": 0,
+          "deployedAt": "2025-10-26T18:50:46.090Z",
+          "tag": "v20251026-1849"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0x44d10302016d556e5e244d680672f4d47e7223699bc2c001794c30634287304e"
+        },
+        "isTypeId": true,
+        "typeHash": "0xe78893f4703d27e6dc9a8a6495ab86f2e14d51f83c0eb21de0ae5e4437027fe6"
+      },
+      {
+        "contractName": "ckboost-points-udt",
+        "transactionHash": "0x43c9aa59b0ecd20dd8b1463bef17e04bdf1da5ace3e86edf5f6e9a29d0e255f0",
+        "index": 0,
+        "deployedAt": "2025-11-13T19:47:14.313Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0x96bc3795ffc10ef42771d40d80456b1e2e630bc281ae64d1c7cea5239a7ad4a9",
+        "contractSize": 138056,
+        "tag": "v20251113-1947",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0x8bb68748cf1c3e63c038092d918d1f9c1b4708e5163a8bf3b1e966a474084c09",
+          "index": 0,
+          "deployedAt": "2025-10-31T01:44:04.674Z",
+          "tag": "v20251031-0143"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0xc9abd34829d90d4eb1dc28b70e7378df447d26b41d17656362b8fabef226caff"
+        },
+        "isTypeId": true,
+        "typeHash": "0xfcb4b762e3222b603771811b8abe6b054a480a0f5d8011fd9fff266d72189a5e"
       }
     ],
     "mainnet": []

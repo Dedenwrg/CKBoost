@@ -156,7 +156,13 @@ fn validate_points_amount_in_quest_completion(index: usize, source: Source) -> R
     let input_campaign_data = CampaignData::from_slice(&input_campaign_cell_data)
         .map_err(|_| Error::InvalidCampaignData)?;
     let input_campaign_type_hash = load_cell_type_hash(index, source)
-        .map_err(|_| Error::ItemMissing)?
+        .map_err(|e| {
+            debug!(
+                "Error loading cell type hash: {:?} in validate_points_amount_in_quest_completion",
+                e
+            );
+            Error::ItemMissing
+        })?
         .ok_or_else(|| Error::ItemMissing)?;
 
     // Get the lock hash of the input campaign cell to find matching output
