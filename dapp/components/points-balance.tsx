@@ -21,6 +21,7 @@ import {
   buildPointsBalanceCacheKey,
   withPointsBalanceCache,
 } from "@/lib/cache/query-cache";
+import { registerPendingTransaction } from "@/lib/pending-transactions";
 
 const log = createScopedLogger("PointsBalance");
 
@@ -270,6 +271,10 @@ export function PointsBalance() {
       }
       await tx.completeFeeBy(signer);
       const txHash = await signer.sendTransaction(tx);
+      registerPendingTransaction(txHash, {
+        label: "Test mint",
+        context: "PointsBalance",
+      });
 
       toast({
         title: "Test mint submitted",

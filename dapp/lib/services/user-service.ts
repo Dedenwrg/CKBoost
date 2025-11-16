@@ -22,6 +22,7 @@ import { ClientPublicTestnet } from "@ckb-ccc/connector-react";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { injectProxyAuthenticationCell } from "../utils/api";
 import { createScopedLogger } from "ssri-ckboost";
+import { registerPendingTransaction } from "@/lib/pending-transactions";
 
 const log = createScopedLogger("UserService");
 
@@ -149,7 +150,12 @@ export class UserService {
       ccc.stringify(authenticatedTx)
     );
     log.log("authenticatedTx after signing", ccc.stringify(authenticatedTx));
-    return await signer.sendTransaction(authenticatedTx);
+    const txHash = await signer.sendTransaction(authenticatedTx);
+    registerPendingTransaction(txHash, {
+      label: "Proxy authenticated update",
+      context: "UserService",
+    });
+    return txHash;
   }
 
   /**

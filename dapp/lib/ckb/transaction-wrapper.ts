@@ -5,6 +5,10 @@
 
 import { ccc, KnownScript } from "@ckb-ccc/connector-react";
 import { createScopedLogger } from "ssri-ckboost";
+import {
+  PendingTransactionMetadata,
+  registerPendingTransaction,
+} from "@/lib/pending-transactions";
 
 const log = createScopedLogger("TransactionWrapper");
 
@@ -72,9 +76,14 @@ async function calculateFeeRate(
  * @param tx The transaction to send
  * @returns The transaction hash
  */
+export type SendTransactionOptions = {
+  pendingMetadata?: PendingTransactionMetadata;
+};
+
 export async function sendTransactionWithFeeRetry(
   signer: ccc.Signer,
-  tx: ccc.Transaction
+  tx: ccc.Transaction,
+  options?: SendTransactionOptions
 ): Promise<ccc.Hex> {
   let attempts = 0;
   const maxAttempts = 3;
@@ -108,6 +117,7 @@ export async function sendTransactionWithFeeRetry(
       log.log("JSON.stringify(tx)", ccc.stringify(tx));
       const txHash = await signer.sendTransaction(tx);
       log.info("Transaction sent successfully! TxHash:", txHash);
+      registerPendingTransaction(txHash, options?.pendingMetadata);
       return txHash;
     } catch (error) {
       const errorMessage =

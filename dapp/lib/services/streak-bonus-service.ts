@@ -10,6 +10,7 @@ import {
   seedStreakBonusQueryCache,
   withStreakBonusQueryCache,
 } from "@/lib/cache/query-cache";
+import { registerPendingTransaction } from "@/lib/pending-transactions";
 
 export class StreakBonusService {
   private readonly signer?: ccc.Signer;
@@ -114,6 +115,10 @@ export class StreakBonusService {
     }
 
     const txHash = await signer.sendTransaction(validatedTx);
+    registerPendingTransaction(txHash, {
+      label: "Streak bonus claim",
+      context: "StreakBonusService",
+    });
 
     const network = deploymentManager.getCurrentNetwork();
     const cacheKey = buildStreakBonusQueryCacheKey({

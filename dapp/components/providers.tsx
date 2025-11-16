@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { StorageModalProvider } from "@/lib/providers/storage-modal-provider";
 import { TippingProvider } from "@/lib/providers/tipping-provider";
+import { PendingTransactionProvider } from "@/lib/providers/pending-transaction-provider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -34,19 +35,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
     >
       <QueryClientProvider client={queryClient}>
         <WalletProvider>
-          <NostrProvider>
-            <ProtocolProvider>
-              <CampaignProvider>
-                <UserProvider>
-                  <CampaignAdminProvider>
-                    <StorageModalProvider>
-                      <TippingProvider>{children}</TippingProvider>
-                    </StorageModalProvider>
-                  </CampaignAdminProvider>
-                </UserProvider>
-              </CampaignProvider>
-            </ProtocolProvider>
-          </NostrProvider>
+          <PendingTransactionProvider>
+            <NostrProvider>
+              <ProtocolProvider>
+                <CampaignProvider>
+                  <UserProvider>
+                    <CampaignAdminProvider>
+                      <StorageModalProvider>
+                        <TippingProvider>{children}</TippingProvider>
+                      </StorageModalProvider>
+                    </CampaignAdminProvider>
+                  </UserProvider>
+                </CampaignProvider>
+              </ProtocolProvider>
+            </NostrProvider>
+          </PendingTransactionProvider>
         </WalletProvider>
       </QueryClientProvider>
     </ThemeProvider>

@@ -21,6 +21,7 @@ import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { injectProxyAuthenticationCell } from "../utils/api";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
 import { createScopedLogger } from "ssri-ckboost";
+import { registerPendingTransaction } from "@/lib/pending-transactions";
 
 const log = createScopedLogger("AchievementService");
 
@@ -348,7 +349,12 @@ export class AchievementService {
       ccc.stringify(validatedTx)
     );
     log.log("validatedTx after signing", ccc.stringify(validatedTx));
-    return await signer.sendTransaction(validatedTx);
+    const txHash = await signer.sendTransaction(validatedTx);
+    registerPendingTransaction(txHash, {
+      label: "Achievement claim",
+      context: "AchievementService",
+    });
+    return txHash;
   }
 
   /**
