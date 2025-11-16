@@ -1,7 +1,8 @@
 import { NSecSigner } from '@nostrify/nostrify';
-import { NostrEvent } from '@nostrify/types';
+import { NostrEvent, NostrFilter } from '@nostrify/types';
 import { nip19, getEventHash, generateSecretKey, getPublicKey } from 'nostr-tools';
 import { createScopedLogger } from "ssri-ckboost";
+import { AuthorIndexConfig, buildAuthorFilter, deriveAuthorKeys } from "../nostr/author-index";
 
 const log = createScopedLogger("NostrStorageService");
 
@@ -23,6 +24,17 @@ export class NostrStorageService {
     this.relays = relays;
   }
 
+  private resolveSigningKeys(authorIndex?: AuthorIndexConfig) {
+    if (authorIndex) {
+      const { secretKey, pubkey } = deriveAuthorKeys(authorIndex);
+      return { secretKey, pubkey };
+    }
+
+    const secretKey = generateSecretKey();
+    const pubkey = getPublicKey(secretKey);
+    return { secretKey, pubkey };
+  }
+
   /**
    * Store quest submission data on Nostr
    * This is FREE and doesn't require any authentication
@@ -33,10 +45,11 @@ export class NostrStorageService {
     userAddress: string;
     content: string; // HTML content with base64 images or URLs
     timestamp: number;
+    authorIndex?: AuthorIndexConfig;
   }): Promise<string> {
-    // Generate a random private key for anonymous submission
-    const secretKey = generateSecretKey();
-    const pubkey = getPublicKey(secretKey);
+    const { secretKey, pubkey } = this.resolveSigningKeys(
+      submission.authorIndex
+    );
     
     // Create the event manually
     const event: NostrEvent = {
@@ -107,6 +120,13 @@ export class NostrStorageService {
       ids: [eventId],
       kinds: [CKBOOST_SUBMISSION_KIND],
     };
+  }
+
+  createAuthorFilter(
+    author: string | AuthorIndexConfig,
+    overrides: Omit<NostrFilter, "authors"> = {}
+  ): NostrFilter {
+    return buildAuthorFilter(author, overrides);
   }
 
   /**

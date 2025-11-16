@@ -2,6 +2,10 @@
 
 import { useState, useCallback } from "react";
 import { useNostr } from "@/lib/providers/nostr-provider";
+import {
+  AuthorIndexConfig,
+  resolveAuthorPubkey,
+} from "@/lib/nostr/author-index";
 import { NostrEvent, NostrFilter } from "@nostrify/types";
 import { nip19 } from "nostr-tools";
 import { createScopedLogger } from "ssri-ckboost";
@@ -23,6 +27,18 @@ export interface ParsedSubmission {
   created_at: number;
   metadata: Record<string, string>;
   event?: NostrEvent;
+}
+
+type AuthorFilterInput = string | AuthorIndexConfig;
+
+interface FetchFilterOptions {
+  relays?: string[];
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+interface FetchAuthorEventsOptions extends FetchFilterOptions {
+  filter?: Omit<NostrFilter, "authors">;
 }
 
 export function useNostrFetch() {
@@ -57,6 +73,141 @@ export function useNostrFetch() {
     }
     return metadata;
   };
+
+  const fetchEventsByFilter = useCallback(
+    async (
+      filter: NostrFilter,
+      options: FetchFilterOptions = {}
+    ): Promise<NostrEvent[]> => {
+      if (!nostr) {
+        throw new Error("Nostr pool not initialized");
+      }
+
+      const timeoutMs =
+        options.timeoutMs === undefined ? 10000 : options.timeoutMs;
+
+      let controller: AbortController | null = null;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+      let signal: AbortSignal | undefined = options.signal;
+
+      if (!signal) {
+        controller = new AbortController();
+        signal = controller.signal;
+        if (timeoutMs > 0) {
+          timeout = setTimeout(() => controller?.abort(), timeoutMs);
+        }
+      }
+
+      const streamWithReq = async (): Promise<NostrEvent[]> => {
+        log.info("Streaming Nostr events via req", {
+          filter,
+          relays: options.relays,
+        });
+        const streamController = new AbortController();
+        const streamSignal = streamController.signal;
+        let streamTimeout: NodeJS.Timeout | null = null;
+        if (timeoutMs > 0) {
+          streamTimeout = setTimeout(() => streamController.abort(), timeoutMs);
+        }
+
+        const events: NostrEvent[] = [];
+
+        try {
+          for await (const msg of nostr.req([filter], {
+            relays: options.relays,
+            signal: streamSignal,
+          })) {
+            if (msg[0] === "EVENT" && msg[2]) {
+              events.push(msg[2] as NostrEvent);
+              if (filter.limit && events.length >= filter.limit) {
+                break;
+              }
+            }
+            if (msg[0] === "EOSE") {
+              break;
+            }
+          }
+        } catch (streamErr) {
+          if (!streamSignal.aborted) {
+            log.warn("Streaming fetch failed", streamErr);
+          }
+        } finally {
+          if (streamTimeout) {
+            clearTimeout(streamTimeout);
+          }
+        }
+
+        log.info("Streamed Nostr events", {
+          count: events.length,
+          filter,
+        });
+
+        return events;
+      };
+
+      try {
+        log.info("Executing Nostr filter", {
+          filter,
+          relays: options.relays,
+          timeoutMs,
+        });
+        const events = await nostr.query([filter], {
+          relays: options.relays,
+          signal,
+        });
+        log.info("Nostr filter returned events", {
+          count: events.length,
+          filter,
+        });
+
+        if (events.length > 0 || filter.limit === 0) {
+          return events;
+        }
+
+        log.info("Nostr query returned empty result, falling back to streaming", {
+          filter,
+        });
+        return await streamWithReq();
+      } catch (err) {
+        if (signal?.aborted) {
+          throw new Error("Nostr filter query aborted or timed out");
+        }
+        log.warn("Nostr query failed, attempting streaming fallback", err);
+        return await streamWithReq();
+      } finally {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      }
+    },
+    [nostr]
+  );
+
+  const fetchAuthorIndexedEvents = useCallback(
+    async (
+      author: AuthorFilterInput,
+      options: FetchAuthorEventsOptions = {}
+    ) => {
+      const authorPubkey = resolveAuthorPubkey(author);
+      const filter: NostrFilter = {
+        ...(options.filter ?? {}),
+        authors: [authorPubkey],
+      };
+
+      log.info("Fetching author-indexed events", {
+        author,
+        authorPubkey,
+        overrides: options.filter,
+      });
+
+      if (!filter.kinds) {
+        filter.kinds = [CKBOOST_SUBMISSION_KIND];
+      }
+
+      return fetchEventsByFilter(filter, options);
+    },
+    [fetchEventsByFilter]
+  );
 
   const fetchSubmission = useCallback(
     async (neventId: string): Promise<ParsedSubmission | null> => {
@@ -187,6 +338,8 @@ export function useNostrFetch() {
 
   return {
     fetchSubmission,
+    fetchEventsByFilter,
+    fetchAuthorIndexedEvents,
     isLoading,
     error,
   };

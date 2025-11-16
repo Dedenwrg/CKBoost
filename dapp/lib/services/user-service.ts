@@ -11,18 +11,14 @@ import {
 } from "../ckb/user-cells";
 import { NostrStorageService } from "./nostr-storage-service";
 import { deploymentManager } from "../ckb/deployment-manager";
-import {
-  UserData,
-  UserDataLike,
-  UserVerificationData,
-} from "ssri-ckboost/types";
+import { UserData, UserDataLike } from "ssri-ckboost/types";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
 import { TelegramVerificationData } from "../types/identity";
-import { ClientPublicTestnet } from "@ckb-ccc/connector-react";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { injectProxyAuthenticationCell } from "../utils/api";
 import { createScopedLogger } from "ssri-ckboost";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
+import { createDisplayNameRecord } from "../profile/profile-data";
 
 const log = createScopedLogger("UserService");
 
@@ -59,6 +55,18 @@ export class UserService {
       protocolTypeHash: protocolTypeHash.slice(0, 10) + "...",
       useNostrStorage,
     });
+  }
+
+  private buildProfileDataEntries(options?: {
+    displayName?: string;
+    extraEntries?: ccc.BytesLike[];
+  }): ccc.BytesLike[] {
+    const entries = [...(options?.extraEntries ?? [])];
+    const trimmedName = options?.displayName?.trim();
+    if (trimmedName) {
+      entries.push(createDisplayNameRecord(trimmedName));
+    }
+    return entries;
   }
 
   /**
@@ -845,7 +853,9 @@ export class UserService {
       total_points_earned: 0,
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: [newSubmission],
-      profile_data: [],
+      profile_data: this.buildProfileDataEntries({
+        displayName: verificationData?.name,
+      }),
       last_bonus_streak_at: BigInt(0),
     } as UserDataLike;
 
@@ -1025,7 +1035,8 @@ export class UserService {
    * Create a new user populated only with verification data
    */
   private async createUserWithVerification(
-    userVerificationData: ckboost.types.UserVerificationDataLike
+    userVerificationData: ckboost.types.UserVerificationDataLike,
+    options?: { profileEntries?: ccc.BytesLike[] }
   ): Promise<ccc.Hex> {
     await this.ensureDeploymentInfo();
 
@@ -1064,7 +1075,7 @@ export class UserService {
       total_points_earned: 0,
       last_activity_timestamp: BigInt(Date.now()),
       submission_records: [],
-      profile_data: [],
+      profile_data: options?.profileEntries ?? [],
       last_bonus_streak_at: BigInt(0),
     } as UserDataLike;
 
@@ -1149,6 +1160,34 @@ export class UserService {
       typeId,
       userData,
     };
+  }
+
+  async createUserProfile(displayName: string): Promise<ccc.Hex> {
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      throw new Error("Display name is required");
+    }
+
+    // Ensure a user does not already exist before creating a profile
+    const lockScript = (await this.signer.getRecommendedAddressObj()).script;
+    const lockHash = lockScript.hash();
+    const existingUser = await this.getUserByLockHash(lockHash);
+    if (existingUser) {
+      throw new Error("User profile already exists for this address");
+    }
+
+    const profileEntries = this.buildProfileDataEntries({
+      displayName: trimmed,
+    });
+
+    const verificationData: ckboost.types.UserVerificationDataLike = {
+      telegram_personal_chat_id: 0n,
+      identity_verification_data: [],
+    };
+
+    return this.createUserWithVerification(verificationData, {
+      profileEntries,
+    });
   }
 
   /**

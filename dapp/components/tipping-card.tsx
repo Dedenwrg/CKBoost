@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SocialInteractions } from "./social-interactions";
+import { TippingCommentsSection } from "./tipping-comments-section";
 import { ThumbsUp, Users, Clock, Eye, Plus, Wallet, Gift } from "lucide-react";
 import { TippingInfo } from "@/lib/providers/tipping-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
@@ -802,17 +802,7 @@ export function TippingCard({
 
         {/* Social Interactions */}
         <Separator />
-        <SocialInteractions
-          tipping_type_id={tipping.typeId ?? ""}
-          // ISSUE #11: Get likes and comments from the tipping
-          initialLikes={0}
-          initialComments={tipping.comments}
-          isLiked={false}
-          // ISSUE #11: Get onLike and onComment from the tipping
-          onLike={() => {}}
-          onComment={() => {}}
-          onShare={() => {}}
-        />
+        <TippingCommentsSection tippingTypeId={tipping.typeId} />
       </CardContent>
 
       {/* Additional Tip Modal */}

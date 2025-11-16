@@ -46,6 +46,7 @@ interface UserContextType {
   error: string | null;
   refreshUserData: () => Promise<void>;
   userRecommendedAddressObj: ccc.Address | null;
+  createUserProfile: (displayName: string) => Promise<ccc.Hex>;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -64,6 +65,9 @@ const UserContext = createContext<UserContextType>({
   error: null,
   refreshUserData: async () => {},
   userRecommendedAddressObj: null,
+  createUserProfile: async () => {
+    throw new Error("UserProvider not initialized");
+  },
 });
 
 export const useUser = () => useContext(UserContext);
@@ -347,6 +351,33 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const createUserProfile = async (displayName: string) => {
+    if (!userService) {
+      throw new Error("User service not initialized");
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      const txHash = await userService.createUserProfile(displayName);
+
+      setTimeout(async () => {
+        await refreshUserData();
+      }, 3000);
+
+      return txHash;
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to create user profile";
+      setError(errorMsg);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getUserRecommendedAddressObj = async () => {
     if (!signer) {
       throw new Error("Signer not initialized");
@@ -370,6 +401,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         error,
         refreshUserData,
         userRecommendedAddressObj,
+        createUserProfile,
       }}
     >
       {children}

@@ -4,11 +4,11 @@ directory = "netlify/functions"
 
 [dev]
 # Development server configuration
-command = "next dev --port 3100"
-targetPort = 3100
-port = 8000
+command = "next dev --port 3200"
+targetPort = 3200
+port = 9000
 publish = "dapp"
-functionsPort = 9999
+functionsPort = 9998
 autoLaunch = false
 
 [[plugins]]

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -19,13 +20,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface Comment {
+export interface Comment {
   id: string;
   author: string;
   content: string;
   timestamp: string;
   likes: number;
   isLiked: boolean;
+  link?: string;
 }
 
 interface SocialInteractionsProps {
@@ -36,6 +38,8 @@ interface SocialInteractionsProps {
   onLike?: (tipping_type_id: string) => void;
   onComment?: (tipping_type_id: string, comment: string) => void;
   onShare?: (tipping_type_id: string) => void;
+  previewCount?: number;
+  pageSize?: number;
 }
 
 export function SocialInteractions({
@@ -46,13 +50,41 @@ export function SocialInteractions({
   onLike,
   onComment,
   onShare,
+  previewCount = 3,
+  pageSize = 5,
 }: SocialInteractionsProps) {
   const [liked, setLiked] = useState(isLiked);
   const [likes, setLikes] = useState(initialLikes);
   const [comments, setComments] = useState(initialComments);
-  const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [showPagedComments, setShowPagedComments] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSizeState, setPageSizeState] = useState(pageSize);
+
+  const totalPages = Math.max(1, Math.ceil(comments.length / pageSizeState));
+
+  const pagedComments = comments.slice(
+    (currentPage - 1) * pageSizeState,
+    currentPage * pageSizeState
+  );
+
+  const previewComments = comments.slice(0, previewCount);
+
+  const visibleComments = showPagedComments ? pagedComments : previewComments;
+
+  useEffect(() => {
+    setLiked(isLiked);
+  }, [isLiked]);
+
+  useEffect(() => {
+    setLikes(initialLikes);
+  }, [initialLikes]);
+
+  useEffect(() => {
+    setComments(initialComments);
+  }, [initialComments]);
 
   const handleLike = () => {
     const newLikedState = !liked;
@@ -65,23 +97,32 @@ export function SocialInteractions({
     if (!newComment.trim()) return;
 
     setIsSubmittingComment(true);
+    setCommentError(null);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    const comment: Comment = {
-      id: Date.now().toString(),
-      author: "CurrentUser",
-      content: newComment,
-      timestamp: "now",
-      likes: 0,
-      isLiked: false,
-    };
-
-    setComments((prev) => [comment, ...prev]);
-    setNewComment("");
-    setIsSubmittingComment(false);
-    onComment?.(tipping_type_id, newComment);
+    try {
+      if (onComment) {
+        await onComment(tipping_type_id, newComment);
+      } else {
+        const comment: Comment = {
+          id: Date.now().toString(),
+          author: "CurrentUser",
+          content: newComment,
+          timestamp: "now",
+          likes: 0,
+          isLiked: false,
+        };
+        setComments((prev) => [comment, ...prev]);
+      }
+      setNewComment("");
+    } catch (err) {
+      setCommentError(
+        err instanceof Error
+          ? err.message
+          : "Failed to post comment. Please try again."
+      );
+    } finally {
+      setIsSubmittingComment(false);
+    }
   };
 
   const handleCommentLike = (commentId: string) => {
@@ -125,15 +166,10 @@ export function SocialInteractions({
             <span>{likes}</span>
           </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowComments(!showComments)}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
-          >
+          <div className="flex items-center gap-2 text-muted-foreground">
             <MessageSquare className="w-4 h-4" />
             <span>{comments.length}</span>
-          </Button>
+          </div>
 
           <Button
             variant="ghost"
@@ -161,27 +197,42 @@ export function SocialInteractions({
       </div>
 
       {/* Comments Section */}
-      {showComments && (
-        <div className="space-y-4">
-          <Separator />
+      <div className="space-y-4">
+        <Separator />
 
-          {/* Add Comment */}
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-gradient-to-br from-purple-200 to-blue-200 text-sm">
-                  U
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-2">
-                <Textarea
-                  placeholder="Write a comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  rows={2}
-                  className="resize-none"
-                />
-                <div className="flex justify-end">
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <Avatar className="w-8 h-8">
+              <AvatarFallback className="bg-gradient-to-br from-purple-200 to-blue-200 text-sm">
+                U
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 space-y-2">
+              <Textarea
+                placeholder="Write a comment..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                rows={2}
+                className="resize-none"
+              />
+              <div className="flex justify-between items-center gap-3 text-xs text-muted-foreground">
+                {showPagedComments && (
+                  <div className="flex items-center gap-2">
+                    <span>Per page:</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      className="w-16 h-8 text-xs"
+                      value={pageSizeState}
+                      onChange={(e) => {
+                        const next = Math.max(1, Number(e.target.value) || 1);
+                        setPageSizeState(next);
+                        setCurrentPage(1);
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="flex-1 text-right">
                   <Button
                     size="sm"
                     onClick={handleComment}
@@ -201,13 +252,18 @@ export function SocialInteractions({
                   </Button>
                 </div>
               </div>
+              {commentError && (
+                <p className="text-xs text-destructive text-right">
+                  {commentError}
+                </p>
+              )}
             </div>
           </div>
+        </div>
 
-          {/* Comments List */}
-          <div className="space-y-4">
-            {comments.map((comment) => (
-              <div key={comment.id} className="flex items-start gap-3">
+        <div className="space-y-4">
+          {visibleComments.map((comment) => (
+            <div key={comment.id} className="flex items-start gap-3">
                 <Avatar className="w-8 h-8">
                   <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
                     {comment.author.charAt(0).toUpperCase()}
@@ -223,7 +279,19 @@ export function SocialInteractions({
                         {comment.timestamp}
                       </span>
                     </div>
-                    <p className="text-sm">{comment.content}</p>
+                    <p className="text-sm whitespace-pre-line">
+                      {comment.content}
+                    </p>
+                    {comment.link && (
+                      <a
+                        href={comment.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                      >
+                        View on njump.me ↗
+                      </a>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 px-3">
                     <Button
@@ -253,17 +321,57 @@ export function SocialInteractions({
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+          ))}
+          {comments.length > previewCount && !showPagedComments && (
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowPagedComments(true);
+                  setCurrentPage(1);
+                }}
+                className="text-xs"
+              >
+                Load more comments
+              </Button>
+            </div>
+          )}
 
-          {comments.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No comments yet. Be the first to comment!</p>
+          {showPagedComments && comments.length > previewCount && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              >
+                Previous
+              </Button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+              >
+                Next
+              </Button>
             </div>
           )}
         </div>
-      )}
+
+        {comments.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No comments yet. Be the first to comment!</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
