@@ -353,7 +353,6 @@ export function WalletConnect() {
                   {verificationStatus.text}
                 </Badge>
               )}
-              {renderStatusIndicator()}
             </div>
             <ChevronDown className="w-3 h-3" />
           </Button>

@@ -40,6 +40,9 @@ interface SocialInteractionsProps {
   onShare?: (tipping_type_id: string) => void;
   previewCount?: number;
   pageSize?: number;
+  commentEnabled?: boolean;
+  commentDisabledLabel?: string;
+  onConnectWallet?: () => void | Promise<void>;
 }
 
 export function SocialInteractions({
@@ -52,6 +55,9 @@ export function SocialInteractions({
   onShare,
   previewCount = 3,
   pageSize = 5,
+  commentEnabled = true,
+  commentDisabledLabel,
+  onConnectWallet,
 }: SocialInteractionsProps) {
   const [liked, setLiked] = useState(isLiked);
   const [likes, setLikes] = useState(initialLikes);
@@ -94,6 +100,12 @@ export function SocialInteractions({
   };
 
   const handleComment = async () => {
+    if (!commentEnabled) {
+      if (onConnectWallet) {
+        await onConnectWallet();
+      }
+      return;
+    }
     if (!newComment.trim()) return;
 
     setIsSubmittingComment(true);
@@ -213,7 +225,11 @@ export function SocialInteractions({
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 rows={2}
-                className="resize-none"
+                disabled={!commentEnabled}
+                className={`resize-none ${
+                  !commentEnabled ? "opacity-60 cursor-not-allowed" : ""
+                }`}
+                readOnly={!commentEnabled}
               />
               <div className="flex justify-between items-center gap-3 text-xs text-muted-foreground">
                 {showPagedComments && (
@@ -236,7 +252,10 @@ export function SocialInteractions({
                   <Button
                     size="sm"
                     onClick={handleComment}
-                    disabled={!newComment.trim() || isSubmittingComment}
+                    disabled={
+                      (commentEnabled && !newComment.trim()) ||
+                      isSubmittingComment
+                    }
                   >
                     {isSubmittingComment ? (
                       <>
@@ -246,7 +265,9 @@ export function SocialInteractions({
                     ) : (
                       <>
                         <Send className="w-3 h-3 mr-2" />
-                        Comment
+                        {commentEnabled
+                          ? "Comment"
+                          : commentDisabledLabel || "Connect wallet"}
                       </>
                     )}
                   </Button>
@@ -264,63 +285,61 @@ export function SocialInteractions({
         <div className="space-y-4">
           {visibleComments.map((comment) => (
             <div key={comment.id} className="flex items-start gap-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
-                    {comment.author.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 space-y-1">
-                  <div className="bg-muted rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">
-                        {comment.author}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {comment.timestamp}
-                      </span>
-                    </div>
-                    <p className="text-sm whitespace-pre-line">
-                      {comment.content}
-                    </p>
-                    {comment.link && (
-                      <a
-                        href={comment.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
-                      >
-                        View on njump.me ↗
-                      </a>
-                    )}
+              <Avatar className="w-8 h-8">
+                <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
+                  {comment.author.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-1">
+                <div className="bg-muted rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium text-sm">
+                      {comment.author}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {comment.timestamp}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2 px-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCommentLike(comment.id)}
-                      className={`h-6 px-2 text-xs ${
-                        comment.isLiked
-                          ? "text-red-600"
-                          : "text-muted-foreground"
+                  <p className="text-sm whitespace-pre-line">
+                    {comment.content}
+                  </p>
+                  {comment.link && (
+                    <a
+                      href={comment.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                    >
+                      View on njump.me ↗
+                    </a>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 px-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCommentLike(comment.id)}
+                    className={`h-6 px-2 text-xs ${
+                      comment.isLiked ? "text-red-600" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Heart
+                      className={`w-3 h-3 mr-1 ${
+                        comment.isLiked ? "fill-current" : ""
                       }`}
-                    >
-                      <Heart
-                        className={`w-3 h-3 mr-1 ${
-                          comment.isLiked ? "fill-current" : ""
-                        }`}
-                      />
-                      {comment.likes > 0 && comment.likes}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground"
-                    >
-                      Reply
-                    </Button>
-                  </div>
+                    />
+                    {comment.likes > 0 && comment.likes}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground"
+                  >
+                    Reply
+                  </Button>
                 </div>
               </div>
+            </div>
           ))}
           {comments.length > previewCount && !showPagedComments && (
             <div className="flex justify-center">

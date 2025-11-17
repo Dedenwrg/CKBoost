@@ -149,7 +149,11 @@ export const handler: Handler = async (event) => {
       const bytes = ccc.bytesFrom(userVerificationDataArrayHex);
       const s = Buffer.from(bytes).toString("utf8");
       logger.log("user_verification_data_array_string", s);
-      userVerificationDataArray = JSON.parse(s) as VerificationDataEntries[];
+      if (!s || !s.trim()) {
+        userVerificationDataArray = [];
+      } else {
+        userVerificationDataArray = JSON.parse(s) as VerificationDataEntries[];
+      }
       logger.log(
         "user_verification_data_array",
         JSON.stringify(userVerificationDataArray)

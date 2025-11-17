@@ -6,6 +6,7 @@ import { useTippingComments } from "@/hooks/use-tipping-comments";
 import { useUser } from "@/lib/providers/user-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ccc } from "@ckb-ccc/connector-react";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +25,7 @@ export function TippingCommentsSection({
 }: {
   tippingTypeId?: string;
 }) {
-  const { comments, error, postComment } =
-    useTippingComments(tippingTypeId);
+  const { comments, error, postComment } = useTippingComments(tippingTypeId);
   const {
     currentUserTypeId,
     createUserProfile,
@@ -33,6 +33,8 @@ export function TippingCommentsSection({
     isLoading: userLoading,
     userService,
   } = useUser();
+  const { open: openWalletModal } = ccc.useCcc();
+  const canComment = Boolean(userService);
 
   const [showProfileDialog, setShowProfileDialog] = useState(false);
   const [profileName, setProfileName] = useState("");
@@ -159,19 +161,25 @@ export function TippingCommentsSection({
     }
   };
 
-  const handleProfileDialogChange = (open: boolean) => {
-    setShowProfileDialog(open);
-    if (!open) {
+  const handleProfileDialogChange = (isOpen: boolean) => {
+    setShowProfileDialog(isOpen);
+    if (!isOpen) {
       setPendingComment(null);
       resetProfileDialog();
     }
   };
 
+  const handleRequestConnect = useCallback(() => {
+    try {
+      void openWalletModal();
+    } catch (err) {
+      log.warn("Failed to open wallet connector", err);
+    }
+  }, [openWalletModal]);
+
   return (
     <div className="space-y-3">
-      {moduleError && (
-        <p className="text-sm text-destructive">{moduleError}</p>
-      )}
+      {moduleError && <p className="text-sm text-destructive">{moduleError}</p>}
       {error && <p className="text-sm text-destructive">{error}</p>}
       {awaitingProfileReady && (
         <p className="text-sm text-muted-foreground">
@@ -187,6 +195,9 @@ export function TippingCommentsSection({
         onLike={() => {}}
         onComment={handleComment}
         onShare={() => {}}
+        commentEnabled={canComment}
+        commentDisabledLabel="Connect wallet"
+        onConnectWallet={handleRequestConnect}
       />
 
       <Dialog open={showProfileDialog} onOpenChange={handleProfileDialogChange}>
