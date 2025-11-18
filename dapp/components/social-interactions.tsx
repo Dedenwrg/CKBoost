@@ -36,13 +36,18 @@ interface SocialInteractionsProps {
   initialComments: Comment[];
   isLiked?: boolean;
   onLike?: (tipping_type_id: string) => void;
-  onComment?: (tipping_type_id: string, comment: string) => void;
+  onComment?: (
+    tipping_type_id: string,
+    comment: string
+  ) => Promise<boolean | void> | boolean | void;
   onShare?: (tipping_type_id: string) => void;
   previewCount?: number;
   pageSize?: number;
   commentEnabled?: boolean;
   commentDisabledLabel?: string;
   onConnectWallet?: () => void | Promise<void>;
+  draftComment?: string;
+  onDraftCommentChange?: (value: string) => void;
 }
 
 export function SocialInteractions({
@@ -58,11 +63,13 @@ export function SocialInteractions({
   commentEnabled = true,
   commentDisabledLabel,
   onConnectWallet,
+  draftComment,
+  onDraftCommentChange,
 }: SocialInteractionsProps) {
   const [liked, setLiked] = useState(isLiked);
   const [likes, setLikes] = useState(initialLikes);
   const [comments, setComments] = useState(initialComments);
-  const [newComment, setNewComment] = useState("");
+  const [internalComment, setInternalComment] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [showPagedComments, setShowPagedComments] = useState(false);
@@ -92,6 +99,16 @@ export function SocialInteractions({
     setComments(initialComments);
   }, [initialComments]);
 
+  const commentValue = draftComment ?? internalComment;
+  const setCommentValue = onDraftCommentChange ?? setInternalComment;
+
+  useEffect(() => {
+    if (draftComment === undefined) {
+      return;
+    }
+    setInternalComment(draftComment);
+  }, [draftComment]);
+
   const handleLike = () => {
     const newLikedState = !liked;
     setLiked(newLikedState);
@@ -106,26 +123,32 @@ export function SocialInteractions({
       }
       return;
     }
-    if (!newComment.trim()) return;
+    if (!commentValue.trim()) return;
 
     setIsSubmittingComment(true);
     setCommentError(null);
 
     try {
+      let shouldClearInput = true;
       if (onComment) {
-        await onComment(tipping_type_id, newComment);
+        const result = await onComment(tipping_type_id, commentValue);
+        if (result === false) {
+          shouldClearInput = false;
+        }
       } else {
         const comment: Comment = {
           id: Date.now().toString(),
           author: "CurrentUser",
-          content: newComment,
+          content: commentValue,
           timestamp: "now",
           likes: 0,
           isLiked: false,
         };
         setComments((prev) => [comment, ...prev]);
       }
-      setNewComment("");
+      if (shouldClearInput) {
+        setCommentValue("");
+      }
     } catch (err) {
       setCommentError(
         err instanceof Error
@@ -222,8 +245,8 @@ export function SocialInteractions({
             <div className="flex-1 space-y-2">
               <Textarea
                 placeholder="Write a comment..."
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                value={commentValue}
+                onChange={(e) => setCommentValue(e.target.value)}
                 rows={2}
                 disabled={!commentEnabled}
                 className={`resize-none ${
@@ -253,7 +276,7 @@ export function SocialInteractions({
                     size="sm"
                     onClick={handleComment}
                     disabled={
-                      (commentEnabled && !newComment.trim()) ||
+                      (commentEnabled && !commentValue.trim()) ||
                       isSubmittingComment
                     }
                   >

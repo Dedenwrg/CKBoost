@@ -43,6 +43,7 @@ export function TippingCommentsSection({
   const [pendingComment, setPendingComment] = useState<string | null>(null);
   const [awaitingProfileReady, setAwaitingProfileReady] = useState(false);
   const [moduleError, setModuleError] = useState<string | null>(null);
+  const [commentDraft, setCommentDraft] = useState("");
 
   useEffect(() => {
     if (
@@ -56,6 +57,7 @@ export function TippingCommentsSection({
           await postComment(pendingComment);
           setPendingComment(null);
           setModuleError(null);
+          setCommentDraft("");
         } catch (err) {
           const message =
             err instanceof Error
@@ -85,12 +87,12 @@ export function TippingCommentsSection({
     async (_tippingId: string, comment: string) => {
       setModuleError(null);
       if (!comment.trim()) {
-        return;
+        return false;
       }
 
       if (!tippingTypeId) {
         setModuleError("Unable to determine tipping type ID for comments.");
-        return;
+        return false;
       }
 
       if (!currentUserTypeId) {
@@ -104,7 +106,7 @@ export function TippingCommentsSection({
                 "Loading your profile data. Comment will post once ready."
               );
               await refreshUserData();
-              return;
+              return false;
             }
           }
         } catch (err) {
@@ -113,15 +115,17 @@ export function TippingCommentsSection({
 
         setPendingComment(comment);
         setShowProfileDialog(true);
-        return;
+        return false;
       }
 
       try {
         await postComment(comment);
+        return true;
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to post comment.";
         setModuleError(message);
+        throw err;
       }
     },
     [
@@ -198,6 +202,8 @@ export function TippingCommentsSection({
         commentEnabled={canComment}
         commentDisabledLabel="Connect wallet"
         onConnectWallet={handleRequestConnect}
+        draftComment={commentDraft}
+        onDraftCommentChange={setCommentDraft}
       />
 
       <Dialog open={showProfileDialog} onOpenChange={handleProfileDialogChange}>
