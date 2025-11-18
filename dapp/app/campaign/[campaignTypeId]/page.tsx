@@ -29,6 +29,7 @@ import {
   Play,
   Settings,
   Coins,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
@@ -53,6 +54,7 @@ import { udtRegistry } from "@/lib/services/udt-registry";
 import { QuestSubmissionForm } from "@/components/quest-submission-form";
 import { useUser } from "@/lib/providers/user-provider";
 import { PageLoading } from "@/components/ui/page-loading";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const extractHtmlFromContent = (raw: string): string => {
   if (!raw) return "";
@@ -621,6 +623,7 @@ export default function CampaignDetailPage() {
     : now > endDate
     ? "completed"
     : "active";
+  const isCampaignExpired = status === "completed";
 
   // Calculate progress (only if approved)
   const totalDuration = endDate.getTime() - startDate.getTime();
@@ -729,6 +732,16 @@ export default function CampaignDetailPage() {
               Back to Campaigns
             </Button>
           </Link>
+
+          {isCampaignExpired && (
+            <Alert className="mb-6 bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950/40 dark:border-yellow-700 dark:text-yellow-100">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Event ended</AlertTitle>
+              <AlertDescription>
+                Submissions closed on {formatDateConsistent(endDate)}. You can still review the quests and past rewards below.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Campaign Header */}
           <Card className="mb-8">
@@ -939,10 +952,12 @@ export default function CampaignDetailPage() {
                       Quests
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Jump straight into the quest list to start earning points.
+                      {isCampaignExpired
+                        ? "This event has ended. Review the quests and their requirements below."
+                        : "Jump straight into the quest list to start earning points."}
                     </p>
                   </div>
-                  {campaign?.quests && campaign.quests.length > 0 && (
+                  {campaign?.quests && campaign.quests.length > 0 && !isCampaignExpired && (
                     <Button
                       size="lg"
                       onClick={() => setActiveTab("quests")}
@@ -967,6 +982,8 @@ export default function CampaignDetailPage() {
                             quest.metadata?.long_description ||
                             "No description provided.";
                           const rewardSummary = getQuestRewardSummary(quest);
+                          const hasSubmission =
+                            !!questSubmissionStatuses[questId];
                           return (
                             <div
                               key={`quest-preview-${questId}`}
@@ -1035,274 +1052,275 @@ export default function CampaignDetailPage() {
                   <CardContent>
                     <div className="space-y-4">
                       {campaign?.quests?.map(
-                        (quest: (typeof campaign.quests)[0], index: number) => (
-                          <div key={index} className="border rounded-lg">
-                            <div className="p-4">
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex-1">
-                                  <h3 className="font-semibold text-lg mb-2">
-                                    {quest.metadata?.title ||
-                                      `Quest ${
-                                        Number(quest.quest_id) || index + 1
-                                      }`}
-                                  </h3>
-                                  <p className="text-sm text-muted-foreground">
-                                    {quest.metadata?.short_description ||
-                                      quest.metadata?.long_description ||
-                                      ""}
-                                  </p>
-                                </div>
-                                <div className="flex flex-col items-end gap-2">
-                                  {/* If accepted, show 'You received' label first */}
-                                  {currentUserTypeId &&
-                                    (
-                                      quest.accepted_submission_user_type_ids ||
-                                      []
-                                    ).includes(currentUserTypeId) && (
-                                      <span className="text-xs text-green-700 font-medium">
-                                        You received:
-                                      </span>
-                                    )}
-                                  {/* Points */}
-                                  <Badge className="bg-green-100 text-green-800">
-                                    <Trophy className="w-3 h-3 mr-1" />
-                                    {Number(quest.points) || 100} points
-                                  </Badge>
-                                  {/* UDT + CKB rewards */}
-                                  {quest.rewards_on_completion &&
-                                    quest.rewards_on_completion.length > 0 &&
-                                    quest.rewards_on_completion.flatMap(
+                        (quest: (typeof campaign.quests)[0], index: number) => {
+                          const questId = Number(quest.quest_id || index + 1);
+                          const hasSubmission =
+                            !!questSubmissionStatuses[questId];
+                          return (
+                            <div key={index} className="border rounded-lg">
+                              <div className="p-4">
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex-1">
+                                    <h3 className="font-semibold text-lg mb-2">
+                                      {quest.metadata?.title ||
+                                        `Quest ${questId}`}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      {quest.metadata?.short_description ||
+                                        quest.metadata?.long_description ||
+                                        ""}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-2">
+                                    {/* If accepted, show 'You received' label first */}
+                                    {currentUserTypeId &&
                                       (
-                                        rewardList: AssetListLike,
-                                        idx: number
-                                      ) => {
-                                        const badges = [] as JSX.Element[];
-                                        if (
-                                          rewardList.udt_assets &&
-                                          rewardList.udt_assets.length > 0
-                                        ) {
-                                          rewardList.udt_assets.forEach(
-                                            (
-                                              udtAsset: UDTAssetLike,
-                                              udtIdx: number
-                                            ) => {
-                                              const script = ccc.Script.from(
-                                                udtAsset.udt_script
-                                              );
-                                              const token =
-                                                udtRegistry.getTokenByScriptHash(
-                                                  script.hash()
-                                                );
-                                              const amount = token
-                                                ? udtRegistry.formatAmount(
-                                                    Number(udtAsset.amount),
-                                                    token
-                                                  )
-                                                : (
-                                                    Number(udtAsset.amount) /
-                                                    10 ** 8
-                                                  ).toString();
-                                              const symbol =
-                                                token?.symbol || "UDT";
-                                              badges.push(
-                                                <Badge
-                                                  key={`udt-${idx}-${udtIdx}`}
-                                                  className="bg-green-100 text-green-800"
-                                                >
-                                                  <Coins className="w-3 h-3 mr-1" />
-                                                  {amount} {symbol}
-                                                </Badge>
-                                              );
-                                            }
-                                          );
-                                        }
-                                        if (
-                                          rewardList.ckb_amount &&
-                                          Number(rewardList.ckb_amount) > 0
-                                        ) {
-                                          badges.push(
-                                            <Badge
-                                              key={`ckb-${idx}`}
-                                              className="bg-green-100 text-green-800"
-                                            >
-                                              <Coins className="w-3 h-3 mr-1" />
-                                              {Number(rewardList.ckb_amount) /
-                                                10 ** 8}{" "}
-                                              CKB
-                                            </Badge>
-                                          );
-                                        }
-                                        return badges;
-                                      }
-                                    )}
-                                  {quest.metadata?.time_estimate && (
-                                    <Badge variant="outline">
-                                      <Clock className="w-3 h-3 mr-1" />
-                                      {Number(
-                                        quest.metadata.time_estimate
-                                      )}{" "}
-                                      mins
-                                    </Badge>
-                                  )}
-                                  {quest.metadata?.difficulty && (
-                                    <Badge variant="outline">
-                                      Difficulty:{" "}
-                                      {Number(quest.metadata.difficulty)}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Quest Requirements */}
-                              {quest.metadata?.requirements && (
-                                <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
-                                  <h4 className="font-medium text-sm mb-2 text-blue-900 dark:text-blue-100">
-                                    Requirements
-                                  </h4>
-                                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                                    {quest.metadata?.requirements}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Subtasks */}
-                              {quest.sub_tasks &&
-                                quest.sub_tasks.length > 0 && (
-                                  <div className="border-t pt-3">
-                                    <h4 className="font-medium text-sm mb-3">
-                                      Subtasks ({quest.sub_tasks.length})
-                                    </h4>
-                                    <div className="space-y-2">
-                                      {quest.sub_tasks.map(
-                                        (
-                                          subtask: (typeof quest.sub_tasks)[0],
-                                          subIndex: number
-                                        ) => (
-                                          <div
-                                            key={subIndex}
-                                            className="flex items-start gap-3 p-2 bg-gray-50 dark:bg-gray-800 rounded"
-                                          >
-                                            <div className="flex-shrink-0 mt-0.5">
-                                              <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                                                <span className="text-xs font-medium text-gray-600">
-                                                  {Number(subtask.id) ||
-                                                    subIndex + 1}
-                                                </span>
-                                              </div>
-                                            </div>
-                                            <div className="flex-1">
-                                              <p className="text-sm font-medium">
-                                                {subtask.title ||
-                                                  `Subtask ${
-                                                    Number(subtask.id) ||
-                                                    subIndex + 1
-                                                  }`}
-                                              </p>
-                                              {subtask.description && (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                  {subtask.description}
-                                                </p>
-                                              )}
-                                              <div className="flex flex-wrap gap-2 mt-2">
-                                                {subtask.type && (
-                                                  <Badge
-                                                    variant="outline"
-                                                    className="text-xs"
-                                                  >
-                                                    Type: {subtask.type}
-                                                  </Badge>
-                                                )}
-                                                {subtask.proof_required && (
-                                                  <Badge
-                                                    variant="outline"
-                                                    className="text-xs"
-                                                  >
-                                                    Proof:{" "}
-                                                    {subtask.proof_required}
-                                                  </Badge>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        )
+                                        quest.accepted_submission_user_type_ids ||
+                                        []
+                                      ).includes(currentUserTypeId) && (
+                                        <span className="text-xs text-green-700 font-medium">
+                                          You received:
+                                        </span>
                                       )}
-                                    </div>
+                                    {/* Points */}
+                                    <Badge className="bg-green-100 text-green-800">
+                                      <Trophy className="w-3 h-3 mr-1" />
+                                      {Number(quest.points) || 100} points
+                                    </Badge>
+                                    {/* UDT + CKB rewards */}
+                                    {quest.rewards_on_completion &&
+                                      quest.rewards_on_completion.length > 0 &&
+                                      quest.rewards_on_completion.flatMap(
+                                        (
+                                          rewardList: AssetListLike,
+                                          idx: number
+                                        ) => {
+                                          const badges = [] as JSX.Element[];
+                                          if (
+                                            rewardList.udt_assets &&
+                                            rewardList.udt_assets.length > 0
+                                          ) {
+                                            rewardList.udt_assets.forEach(
+                                              (
+                                                udtAsset: UDTAssetLike,
+                                                udtIdx: number
+                                              ) => {
+                                                const script = ccc.Script.from(
+                                                  udtAsset.udt_script
+                                                );
+                                                const token =
+                                                  udtRegistry.getTokenByScriptHash(
+                                                    script.hash()
+                                                  );
+                                                const amount = token
+                                                  ? udtRegistry.formatAmount(
+                                                      Number(udtAsset.amount),
+                                                      token
+                                                    )
+                                                  : (
+                                                      Number(udtAsset.amount) /
+                                                      10 ** 8
+                                                    ).toString();
+                                                const symbol =
+                                                  token?.symbol || "UDT";
+                                                badges.push(
+                                                  <Badge
+                                                    key={`udt-${idx}-${udtIdx}`}
+                                                    className="bg-green-100 text-green-800"
+                                                  >
+                                                    <Coins className="w-3 h-3 mr-1" />
+                                                    {amount} {symbol}
+                                                  </Badge>
+                                                );
+                                              }
+                                            );
+                                          }
+                                          if (
+                                            rewardList.ckb_amount &&
+                                            Number(rewardList.ckb_amount) > 0
+                                          ) {
+                                            badges.push(
+                                              <Badge
+                                                key={`ckb-${idx}`}
+                                                className="bg-green-100 text-green-800"
+                                              >
+                                                <Coins className="w-3 h-3 mr-1" />
+                                                {Number(rewardList.ckb_amount) /
+                                                  10 ** 8}{" "}
+                                                CKB
+                                              </Badge>
+                                            );
+                                          }
+                                          return badges;
+                                        }
+                                      )}
+                                    {quest.metadata?.time_estimate && (
+                                      <Badge variant="outline">
+                                        <Clock className="w-3 h-3 mr-1" />
+                                        {Number(
+                                          quest.metadata.time_estimate
+                                        )}{" "}
+                                        mins
+                                      </Badge>
+                                    )}
+                                    {quest.metadata?.difficulty && (
+                                      <Badge variant="outline">
+                                        Difficulty:{" "}
+                                        {Number(quest.metadata.difficulty)}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Quest Requirements */}
+                                {quest.metadata?.requirements && (
+                                  <div className="mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded">
+                                    <h4 className="font-medium text-sm mb-2 text-blue-900 dark:text-blue-100">
+                                      Requirements
+                                    </h4>
+                                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                                      {quest.metadata?.requirements}
+                                    </p>
                                   </div>
                                 )}
 
-                              {/* Quest Actions */}
-                              <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                  {(() => {
-                                    const questId = Number(
-                                      quest.quest_id || index + 1
-                                    );
-                                    const isSubmitted =
-                                      !!questSubmissionStatuses[questId];
-                                    const userAccepted = currentUserTypeId
-                                      ? (
-                                          quest.accepted_submission_user_type_ids ||
-                                          []
-                                        ).includes(currentUserTypeId)
-                                      : false;
-                                    if (userAccepted) {
+                                {/* Subtasks */}
+                                {quest.sub_tasks &&
+                                  quest.sub_tasks.length > 0 && (
+                                    <div className="border-t pt-3">
+                                      <h4 className="font-medium text-sm mb-3">
+                                        Subtasks ({quest.sub_tasks.length})
+                                      </h4>
+                                      <div className="space-y-2">
+                                        {quest.sub_tasks.map(
+                                          (
+                                            subtask: (typeof quest.sub_tasks)[0],
+                                            subIndex: number
+                                          ) => (
+                                            <div
+                                              key={subIndex}
+                                              className="flex items-start gap-3 p-2 bg-gray-50 dark:bg-gray-800 rounded"
+                                            >
+                                              <div className="flex-shrink-0 mt-0.5">
+                                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                                                  <span className="text-xs font-medium text-gray-600">
+                                                    {Number(subtask.id) ||
+                                                      subIndex + 1}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              <div className="flex-1">
+                                                <p className="text-sm font-medium">
+                                                  {subtask.title ||
+                                                    `Subtask ${
+                                                      Number(subtask.id) ||
+                                                      subIndex + 1
+                                                    }`}
+                                                </p>
+                                                {subtask.description && (
+                                                  <p className="text-xs text-muted-foreground mt-1">
+                                                    {subtask.description}
+                                                  </p>
+                                                )}
+                                                <div className="flex flex-wrap gap-2 mt-2">
+                                                  {subtask.type && (
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-xs"
+                                                    >
+                                                      Type: {subtask.type}
+                                                    </Badge>
+                                                  )}
+                                                  {subtask.proof_required && (
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="text-xs"
+                                                    >
+                                                      Proof:{" "}
+                                                      {subtask.proof_required}
+                                                    </Badge>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Quest Actions */}
+                                <div className="flex items-center justify-between mt-4 pt-3 border-t">
+                                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                    {(() => {
+                                      const userAccepted = currentUserTypeId
+                                        ? (
+                                            quest.accepted_submission_user_type_ids ||
+                                            []
+                                          ).includes(currentUserTypeId)
+                                        : false;
+                                      if (userAccepted) {
+                                        return (
+                                          <>
+                                            <Badge className="bg-green-100 text-green-800">
+                                              <CheckCircle className="w-3 h-3 mr-1" />
+                                              Approved
+                                            </Badge>
+                                          </>
+                                        );
+                                      }
+                                      if (hasSubmission) {
+                                        return (
+                                          <Badge className="bg-blue-100 text-blue-800">
+                                            <CheckCircle className="w-3 h-3 mr-1" />
+                                            Submitted
+                                          </Badge>
+                                        );
+                                      }
                                       return (
                                         <>
-                                          <Badge className="bg-green-100 text-green-800">
-                                            <CheckCircle className="w-3 h-3 mr-1" />
-                                            Approved
-                                          </Badge>
+                                          <Users className="w-4 h-4" />
+                                          <span>
+                                            {Number(quest.completion_count || 0)}{" "}
+                                            completions
+                                          </span>
                                         </>
                                       );
-                                    }
-                                    if (isSubmitted) {
-                                      return (
-                                        <Badge className="bg-blue-100 text-blue-800">
-                                          <CheckCircle className="w-3 h-3 mr-1" />
-                                          Submitted
-                                        </Badge>
-                                      );
-                                    }
-                                    return (
-                                      <>
-                                        <Users className="w-4 h-4" />
-                                        <span>
-                                          {Number(quest.completion_count || 0)}{" "}
-                                          completions
-                                        </span>
-                                      </>
-                                    );
-                                  })()}
+                                    })()}
+                                  </div>
+                                  {isApproved ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setSelectedQuestIndex(index)}
+                                    >
+                                      {hasSubmission ? (
+                                        <>
+                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                          View Submission
+                                        </>
+                                      ) : isCampaignExpired ? (
+                                        <>
+                                          <Eye className="w-4 h-4 mr-1" />
+                                          View Quest
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Play className="w-4 h-4 mr-1" />
+                                          Start Quest
+                                        </>
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs">
+                                      Available after approval
+                                    </Badge>
+                                  )}
                                 </div>
-                                {isApproved ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setSelectedQuestIndex(index)}
-                                  >
-                                    {questSubmissionStatuses[
-                                      Number(quest.quest_id || index + 1)
-                                    ] ? (
-                                      <>
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                        View Submission
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Play className="w-4 h-4 mr-1" />
-                                        Start Quest
-                                      </>
-                                    )}
-                                  </Button>
-                                ) : (
-                                  <Badge variant="outline" className="text-xs">
-                                    Available after approval
-                                  </Badge>
-                                )}
                               </div>
                             </div>
-                          </div>
-                        )
+                          );
+                        }
                       ) || (
                         <div className="text-center py-8">
                           <Target className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -1482,96 +1500,109 @@ export default function CampaignDetailPage() {
                           </Card>
 
                           {/* Quest Submission Form */}
-                          <QuestSubmissionForm
-                            quest={{
-                              quest_id: Number(quest.quest_id),
-                              sub_tasks: quest.sub_tasks,
-                            }}
-                            questIndex={selectedQuestIndex}
-                            campaignTypeId={campaignTypeId}
-                            isAccepted={
-                              currentUserTypeId
-                                ? (
-                                    quest.accepted_submission_user_type_ids ||
-                                    []
-                                  ).includes(currentUserTypeId)
-                                : false
-                            }
-                            earnedPoints={Number(quest.points || 0)}
-                            earnedUdts={(quest.rewards_on_completion || [])
-                              .flatMap(
-                                (rewardList: AssetListLike) =>
-                                  rewardList.udt_assets || []
-                              )
-                              .map((udtAsset: UDTAssetLike) => {
-                                const script = ccc.Script.from(
-                                  udtAsset.udt_script
-                                );
-                                const token = udtRegistry.getTokenByScriptHash(
-                                  script.hash()
-                                );
-                                if (token) {
-                                  return {
-                                    symbol: token.symbol,
-                                    amount: udtRegistry.formatAmount(
-                                      Number(udtAsset.amount),
-                                      token
-                                    ),
-                                  };
-                                }
-                                // Fallback formatting with 8 decimals if unknown
-                                const amountFmt = (
-                                  Number(udtAsset.amount) /
-                                  10 ** 8
-                                ).toString();
-                                return { symbol: "UDT", amount: amountFmt };
-                              })}
-                            ckbPerCompletion={(() => {
-                              const r = quest.rewards_on_completion?.[0];
-                              if (
-                                r &&
-                                r.ckb_amount &&
-                                Number(r.ckb_amount) > 0
-                              ) {
-                                return Number(r.ckb_amount) / 10 ** 8;
+                          {!isCampaignExpired ? (
+                            <QuestSubmissionForm
+                              quest={{
+                                quest_id: Number(quest.quest_id),
+                                sub_tasks: quest.sub_tasks,
+                              }}
+                              questIndex={selectedQuestIndex}
+                              campaignTypeId={campaignTypeId}
+                              isAccepted={
+                                currentUserTypeId
+                                  ? (
+                                      quest.accepted_submission_user_type_ids ||
+                                      []
+                                    ).includes(currentUserTypeId)
+                                  : false
                               }
-                              return 0;
-                            })()}
-                            onSuccess={async () => {
-                              // Refresh user data after successful submission
-                              log.info(
-                                "Quest submitted successfully, refreshing data..."
-                              );
-
-                              // Wait a bit for transaction to be confirmed
-                              setTimeout(async () => {
-                                await refreshUserData();
-
-                                // Also refresh the submission statuses
-                                if (currentUserTypeId && campaign?.quests) {
-                                  const statuses: Record<number, boolean> = {};
-                                  for (
-                                    let i = 0;
-                                    i < campaign.quests.length;
-                                    i++
-                                  ) {
-                                    const quest = campaign.quests[i];
-                                    const questId = Number(
-                                      quest.quest_id || i + 1
+                              earnedPoints={Number(quest.points || 0)}
+                              earnedUdts={(quest.rewards_on_completion || [])
+                                .flatMap(
+                                  (rewardList: AssetListLike) =>
+                                    rewardList.udt_assets || []
+                                )
+                                .map((udtAsset: UDTAssetLike) => {
+                                  const script = ccc.Script.from(
+                                    udtAsset.udt_script
+                                  );
+                                  const token =
+                                    udtRegistry.getTokenByScriptHash(
+                                      script.hash()
                                     );
-                                    const submitted =
-                                      await hasUserSubmittedQuest(
-                                        currentUserTypeId,
-                                        campaignTypeId,
-                                        questId
-                                      );
-                                    statuses[questId] = submitted;
+                                  if (token) {
+                                    return {
+                                      symbol: token.symbol,
+                                      amount: udtRegistry.formatAmount(
+                                        Number(udtAsset.amount),
+                                        token
+                                      ),
+                                    };
                                   }
-                                  setQuestSubmissionStatuses(statuses);
+                                  // Fallback formatting with 8 decimals if unknown
+                                  const amountFmt = (
+                                    Number(udtAsset.amount) /
+                                    10 ** 8
+                                  ).toString();
+                                  return { symbol: "UDT", amount: amountFmt };
+                                })}
+                              ckbPerCompletion={(() => {
+                                const r = quest.rewards_on_completion?.[0];
+                                if (
+                                  r &&
+                                  r.ckb_amount &&
+                                  Number(r.ckb_amount) > 0
+                                ) {
+                                  return Number(r.ckb_amount) / 10 ** 8;
                                 }
-                              }, 3000);
-                            }}
-                          />
+                                return 0;
+                              })()}
+                              onSuccess={async () => {
+                                // Refresh user data after successful submission
+                                log.info(
+                                  "Quest submitted successfully, refreshing data..."
+                                );
+
+                                // Wait a bit for transaction to be confirmed
+                                setTimeout(async () => {
+                                  await refreshUserData();
+
+                                  // Also refresh the submission statuses
+                                  if (currentUserTypeId && campaign?.quests) {
+                                    const statuses: Record<number, boolean> =
+                                      {};
+                                    for (
+                                      let i = 0;
+                                      i < campaign.quests.length;
+                                      i++
+                                    ) {
+                                      const quest = campaign.quests[i];
+                                      const questId = Number(
+                                        quest.quest_id || i + 1
+                                      );
+                                      const submitted =
+                                        await hasUserSubmittedQuest(
+                                          currentUserTypeId,
+                                          campaignTypeId,
+                                          questId
+                                        );
+                                      statuses[questId] = submitted;
+                                    }
+                                    setQuestSubmissionStatuses(statuses);
+                                  }
+                                }, 3000);
+                              }}
+                            />
+                          ) : (
+                            <Alert className="bg-muted/40">
+                              <AlertCircle className="w-4 h-4" />
+                              <AlertTitle>Submissions closed</AlertTitle>
+                              <AlertDescription>
+                                This quest is part of an expired event. Submissions ended on{" "}
+                                {formatDateConsistent(endDate)}.
+                              </AlertDescription>
+                            </Alert>
+                          )}
 
                           {/* Navigation between quests */}
                           <div className="flex justify-between">

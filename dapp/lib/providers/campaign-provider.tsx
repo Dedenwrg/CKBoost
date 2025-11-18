@@ -11,6 +11,7 @@ import React, {
 import { ccc, ssri } from "@ckb-ccc/connector-react";
 import { CampaignService } from "../services/campaign-service";
 import { Campaign } from "ssri-ckboost";
+import { CampaignData, CampaignDataLike } from "ssri-ckboost/types";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { fetchCampaignByTypeId } from "../ckb/campaign-cells";
 import { createScopedLogger } from "ssri-ckboost";
@@ -39,6 +40,20 @@ const CampaignContext = createContext<CampaignContextType | undefined>(
 );
 
 const log = createScopedLogger("CampaignProvider");
+
+const isCampaignCellExpired = (cell: ccc.Cell): boolean => {
+  try {
+    const campaignData = CampaignData.decode(cell.outputData) as CampaignDataLike;
+    const endingTime = Number(campaignData.ending_time || 0);
+    if (!endingTime || Number.isNaN(endingTime)) {
+      return false;
+    }
+    return Date.now() >= endingTime * 1000;
+  } catch (error) {
+    log.warn("Failed to decode campaign cell for expiration check:", error);
+    return false;
+  }
+};
 
 // Provider component
 export function CampaignProvider({ children }: { children: ReactNode }) {
@@ -227,8 +242,11 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Featured campaigns (first 4)
-  const featuredCampaigns = campaigns.slice(0, 4);
+  // Featured campaigns (first 4 non-expired)
+  const featuredCampaigns = useMemo(
+    () => campaigns.filter((cell) => !isCampaignCellExpired(cell)).slice(0, 4),
+    [campaigns]
+  );
 
   const value: CampaignContextType = {
     campaigns,

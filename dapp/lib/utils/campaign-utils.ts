@@ -36,6 +36,7 @@ export type CampaignDisplay = CampaignDataLike & {
   typeHash: string; // From cell
   typeId: string | null; // From ConnectedTypeID args if available
   status: string; // Computed from dates
+  isExpired: boolean; // Convenience flag when the campaign has ended
   startDate: string; // ISO string conversion
   endDate: string; // ISO string conversion
   createdAt: string; // ISO string conversion
@@ -95,16 +96,17 @@ export function cellToCampaignDisplay(
     log.log("Failed to extract type ID from campaign cell:", error);
   }
 
+  const toTimestampMs = (value: ccc.NumLike | undefined) =>
+    Number(value || 0) * 1000;
+
   // Convert timestamps to ISO date strings
-  const startDate = new Date(
-    Number(campaignData.starting_time) * 1000
-  ).toISOString();
-  const endDate = new Date(
-    Number(campaignData.ending_time) * 1000
-  ).toISOString();
-  const createdAt = new Date(
-    Number(campaignData.created_at) * 1000
-  ).toISOString();
+  const startTimestampMs = toTimestampMs(campaignData.starting_time);
+  const endTimestampMs = toTimestampMs(campaignData.ending_time);
+  const createdTimestampMs = toTimestampMs(campaignData.created_at);
+
+  const startDate = new Date(startTimestampMs).toISOString();
+  const endDate = new Date(endTimestampMs).toISOString();
+  const createdAt = new Date(createdTimestampMs).toISOString();
 
   // Calculate quest metrics
   const questsCount = campaignData.quests?.length || 0;
@@ -126,6 +128,7 @@ export function cellToCampaignDisplay(
     campaignData.starting_time,
     campaignData.ending_time
   );
+  const isExpired = endTimestampMs > 0 && Date.now() >= endTimestampMs;
 
   const normalizedEndorserLockHash = normalizeEndorserLockHash(
     campaignData.endorser_lock_hash
@@ -147,6 +150,7 @@ export function cellToCampaignDisplay(
     typeHash,
     typeId,
     status,
+    isExpired,
     startDate,
     endDate,
     createdAt,

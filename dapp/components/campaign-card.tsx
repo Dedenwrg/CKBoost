@@ -143,6 +143,8 @@ export function CampaignCard({
     return totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
   };
 
+  const isExpired = campaign.isExpired;
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
       <div className="relative h-48 bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20">
@@ -195,13 +197,23 @@ export function CampaignCard({
           </Badge>
         </div>
         <div className="absolute top-4 right-4">
-          <Badge
-            variant="outline"
-            className="bg-white/90 dark:bg-gray-800 dark:text-gray-200"
-          >
-            <Clock className="w-3 h-3 mr-1" />
-            {getDaysUntilEnd(campaign.endDate)}d left
-          </Badge>
+          {isExpired ? (
+            <Badge
+              variant="outline"
+              className="bg-white/90 dark:bg-gray-900/70 text-red-600 dark:text-red-300 border-red-200 dark:border-red-500"
+            >
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              Event ended
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className="bg-white/90 dark:bg-gray-800 dark:text-gray-200"
+            >
+              <Clock className="w-3 h-3 mr-1" />
+              {getDaysUntilEnd(campaign.endDate)}d left
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -545,12 +557,26 @@ export function CampaignCard({
           >
             <Button
               size="lg"
-              aria-label="Go to campaign and start completing quests"
-              className="w-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 text-white font-semibold shadow-lg shadow-purple-500/30 hover:shadow-xl border-0 hover:from-purple-500 hover:to-blue-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500"
+              aria-label={
+                isExpired
+                  ? "View campaign details"
+                  : "Go to campaign and start completing quests"
+              }
+              variant={isExpired ? "outline" : undefined}
+              className={
+                isExpired
+                  ? "w-full border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
+                  : "w-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 text-white font-semibold shadow-lg shadow-purple-500/30 hover:shadow-xl border-0 hover:from-purple-500 hover:to-blue-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500"
+              }
             >
-              Get Started!
+              {isExpired ? "View Details" : "Get Started!"}
             </Button>
           </Link>
+          {isExpired && (
+            <p className="text-xs text-center text-muted-foreground mt-2">
+              Ended on {formatDateConsistent(campaign.endDate)}
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>

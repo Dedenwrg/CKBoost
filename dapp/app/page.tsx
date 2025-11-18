@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import { Search, Star, X } from "lucide-react"
 import Link from "next/link"
 import {
@@ -28,6 +29,7 @@ export default function HomePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
   const [selectedEndorsers, setSelectedEndorsers] = useState<string[]>([])
+  const [excludeExpired, setExcludeExpired] = useState(false)
 
   // Use campaign provider
   const { campaigns: campaignCells, featuredCampaigns: featuredCells, isLoading, error } = useCampaigns()
@@ -51,13 +53,15 @@ export default function HomePage() {
       return null
     }
   }).filter((c): c is CampaignDisplay => c !== null)
+    .filter((campaign) => !campaign.isExpired)
 
   const hasActiveFilters =
     searchTerm !== "" ||
     selectedDifficulties.length > 0 ||
     selectedCategories.length > 0 ||
     selectedStatuses.length > 0 ||
-    selectedEndorsers.length > 0
+    selectedEndorsers.length > 0 ||
+    excludeExpired
 
   const filteredCampaigns = campaigns.filter((campaign) => {
     // If no filters are active, exclude featured campaigns from "All Campaigns" section
@@ -80,8 +84,9 @@ export default function HomePage() {
       selectedEndorsers.length === 0 ||
       (campaign.endorserLockHash &&
         selectedEndorsers.includes(campaign.endorserLockHash))
+    const matchesExpiration = !excludeExpired || !campaign.isExpired
 
-    return matchesSearch && matchesDifficulty && matchesCategory && matchesStatus && matchesEndorser
+    return matchesSearch && matchesDifficulty && matchesCategory && matchesStatus && matchesEndorser && matchesExpiration
   })
 
   const allCategories = Array.from(new Set(campaigns.flatMap((c) => c.categories)))
@@ -392,6 +397,22 @@ export default function HomePage() {
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </Badge>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Expiration Filter */}
+                  <div className="inline-flex w-fit items-center gap-3 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 px-4 py-2">
+                    <Switch
+                      checked={excludeExpired}
+                      onCheckedChange={(checked) => {
+                        setExcludeExpired(checked)
+                        setTimeout(() => scrollToAllCampaigns(), 100)
+                      }}
+                      aria-label="Toggle to hide expired campaigns"
+                    />
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-muted-foreground">Exclude expired events</p>
+                      <p className="text-xs text-muted-foreground">Hide campaigns whose quests have ended.</p>
                     </div>
                   </div>
                 </div>
