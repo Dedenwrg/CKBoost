@@ -6,6 +6,10 @@ import { AchievementDataLike, AchievementDataVec } from "ssri-ckboost/types";
 import { getProtocolTypeScript } from "@/netlify/lib/utils";
 import { getLatestUserCellByLock } from "@/netlify/lib/utils";
 import { createLogger, log } from "@/netlify/lib/log";
+import {
+  ensureProxyAdminCellPair,
+  ProxyAdminCellError,
+} from "@/netlify/lib/proxy-admin";
 
 export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
@@ -134,6 +138,19 @@ export const handler: Handler = async (event) => {
       )
     ) {
       throw new Error("Achievement claims not valid.");
+    }
+
+    try {
+      await ensureProxyAdminCellPair({ tx, client, signer, logger });
+    } catch (error) {
+      if (error instanceof ProxyAdminCellError) {
+        logger.error("proxy_cell_validation_failed", {
+          code: error.code,
+          details: error.details,
+        });
+        throw new Error(error.code);
+      }
+      throw error;
     }
 
     logger.log("Validated Tx Before Signing", ccc.stringify(tx));

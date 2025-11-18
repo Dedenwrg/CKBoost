@@ -13,6 +13,10 @@ import {
 import { decodeUserData } from "@/netlify/lib/streak-bonus";
 import { UserData } from "ssri-ckboost/types";
 import { createLogger } from "@/netlify/lib/log";
+import {
+  ensureProxyAdminCellPair,
+  ProxyAdminCellError,
+} from "@/netlify/lib/proxy-admin";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
@@ -210,6 +214,19 @@ export const handler: Handler = async (event) => {
       "transaction_validation_failed",
       (error as Error).message
     );
+  }
+
+  try {
+    await ensureProxyAdminCellPair({ tx, client, signer, logger });
+  } catch (error) {
+    if (error instanceof ProxyAdminCellError) {
+      logger.error("proxy_cell_validation_failed", {
+        code: error.code,
+        details: error.details,
+      });
+      return httpError(400, error.code, error.message);
+    }
+    throw error;
   }
 
   let signedTx: ccc.Transaction;

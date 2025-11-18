@@ -10,6 +10,10 @@ import { TelegramVerificationData } from "../../lib/types/identity";
 import { bytesFrom } from "../../../../ccc/packages/core/src/bytes/index";
 import { stringify } from "../../../../ccc/packages/core/src/utils/index";
 import { createLogger } from "@/netlify/lib/log";
+import {
+  ensureProxyAdminCellPair,
+  ProxyAdminCellError,
+} from "@/netlify/lib/proxy-admin";
 
 const validatorLogger = createLogger("telegram-authenticate:validate");
 
@@ -198,87 +202,31 @@ export const handler: Handler = async (event) => {
     } else {
       logger.info("validated_success");
       let proxyAuthenticatedTx: ccc.Transaction | undefined;
-      const { script: proxyAdminLockScript } =
-        await serverSigner.getAddressObjSecp256k1();
 
-      let proxyAdminInputCell: ccc.Cell | undefined;
-      let proxyAdminInputIndex = -1;
-
-      for (let i = 0; i < tx.inputs.length; i += 1) {
-        const input = tx.inputs[i];
-        const previousOutput = input.previousOutput;
-        if (!previousOutput) {
-          continue;
-        }
-        const resolvedCell = await client.getCell(previousOutput);
-        if (!resolvedCell) {
-          logger.error("input_cell_not_found", {
-            inputIndex: i,
-            previousOutput: ccc.stringify(previousOutput),
+      try {
+        await ensureProxyAdminCellPair({
+          tx,
+          client,
+          signer: serverSigner,
+          logger,
+        });
+      } catch (error) {
+        if (error instanceof ProxyAdminCellError) {
+          logger.error("proxy_cell_validation_failed", {
+            code: error.code,
+            details: error.details,
           });
           return {
             statusCode: 400,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               success: false,
-              error: "proxy_input_not_found",
+              error: error.code,
             }),
           };
         }
-        if (
-          !resolvedCell.cellOutput.type &&
-          resolvedCell.cellOutput.lock.eq(proxyAdminLockScript)
-        ) {
-          proxyAdminInputCell = resolvedCell;
-          proxyAdminInputIndex = i;
-          break;
-        }
+        throw error;
       }
-
-      if (!proxyAdminInputCell) {
-        logger.error("proxy_input_cell_missing", {
-          totalInputs: tx.inputs.length,
-        });
-        return {
-          statusCode: 400,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            success: false,
-            error: "proxy_input_missing",
-          }),
-        };
-      }
-
-      const proxyAdminInputCapacity = ccc.numFrom(
-        proxyAdminInputCell.cellOutput.capacity
-      );
-      const proxyAdminOutputIndex = tx.outputs.findIndex(
-        (output) =>
-          !output.type &&
-          output.lock.eq(proxyAdminLockScript) &&
-          ccc.numFrom(output.capacity) === proxyAdminInputCapacity
-      );
-
-      if (proxyAdminOutputIndex === -1) {
-        logger.error("proxy_output_cell_missing", {
-          proxyAdminInputIndex,
-          proxyAdminInputCapacity: proxyAdminInputCapacity.toString(),
-        });
-        return {
-          statusCode: 400,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            success: false,
-            error: "proxy_output_missing",
-          }),
-        };
-      }
-
-      logger.info("proxy_cell_verified", {
-        proxyAdminInputIndex,
-        proxyAdminOutputIndex,
-        capacity: proxyAdminInputCapacity.toString(),
-      });
 
       // Compute tx hash and sign with authenticator key (attestation)
       try {
