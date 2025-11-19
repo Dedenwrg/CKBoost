@@ -1,12 +1,42 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Upload, X } from "lucide-react";
 import { MarkdownEditor } from "@/components/markdown-editor";
+import { CampaignCard } from "@/components/campaign-card";
+import type { CampaignDisplay } from "@/lib";
+import { ccc } from "@ckb-ccc/connector-react";
+
+const DIFFICULTY_LABELS = ["beginner", "medium", "advanced"] as const;
+
+const buildVerificationRequirements = (level: string) => ({
+  telegram: level === "telegram",
+  kyc: level === "kyc",
+  did: level === "did",
+  manualReview: level === "manual",
+  twitter: level === "twitter",
+  discord: level === "discord",
+  reddit: level === "reddit",
+  excludeManualReview: false,
+});
+
+const verificationLevelToBitmask = (level: string): number => {
+  const map: Record<string, number> = {
+    none: 0,
+    telegram: 1,
+    kyc: 2,
+    did: 4,
+    manual: 8,
+    twitter: 16,
+    discord: 32,
+    reddit: 64,
+  };
+  return map[level] ?? 0;
+};
 
 interface CampaignFormData {
   title: string;
@@ -45,6 +75,86 @@ export function CampaignForm({
   onCoverImageClear,
   longDescriptionNeventId,
 }: CampaignFormProps) {
+  const previewCampaign = useMemo<CampaignDisplay>(() => {
+    const now = Date.now();
+    const start = campaignData.startDate
+      ? new Date(campaignData.startDate)
+      : new Date(now);
+    const end = campaignData.endDate
+      ? new Date(campaignData.endDate)
+      : new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const previewImage =
+      coverImage?.dataUrl || coverImage?.neventId || "/placeholder.svg";
+
+    let statusLabel = "active";
+    if (now >= end.getTime()) {
+      statusLabel = "completed";
+    } else if (now < start.getTime()) {
+      statusLabel = "upcoming";
+    } else if (end.getTime() - now <= 30 * 24 * 60 * 60 * 1000) {
+      statusLabel = "ending-soon";
+    }
+
+    const verificationLevel = campaignData.verificationLevel || "none";
+    const metadata = {
+      title: campaignData.title || "Untitled Campaign",
+      short_description: campaignData.shortDescription || "",
+      long_description: campaignData.longDescription || "",
+      total_rewards: {
+        points_amount: BigInt(0),
+        ckb_amount: BigInt(0),
+        nft_assets: [],
+        udt_assets: [],
+      },
+      verification_requirements: [
+        verificationLevelToBitmask(verificationLevel),
+      ],
+      last_updated: BigInt(Math.floor(Date.now() / 1000)),
+      categories: campaignData.categories || [],
+      difficulty: BigInt(campaignData.difficulty ?? 0),
+      image_url: previewImage,
+    };
+
+    const preview = {
+      endorser_lock_hash: "0x",
+      staff_lock_hash_vec: [],
+      created_at: BigInt(Math.floor(Date.now() / 1000)),
+      starting_time: BigInt(Math.floor(start.getTime() / 1000)),
+      ending_time: BigInt(Math.floor(end.getTime() / 1000)),
+      rules: campaignData.rules || [],
+      metadata,
+      status: statusLabel,
+      quests: [],
+      participants_count: BigInt(0),
+      total_completions: BigInt(0),
+      id: "preview-campaign-card",
+      typeHash: "preview-campaign-card",
+      typeId: null,
+      isExpired: now >= end.getTime(),
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      createdAt: new Date().toISOString(),
+      questsCount: 0,
+      questsCompleted: 0,
+      totalRewards: {
+        points: ccc.numFrom(0),
+        tokens: [],
+      },
+      verificationRequirements: buildVerificationRequirements(verificationLevel),
+      difficulty: DIFFICULTY_LABELS[campaignData.difficulty] ?? "beginner",
+      cell: {} as ccc.Cell,
+      title: campaignData.title || "Untitled Campaign",
+      shortDescription: campaignData.shortDescription || "",
+      categories: campaignData.categories || [],
+      endorserName: "Pending Endorser",
+      endorserLockHash: null,
+      endorser: null,
+      image: previewImage,
+    } as CampaignDisplay;
+
+    return preview;
+  }, [campaignData, coverImage?.dataUrl, coverImage?.neventId]);
+
   const handleChange = (field: keyof CampaignFormData, value: unknown) => {
     onChange({
       ...campaignData,
@@ -228,35 +338,41 @@ export function CampaignForm({
               disabled={readOnly}
             />
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              {coverImage?.isLoading ? (
-                <p>Loading cover image from Nostr...</p>
-              ) : coverImage?.dataUrl ? (
-                <div className="space-y-2">
-                  <img
-                    src={coverImage.dataUrl}
-                    alt="Campaign cover preview"
-                    className="max-h-48 w-full rounded-md object-cover"
-                  />
-                  {coverImage.neventId && (
-                    <div>
-                      Stored via Nostr event{" "}
-                      <span className="font-mono">
-                        {coverImage.neventId.slice(0, 18)}…
-                      </span>
-                    </div>
-                  )}
+              <div className="space-y-3">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Campaign Card Preview
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    This is the exact card layout used on the public campaign list.
+                  </p>
                 </div>
-              ) : coverImage?.neventId ? (
-                <p>
-                  Image stored via Nostr event{" "}
-                  <span className="font-mono">
-                    {coverImage.neventId.slice(0, 18)}…
-                  </span>
-                  . Content not loaded yet.
-                </p>
-              ) : (
-                <p>No cover image selected yet.</p>
-              )}
+                <div
+                  className="w-full max-w-[420px] pointer-events-none"
+                  aria-hidden="true"
+                >
+                  <CampaignCard campaign={previewCampaign} />
+                </div>
+                {coverImage?.isLoading && (
+                  <p className="text-muted-foreground">
+                    Loading cover image from Nostr...
+                  </p>
+                )}
+                {coverImage?.neventId && (
+                  <p>
+                    Stored via Nostr event{" "}
+                    <span className="font-mono">
+                      {coverImage.neventId.slice(0, 18)}…
+                    </span>
+                    {!coverImage?.dataUrl && !coverImage?.isLoading
+                      ? " . Content not loaded yet."
+                      : ""}
+                  </p>
+                )}
+                {!coverImage?.dataUrl && !coverImage?.neventId && (
+                  <p>No cover image selected yet.</p>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -374,7 +374,7 @@ export function WalletConnect() {
                   className="flex items-center gap-2 text-sm font-medium text-left whitespace-nowrap"
                   aria-expanded={!isMonitorCollapsed}
                 >
-                  <Clock3 className="w-4 h-4 text-amber-600" />
+                  <Clock3 className="w-4 h-4 text-white-600" />
                   Transaction Monitor
                   <ChevronDown
                     className={cn(
@@ -391,7 +391,6 @@ export function WalletConnect() {
                   Refresh
                 </button>
               </div>
-              {monitorStatusIndicator}
             </div>
             {!isMonitorCollapsed && (
               <>

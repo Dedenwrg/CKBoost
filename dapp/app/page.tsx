@@ -219,20 +219,60 @@ export default function HomePage() {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-              {featuredCampaigns.map((campaign) => (
-                <CampaignCard 
-                  key={campaign.id} 
-                  campaign={{...campaign, status: getDerivedStatus(campaign)}}
-                  onCategoryClick={handleCategoryClick}
-                  onDifficultyClick={handleDifficultyClick}
-                  onStatusClick={handleStatusClick}
-                  selectedCategories={selectedCategories}
-                  selectedDifficulties={selectedDifficulties}
-                  selectedStatuses={selectedStatuses}
-                />
-              ))}
-            </div>
+            {featuredCampaigns.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No featured campaigns are available right now. Check back soon!
+              </p>
+            ) : (
+              <>
+                {/* Mobile horizontal slider */}
+                <div className="md:hidden -mx-4 px-4">
+                  <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4">
+                    {featuredCampaigns.map((campaign) => (
+                      <div
+                        key={campaign.id}
+                        className="snap-start flex-shrink-0"
+                        style={{
+                          width: "min(420px, calc(100vw - 64px))",
+                        }}
+                      >
+                        <CampaignCard
+                          campaign={{
+                            ...campaign,
+                            status: getDerivedStatus(campaign),
+                          }}
+                          onCategoryClick={handleCategoryClick}
+                          onDifficultyClick={handleDifficultyClick}
+                          onStatusClick={handleStatusClick}
+                          selectedCategories={selectedCategories}
+                          selectedDifficulties={selectedDifficulties}
+                          selectedStatuses={selectedStatuses}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Desktop grid */}
+                <div className="hidden md:grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 justify-items-center">
+                  {featuredCampaigns.map((campaign) => (
+                    <CampaignCard
+                      key={campaign.id}
+                      campaign={{
+                        ...campaign,
+                        status: getDerivedStatus(campaign),
+                      }}
+                      onCategoryClick={handleCategoryClick}
+                      onDifficultyClick={handleDifficultyClick}
+                      onStatusClick={handleStatusClick}
+                      selectedCategories={selectedCategories}
+                      selectedDifficulties={selectedDifficulties}
+                      selectedStatuses={selectedStatuses}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Search and Filters */}
@@ -431,20 +471,56 @@ export default function HomePage() {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
-              {filteredCampaigns.map((campaign) => (
-                <CampaignCard 
-                  key={campaign.id} 
-                  campaign={{...campaign, status: getDerivedStatus(campaign)}}
-                  onCategoryClick={handleCategoryClick}
-                  onDifficultyClick={handleDifficultyClick}
-                  onStatusClick={handleStatusClick}
-                  selectedCategories={selectedCategories}
-                  selectedDifficulties={selectedDifficulties}
-                  selectedStatuses={selectedStatuses}
-                />
-              ))}
-            </div>
+            {filteredCampaigns.length > 0 && (
+              <>
+                {/* Mobile slider */}
+                <div className="md:hidden -mx-4 px-4">
+                  <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4">
+                    {filteredCampaigns.map((campaign) => (
+                      <div
+                        key={campaign.id}
+                        className="snap-start flex-shrink-0"
+                        style={{
+                          width: "min(420px, calc(100vw - 64px))",
+                        }}
+                      >
+                        <CampaignCard
+                          campaign={{
+                            ...campaign,
+                            status: getDerivedStatus(campaign),
+                          }}
+                          onCategoryClick={handleCategoryClick}
+                          onDifficultyClick={handleDifficultyClick}
+                          onStatusClick={handleStatusClick}
+                          selectedCategories={selectedCategories}
+                          selectedDifficulties={selectedDifficulties}
+                          selectedStatuses={selectedStatuses}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Desktop grid */}
+                <div className="hidden md:grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 justify-items-center">
+                  {filteredCampaigns.map((campaign) => (
+                    <CampaignCard
+                      key={campaign.id}
+                      campaign={{
+                        ...campaign,
+                        status: getDerivedStatus(campaign),
+                      }}
+                      onCategoryClick={handleCategoryClick}
+                      onDifficultyClick={handleDifficultyClick}
+                      onStatusClick={handleStatusClick}
+                      selectedCategories={selectedCategories}
+                      selectedDifficulties={selectedDifficulties}
+                      selectedStatuses={selectedStatuses}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
 
             {filteredCampaigns.length === 0 && (
               <div className="text-center py-12">

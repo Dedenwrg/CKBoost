@@ -752,6 +752,11 @@ export default function CampaignAdminPage() {
       return;
     }
 
+    if (isCreateMode && localQuests.length === 0) {
+      alert("Please add at least one quest before creating your campaign.");
+      return;
+    }
+
     try {
       setIsSaving(true);
 
@@ -1563,7 +1568,10 @@ export default function CampaignAdminPage() {
               <Button
                 onClick={handleSaveCampaign}
                 disabled={
-                  isSaving || !signer || (!isCreateMode && isDetailsReadOnly)
+                  isSaving ||
+                  !signer ||
+                  (!isCreateMode && isDetailsReadOnly) ||
+                  (isCreateMode && localQuests.length === 0)
                 }
               >
                 {isSaving
@@ -1572,6 +1580,11 @@ export default function CampaignAdminPage() {
                   ? "Create Campaign"
                   : "Save Changes"}
               </Button>
+              {isCreateMode && localQuests.length === 0 && (
+                <p className="text-xs text-red-600 dark:text-red-300">
+                  Add at least one quest to enable campaign creation.
+                </p>
+              )}
             </div>
           </div>
 

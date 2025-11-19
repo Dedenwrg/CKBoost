@@ -21,11 +21,12 @@ import {
   MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 
+import { CampaignCoverImage } from "@/components/campaign-cover-image";
 import { getDaysUntilEnd, type CampaignDisplay } from "@/lib";
 import { formatDateConsistent } from "ssri-ckboost";
 import { udtRegistry } from "@/lib/services/udt-registry";
+import { useCampaignCoverImage } from "@/hooks/use-campaign-cover-image";
 
 interface CampaignCardProps {
   campaign: CampaignDisplay;
@@ -49,7 +50,9 @@ const CURRENT_USER_VERIFICATION = {
 };
 
 // Helper function to check if user meets verification requirements based on new logic
-const meetsVerificationRequirements = (requirements: Record<string, boolean> | undefined) => {
+const meetsVerificationRequirements = (
+  requirements: Record<string, boolean> | undefined
+) => {
   if (!requirements) return true;
 
   // Check if campaign refuses manual review
@@ -144,16 +147,17 @@ export function CampaignCard({
   };
 
   const isExpired = campaign.isExpired;
+  const { src: coverImageSrc, isLoading: coverImageLoading } =
+    useCampaignCoverImage(campaign.image);
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full">
-      <div className="relative h-48 bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20">
-        <Image
-          src={campaign.image || "/placeholder.svg"}
-          alt={campaign.title}
-          fill
-          className="object-cover"
-        />
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full max-w-[420px] md:w-[420px] justify-self-center">
+      <CampaignCoverImage
+        src={coverImageSrc}
+        alt={campaign.title}
+        isLoading={coverImageLoading}
+        className="bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20"
+      >
         <div className="absolute top-4 left-4 flex gap-2">
           <Badge
             className={`${getStatusColor(campaign.status)} ${
@@ -215,16 +219,18 @@ export function CampaignCard({
             </Badge>
           )}
         </div>
-      </div>
+      </CampaignCoverImage>
 
-      <CardHeader className="flex-shrink-0">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-lg mb-2">{campaign.title}</CardTitle>
-            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+      <CardHeader className="flex-shrink-0 max-w-[420px]">
+        <div className="flex items-start justify-between width-full">
+          <div className="flex-1 w-full">
+            <CardTitle className="text-lg mb-2 break-words whitespace-normal w-full">
+              {campaign.title}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mb-3 break-words whitespace-normal">
               {campaign.shortDescription}
             </p>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground break-words whitespace-normal">
               Endorsed by {campaign.endorserName}
             </div>
           </div>
@@ -311,17 +317,19 @@ export function CampaignCard({
               </div>
               {campaign.totalRewards.tokens.map((token, index) => {
                 // Get token info from registry to format amount properly
-                const tokenInfo = udtRegistry.getTokenBySymbol(token.symbol)
-                const formattedAmount = tokenInfo 
+                const tokenInfo = udtRegistry.getTokenBySymbol(token.symbol);
+                const formattedAmount = tokenInfo
                   ? udtRegistry.formatAmount(Number(token.amount), tokenInfo)
-                  : `${Number(token.amount) / (10 ** 8)}`
-                
+                  : `${Number(token.amount) / 10 ** 8}`;
+
                 return (
                   <div key={index} className="flex items-center gap-1">
                     <Coins className="w-3 h-3 text-green-600" />
-                    <span>{formattedAmount} {token.symbol}</span>
+                    <span>
+                      {formattedAmount} {token.symbol}
+                    </span>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
