@@ -316,4 +316,4 @@ export const evaluateStreakBonus = async (
   };
 };
 
-export const decodeUserData = (data: ccc.HexLike) => UserData.decode(data);
+export { decodeUserData } from "./user-data";

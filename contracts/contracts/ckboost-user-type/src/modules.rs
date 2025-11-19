@@ -192,6 +192,8 @@ impl CKBoostUser for CKBoostUserType {
                     .total_points_earned(Uint128::from_slice(&[0u8; 16]).unwrap())
                     .last_activity_timestamp(Uint64::from_slice(&[0u8; 8]).unwrap())
                     .submission_records(UserSubmissionRecordVec::new_builder().build())
+                    .profile_data(user_data.profile_data())
+                    .last_bonus_streak_at(Uint64::from_slice(&[0u8; 8]).unwrap())
                     .build();
                 let new_user_data_bytes = new_user_data.as_bytes();
                 outputs_data_builder = outputs_data_builder.push(new_user_data_bytes.pack());

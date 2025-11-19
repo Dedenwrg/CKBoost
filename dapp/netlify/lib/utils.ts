@@ -607,3 +607,57 @@ export async function fetchProtocolCell(
     );
   }
 }
+
+export type FieldRestrictionMode = "whitelist" | "blacklist";
+
+export type FieldRestrictionOptions<
+  T extends Record<string, unknown>,
+  K extends keyof T
+> = {
+  previous: T;
+  next: T;
+  mode: FieldRestrictionMode;
+  fields: K[];
+};
+
+const deepEqual = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+export const ensureFieldRestrictions = <
+  T extends Record<string, unknown>,
+  K extends keyof T
+>({
+  previous,
+  next,
+  mode,
+  fields,
+}: FieldRestrictionOptions<T, K>): void => {
+  if (!fields.length) {
+    return;
+  }
+
+  const enforcedFields = new Set<keyof T>(fields);
+  const allFields = new Set<keyof T>([
+    ...(Object.keys(previous) as Array<keyof T>),
+    ...(Object.keys(next) as Array<keyof T>),
+  ]);
+
+  for (const field of allFields) {
+    const lockField =
+      mode === "blacklist"
+        ? enforcedFields.has(field)
+        : !enforcedFields.has(field);
+    if (!lockField) {
+      continue;
+    }
+
+    if (!deepEqual(previous[field], next[field])) {
+      const descriptor = String(field);
+      const message =
+        mode === "blacklist"
+          ? `Field '${descriptor}' cannot change because it is protected.`
+          : `Field '${descriptor}' cannot change because it is not whitelisted.`;
+      throw new Error(message);
+    }
+  }
+};

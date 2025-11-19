@@ -10,13 +10,14 @@ import {
   type RewardTransaction,
   type StreakBonusValidateResponse,
 } from "@/netlify/lib/streak-bonus";
-import { decodeUserData } from "@/netlify/lib/streak-bonus";
+import { decodeUserData, normalizeUserData } from "@/netlify/lib/user-data";
 import { UserData } from "ssri-ckboost/types";
 import { createLogger } from "@/netlify/lib/log";
 import {
   ensureProxyAdminCellPair,
   ProxyAdminCellError,
 } from "@/netlify/lib/proxy-admin";
+import { ensureFieldRestrictions } from "@/netlify/lib/utils";
 
 const MAX_RESULTS = 100;
 const DEFAULT_RESULTS = 20;
@@ -500,31 +501,6 @@ const fetchRewardTransactions = async ({
   return responseTransactions;
 };
 
-const normalizeUserDataForComparison = (
-  data: ReturnType<typeof decodeUserData>
-) => {
-  const verification = data.verification_data ?? {};
-  const identityData = verification.identity_verification_data
-    ? ccc.hexFrom(verification.identity_verification_data)
-    : "0x";
-
-  return {
-    verification: {
-      telegramPersonalChatId: verification.telegram_personal_chat_id
-        ? ccc.numFrom(verification.telegram_personal_chat_id).toString()
-        : "0",
-      identityVerificationData: identityData,
-    },
-    submissionRecords: (data.submission_records ?? []).map((record) => ({
-      campaignTypeId: ccc.hexFrom(record.campaign_type_id),
-      questId: ccc.numFrom(record.quest_id).toString(),
-      submissionTimestamp: ccc.numFrom(record.submission_timestamp).toString(),
-      submissionContent: record.submission_content,
-    })),
-    profileData: (data.profile_data ?? []).map((entry) => ccc.hexFrom(entry)),
-  };
-};
-
 const hydrateInputs = async (tx: ccc.Transaction, client: ccc.Client) => {
   for (let i = 0; i < tx.inputs.length; i += 1) {
     const original = tx.inputs[i];
@@ -681,11 +657,17 @@ const validateStreakBonusTransaction = ({
     );
   }
 
-  const previousComparable = normalizeUserDataForComparison(inputUserData);
-  const nextComparable = normalizeUserDataForComparison(outputUserData);
-  if (JSON.stringify(previousComparable) !== JSON.stringify(nextComparable)) {
-    throw new Error(
-      "User data fields other than streak bonus metadata must remain unchanged."
-    );
-  }
+  const normalizedPrevious = normalizeUserData(inputUserData);
+  const normalizedNext = normalizeUserData(outputUserData);
+
+  ensureFieldRestrictions({
+    previous: normalizedPrevious,
+    next: normalizedNext,
+    mode: "whitelist",
+    fields: [
+      "last_activity_timestamp",
+      "last_bonus_streak_at",
+      "total_points_earned",
+    ],
+  });
 };

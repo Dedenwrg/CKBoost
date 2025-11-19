@@ -4,7 +4,6 @@ import type { TelegramUserData } from "@telegram-auth/server";
 import { urlStrToAuthDataMap } from "@telegram-auth/server/utils";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
-import { UserData } from "ssri-ckboost/types";
 import { VerificationDataEntries } from "@/lib/types/identity";
 import { TelegramVerificationData } from "../../lib/types/identity";
 import { bytesFrom } from "../../../../ccc/packages/core/src/bytes/index";
@@ -14,24 +13,18 @@ import {
   ensureProxyAdminCellPair,
   ProxyAdminCellError,
 } from "@/netlify/lib/proxy-admin";
+import {
+  decodeUserData,
+  findUserCellInput,
+  findUserCellOutput,
+  normalizeUserData,
+} from "@/netlify/lib/user-data";
+import { ensureFieldRestrictions } from "@/netlify/lib/utils";
 
 const validatorLogger = createLogger("telegram-authenticate:validate");
 
 // Types for safer payload handling
 type Hex = string;
-
-type HashType = "data" | "type" | "data1";
-
-// The JSON stored in the authenticator output's data
-interface TelegramAuthCellData {
-  kind: "ckboost/telegram_auth";
-  chat_id: string; // string to avoid bigint JSON issues
-  username: string;
-  auth: Record<string, string | number | undefined>;
-  wallet_lock_hash?: string;
-  user_type_id?: string;
-  timestamp?: number;
-}
 
 export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
@@ -109,21 +102,32 @@ export const handler: Handler = async (event) => {
       network,
       "ckboostUserType"
     );
+
+    if (!userCellCodeHash) {
+      logger.error("user_type_code_hash_missing");
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          success: false,
+          error: "user_type_code_hash_missing",
+        }),
+      };
+    }
     // Find the user cell and parse its data
-    const userCellOutputIndex = tx.outputs?.findIndex(
-      (o) =>
-        o.type?.codeHash === userCellCodeHash && o.type?.hashType === "type"
-    );
-    if (userCellOutputIndex === -1) {
+    const userCellOutput = findUserCellOutput({
+      tx,
+      userTypeCodeHash: userCellCodeHash,
+    });
+
+    if (!userCellOutput) {
       logger.error("auth_output_not_found");
       return {
         statusCode: 400,
         body: JSON.stringify({ success: false, error: "auth_output_missing" }),
       };
     }
-    const rawData = tx.outputsData?.[userCellOutputIndex] as
-      | ccc.Hex
-      | undefined;
+    const userCellOutputIndex = userCellOutput.index;
+    const rawData = userCellOutput.outputData as ccc.Hex | undefined;
     if (!rawData || rawData === "0x") {
       logger.error("auth_output_empty_data", { userCellOutputIndex });
       return {
@@ -139,7 +143,7 @@ export const handler: Handler = async (event) => {
     let userData;
     let userVerificationDataArray: VerificationDataEntries[];
     try {
-      userData = UserData.decode(rawData);
+      userData = decodeUserData(rawData);
       const userVerificationDataArrayHex =
         userData.verification_data.identity_verification_data;
       const bytes = ccc.bytesFrom(userVerificationDataArrayHex);
@@ -151,12 +155,60 @@ export const handler: Handler = async (event) => {
         JSON.stringify(userVerificationDataArray)
       );
     } catch (e) {
-      logger.error("auth_output_data_parse_error", { message: (e as Error)?.message });
+      logger.error("auth_output_data_parse_error", {
+        message: (e as Error)?.message,
+      });
       return {
         statusCode: 400,
         body: JSON.stringify({
           success: false,
           error: "invalid_auth_output_data",
+        }),
+      };
+    }
+
+    const expectedUserLockHash = userCellOutput.cellOutput.lock.hash();
+    const userCellInput = await findUserCellInput({
+      tx,
+      client,
+      userTypeCodeHash: userCellCodeHash,
+      expectedLockHash: expectedUserLockHash,
+    });
+
+    if (!userCellInput) {
+      logger.error("auth_input_user_cell_missing");
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          success: false,
+          error: "auth_input_user_cell_missing",
+        }),
+      };
+    }
+
+    try {
+      const previousUserData = decodeUserData(userCellInput.outputData);
+      const normalizedPrevious = normalizeUserData(previousUserData);
+      const normalizedNext = normalizeUserData(userData);
+      ensureFieldRestrictions({
+        previous: normalizedPrevious,
+        next: normalizedNext,
+        mode: "whitelist",
+        fields: [
+          "verification_data",
+          "last_activity_timestamp",
+          "profile_data",
+        ],
+      });
+    } catch (error) {
+      const err = error as Error;
+      logger.error("user_data_invariant_violation", { message: err.message });
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          success: false,
+          error: "user_data_invariant_violation",
+          message: err.message,
         }),
       };
     }
@@ -230,9 +282,15 @@ export const handler: Handler = async (event) => {
 
       // Compute tx hash and sign with authenticator key (attestation)
       try {
-        logger.info("Before signing for proxy authentication", ccc.stringify(tx));
+        logger.info(
+          "Before signing for proxy authentication",
+          ccc.stringify(tx)
+        );
         proxyAuthenticatedTx = await serverSigner.signTransaction(tx);
-        logger.log("proxy_authenticated_tx", ccc.stringify(proxyAuthenticatedTx));
+        logger.log(
+          "proxy_authenticated_tx",
+          ccc.stringify(proxyAuthenticatedTx)
+        );
       } catch (e) {
         logger.error("signing_error", { message: (e as Error)?.message });
         // Still return validation success if signing fails

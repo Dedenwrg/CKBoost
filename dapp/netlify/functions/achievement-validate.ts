@@ -10,6 +10,13 @@ import {
   ensureProxyAdminCellPair,
   ProxyAdminCellError,
 } from "@/netlify/lib/proxy-admin";
+import {
+  decodeUserData,
+  findUserCellInput,
+  findUserCellOutput,
+  normalizeUserData,
+} from "@/netlify/lib/user-data";
+import { ensureFieldRestrictions } from "@/netlify/lib/utils";
 
 export const handler: Handler = async (event) => {
   const reqId = Math.random().toString(36).slice(2, 8);
@@ -139,6 +146,40 @@ export const handler: Handler = async (event) => {
     ) {
       throw new Error("Achievement claims not valid.");
     }
+
+    const expectedUserLockHash = addressLockScript.hash();
+    const userCellInputMatch = await findUserCellInput({
+      tx,
+      client: signer.client,
+      userTypeCodeHash,
+      expectedLockHash: expectedUserLockHash,
+    });
+
+    if (!userCellInputMatch) {
+      throw new Error("User cell input missing for achievement validation.");
+    }
+
+    const userCellOutputMatch = findUserCellOutput({
+      tx,
+      userTypeCodeHash,
+      expectedLockHash: expectedUserLockHash,
+    });
+
+    if (!userCellOutputMatch) {
+      throw new Error("User cell output missing for achievement validation.");
+    }
+
+    const previousUserData = decodeUserData(userCellInputMatch.outputData);
+    const nextUserData = decodeUserData(userCellOutputMatch.outputData);
+    const normalizedPrevious = normalizeUserData(previousUserData);
+    const normalizedNext = normalizeUserData(nextUserData);
+
+    ensureFieldRestrictions({
+      previous: normalizedPrevious,
+      next: normalizedNext,
+      mode: "whitelist",
+      fields: ["last_activity_timestamp"],
+    });
 
     try {
       await ensureProxyAdminCellPair({ tx, client, signer, logger });
