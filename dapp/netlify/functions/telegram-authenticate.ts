@@ -179,43 +179,39 @@ export const handler: Handler = async (event) => {
       expectedLockHash: expectedUserLockHash,
     });
 
-    if (!userCellInput) {
-      logger.error("auth_input_user_cell_missing");
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          success: false,
-          error: "auth_input_user_cell_missing",
-        }),
-      };
+    if (userCellInput) {
+      try {
+        const previousUserData = decodeUserData(userCellInput.outputData);
+        const normalizedPrevious = normalizeUserData(previousUserData);
+        const normalizedNext = normalizeUserData(userData);
+        ensureFieldRestrictions({
+          previous: normalizedPrevious,
+          next: normalizedNext,
+          mode: "whitelist",
+          fields: [
+            "verification_data",
+            "last_activity_timestamp",
+            "profile_data",
+          ],
+        });
+      } catch (error) {
+        const err = error as Error;
+        logger.error("user_data_invariant_violation", {
+          message: err.message,
+        });
+        return {
+          statusCode: 400,
+          body: JSON.stringify({
+            success: false,
+            error: "user_data_invariant_violation",
+            message: err.message,
+          }),
+        };
+      }
+    } else {
+      //TODO: Additional check for new user cell creation
     }
 
-    try {
-      const previousUserData = decodeUserData(userCellInput.outputData);
-      const normalizedPrevious = normalizeUserData(previousUserData);
-      const normalizedNext = normalizeUserData(userData);
-      ensureFieldRestrictions({
-        previous: normalizedPrevious,
-        next: normalizedNext,
-        mode: "whitelist",
-        fields: [
-          "verification_data",
-          "last_activity_timestamp",
-          "profile_data",
-        ],
-      });
-    } catch (error) {
-      const err = error as Error;
-      logger.error("user_data_invariant_violation", { message: err.message });
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          success: false,
-          error: "user_data_invariant_violation",
-          message: err.message,
-        }),
-      };
-    }
     let invalidated = false;
     try {
       for (const verificationData of userVerificationDataArray) {

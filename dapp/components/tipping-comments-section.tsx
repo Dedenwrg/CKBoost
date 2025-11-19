@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SocialInteractions } from "./social-interactions";
 import { useTippingComments } from "@/hooks/use-tipping-comments";
 import { useUser } from "@/lib/providers/user-provider";
@@ -44,6 +44,11 @@ export function TippingCommentsSection({
   const [awaitingProfileReady, setAwaitingProfileReady] = useState(false);
   const [moduleError, setModuleError] = useState<string | null>(null);
   const [commentDraft, setCommentDraft] = useState("");
+  const postCommentRef = useRef(postComment);
+
+  useEffect(() => {
+    postCommentRef.current = postComment;
+  }, [postComment]);
 
   useEffect(() => {
     if (
@@ -54,7 +59,11 @@ export function TippingCommentsSection({
     ) {
       (async () => {
         try {
-          await postComment(pendingComment);
+          const post = postCommentRef.current;
+          if (!post) {
+            return;
+          }
+          await post(pendingComment);
           setPendingComment(null);
           setModuleError(null);
           setCommentDraft("");
@@ -73,7 +82,6 @@ export function TippingCommentsSection({
     awaitingProfileReady,
     currentUserTypeId,
     pendingComment,
-    postComment,
     tippingTypeId,
   ]);
 
