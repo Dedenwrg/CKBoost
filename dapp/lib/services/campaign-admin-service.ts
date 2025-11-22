@@ -1,4 +1,4 @@
-import { ccc, udt } from "@ckb-ccc/connector-react";
+import { ccc } from "@ckb-ccc/connector-react";
 import {
   CampaignDataLike,
   CampaignData,
@@ -17,6 +17,9 @@ import { deploymentManager } from "../ckb/deployment-manager";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { sendTransactionWithFeeRetry } from "../ckb/transaction-wrapper";
 import { createScopedLogger } from "ssri-ckboost";
+import { injectProxyAuthenticationCell } from "../utils/api";
+import type { StaffApprovalResponse } from "@/netlify/lib/staff-approval";
+import { registerPendingTransaction } from "@/lib/pending-transactions";
 
 const log = createScopedLogger("CampaignAdminService");
 
@@ -673,19 +676,11 @@ export class CampaignAdminService {
     }
   }
 
-  /**
-   * Approve quest completions with Points minting (Stage 1)
-   *
-   * @param campaignTypeId - Campaign type ID
-   * @param questId - Quest ID to approve
-   * @param userTypeIds - Array of user type IDs to approve
-   * @returns Transaction hash
-   */
-  async approveCompletion(
+  private async buildApproveCompletionTransaction(
     campaignTypeId: ccc.Hex,
     questId: number,
     userTypeIds: ccc.Hex[]
-  ): Promise<string> {
+  ): Promise<ccc.Transaction> {
     if (!this.signer) {
       throw new Error("Signer is required to approve quest completions");
     }
@@ -818,25 +813,160 @@ export class CampaignAdminService {
         }
       }
 
-      // Complete fees and send transaction
-      await tx.completeInputsByCapacity(this.signer);
-      await tx.completeFeeBy(this.signer);
-      const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
-
-      log.info("Quest completions approved with Points minting:", {
-        campaignTypeId,
-        questId,
-        userTypeIds,
-        txHash,
-        pointsMinted: true,
-        // Stage 2: udtDistributed: false (placeholder)
-      });
-
-      return txHash;
+      return tx;
     } catch (error) {
       log.error("Failed to approve quest completions:", error);
       throw error;
     }
+  }
+
+  /**
+   * Approve quest completions with Points minting (Stage 1)
+   *
+   * @param campaignTypeId - Campaign type ID
+   * @param questId - Quest ID to approve
+   * @param userTypeIds - Array of user type IDs to approve
+   * @returns Transaction hash
+   */
+  async approveCompletion(
+    campaignTypeId: ccc.Hex,
+    questId: number,
+    userTypeIds: ccc.Hex[]
+  ): Promise<string> {
+    const tx = await this.buildApproveCompletionTransaction(
+      campaignTypeId,
+      questId,
+      userTypeIds
+    );
+
+    await tx.completeInputsByCapacity(this.signer);
+    await tx.completeFeeBy(this.signer);
+    const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
+
+    log.info("Quest completions approved with Points minting:", {
+      campaignTypeId,
+      questId,
+      userTypeIds,
+      txHash,
+      pointsMinted: true,
+    });
+
+    return txHash;
+  }
+
+  async approveCompletionViaProxy(
+    campaignTypeId: ccc.Hex,
+    questId: number,
+    userTypeIds: ccc.Hex[]
+  ): Promise<string> {
+    if (!this.signer) {
+      throw new Error("Signer is required to approve quest completions");
+    }
+
+    const tx = await this.buildApproveCompletionTransaction(
+      campaignTypeId,
+      questId,
+      userTypeIds
+    );
+
+    await injectProxyAuthenticationCell(this.signer, tx);
+    await tx.completeInputsByCapacity(this.signer);
+
+    for (let i = 0; i < tx.inputs.length; i += 1) {
+      const inputCell = await this.signer.client.getCell(
+        tx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found while preparing staff approval tx.");
+      }
+      tx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell.outPoint,
+        since: tx.inputs[i].since ?? "0x0",
+        cellOutput: inputCell.cellOutput,
+        outputData: inputCell.outputData,
+      });
+    }
+
+    for (let i = 0; i < tx.outputs.length; i += 1) {
+      const out = tx.outputs[i];
+      if (out.type) {
+        tx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          tx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+
+    await tx.completeFeeBy(this.signer);
+
+    const response = await fetch("/api/staff-approve-submissions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        txHex: ccc.hexFrom(tx.toBytes()),
+        campaignTypeId: ccc.hexFrom(campaignTypeId),
+        questId,
+        userTypeIds: userTypeIds.map((id) => ccc.hexFrom(id)),
+      }),
+    });
+
+    const payload = (await response.json()) as StaffApprovalResponse;
+    if (!payload.success) {
+      throw new Error(
+        payload.message ||
+          payload.error ||
+          "Staff approval validation failed on server."
+      );
+    }
+
+    if (!response.ok) {
+      throw new Error(
+        `Staff approval validation failed (status ${response.status}).`
+      );
+    }
+
+    const validatedTx = ccc.Transaction.fromBytes(payload.txHex as ccc.Hex);
+
+    for (let i = 0; i < validatedTx.inputs.length; i += 1) {
+      const inputCell = await this.signer.client.getCell(
+        validatedTx.inputs[i].previousOutput
+      );
+      if (!inputCell) {
+        throw new Error("Input cell not found while finalising approval tx.");
+      }
+      validatedTx.inputs[i] = ccc.CellInput.from({
+        previousOutput: inputCell.outPoint,
+        since: validatedTx.inputs[i].since ?? "0x0",
+        cellOutput: inputCell.cellOutput,
+        outputData: inputCell.outputData,
+      });
+    }
+
+    for (let i = 0; i < validatedTx.outputs.length; i += 1) {
+      const out = validatedTx.outputs[i];
+      if (out.type) {
+        validatedTx.outputs[i] = ccc.CellOutput.from(
+          { lock: out.lock, type: out.type },
+          validatedTx.outputsData[i] as ccc.HexLike
+        );
+      }
+    }
+
+    const txHash = await this.signer.sendTransaction(validatedTx);
+    log.info("Quest completions approved via proxy:", {
+      campaignTypeId,
+      questId,
+      userTypeIds,
+      txHash,
+      viaProxy: true,
+    });
+
+    registerPendingTransaction(txHash, {
+      label: "Staff quest approval",
+      context: "CampaignAdminService",
+    });
+
+    return txHash;
   }
 
   // ============ Analytics ============

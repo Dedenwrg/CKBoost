@@ -32,9 +32,13 @@ const log = createScopedLogger("SubmissionsTab");
 
 interface SubmissionsTabProps {
   campaignTypeId: ccc.Hex;
+  isStaffReviewer?: boolean;
 }
 
-export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
+export function SubmissionsTab({
+  campaignTypeId,
+  isStaffReviewer = false,
+}: SubmissionsTabProps) {
   const {
     campaignAdminService,
     campaign: campaignInstance,
@@ -142,7 +146,7 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
   async function handleBatchApprove(
     questId: number,
     userTypeIds: string[]
-  ): Promise<void> {
+  ): Promise<string> {
     if (!campaignAdminService || !submissions) {
       throw new Error("Service not available");
     }
@@ -167,11 +171,17 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
     }
 
     try {
-      const txHash = await campaignAdminService.approveCompletion(
-        campaignTypeId,
-        questId,
-        userTypeIds as ccc.Hex[]
-      );
+      const txHash = isStaffReviewer
+        ? await campaignAdminService.approveCompletionViaProxy(
+            campaignTypeId,
+            questId,
+            userTypeIds as ccc.Hex[]
+          )
+        : await campaignAdminService.approveCompletion(
+            campaignTypeId,
+            questId,
+            userTypeIds as ccc.Hex[]
+          );
 
       // Store the transaction hash if needed
       if (txHash) {
@@ -180,6 +190,7 @@ export function SubmissionsTab({ campaignTypeId }: SubmissionsTabProps) {
 
       // Refresh submissions after batch approval
       await loadSubmissions();
+      return txHash;
     } catch (err) {
       console.error("Failed to batch approve submissions:", err);
       throw err; // Re-throw to be handled by the dialog

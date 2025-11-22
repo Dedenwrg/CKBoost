@@ -55,6 +55,7 @@ import { QuestSubmissionForm } from "@/components/quest-submission-form";
 import { useUser } from "@/lib/providers/user-provider";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
 
 const extractHtmlFromContent = (raw: string): string => {
   if (!raw) return "";
@@ -171,12 +172,43 @@ export default function CampaignDetailPage() {
     Record<number, boolean>
   >({});
   const [isOwner, setIsOwner] = useState(false);
+  const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
+  const [isStaff, setIsStaff] = useState(false);
   const [fundingData, setFundingData] = useState<Map<ccc.Hex, bigint>>(
     new Map()
   );
   const [fundingCkb, setFundingCkb] = useState<bigint>(0n);
   const [isLoadingFunding, setIsLoadingFunding] = useState(true);
   const protocolReady = Boolean(protocolData);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadViewerLockHash = async () => {
+      if (!signer) {
+        if (!cancelled) {
+          setViewerLockHash(null);
+        }
+        return;
+      }
+      try {
+        const addressObj = await signer.getRecommendedAddressObj();
+        const hash = addressObj.script.hash().toLowerCase();
+        if (!cancelled) {
+          setViewerLockHash(hash);
+        }
+      } catch (error) {
+        log.warn("Failed to derive viewer lock hash", error);
+        if (!cancelled) {
+          setViewerLockHash(null);
+        }
+      }
+    };
+
+    loadViewerLockHash();
+    return () => {
+      cancelled = true;
+    };
+  }, [signer]);
 
   // Fetch UDT funding data for the campaign (only when signer is available)
   useEffect(() => {
@@ -279,30 +311,63 @@ export default function CampaignDetailPage() {
 
   // Check if current user owns this campaign
   useEffect(() => {
-    const checkOwnership = async () => {
-      if (!signer || !campaign?.cell) {
+    const evaluateOwnership = () => {
+      if (!campaign?.cell || !viewerLockHash || !protocolCell) {
         setIsOwner(false);
         return;
       }
 
       try {
-        // Get the user's lock script
-        const userLockScript = (await signer.getRecommendedAddressObj()).script;
-        const userLockHash = userLockScript.hash();
+        const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+        const protocolLockCodeHash = deploymentManager.getContractCodeHash(
+          deploymentManager.getCurrentNetwork(),
+          "ckboostProtocolLock"
+        );
 
-        // Get the campaign's lock hash
-        const campaignLockHash = campaign.cell.cellOutput.lock.hash();
+        if (!protocolTypeHash || !protocolLockCodeHash) {
+          setIsOwner(false);
+          return;
+        }
 
-        // Check if they match
-        setIsOwner(userLockHash === campaignLockHash);
+        const connectedId = ConnectedTypeID.encode({
+          type_id: viewerLockHash as ccc.HexLike,
+          connected_key: protocolTypeHash,
+        });
+
+        const expectedLock = ccc.Script.from({
+          codeHash: protocolLockCodeHash,
+          hashType: "type" as ccc.HashType,
+          args: connectedId,
+        });
+
+        const campaignLock = campaign.cell.cellOutput.lock;
+        setIsOwner(campaignLock?.eq(expectedLock) ?? false);
       } catch (error) {
         log.error("Failed to check campaign ownership:", error);
         setIsOwner(false);
       }
     };
 
-    checkOwnership();
-  }, [signer, campaign]);
+    evaluateOwnership();
+  }, [campaign, viewerLockHash, protocolCell]);
+
+  useEffect(() => {
+    if (!campaign || !viewerLockHash) {
+      setIsStaff(false);
+      return;
+    }
+
+    try {
+      const staffHashes =
+        campaign.staff_lock_hash_vec?.map((hash) =>
+          ccc.hexFrom(hash as ccc.HexLike).toLowerCase()
+        ) ?? [];
+      setIsStaff(staffHashes.includes(viewerLockHash));
+    } catch (error) {
+      log.error("Failed to evaluate staff membership:", error);
+      setIsStaff(false);
+    }
+  }, [campaign, viewerLockHash]);
 
   useEffect(() => {
     const fetchCampaign = async () => {
@@ -767,8 +832,8 @@ export default function CampaignDetailPage() {
                               "No description available"}
                           </CardDescription>
                         </div>
-                        {/* Management Button for Campaign Owner and Admins */}
-                        {(isOwner || isAdmin) && (
+                        {/* Management Button for Campaign Owner, Admins, and Staff */}
+                        {(isOwner || isAdmin || isStaff) && (
                           <Link href={`/campaign-admin/${campaignTypeId}`}>
                             <Button>
                               <Settings className="w-4 h-4 mr-2" />

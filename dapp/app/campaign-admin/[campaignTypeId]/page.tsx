@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Navigation } from "@/components/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,10 +153,61 @@ export default function CampaignAdminPage() {
   >({});
   const [pendingNostrTotal, setPendingNostrTotal] = useState(0);
   const [pendingNostrIndex, setPendingNostrIndex] = useState(0);
+  const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
+  const normalizedStaffHashes = useMemo(
+    () => staffLockHashes.map((hash) => hash.toLowerCase()),
+    [staffLockHashes]
+  );
+  const hasStaffAccess = useMemo(() => {
+    if (!viewerLockHash) {
+      return false;
+    }
+    return normalizedStaffHashes.includes(viewerLockHash.toLowerCase());
+  }, [normalizedStaffHashes, viewerLockHash]);
+  const shouldRestrictToSubmissions =
+    !isCreateMode && !isAdmin && hasStaffAccess;
+  const canViewCampaign = isCreateMode
+    ? isAdmin
+    : isAdmin || hasStaffAccess;
 
   useEffect(() => {
     setIsDetailsReadOnly(!isCreateMode);
   }, [isCreateMode]);
+
+  useEffect(() => {
+    if (shouldRestrictToSubmissions && activeTab !== "submissions") {
+      setActiveTab("submissions");
+    }
+  }, [activeTab, shouldRestrictToSubmissions]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadViewerLockHash = async () => {
+      if (!signer) {
+        if (!cancelled) {
+          setViewerLockHash(null);
+        }
+        return;
+      }
+      try {
+        const addressObj = await signer.getRecommendedAddressObj();
+        const hash = addressObj.script.hash().toLowerCase();
+        if (!cancelled) {
+          setViewerLockHash(hash);
+        }
+      } catch (error) {
+        log.warn("Failed to resolve viewer lock hash", error);
+        if (!cancelled) {
+          setViewerLockHash(null);
+        }
+      }
+    };
+
+    loadViewerLockHash();
+    return () => {
+      cancelled = true;
+    };
+  }, [signer]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1473,6 +1524,36 @@ export default function CampaignAdminPage() {
     );
   }
 
+  if (!canViewCampaign && !isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <Navigation />
+        <main className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center space-y-4">
+                <AlertCircle className="w-12 h-12 mx-auto text-destructive" />
+                <div>
+                  <h3 className="font-semibold text-lg">Access Restricted</h3>
+                  <p className="text-muted-foreground mt-2">
+                    You need to be a campaign admin or a registered staff member
+                    for this campaign to view admin tools.
+                  </p>
+                </div>
+                <Button asChild>
+                  <Link href="/campaign-admin">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Campaign List
+                  </Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
   // Statistics calculations moved to CampaignStats component
 
   return (
@@ -1498,218 +1579,237 @@ export default function CampaignAdminPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {!isCreateMode && (
+              {!shouldRestrictToSubmissions && (
                 <>
-                  <Badge variant="secondary">
-                    {campaign?.status === 0
-                      ? "Draft"
-                      : campaign?.status === 1
-                      ? "Active"
-                      : campaign?.status === 2
-                      ? "Completed"
-                      : "Cancelled"}
-                  </Badge>
-
-                  {/* Show Approve Campaign button for admins if not approved */}
-                  {isAdmin &&
-                    campaignTypeId &&
-                    !protocolData?.campaigns_approved?.includes(
-                      campaignTypeId as ccc.Hex
-                    ) && (
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={handleApproveCampaign}
-                        disabled={isApproving}
-                      >
-                        {isApproving ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                            Approving...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Approve Campaign
-                          </>
-                        )}
-                      </Button>
-                    )}
-
-                  {/* Show approved badge if campaign is already approved */}
-                  {campaignTypeId &&
-                    protocolData?.campaigns_approved?.includes(
-                      campaignTypeId as ccc.Hex
-                    ) && (
-                      <Badge className="bg-green-100 text-green-800">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Approved
+                  {!isCreateMode && (
+                    <>
+                      <Badge variant="secondary">
+                        {campaign?.status === 0
+                          ? "Draft"
+                          : campaign?.status === 1
+                          ? "Active"
+                          : campaign?.status === 2
+                          ? "Completed"
+                          : "Cancelled"}
                       </Badge>
-                    )}
+
+                      {/* Show Approve Campaign button for admins if not approved */}
+                      {isAdmin &&
+                        campaignTypeId &&
+                        !protocolData?.campaigns_approved?.includes(
+                          campaignTypeId as ccc.Hex
+                        ) && (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={handleApproveCampaign}
+                            disabled={isApproving}
+                          >
+                            {isApproving ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                Approving...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve Campaign
+                              </>
+                            )}
+                          </Button>
+                        )}
+
+                      {/* Show approved badge if campaign is already approved */}
+                      {campaignTypeId &&
+                        protocolData?.campaigns_approved?.includes(
+                          campaignTypeId as ccc.Hex
+                        ) && (
+                          <Badge className="bg-green-100 text-green-800">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Approved
+                          </Badge>
+                        )}
+
+                      <Button
+                        onClick={refreshCampaign}
+                        disabled={isRefreshing}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {isRefreshing ? "Refreshing..." : "Refresh"}
+                      </Button>
+                    </>
+                  )}
+
+                  {isCreateMode && (
+                    <Button onClick={fillTestData} variant="outline" size="sm">
+                      <Plus className="w-4 h-4 mr-1" />
+                      Fill Test Data
+                    </Button>
+                  )}
 
                   <Button
-                    onClick={refreshCampaign}
-                    disabled={isRefreshing}
-                    size="sm"
-                    variant="outline"
+                    onClick={handleSaveCampaign}
+                    disabled={
+                      isSaving ||
+                      !signer ||
+                      (!isCreateMode && isDetailsReadOnly) ||
+                      (isCreateMode && localQuests.length === 0)
+                    }
                   >
-                    {isRefreshing ? "Refreshing..." : "Refresh"}
+                    {isSaving
+                      ? "Saving..."
+                      : isCreateMode
+                      ? "Create Campaign"
+                      : "Save Changes"}
                   </Button>
+                  {isCreateMode && localQuests.length === 0 && (
+                    <p className="text-xs text-red-600 dark:text-red-300">
+                      Add at least one quest to enable campaign creation.
+                    </p>
+                  )}
                 </>
-              )}
-
-              {isCreateMode && (
-                <Button onClick={fillTestData} variant="outline" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Fill Test Data
-                </Button>
-              )}
-
-              <Button
-                onClick={handleSaveCampaign}
-                disabled={
-                  isSaving ||
-                  !signer ||
-                  (!isCreateMode && isDetailsReadOnly) ||
-                  (isCreateMode && localQuests.length === 0)
-                }
-              >
-                {isSaving
-                  ? "Saving..."
-                  : isCreateMode
-                  ? "Create Campaign"
-                  : "Save Changes"}
-              </Button>
-              {isCreateMode && localQuests.length === 0 && (
-                <p className="text-xs text-red-600 dark:text-red-300">
-                  Add at least one quest to enable campaign creation.
-                </p>
               )}
             </div>
           </div>
 
-          {/* Campaign Stats */}
-          <CampaignStats
-            quests={isCreateMode ? localQuests : campaign?.quests || []}
-            participantCount={
-              campaign?.participants_count
-                ? Number(campaign.participants_count)
-                : 0
-            }
-            completionCount={
-              campaign?.total_completions
-                ? Number(campaign.total_completions)
-                : 0
-            }
-          />
-          {isCreateMode && (
-            <div className="mt-4">
-              <DraftHistory
-                title="Campaign Draft"
-                storage={draftStorage}
-                data={buildCurrentDraftPayload()}
-                isEmpty={(d) => isDraftEmpty(d)}
-                onRestore={handleRestoreDraft}
-                getVersionLabel={(d, ts) => new Date(ts).toLocaleString()}
+          {!shouldRestrictToSubmissions && (
+            <>
+              {/* Campaign Stats */}
+              <CampaignStats
+                quests={isCreateMode ? localQuests : campaign?.quests || []}
+                participantCount={
+                  campaign?.participants_count
+                    ? Number(campaign.participants_count)
+                    : 0
+                }
+                completionCount={
+                  campaign?.total_completions
+                    ? Number(campaign.total_completions)
+                    : 0
+                }
               />
-            </div>
+              {isCreateMode && (
+                <div className="mt-4">
+                  <DraftHistory
+                    title="Campaign Draft"
+                    storage={draftStorage}
+                    data={buildCurrentDraftPayload()}
+                    isEmpty={(d) => isDraftEmpty(d)}
+                    onRestore={handleRestoreDraft}
+                    getVersionLabel={(d, ts) =>
+                      new Date(ts).toLocaleString()
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
 
         {/* Main Content */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
-            <TabsTrigger value="details">Campaign Details</TabsTrigger>
-            <TabsTrigger value="quests">
-              Quests {localQuests.length > 0 && `(${localQuests.length})`}
-            </TabsTrigger>
-            {isCreateMode && (
-              <TabsTrigger value="funding">
-                Initial Funding{" "}
-                {initialFunding.size > 0 && `(${initialFunding.size})`}
-              </TabsTrigger>
+            {!shouldRestrictToSubmissions && (
+              <>
+                <TabsTrigger value="details">Campaign Details</TabsTrigger>
+                <TabsTrigger value="quests">
+                  Quests {localQuests.length > 0 && `(${localQuests.length})`}
+                </TabsTrigger>
+                {isCreateMode && (
+                  <TabsTrigger value="funding">
+                    Initial Funding{" "}
+                    {initialFunding.size > 0 && `(${initialFunding.size})`}
+                  </TabsTrigger>
+                )}
+              </>
             )}
             {!isCreateMode && (
+              <TabsTrigger value="submissions">Submissions</TabsTrigger>
+            )}
+            {!shouldRestrictToSubmissions && !isCreateMode && (
               <>
-                <TabsTrigger value="submissions">Submissions</TabsTrigger>
                 <TabsTrigger value="funding">Funding</TabsTrigger>
                 <TabsTrigger value="analytics">Analytics</TabsTrigger>
               </>
             )}
           </TabsList>
 
-          {/* Campaign Details Tab */}
-          <TabsContent value="details">
-            <Card>
-              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle>Campaign Information</CardTitle>
-                  {!isCreateMode && isDetailsReadOnly && (
-                    <p className="text-sm text-muted-foreground">
-                      Viewing campaign details in read-only mode. Enable editing
-                      to make changes.
-                    </p>
+          {!shouldRestrictToSubmissions && (
+            <TabsContent value="details">
+              <Card>
+                <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <CardTitle>Campaign Information</CardTitle>
+                    {!isCreateMode && isDetailsReadOnly && (
+                      <p className="text-sm text-muted-foreground">
+                        Viewing campaign details in read-only mode. Enable
+                        editing to make changes.
+                      </p>
+                    )}
+                  </div>
+                  {!isCreateMode && (
+                    <Button
+                      variant={isDetailsReadOnly ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setIsDetailsReadOnly((prev) => !prev)}
+                    >
+                      {isDetailsReadOnly
+                        ? "Enable Editing"
+                        : "Switch to Read Only"}
+                    </Button>
                   )}
-                </div>
-                {!isCreateMode && (
-                  <Button
-                    variant={isDetailsReadOnly ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setIsDetailsReadOnly((prev) => !prev)}
-                  >
-                    {isDetailsReadOnly
-                      ? "Enable Editing"
-                      : "Switch to Read Only"}
-                  </Button>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <CampaignForm
-                  campaignData={campaignData}
-                  onChange={handleCampaignDataChange}
-                  isCreateMode={isCreateMode}
-                  readOnly={!isCreateMode && isDetailsReadOnly}
-                  coverImage={coverImage}
-                  onCoverImageChange={handleCoverImageChange}
-                  onCoverImageClear={handleCoverImageClear}
-                  longDescriptionNeventId={longDescriptionNeventId}
-                />
-                <StaffManagement
-                  staffLockHashes={staffLockHashes}
-                  onChange={setStaffLockHashes}
-                  signer={signer!}
-                  disabled={!isCreateMode && isDetailsReadOnly}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <CampaignForm
+                    campaignData={campaignData}
+                    onChange={handleCampaignDataChange}
+                    isCreateMode={isCreateMode}
+                    readOnly={!isCreateMode && isDetailsReadOnly}
+                    coverImage={coverImage}
+                    onCoverImageChange={handleCoverImageChange}
+                    onCoverImageClear={handleCoverImageClear}
+                    longDescriptionNeventId={longDescriptionNeventId}
+                  />
+                  <StaffManagement
+                    staffLockHashes={staffLockHashes}
+                    onChange={setStaffLockHashes}
+                    signer={signer!}
+                    disabled={!isCreateMode && isDetailsReadOnly}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {/* Quests Tab */}
-          <TabsContent value="quests">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-semibold">Campaign Quests</h2>
-                <Button
-                  onClick={() => setIsAddingQuest(true)}
-                  disabled={!isCreateMode && !campaign}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Quest
-                </Button>
-              </div>
+          {!shouldRestrictToSubmissions && (
+            <TabsContent value="quests">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-semibold">Campaign Quests</h2>
+                  <Button
+                    onClick={() => setIsAddingQuest(true)}
+                    disabled={!isCreateMode && !campaign}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Quest
+                  </Button>
+                </div>
 
-              <QuestList
-                quests={isCreateMode ? localQuests : campaign?.quests || []}
-                onEditQuest={handleEditQuest}
-                onDeleteQuest={handleDeleteQuest}
-                onAddQuest={() => setIsAddingQuest(true)}
-                isCreateMode={isCreateMode}
-              />
-            </div>
-          </TabsContent>
+                <QuestList
+                  quests={isCreateMode ? localQuests : campaign?.quests || []}
+                  onEditQuest={handleEditQuest}
+                  onDeleteQuest={handleDeleteQuest}
+                  onAddQuest={() => setIsAddingQuest(true)}
+                  isCreateMode={isCreateMode}
+                />
+              </div>
+            </TabsContent>
+          )}
 
           {/* Initial Funding Tab (Create Mode) */}
-          {isCreateMode && (
+          {isCreateMode && !shouldRestrictToSubmissions && (
             <TabsContent value="funding">
               <div className="space-y-6">
                 <div>
@@ -1738,12 +1838,15 @@ export default function CampaignAdminPage() {
           {/* Submissions Tab */}
           {!isCreateMode && (
             <TabsContent value="submissions">
-              <SubmissionsTab campaignTypeId={campaignTypeId as ccc.Hex} />
+              <SubmissionsTab
+                campaignTypeId={campaignTypeId as ccc.Hex}
+                isStaffReviewer={!isAdmin && hasStaffAccess}
+              />
             </TabsContent>
           )}
 
           {/* Funding Tab */}
-          {!isCreateMode && (
+          {!isCreateMode && !shouldRestrictToSubmissions && (
             <TabsContent value="funding">
               <FundingTab
                 campaignTypeId={campaignTypeId as ccc.Hex}
@@ -1756,7 +1859,7 @@ export default function CampaignAdminPage() {
           )}
 
           {/* Analytics Tab */}
-          {!isCreateMode && (
+          {!isCreateMode && !shouldRestrictToSubmissions && (
             <TabsContent value="analytics">
               <Card>
                 <CardHeader>

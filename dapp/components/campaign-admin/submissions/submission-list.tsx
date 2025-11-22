@@ -35,7 +35,7 @@ interface SubmissionListProps {
   quests: QuestDataLike[]
   submissions: Map<number, Array<UserSubmissionRecordLike & { userTypeId: string }>>
   userDetails: Map<string, UserDataLike>
-  onBatchApprove: (questId: number, userTypeIds: string[]) => Promise<void>
+  onBatchApprove: (questId: number, userTypeIds: string[]) => Promise<string>
   filterStatus?: "all" | "pending" | "approved"
 }
 
@@ -139,14 +139,13 @@ export function SubmissionList({
     setApprovalDialog(prev => ({ ...prev, status: 'confirming' }))
     
     try {
-      await onBatchApprove(approvalDialog.questId, Array.from(selected))
+      const txHash = await onBatchApprove(approvalDialog.questId, Array.from(selected))
       
       // Success - show transaction hash (would need to be returned from onBatchApprove)
       setApprovalDialog(prev => ({ 
         ...prev, 
         status: 'success',
-        // txHash would come from the actual transaction
-        txHash: '0x...' // Placeholder - actual implementation would return this
+        txHash
       }))
       
       // Clear selection after successful approval

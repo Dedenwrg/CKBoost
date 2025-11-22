@@ -613,6 +613,7 @@ impl CKBoostCampaign for CKBoostCampaignType {
         // Create updated campaign data
         let updated_campaign_data = CampaignData::new_builder()
             .endorser_lock_hash(campaign_data.endorser_lock_hash())
+            .staff_lock_hash_vec(campaign_data.staff_lock_hash_vec())
             .created_at(campaign_data.created_at())
             .starting_time(campaign_data.starting_time())
             .ending_time(campaign_data.ending_time())
