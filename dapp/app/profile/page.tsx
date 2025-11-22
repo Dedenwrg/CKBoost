@@ -10,6 +10,7 @@ export default function ProfilePage() {
     userRecommendedAddressObj,
     isLoading,
     error,
+    updateDisplayName,
   } = useUser();
 
   return (
@@ -20,6 +21,7 @@ export default function ProfilePage() {
       userData={currentUserData}
       userTypeId={currentUserTypeId}
       fallbackAddress={userRecommendedAddressObj?.toString()}
+      onDisplayNameChange={updateDisplayName}
     />
   );
 }

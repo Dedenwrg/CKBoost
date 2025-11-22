@@ -1190,6 +1190,101 @@ export class UserService {
     });
   }
 
+  async updateProfileDisplayName(displayName: string): Promise<ccc.Hex> {
+    const trimmed = displayName.trim();
+    if (!trimmed) {
+      throw new Error("Display name is required");
+    }
+
+    await this.ensureDeploymentInfo();
+
+    const lockScript = (await this.signer.getRecommendedAddressObj()).script;
+    const lockHash = lockScript.hash();
+    const existingUser = await this.getUserByLockHash(lockHash);
+
+    if (!existingUser || !existingUser.typeId) {
+      log.log(
+        "No existing user found while updating display name, creating profile first"
+      );
+      return this.createUserProfile(trimmed);
+    }
+
+    const userCell = await fetchUserByTypeId(
+      existingUser.typeId,
+      this.userTypeCodeHash,
+      this.signer,
+      this.protocolTypeHash
+    );
+
+    if (!userCell) {
+      throw new Error("User cell not found");
+    }
+
+    if (!userCell.cellOutput.type) {
+      throw new Error("User cell type script is missing");
+    }
+
+    if (!this.userTypeCodeCell) {
+      throw new Error(
+        "User type contract not found. Please deploy the contracts first."
+      );
+    }
+
+    const existingUserData = ckboost.types.UserData.decode(userCell.outputData);
+
+    const updatedProfileEntries = this.buildProfileDataEntries({
+      displayName: trimmed,
+      extraEntries: existingUserData.profile_data ?? [],
+    });
+
+    const updatedUserData = {
+      ...existingUserData,
+      profile_data: updatedProfileEntries,
+      last_activity_timestamp: BigInt(Date.now()),
+    } as UserDataLike;
+
+    const executorUrl =
+      process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
+    const executor = new ssri.ExecutorJsonRpc(executorUrl);
+
+    this.userInstance = new ckboost.User(
+      this.userTypeCodeCell,
+      ccc.Script.from({
+        codeHash: this.userTypeCodeHash,
+        hashType: "type",
+        args: userCell.cellOutput.type.args,
+      }),
+      { executor }
+    );
+
+    const { res: updateTx } = await this.userInstance.updateVerificationData(
+      this.signer,
+      updatedUserData
+    );
+
+    const protocolCell = await fetchProtocolCell(this.signer.client);
+    if (!protocolCell) {
+      throw new Error(
+        "Protocol cell not found on blockchain. Please deploy protocol cell first."
+      );
+    }
+    updateTx.addCellDeps({ outPoint: protocolCell.outPoint, depType: "code" });
+
+    const txHash =
+      await this.sendTransactionWithSignatureForProxyAuthentication(
+        this.signer,
+        updateTx
+      );
+
+    log.log("User display name updated", {
+      txHash: txHash.slice(0, 10) + "...",
+      userTypeId: existingUser.typeId.slice(0, 10) + "...",
+      displayName: trimmed,
+    });
+
+    return txHash;
+  }
+
   /**
    * Check if user exists
    */

@@ -47,6 +47,7 @@ interface UserContextType {
   refreshUserData: () => Promise<void>;
   userRecommendedAddressObj: ccc.Address | null;
   createUserProfile: (displayName: string) => Promise<ccc.Hex>;
+  updateDisplayName: (displayName: string) => Promise<ccc.Hex>;
 }
 
 const UserContext = createContext<UserContextType>({
@@ -66,6 +67,9 @@ const UserContext = createContext<UserContextType>({
   refreshUserData: async () => {},
   userRecommendedAddressObj: null,
   createUserProfile: async () => {
+    throw new Error("UserProvider not initialized");
+  },
+  updateDisplayName: async () => {
     throw new Error("UserProvider not initialized");
   },
 });
@@ -385,6 +389,30 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     return await signer.getRecommendedAddressObj();
   };
 
+  const updateDisplayName = async (displayName: string) => {
+    if (!userService) {
+      throw new Error("User service not initialized");
+    }
+
+    try {
+      setError(null);
+      const txHash = await userService.updateProfileDisplayName(displayName);
+
+      setTimeout(async () => {
+        await refreshUserData();
+      }, 3000);
+
+      return txHash;
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to update display name";
+      setError(errorMsg);
+      throw err;
+    }
+  };
+
   return (
     <UserContext.Provider
       value={{
@@ -402,6 +430,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         refreshUserData,
         userRecommendedAddressObj,
         createUserProfile,
+        updateDisplayName,
       }}
     >
       {children}

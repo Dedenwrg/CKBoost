@@ -16,6 +16,7 @@ import { ckboost } from "ssri-ckboost";
 import { Navigation } from "@/components/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -26,6 +27,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/use-toast";
 import { useCampaigns } from "@/lib/providers/campaign-provider";
 import { CampaignData, TippingData } from "ssri-ckboost/types";
 import { extractTypeIdFromCampaignCell } from "@/lib/ckb/campaign-cells";
@@ -35,6 +47,7 @@ import { createScopedLogger } from "ssri-ckboost";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { fetchTippingByTypeId } from "@/lib/ckb/tipping-cells";
+import { getLatestDisplayName } from "@/lib/profile/profile-data";
 
 const log = createScopedLogger("ProfileContent");
 
@@ -64,6 +77,7 @@ export interface ProfileContentProps {
   userData: UserDataType | null;
   userTypeId: ccc.Hex | null;
   fallbackAddress?: string | null;
+  onDisplayNameChange?: (displayName: string) => Promise<ccc.Hex>;
 }
 
 const shorten = (value: string | null | undefined, head = 8, tail = 6) => {
@@ -403,6 +417,7 @@ export function ProfileContent({
   userData,
   userTypeId,
   fallbackAddress,
+  onDisplayNameChange,
 }: ProfileContentProps) {
   const { client } = ccc.useCcc();
   const { protocolCell, protocolData } = useProtocol();
@@ -430,6 +445,13 @@ export function ProfileContent({
     process.env.NEXT_PUBLIC_CKB_NETWORK === "mainnet"
       ? "https://explorer.nervos.org/transaction/"
       : "https://pudge.explorer.nervos.org/transaction/";
+  const { toast } = useToast();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [pendingDisplayName, setPendingDisplayName] = useState("");
+  const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
+  const [displayNameError, setDisplayNameError] = useState<string | null>(null);
+  const canEditDisplayName =
+    context === "self" && typeof onDisplayNameChange === "function" && !!userData;
 
   const campaignMap = useMemo(() => {
     const map = new Map<
@@ -529,7 +551,15 @@ export function ProfileContent({
     return map;
   }, [campaigns]);
 
+  const profileDisplayName = useMemo(
+    () => getLatestDisplayName(userData?.profile_data),
+    [userData?.profile_data]
+  );
+
   const displayName = useMemo(() => {
+    if (profileDisplayName) {
+      return profileDisplayName;
+    }
     const identityName = extractIdentityDisplayName(
       userData?.verification_data?.identity_verification_data
     );
@@ -543,7 +573,7 @@ export function ProfileContent({
       return userTypeId;
     }
     return "Unknown user";
-  }, [normalizedFallbackAddress, userData, userTypeId]);
+  }, [profileDisplayName, normalizedFallbackAddress, userData, userTypeId]);
 
   const secondaryIdentifier = useMemo(() => {
     const candidate =
@@ -554,6 +584,70 @@ export function ProfileContent({
     if (candidate === displayName) return null;
     return candidate;
   }, [displayName, normalizedFallbackAddress, userTypeId]);
+
+  useEffect(() => {
+    if (!canEditDisplayName || isEditDialogOpen) {
+      return;
+    }
+    setPendingDisplayName(profileDisplayName ?? "");
+  }, [
+    canEditDisplayName,
+    profileDisplayName,
+    isEditDialogOpen,
+  ]);
+
+  const openDisplayNameDialog = () => {
+    if (!canEditDisplayName) {
+      return;
+    }
+    setPendingDisplayName(profileDisplayName ?? "");
+    setDisplayNameError(null);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsEditDialogOpen(open);
+    if (!open) {
+      setDisplayNameError(null);
+      setPendingDisplayName(profileDisplayName ?? "");
+    }
+  };
+
+  const handleDisplayNameSave = async () => {
+    if (!onDisplayNameChange) {
+      return;
+    }
+    const trimmed = pendingDisplayName.trim();
+    if (!trimmed) {
+      setDisplayNameError("Display name cannot be empty");
+      return;
+    }
+
+    try {
+      setIsSavingDisplayName(true);
+      setDisplayNameError(null);
+      await onDisplayNameChange(trimmed);
+      toast({
+        title: "Display name updated",
+        description:
+          "The new name will appear after the transaction is confirmed on-chain.",
+      });
+      setIsEditDialogOpen(false);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to update display name";
+      setDisplayNameError(message);
+      toast({
+        title: "Unable to update display name",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDisplayName(false);
+    }
+  };
 
   const telegramVerified = useMemo(() => {
     const value = userData?.verification_data?.telegram_personal_chat_id;
@@ -1105,21 +1199,33 @@ export function ProfileContent({
           <div className="space-y-8">
             <Card className="overflow-hidden border-purple-200 dark:border-purple-800 shadow-sm">
               <CardHeader className="bg-gradient-to-r from-purple-600/90 to-indigo-600/90 text-white">
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-semibold">
-                      {displayName?.charAt(0)?.toUpperCase() ?? "?"}
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center text-xl font-semibold">
+                        {displayName?.charAt(0)?.toUpperCase() ?? "?"}
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-semibold leading-tight break-words">
+                          {displayName}
+                        </h2>
+                        {secondaryIdentifier && (
+                          <p className="text-sm text-white/80 break-words">
+                            {secondaryIdentifier}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-semibold leading-tight break-words">
-                        {displayName}
-                      </h2>
-                      {secondaryIdentifier && (
-                        <p className="text-sm text-white/80 break-words">
-                          {secondaryIdentifier}
-                        </p>
-                      )}
-                    </div>
+                    {canEditDisplayName && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="self-start bg-white/20 text-white hover:bg-white/30"
+                        onClick={openDisplayNameDialog}
+                      >
+                        Edit display name
+                      </Button>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2 text-sm">
                     {userTypeId && (
@@ -1504,6 +1610,56 @@ export function ProfileContent({
           </div>
         )}
       </main>
+      {canEditDisplayName && (
+        <Dialog open={isEditDialogOpen} onOpenChange={handleDialogOpenChange}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update display name</DialogTitle>
+              <DialogDescription>
+                This name appears on your dashboard and public profile. Changes
+                require an on-chain transaction and may take a few minutes to
+                finalize.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor="profile-display-name">Display name</Label>
+              <Input
+                id="profile-display-name"
+                autoFocus
+                maxLength={80}
+                value={pendingDisplayName}
+                onChange={(event) =>
+                  setPendingDisplayName(event.currentTarget.value)
+                }
+                placeholder="Your preferred name"
+                disabled={isSavingDisplayName}
+              />
+            </div>
+            {displayNameError && (
+              <p className="text-sm text-red-500">{displayNameError}</p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogOpenChange(false)}
+                disabled={isSavingDisplayName}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleDisplayNameSave}
+                disabled={
+                  isSavingDisplayName || pendingDisplayName.trim().length === 0
+                }
+              >
+                {isSavingDisplayName ? "Saving..." : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

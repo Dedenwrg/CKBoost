@@ -44,6 +44,7 @@ import {
 import type { UserSubmissionRecordLike } from "ssri-ckboost/types";
 import { udtRegistry } from "@/lib/services/udt-registry";
 import { extractIdentityDisplayName } from "@/lib/utils/identity";
+import { getLatestDisplayName } from "@/lib/profile/profile-data";
 import { PageLoading } from "@/components/ui/page-loading";
 
 const log = createScopedLogger("DashboardPage");
@@ -233,6 +234,10 @@ export default function Dashboard() {
   const [tokenBalancesLoading, setTokenBalancesLoading] = useState(false);
 
   const displayName = useMemo(() => {
+    const profileName = getLatestDisplayName(currentUserData?.profile_data);
+    if (profileName) {
+      return profileName;
+    }
     const identityName = extractIdentityDisplayName(
       currentUserData?.verification_data?.identity_verification_data
     );
