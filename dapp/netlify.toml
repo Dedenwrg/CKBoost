@@ -49,6 +49,11 @@ to = "/.netlify/functions/streakBonus-validate"
 status = 200
 
 [[redirects]]
+from = "/api/staff-approve-submissions"
+to = "/.netlify/functions/staff-approve-submissions"
+status = 200
+
+[[redirects]]
 from = "/api/verification/*"
 to = "/.netlify/functions/verification-api/:splat"
 status = 200

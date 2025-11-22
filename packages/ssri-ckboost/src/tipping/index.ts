@@ -68,7 +68,7 @@ export class Tipping extends ssri.Trait {
 
     const txReq = ccc.Transaction.from(tx ?? {});
     // Ensure at least one input for the transaction
-    if (txReq.inputs.length === 0) {
+    if (txReq.inputs.length === 0 && !this.script.args) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }

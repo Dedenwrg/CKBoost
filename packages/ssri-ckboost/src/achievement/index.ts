@@ -77,7 +77,7 @@ export class Achievement extends ssri.Trait {
     }
 
     let txReq = ccc.Transaction.from(tx ?? {});
-    if (txReq.inputs.length === 0) {
+    if (txReq.inputs.length === 0 && !this.script.args) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }
