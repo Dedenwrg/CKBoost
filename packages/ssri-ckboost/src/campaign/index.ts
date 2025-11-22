@@ -116,10 +116,7 @@ export class Campaign extends ssri.Trait {
           decoded.quests?.length || 0
         );
       } catch (decodeErr) {
-        log.error(
-          "Failed to decode immediately after encoding:",
-          decodeErr
-        );
+        log.error("Failed to decode immediately after encoding:", decodeErr);
       }
     } catch (encodeErr) {
       log.error("Failed to encode campaign data:", encodeErr);
@@ -467,6 +464,36 @@ export class Campaign extends ssri.Trait {
         // NOTE: This is a temporary fix since SSRI method couldn't return the new campaign cell in output.
         const updatedCampaignData =
           resTx.res.outputsData[resTx.res.outputsData.length - 1];
+        let sanitizedCampaignDataHex = ccc.hexFrom(updatedCampaignData);
+        try {
+          const normalizedCampaignData = CampaignData.decode(
+            sanitizedCampaignDataHex
+          ) as CampaignDataLike;
+          const participantSet = new Set<string>();
+          for (const quest of normalizedCampaignData.quests || []) {
+            for (const participant of quest.accepted_submission_user_type_ids ||
+              []) {
+              participantSet.add(
+                ccc.hexFrom(participant as ccc.HexLike).toLowerCase()
+              );
+            }
+          }
+          normalizedCampaignData.participants_count = BigInt(
+            participantSet.size
+          );
+          log.info("normalizedCampaignData", normalizedCampaignData);
+          log.info("participantSet", participantSet);
+          log.info("participantSet.size", participantSet.size);
+          log.info(
+            "normalizedCampaignData.participants_count",
+            normalizedCampaignData.participants_count
+          );
+          sanitizedCampaignDataHex = ccc.hexFrom(
+            CampaignData.encode(normalizedCampaignData)
+          );
+        } catch (error) {
+          log.warn("Failed to normalize participants count", error);
+        }
 
         // Add the campaign code cell as a dependency
         resTx.res.addCellDeps({
@@ -516,7 +543,7 @@ export class Campaign extends ssri.Trait {
               lock: cell.cellOutput.lock,
               type: cell.cellOutput.type,
             });
-            resTx.res.addOutput(campaignCellOutput, updatedCampaignData);
+            resTx.res.addOutput(campaignCellOutput, sanitizedCampaignDataHex);
           }
         }
 

@@ -59,8 +59,8 @@ export class User extends ssri.Trait {
     let resTx;
 
     const txReq = ccc.Transaction.from(tx ?? {});
-    // Ensure at least one input for the transaction
-    if (txReq.inputs.length === 0) {
+    // Ensure at least one input for the transaction if User instance does not have a script.
+    if (txReq.inputs.length === 0 && !this.script.args) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }
