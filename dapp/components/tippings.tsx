@@ -18,6 +18,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ccc } from "@ckb-ccc/connector-react";
 import { InsufficientTippingFundingError } from "@/lib/services/tipping-service";
 import { createScopedLogger } from "ssri-ckboost";
+import { useSocialInteractions } from "@/hooks/use-social-interactions";
 
 const log = createScopedLogger("Tippings");
 
@@ -32,7 +33,7 @@ const parseBigInt = (value: ccc.NumLike | undefined | null): bigint => {
 
 export function Tippings() {
   const { tippings: contextTippings, isLoading, error } = useTippingsData();
-  const { updateTipping, refreshTippings } = useTippingContext();
+  const { updateTipping } = useTippingContext();
   const { isAdmin, isEndorser, protocolData, endorserResolver } = useProtocol();
   const signer = ccc.useSigner();
   const { toast } = useToast();
@@ -42,6 +43,13 @@ export function Tippings() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
   const tippingRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Extract type IDs for social stats
+  const tippingTypeIds = useMemo(() => {
+    return tippings.map((t) => t.typeId).filter((id) => !!id) as string[];
+  }, [tippings]);
+
+  const { stats: socialStats } = useSocialInteractions(tippingTypeIds);
 
   useEffect(() => {
     setTippings(contextTippings);
@@ -346,9 +354,9 @@ export function Tippings() {
     );
   };
 
-  const handleAdditionalTip = (
+  const handleAdditionalTip = async (
     typeId: string,
-    tipData: { amount: number; message?: string }
+    tipData: { amount: number; message?: string; txHash?: string }
   ) => {
     const newTip = {
       id: `tip-${Date.now()}`,
@@ -369,6 +377,9 @@ export function Tippings() {
           : tipping
       )
     );
+
+    if (tipData.txHash) {
+    }
   };
 
   return (
@@ -428,6 +439,7 @@ export function Tippings() {
                 onLike={handleLike}
                 onComment={handleComment}
                 onAdditionalTip={handleAdditionalTip}
+                initialStats={socialStats[tipping.typeId ?? ""]}
               />
             </div>
           );

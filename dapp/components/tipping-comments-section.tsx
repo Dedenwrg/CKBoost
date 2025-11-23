@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SocialInteractions } from "./social-interactions";
-import { useTippingComments } from "@/hooks/use-tipping-comments";
 import { useUser } from "@/lib/providers/user-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,21 +16,48 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { createScopedLogger } from "ssri-ckboost";
+import { Comment } from "./social-interactions";
 
 const log = createScopedLogger("TippingCommentsSection");
 
 export function TippingCommentsSection({
   tippingTypeId,
+  comments,
+  error,
+  postComment,
+  postLike,
+  likesCount,
+  isLiked,
+  onLike,
+  onComment,
+  hasMore,
+  loadMore,
+  isLoading,
+  totalComments,
 }: {
   tippingTypeId?: string;
+  comments: Comment[];
+  error: string | null;
+  postComment: (
+    comment: string,
+    tipData?: { txHash: string; amount: string }
+  ) => Promise<void>;
+  postLike: () => Promise<void>;
+  likesCount: number;
+  isLiked: boolean;
+  onLike?: () => void;
+  onComment?: (comment: string) => void;
+  hasMore?: boolean;
+  loadMore?: () => void;
+  isLoading?: boolean;
+  totalComments?: number;
 }) {
-  const { comments, error, postComment } = useTippingComments(tippingTypeId);
   const {
     currentUserTypeId,
     createUserProfile,
     refreshUserData,
-    isLoading: userLoading,
     userService,
+    isLoading: userLoading,
   } = useUser();
   const { open: openWalletModal } = ccc.useCcc();
   const canComment = Boolean(userService);
@@ -78,12 +104,7 @@ export function TippingCommentsSection({
         }
       })();
     }
-  }, [
-    awaitingProfileReady,
-    currentUserTypeId,
-    pendingComment,
-    tippingTypeId,
-  ]);
+  }, [awaitingProfileReady, currentUserTypeId, pendingComment, tippingTypeId]);
 
   const resetProfileDialog = () => {
     setProfileName("");
@@ -128,6 +149,7 @@ export function TippingCommentsSection({
 
       try {
         await postComment(comment);
+        onComment?.(comment);
         return true;
       } catch (err) {
         const message =
@@ -142,6 +164,7 @@ export function TippingCommentsSection({
       tippingTypeId,
       refreshUserData,
       userService,
+      onComment,
     ]
   );
 
@@ -201,10 +224,17 @@ export function TippingCommentsSection({
       )}
       <SocialInteractions
         tipping_type_id={tippingTypeId ?? ""}
-        initialLikes={0}
+        initialLikes={likesCount}
         initialComments={comments}
-        isLiked={false}
-        onLike={() => {}}
+        isLiked={isLiked}
+        onLike={async () => {
+          try {
+            await postLike();
+            onLike?.();
+          } catch (e) {
+            log.error("Failed to like", e);
+          }
+        }}
         onComment={handleComment}
         onShare={() => {}}
         commentEnabled={canComment}
@@ -212,6 +242,10 @@ export function TippingCommentsSection({
         onConnectWallet={handleRequestConnect}
         draftComment={commentDraft}
         onDraftCommentChange={setCommentDraft}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        isLoadingMore={isLoading}
+        totalComments={totalComments}
       />
 
       <Dialog open={showProfileDialog} onOpenChange={handleProfileDialogChange}>

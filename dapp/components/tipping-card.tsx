@@ -23,7 +23,10 @@ import { TippingInfo } from "@/lib/providers/tipping-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ccc } from "@ckb-ccc/connector-react";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { useTippingComments } from "@/hooks/use-tipping-comments";
 import { createScopedLogger } from "ssri-ckboost";
+
+import { SocialInteractions } from "@/hooks/use-social-interactions";
 
 const log = createScopedLogger("TippingCard");
 
@@ -38,8 +41,9 @@ interface TippingCardProps {
   onComment?: (tippingId: string, comment: string) => void;
   onAdditionalTip?: (
     tippingId: string,
-    tipData: { amount: number; message?: string }
+    tipData: { amount: number; message?: string; txHash?: string }
   ) => void;
+  initialStats?: SocialInteractions;
 }
 
 export function TippingCard({
@@ -52,6 +56,7 @@ export function TippingCard({
   onLike,
   onComment,
   onAdditionalTip,
+  initialStats,
 }: TippingCardProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -69,6 +74,20 @@ export function TippingCard({
   const [isResolvingLongDescription, setIsResolvingLongDescription] =
     useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const signer = ccc.useSigner();
+
+  const {
+    comments,
+    error: commentsError,
+    postComment,
+    postLike,
+    likesCount,
+    isLiked,
+    hasMore,
+    loadMore,
+    isLoading: isCommentsLoading,
+    totalComments,
+  } = useTippingComments(tipping.typeId);
 
   const proposerLockHash = useMemo(() => {
     try {
@@ -300,22 +319,97 @@ export function TippingCard({
     }
   };
 
+  const resolveLockScript = async (lockHash: string): Promise<ccc.Script> => {
+    const url = new URL("/api/resolve-lock-script", window.location.origin);
+    url.searchParams.set("hash", lockHash);
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to resolve lock script (status ${response.status})`
+      );
+    }
+
+    const lockScript = (await response.json()) as {
+      code_hash: string;
+      hash_type: "data" | "type" | "data1";
+      args: string;
+    };
+
+    return ccc.Script.from({
+      codeHash: lockScript.code_hash,
+      hashType: lockScript.hash_type,
+      args: lockScript.args,
+    });
+  };
+
   const handleAdditionalTip = async () => {
     if (!additionalTipAmount || Number.parseFloat(additionalTipAmount) <= 0)
       return;
 
+    if (!signer) {
+      setApproveError("Please connect your wallet to send a tip.");
+      return;
+    }
+
     setIsSendingTip(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSendingTip(false);
+    setApproveError(null);
 
-    onAdditionalTip?.(tipping.typeId ?? "", {
-      amount: Number.parseFloat(additionalTipAmount),
-      message: additionalTipMessage || undefined,
-    });
+    try {
+      // 1. Resolve the target lock script
+      const targetLockHash = ccc.hexFrom(tipping.data.target_lock_hash);
+      const targetScript = await resolveLockScript(targetLockHash);
 
-    setIsAdditionalTipModalOpen(false);
-    setAdditionalTipAmount("");
-    setAdditionalTipMessage("");
+      // 2. Build and send transaction
+      const amountShannons = ccc.fixedPointFrom(additionalTipAmount);
+      const tx = ccc.Transaction.from({
+        outputs: [
+          {
+            lock: targetScript,
+            capacity: amountShannons,
+          },
+        ],
+      });
+
+      // Complete transaction
+      await tx.completeInputsByCapacity(signer);
+      await tx.completeFeeBy(signer);
+
+      // Send transaction
+      const txHash = await signer.sendTransaction(tx);
+      log.info("Personal tip sent", { txHash, amount: additionalTipAmount });
+
+      // 3. Post comment with tip metadata
+      try {
+        await postComment(additionalTipMessage || "Sent a tip", {
+          txHash,
+          amount: additionalTipAmount,
+        });
+      } catch (e) {
+        log.error("Failed to post tip comment", e);
+      }
+
+      onAdditionalTip?.(tipping.typeId ?? "", {
+        amount: Number.parseFloat(additionalTipAmount),
+        message: additionalTipMessage || undefined,
+        txHash,
+      });
+    } catch (error) {
+      console.error("Failed to send personal tip", error);
+      setApproveError(
+        error instanceof Error ? error.message : "Failed to send tip"
+      );
+    } finally {
+      setIsSendingTip(false);
+      setIsAdditionalTipModalOpen(false);
+      setAdditionalTipAmount("");
+      setAdditionalTipMessage("");
+    }
   };
 
   const getStatusBadge = () => {
@@ -802,7 +896,23 @@ export function TippingCard({
 
         {/* Social Interactions */}
         <Separator />
-        <TippingCommentsSection tippingTypeId={tipping.typeId} />
+        <div className="pt-4">
+          <TippingCommentsSection
+            tippingTypeId={tipping.typeId}
+            comments={comments}
+            error={commentsError}
+            postComment={postComment}
+            postLike={postLike}
+            likesCount={likesCount || initialStats?.likesCount || 0}
+            isLiked={isLiked}
+            onLike={() => onLike?.(tipping.typeId ?? "")}
+            onComment={(comment) => onComment?.(tipping.typeId ?? "", comment)}
+            hasMore={hasMore}
+            loadMore={loadMore}
+            isLoading={isCommentsLoading}
+            totalComments={totalComments}
+          />
+        </div>
       </CardContent>
 
       {/* Additional Tip Modal */}

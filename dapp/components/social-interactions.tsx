@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -21,13 +21,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export interface Comment {
-  id: string;
+  neventId: string;
   author: string;
   content: string;
   timestamp: string;
   likes: number;
   isLiked: boolean;
   link?: string;
+  isTip?: boolean;
+  tipAmount?: string;
+  tipTxHash?: string;
 }
 
 interface SocialInteractionsProps {
@@ -48,6 +51,10 @@ interface SocialInteractionsProps {
   onConnectWallet?: () => void | Promise<void>;
   draftComment?: string;
   onDraftCommentChange?: (value: string) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
+  totalComments?: number;
 }
 
 export function SocialInteractions({
@@ -65,7 +72,17 @@ export function SocialInteractions({
   onConnectWallet,
   draftComment,
   onDraftCommentChange,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
+  totalComments,
 }: SocialInteractionsProps) {
+  console.log("SocialInteractions props:", {
+    totalComments,
+    commentsLength: initialComments.length,
+    hasMore,
+    pageSize,
+  });
   const [liked, setLiked] = useState(isLiked);
   const [likes, setLikes] = useState(initialLikes);
   const [comments, setComments] = useState(initialComments);
@@ -75,13 +92,20 @@ export function SocialInteractions({
   const [showPagedComments, setShowPagedComments] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSizeState, setPageSizeState] = useState(pageSize);
+  const pendingPageAdvance = useRef(false);
+  const prevCommentsLength = useRef(initialComments.length);
 
-  const totalPages = Math.max(1, Math.ceil(comments.length / pageSizeState));
+  const effectiveTotalComments = totalComments ?? comments.length;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(effectiveTotalComments / pageSizeState)
+  );
 
   const pagedComments = comments.slice(
     (currentPage - 1) * pageSizeState,
     currentPage * pageSizeState
   );
+  const isLoadingInitial = isLoadingMore && comments.length === 0;
 
   const previewComments = comments.slice(0, previewCount);
 
@@ -97,6 +121,7 @@ export function SocialInteractions({
 
   useEffect(() => {
     setComments(initialComments);
+    prevCommentsLength.current = initialComments.length;
   }, [initialComments]);
 
   const commentValue = draftComment ?? internalComment;
@@ -137,7 +162,7 @@ export function SocialInteractions({
         }
       } else {
         const comment: Comment = {
-          id: Date.now().toString(),
+          neventId: Date.now().toString(),
           author: "CurrentUser",
           content: commentValue,
           timestamp: "now",
@@ -160,10 +185,10 @@ export function SocialInteractions({
     }
   };
 
-  const handleCommentLike = (commentId: string) => {
+  const handleCommentLike = (commentNeventId: string) => {
     setComments((prev) =>
       prev.map((comment) =>
-        comment.id === commentId
+        comment.neventId === commentNeventId
           ? {
               ...comment,
               isLiked: !comment.isLiked,
@@ -181,6 +206,40 @@ export function SocialInteractions({
     );
     onShare?.(tipping_type_id);
   };
+
+  const handleNextPage = () => {
+    const nextCommentsStartIndex = currentPage * pageSizeState;
+    const remainingAfterNext = comments.length - nextCommentsStartIndex;
+
+    if (nextCommentsStartIndex < comments.length) {
+      setCurrentPage((prev) => prev + 1);
+
+      if (
+        hasMore &&
+        onLoadMore &&
+        !isLoadingMore &&
+        remainingAfterNext <= pageSizeState
+      ) {
+        onLoadMore();
+      }
+    } else if (hasMore && onLoadMore && !isLoadingMore) {
+      pendingPageAdvance.current = true;
+      onLoadMore();
+    }
+  };
+
+  useEffect(() => {
+    if (pendingPageAdvance.current && showPagedComments) {
+      if (comments.length > prevCommentsLength.current) {
+        setCurrentPage((prev) => prev + 1);
+        pendingPageAdvance.current = false;
+      } else if (!isLoadingMore) {
+        // No new comments arrived; clear pending to avoid getting stuck
+        pendingPageAdvance.current = false;
+      }
+    }
+    prevCommentsLength.current = comments.length;
+  }, [comments.length, showPagedComments, isLoadingMore]);
 
   return (
     <div className="space-y-4">
@@ -203,7 +262,7 @@ export function SocialInteractions({
 
           <div className="flex items-center gap-2 text-muted-foreground">
             <MessageSquare className="w-4 h-4" />
-            <span>{comments.length}</span>
+            <span>{effectiveTotalComments}</span>
           </div>
 
           <Button
@@ -306,65 +365,94 @@ export function SocialInteractions({
         </div>
 
         <div className="space-y-4">
-          {visibleComments.map((comment) => (
-            <div key={comment.id} className="flex items-start gap-3">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
-                  {comment.author.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 space-y-1">
-                <div className="bg-muted rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-sm">
-                      {comment.author}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {comment.timestamp}
-                    </span>
-                  </div>
-                  <p className="text-sm whitespace-pre-line">
-                    {comment.content}
-                  </p>
-                  {comment.link && (
-                    <a
-                      href={comment.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
-                    >
-                      View on njump.me ↗
-                    </a>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 px-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleCommentLike(comment.id)}
-                    className={`h-6 px-2 text-xs ${
-                      comment.isLiked ? "text-red-600" : "text-muted-foreground"
-                    }`}
-                  >
-                    <Heart
-                      className={`w-3 h-3 mr-1 ${
-                        comment.isLiked ? "fill-current" : ""
-                      }`}
-                    />
-                    {comment.likes > 0 && comment.likes}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs text-muted-foreground"
-                  >
-                    Reply
-                  </Button>
+          {isLoadingInitial ? (
+            Array.from({ length: Math.max(3, pageSizeState) }).map((_, idx) => (
+              <div key={`skeleton-${idx}`} className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+                  <div className="h-10 w-full bg-muted rounded animate-pulse" />
                 </div>
               </div>
-            </div>
-          ))}
-          {comments.length > previewCount && !showPagedComments && (
+            ))
+          ) : (
+            visibleComments.map((comment) => (
+              <div key={comment.neventId} className="flex items-start gap-3">
+                <Avatar className="w-8 h-8">
+                  <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
+                    {comment.author.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 space-y-1">
+                  <div className="bg-muted rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm">
+                        {comment.author}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {comment.timestamp}
+                      </span>
+                      {comment.isTip && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          💰 Tip: {comment.tipAmount} CKB
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm whitespace-pre-line">
+                      {comment.content}
+                    </p>
+                    {comment.tipTxHash && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Tx:{" "}
+                        <span className="font-mono">
+                          {comment.tipTxHash.slice(0, 10)}...
+                          {comment.tipTxHash.slice(-6)}
+                        </span>
+                      </div>
+                    )}
+                    {comment.link && (
+                      <a
+                        href={comment.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                      >
+                        View on njump.me ↗
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 px-3">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCommentLike(comment.neventId)}
+                      className={`h-6 px-2 text-xs ${
+                        comment.isLiked
+                          ? "text-red-600"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      <Heart
+                        className={`w-3 h-3 mr-1 ${
+                          comment.isLiked ? "fill-current" : ""
+                        }`}
+                      />
+                      {comment.likes > 0 && comment.likes}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-muted-foreground"
+                    >
+                      Reply
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+          {(effectiveTotalComments > previewCount || hasMore) &&
+            !showPagedComments && (
             <div className="flex justify-center">
               <Button
                 variant="ghost"
@@ -380,7 +468,7 @@ export function SocialInteractions({
             </div>
           )}
 
-          {showPagedComments && comments.length > previewCount && (
+          {showPagedComments && (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <Button
                 variant="ghost"
@@ -396,18 +484,18 @@ export function SocialInteractions({
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={currentPage === totalPages}
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                disabled={
+                  (currentPage === totalPages && !hasMore) || isLoadingMore
                 }
+                onClick={handleNextPage}
               >
-                Next
+                {isLoadingMore ? "Loading..." : "Next"}
               </Button>
             </div>
           )}
         </div>
 
-        {comments.length === 0 && (
+        {effectiveTotalComments === 0 && !isLoadingInitial && (
           <div className="text-center py-8 text-muted-foreground">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No comments yet. Be the first to comment!</p>
