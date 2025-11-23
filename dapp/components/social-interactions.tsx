@@ -77,6 +77,21 @@ export function SocialInteractions({
   isLoadingMore = false,
   totalComments,
 }: SocialInteractionsProps) {
+  const getExplorerUrl = (hash?: string) => {
+    if (!hash) return null;
+    const network = process.env.NEXT_PUBLIC_CKB_NETWORK || "mainnet";
+    const base =
+      network === "testnet"
+        ? "https://pudge.explorer.nervos.org/transaction/"
+        : "https://explorer.nervos.org/transaction/";
+    return `${base}${hash}`;
+  };
+
+  const formatTxHash = (hash?: string | null) => {
+    if (!hash) return "";
+    return hash.length <= 18 ? hash : `${hash.slice(0, 10)}…${hash.slice(-6)}`;
+  };
+
   console.log("SocialInteractions props:", {
     totalComments,
     commentsLength: initialComments.length,
@@ -365,108 +380,125 @@ export function SocialInteractions({
         </div>
 
         <div className="space-y-4">
-          {isLoadingInitial ? (
-            Array.from({ length: Math.max(3, pageSizeState) }).map((_, idx) => (
-              <div key={`skeleton-${idx}`} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-32 bg-muted rounded animate-pulse" />
-                  <div className="h-10 w-full bg-muted rounded animate-pulse" />
-                </div>
-              </div>
-            ))
-          ) : (
-            visibleComments.map((comment) => (
-              <div key={comment.neventId} className="flex items-start gap-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
-                    {comment.author.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 space-y-1">
-                  <div className="bg-muted rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-sm">
-                        {comment.author}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {comment.timestamp}
-                      </span>
-                      {comment.isTip && (
-                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          💰 Tip: {comment.tipAmount} CKB
-                        </span>
-                      )}
+          {isLoadingInitial
+            ? Array.from({ length: Math.max(3, pageSizeState) }).map(
+                (_, idx) => (
+                  <div
+                    key={`skeleton-${idx}`}
+                    className="flex items-start gap-3"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-muted animate-pulse" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+                      <div className="h-10 w-full bg-muted rounded animate-pulse" />
                     </div>
-                    <p className="text-sm whitespace-pre-line">
-                      {comment.content}
-                    </p>
-                    {comment.tipTxHash && (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        Tx:{" "}
-                        <span className="font-mono">
-                          {comment.tipTxHash.slice(0, 10)}...
-                          {comment.tipTxHash.slice(-6)}
-                        </span>
-                      </div>
-                    )}
-                    {comment.link && (
-                      <a
-                        href={comment.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
-                      >
-                        View on njump.me ↗
-                      </a>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2 px-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleCommentLike(comment.neventId)}
-                      className={`h-6 px-2 text-xs ${
-                        comment.isLiked
-                          ? "text-red-600"
-                          : "text-muted-foreground"
+                )
+              )
+            : visibleComments.map((comment) => (
+                <div key={comment.neventId} className="flex items-start gap-3">
+                  <Avatar className="w-8 h-8">
+                    <AvatarFallback className="bg-gradient-to-br from-green-200 to-blue-200 text-sm">
+                      {comment.author.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 space-y-1">
+                    <div
+                      className={`rounded-lg p-3 ${
+                        comment.isTip
+                          ? "bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70"
+                          : "bg-muted"
                       }`}
                     >
-                      <Heart
-                        className={`w-3 h-3 mr-1 ${
-                          comment.isLiked ? "fill-current" : ""
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-sm">
+                          {comment.author}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {comment.timestamp}
+                        </span>
+                        {comment.isTip && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            💰 Tip: {comment.tipAmount} CKB
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm whitespace-pre-line">
+                        {comment.content}
+                      </p>
+                      {comment.link && (
+                        <div className="mt-1 flex items-center gap-2 text-xs">
+                          <a
+                            href={comment.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                          >
+                            View on njump.me ↗
+                          </a>
+                          {comment.tipTxHash &&
+                            getExplorerUrl(comment.tipTxHash) && (
+                              <>
+                                <span className="text-muted-foreground">•</span>
+                                <a
+                                  href={getExplorerUrl(comment.tipTxHash)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                                >
+                                  Personal Tipping Tx:{" "}
+                                  {formatTxHash(comment.tipTxHash)}
+                                </a>
+                              </>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 px-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCommentLike(comment.neventId)}
+                        className={`h-6 px-2 text-xs ${
+                          comment.isLiked
+                            ? "text-red-600"
+                            : "text-muted-foreground"
                         }`}
-                      />
-                      {comment.likes > 0 && comment.likes}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs text-muted-foreground"
-                    >
-                      Reply
-                    </Button>
+                      >
+                        <Heart
+                          className={`w-3 h-3 mr-1 ${
+                            comment.isLiked ? "fill-current" : ""
+                          }`}
+                        />
+                        {comment.likes > 0 && comment.likes}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground"
+                      >
+                        Reply
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
+              ))}
           {(effectiveTotalComments > previewCount || hasMore) &&
             !showPagedComments && (
-            <div className="flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowPagedComments(true);
-                  setCurrentPage(1);
-                }}
-                className="text-xs"
-              >
-                Load more comments
-              </Button>
-            </div>
-          )}
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowPagedComments(true);
+                    setCurrentPage(1);
+                  }}
+                  className="text-xs"
+                >
+                  Load more comments
+                </Button>
+              </div>
+            )}
 
           {showPagedComments && (
             <div className="flex items-center justify-between text-xs text-muted-foreground">
