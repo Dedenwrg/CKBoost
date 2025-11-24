@@ -2,10 +2,6 @@
 
 import { useState, useCallback } from "react";
 import { useNostr } from "@/lib/providers/nostr-provider";
-import {
-  AuthorIndexConfig,
-  resolveAuthorPubkey,
-} from "@/lib/nostr/author-index";
 import { NostrEvent, NostrFilter } from "@nostrify/types";
 import { nip19 } from "nostr-tools";
 import { createScopedLogger } from "ssri-ckboost";
@@ -29,16 +25,10 @@ export interface ParsedSubmission {
   event?: NostrEvent;
 }
 
-type AuthorFilterInput = string | AuthorIndexConfig;
-
 interface FetchFilterOptions {
   relays?: string[];
   signal?: AbortSignal;
   timeoutMs?: number;
-}
-
-interface FetchAuthorEventsOptions extends FetchFilterOptions {
-  filter?: Omit<NostrFilter, "authors">;
 }
 
 export function useNostrFetch() {
@@ -183,32 +173,6 @@ export function useNostrFetch() {
     [nostr]
   );
 
-  const fetchAuthorIndexedEvents = useCallback(
-    async (
-      author: AuthorFilterInput,
-      options: FetchAuthorEventsOptions = {}
-    ) => {
-      const authorPubkey = resolveAuthorPubkey(author);
-      const filter: NostrFilter = {
-        ...(options.filter ?? {}),
-        authors: [authorPubkey],
-      };
-
-      log.info("Fetching author-indexed events", {
-        author,
-        authorPubkey,
-        overrides: options.filter,
-      });
-
-      if (!filter.kinds) {
-        filter.kinds = [CKBOOST_SUBMISSION_KIND];
-      }
-
-      return fetchEventsByFilter(filter, options);
-    },
-    [fetchEventsByFilter]
-  );
-
   const fetchSubmission = useCallback(
     async (neventId: string): Promise<ParsedSubmission | null> => {
       if (!nostr) {
@@ -339,7 +303,6 @@ export function useNostrFetch() {
   return {
     fetchSubmission,
     fetchEventsByFilter,
-    fetchAuthorIndexedEvents,
     isLoading,
     error,
   };

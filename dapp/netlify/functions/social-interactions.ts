@@ -1,9 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { createLogger } from "../lib/log";
-import { SimplePool, Filter, Event } from "nostr-tools";
+import { SimplePool, Filter, Event, nip19 } from "nostr-tools";
 import { WebSocket } from "ws";
-import { getPublicKey } from "nostr-tools";
-import { hexToBytes } from "@noble/hashes/utils.js";
 
 if (!global.WebSocket) {
   // @ts-expect-error WebSocket polyfill
@@ -35,30 +33,29 @@ const fixedPointFrom = (val: string | number, decimals = 8): bigint => {
   }
 };
 
-const ensure32Bytes = (bytes: Uint8Array): Uint8Array => {
-  if (bytes.length === 32) return new Uint8Array(bytes);
-  if (bytes.length > 32) return bytes.slice(bytes.length - 32);
-  const padded = new Uint8Array(32);
-  padded.set(bytes, 32 - bytes.length);
-  return padded;
-};
-
-const derivePubkey = (id: string): string => {
-  try {
-    const hex = id.startsWith("0x") ? id.slice(2) : id;
-    const privateKey = ensure32Bytes(hexToBytes(hex));
-    return getPublicKey(privateKey);
-  } catch (e) {
-    logger.warn(`Failed to derive pubkey for id: ${id}`, e);
-    return "";
+const parseTargetEventId = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  if (raw.startsWith("nevent1")) {
+    try {
+      const decoded = nip19.decode(raw);
+      if (decoded.type === "nevent") {
+        return (decoded.data as { id: string }).id;
+      }
+    } catch (e) {
+      logger.warn("Failed to decode nevent targetEventId", { raw, error: e });
+      return null;
+    }
   }
+  return raw;
 };
 
+// Use the same relay priority as the dapp client to ensure event links resolve
+// correctly when opened on njump.me or other viewers.
 const RELAYS = [
   "wss://relay.damus.io",
-  "wss://relay.nostr.band",
   "wss://nos.lol",
-  "wss://relay.snort.social",
+  "wss://relay.nostr.band",
+  "wss://relay.primal.net",
 ];
 
 // --- Types ---
@@ -67,10 +64,13 @@ type SocialStats = {
   commentsCount: number;
   likesCount: number;
   totalTipAmount: string;
+  tipCommentsCount?: number;
 };
 
 type Comment = {
   neventId: string;
+  eventId: string;
+  pubkey?: string;
   author: string;
   content: string;
   timestamp: string;
@@ -113,10 +113,12 @@ type CacheEntry = {
   lastFetchExisting: number;
   lastFetchNew: number;
   lastFetchDropped: number;
+  authors: string[];
 };
 
 // --- In-Memory Cache ---
-const cache: Record<string, CacheEntry> = {};
+const commentCache: Record<string, CacheEntry> = {};
+const tipLikeCache: Record<string, CacheEntry> = {};
 
 // --- Helpers ---
 
@@ -198,145 +200,224 @@ const parseInteraction = (
 
 const deduplicateInteractions = (
   events: Event[],
-  tippingTypeId: string
+  tippingTypeId: string,
+  filterFn?: (interaction: ParsedInteraction) => boolean
 ): ParsedInteraction[] => {
   const parsed = events
     .map((evt) => parseInteraction(evt, tippingTypeId))
     .filter((evt): evt is ParsedInteraction => evt !== null)
+    .filter((interaction) => (filterFn ? filterFn(interaction) : true))
     .sort((a, b) => b.createdAt - a.createdAt); // newest first
 
-  const seen = new Set<string>();
+  const seen = new Map<string, ParsedInteraction>();
   const unique: ParsedInteraction[] = [];
+  const duplicatesLogged = new Set<string>();
 
   for (const interaction of parsed) {
-    if (seen.has(interaction.dedupKey)) continue;
-    seen.add(interaction.dedupKey);
+    const key = `${interaction.payload.type}:${interaction.dedupKey}`;
+    if (seen.has(key)) {
+      if (!duplicatesLogged.has(key)) {
+        const first = seen.get(key)!;
+        logger.warn("Duplicate interaction detected", {
+          tippingTypeId,
+          key,
+          firstEventId: first.event.id,
+          firstPayload: first.payload,
+          duplicateEventId: interaction.event.id,
+          duplicatePayload: interaction.payload,
+        });
+        duplicatesLogged.add(key);
+      }
+      continue;
+    }
+    seen.set(key, interaction);
     unique.push(interaction);
   }
 
   return unique;
 };
 
+type CacheCategory = "comments" | "tipsLikes";
+
+const shouldKeepInteraction = (
+  category: CacheCategory,
+  interaction: ParsedInteraction
+): boolean => {
+  if (category === "comments") {
+    return (
+      interaction.payload.type === COMMENT_TAG_TYPE &&
+      interaction.payload.isTip !== true
+    );
+  }
+  if (interaction.payload.type === LIKE_TAG_TYPE) return true;
+  return (
+    interaction.payload.type === COMMENT_TAG_TYPE &&
+    interaction.payload.isTip === true
+  );
+};
+
 const fetchEvents = async (
-  pubkey: string,
-  since?: number
+  targetEventId: string,
+  since?: number,
+  baseId?: string,
+  category?: CacheCategory
 ): Promise<Event[]> => {
   const pool = new SimplePool();
   try {
     const filter: Filter = {
       kinds: [CKBOOST_SUBMISSION_KIND],
-      authors: [pubkey],
+      "#e": [targetEventId],
+      limit: 2000,
     };
     if (since) {
       filter.since = since;
     }
 
+    logger.info("Fetching events for target", {
+      targetEventId,
+      baseId,
+      category,
+      since,
+    });
+
     const events = await pool.querySync(RELAYS, filter);
-
-    // Deduplicate by ID immediately after fetch
-    const uniqueEvents = new Map<string, Event>();
-    events.forEach((e) => uniqueEvents.set(e.id, e));
-
-    return Array.from(uniqueEvents.values());
+    return events;
   } catch (error) {
-    logger.error(`Failed to fetch events for ${pubkey}`, error);
+    logger.error(
+      `Failed to fetch events for target ${targetEventId}`,
+      error
+    );
     return [];
   } finally {
     pool.close(RELAYS);
   }
 };
 
-const updateCache = async (id: string) => {
-  const pubkey = derivePubkey(id);
-  if (!pubkey) return;
+const updateCacheForCategory = async (
+  id: string,
+  category: CacheCategory,
+  targetEventId: string
+): Promise<void> => {
+  if (!targetEventId) return;
 
+  const store = category === "comments" ? commentCache : tipLikeCache;
   const now = Math.floor(Date.now() / 1000);
-  const entry =
-    cache[id] || {
-      events: [],
-      lastFetched: 0,
-      lastFetchExisting: 0,
-      lastFetchNew: 0,
-      lastFetchDropped: 0,
-    };
+  const entry = store[targetEventId] || {
+    events: [],
+    lastFetched: 0,
+    lastFetchExisting: 0,
+    lastFetchNew: 0,
+    lastFetchDropped: 0,
+    authors: [],
+  };
 
   // Fetch new events since last fetch (minus buffer to be safe)
-  const since = entry.lastFetched > 0 ? entry.lastFetched - 60 : undefined;
-  const newEvents = await fetchEvents(pubkey, since);
+  const since =
+    entry.lastFetched === 0 ? undefined : entry.lastFetched - 60;
+
+  logger.info("Update cache start", {
+    id,
+    category,
+    targetEventId,
+    lastFetched: entry.lastFetched,
+    since,
+  });
+
+  const newEvents = await fetchEvents(targetEventId, since, id, category);
 
   // Merge and deduplicate
-  const eventMap = new Map<string, Event>();
-  entry.events.forEach((e) => eventMap.set(e.id, e));
-  newEvents.forEach((e) => eventMap.set(e.id, e));
-
-  const mergedEvents = Array.from(eventMap.values());
-  const dedupedInteractions = deduplicateInteractions(mergedEvents, id);
-  const dedupedEvents = dedupedInteractions.map((interaction) => interaction.event);
-  const dedupedComments = dedupedInteractions.filter(
-    ({ payload }) => payload.type === COMMENT_TAG_TYPE
-  ).length;
+  // Keep all events; no deduping for now
+  const mergedEvents = [...entry.events, ...newEvents];
+  const dedupedInteractions = deduplicateInteractions(
+    mergedEvents,
+    id,
+    (interaction) => shouldKeepInteraction(category, interaction)
+  );
+  const dedupedEvents = dedupedInteractions.map(
+    (interaction) => interaction.event
+  );
   const droppedDuplicates = mergedEvents.length - dedupedEvents.length;
 
   logger.info(
-    `Updated cache for ${id}: ${entry.events.length} existing, ${newEvents.length} new, ${mergedEvents.length} merged, ${dedupedEvents.length} kept (dropped ${droppedDuplicates} dupes by nevent/eventId), ${dedupedComments} comments`
+    `Updated ${category} cache for ${id}: ${entry.events.length} existing, ${newEvents.length} new, ${mergedEvents.length} merged, ${dedupedEvents.length} kept (dedupe suspended)`
   );
 
-  cache[id] = {
+  store[targetEventId] = {
     events: dedupedEvents,
     lastFetched: now,
     lastFetchExisting: entry.events.length,
     lastFetchNew: newEvents.length,
     lastFetchDropped: droppedDuplicates,
+    authors: [targetEventId],
   };
 };
 
-const parseComment = (
-  event: Event,
-  payload: InteractionPayload
-): Comment => {
-  const neventId = extractNeventId(payload);
+const parseComment = (event: Event, payload: InteractionPayload): Comment => {
+  const explicit = extractNeventId(payload);
+  let neventId: string;
+  if (explicit && explicit.startsWith("nevent1")) {
+    neventId = explicit;
+  } else {
+    neventId = explicit || event.id;
+    try {
+      neventId = nip19.neventEncode({ id: event.id, relays: RELAYS });
+    } catch (e) {
+      try {
+        neventId = nip19.noteEncode(event.id);
+      } catch {
+        logger.warn("Failed to encode nevent/note for event", {
+          id: event.id,
+          explicit,
+          error: e,
+        });
+      }
+    }
+  }
   const timestamp = normalizeTimestamp(payload.createdAt, event.created_at);
 
   return {
-    neventId: neventId || event.id,
+    neventId,
+    eventId: event.id,
+    pubkey: event.pubkey,
     author: payload.displayName || "Unknown",
     content: payload.text || "",
     timestamp: new Date(timestamp).toLocaleString(),
     likes: 0,
     isLiked: false,
-    link:
-      payload.eventUrl ||
-      (neventId ? `https://njump.me/${neventId}` : `https://njump.me/${event.id}`),
+    link: `https://njump.me/${neventId}`,
     isTip: payload.isTip,
     tipAmount: payload.amount,
     tipTxHash: payload.txHash,
   };
 };
 
-const aggregateStats = (interactions: ParsedInteraction[]): SocialStats => {
-  let commentsCount = 0;
-  let likesCount = 0;
+const aggregateStats = (
+  commentInteractions: ParsedInteraction[],
+  tipLikeInteractions: ParsedInteraction[]
+): SocialStats => {
+  const tipComments = tipLikeInteractions.filter(
+    ({ payload }) => payload.type === COMMENT_TAG_TYPE && payload.isTip === true
+  );
+  const likesCount = tipLikeInteractions.filter(
+    ({ payload }) => payload.type === LIKE_TAG_TYPE
+  ).length;
   let totalTipAmount = BigInt(0);
 
-  for (const { payload } of interactions) {
-    if (payload.type === LIKE_TAG_TYPE) {
-      likesCount++;
-    } else if (payload.type === COMMENT_TAG_TYPE) {
-      commentsCount++;
-      if (payload.isTip && payload.amount) {
-        try {
-          totalTipAmount += fixedPointFrom(payload.amount);
-        } catch {
-          // Ignore malformed amounts but keep counting comments
-        }
+  for (const { payload } of tipComments) {
+    if (payload.amount) {
+      try {
+        totalTipAmount += fixedPointFrom(payload.amount);
+      } catch {
+        // Ignore malformed amounts but keep counting comments
       }
     }
   }
 
   return {
-    commentsCount,
+    commentsCount: commentInteractions.length + tipComments.length,
     likesCount,
     totalTipAmount: totalTipAmount.toString(),
+    tipCommentsCount: tipComments.length,
   };
 };
 
@@ -344,44 +425,76 @@ const getDetails = (
   id: string,
   page: number,
   limit: number,
-  userLockHash?: string
+  userLockHash?: string,
+  _tipsOnly = false,
+  targetEventId?: string
 ): {
   stats: SocialStats;
   comments: Comment[];
+  tipComments: Comment[];
   totalComments: number;
   page: number;
   limit: number;
   isLiked: boolean;
+  commonCommentsTotal: number;
 } => {
-  const cachedEvents = cache[id]?.events || [];
-  const interactions = deduplicateInteractions(cachedEvents, id);
-  const stats = aggregateStats(interactions);
+  const cacheKey = targetEventId || id;
+  const commentEvents = commentCache[cacheKey]?.events || [];
+  const tipLikeEvents = tipLikeCache[cacheKey]?.events || [];
 
-  const commentInteractions = interactions.filter(
-    ({ payload }) => payload.type === COMMENT_TAG_TYPE
+  const commentInteractions = deduplicateInteractions(
+    commentEvents,
+    id,
+    ({ payload }) =>
+      payload.type === COMMENT_TAG_TYPE && payload.isTip !== true
+  );
+  const tipLikeInteractions = deduplicateInteractions(
+    tipLikeEvents,
+    id,
+    ({ payload }) =>
+      payload.type === LIKE_TAG_TYPE ||
+      (payload.type === COMMENT_TAG_TYPE && payload.isTip === true)
   );
 
-  const totalComments = commentInteractions.length;
+  const tipCommentInteractions = tipLikeInteractions.filter(
+    ({ payload }) => payload.type === COMMENT_TAG_TYPE && payload.isTip === true
+  );
+  const stats = aggregateStats(commentInteractions, tipLikeInteractions);
+
+  const totalComments =
+    commentInteractions.length + tipCommentInteractions.length;
   const start = Math.max(0, (page - 1) * limit);
   const end = start + limit;
   const pagedComments = commentInteractions
     .slice(start, end)
     .map(({ event, payload }) => parseComment(event, payload));
+  const tipComments = tipCommentInteractions.map(({ event, payload }) =>
+    parseComment(event, payload)
+  );
 
   const normalizedUserLock = userLockHash?.toLowerCase();
   const isLiked =
     !!normalizedUserLock &&
-    interactions.some(
+    tipLikeInteractions.some(
       ({ payload }) =>
         payload.type === LIKE_TAG_TYPE &&
         payload.authorLockHash?.toLowerCase() === normalizedUserLock
     );
 
   logger.info(
-    `Details for ${id}: cacheEvents(deduped)=${cachedEvents.length}, post-filter=${interactions.length}, totalComments=${totalComments}, lastFetch: existing=${cache[id]?.lastFetchExisting ?? 0}, new=${cache[id]?.lastFetchNew ?? 0}, dropped=${cache[id]?.lastFetchDropped ?? 0}, page=${page}, limit=${limit}, returning=${pagedComments.length}`
+    `Details for ${id}: commonComments=${commentInteractions.length}, tipComments=${tipComments.length}, likes=${stats.likesCount}, page=${page}, limit=${limit}, returning=${pagedComments.length}`
   );
 
-  return { stats, comments: pagedComments, totalComments, page, limit, isLiked };
+  return {
+    stats,
+    comments: pagedComments,
+    tipComments,
+    totalComments,
+    page,
+    limit,
+    isLiked,
+    commonCommentsTotal: commentInteractions.length,
+  };
 };
 
 // --- Handler ---
@@ -399,29 +512,37 @@ export const handler: Handler = async (event) => {
 
   try {
     if (mode === "stats") {
-      let ids: string[] = [];
-      if (event.multiValueQueryStringParameters?.ids) {
-        ids = event.multiValueQueryStringParameters.ids;
-      } else if (query.ids) {
-        ids = [query.ids];
+      const id = query.id;
+      const targetEventId = parseTargetEventId(
+        query.targetEventId || query.targetNevent || query.eventId
+      );
+
+      if (!id || !targetEventId) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: "id and targetEventId are required" }),
+        };
       }
-      ids = ids.filter(Boolean);
 
-      if (ids.length === 0) {
-        return { statusCode: 400, body: JSON.stringify({ error: "No ids" }) };
-      }
+      await Promise.all([
+        updateCacheForCategory(id, "comments", targetEventId),
+        updateCacheForCategory(id, "tipsLikes", targetEventId),
+      ]);
 
-      // Update cache for all requested IDs (parallel)
-      await Promise.all(ids.map((id) => updateCache(id)));
-
-      const result: Record<string, SocialStats> = {};
-      ids.forEach((id) => {
-        const interactions = deduplicateInteractions(
-          cache[id]?.events || [],
-          id
-        );
-        result[id] = aggregateStats(interactions);
-      });
+      const comments = deduplicateInteractions(
+        commentCache[targetEventId]?.events || [],
+        id,
+        ({ payload }) =>
+          payload.type === COMMENT_TAG_TYPE && payload.isTip !== true
+      );
+      const tipLikes = deduplicateInteractions(
+        tipLikeCache[targetEventId]?.events || [],
+        id,
+        ({ payload }) =>
+          payload.type === LIKE_TAG_TYPE ||
+          (payload.type === COMMENT_TAG_TYPE && payload.isTip === true)
+      );
+      const result = aggregateStats(comments, tipLikes);
 
       return {
         statusCode: 200,
@@ -433,13 +554,47 @@ export const handler: Handler = async (event) => {
       const page = parseInt(query.page || "1");
       const limit = parseInt(query.limit || "20");
       const userLockHash = query.userLockHash;
+      const tipsOnly = query.tipsOnly === "true";
+      const targetEventId = parseTargetEventId(
+        query.targetEventId || query.targetNevent || query.eventId
+      );
 
-      if (!id) {
-        return { statusCode: 400, body: JSON.stringify({ error: "No id" }) };
+      if (!id || !targetEventId) {
+        return {
+          statusCode: 400,
+          body: JSON.stringify({ error: "id and targetEventId are required" }),
+        };
       }
 
-      await updateCache(id);
-      const result = getDetails(id, page, limit, userLockHash);
+      await Promise.all([
+        updateCacheForCategory(id, "comments", targetEventId),
+        updateCacheForCategory(id, "tipsLikes", targetEventId),
+      ]);
+      const result = getDetails(
+        id,
+        page,
+        limit,
+        userLockHash,
+        tipsOnly,
+        targetEventId
+      );
+
+      if (tipsOnly) {
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stats: result.stats,
+            comments: result.tipComments,
+            totalComments: result.tipComments.length,
+            page: 1,
+            limit: result.tipComments.length,
+            isLiked: result.isLiked,
+            commonCommentsTotal: 0,
+            tipComments: result.tipComments,
+          }),
+        };
+      }
 
       return {
         statusCode: 200,

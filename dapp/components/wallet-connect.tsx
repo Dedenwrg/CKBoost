@@ -183,8 +183,6 @@ export function WalletConnect() {
   const modalStatusDisplay = selectedPendingTx
     ? getStatusDisplay(selectedPendingTx)
     : null;
-  const monitorStatusIndicator =
-    activeCount > 0 ? renderStatusIndicator() : null;
   const monitorHint =
     "Recent hashes are cached locally so you know when the RPC has seen them.";
 
@@ -301,7 +299,6 @@ export function WalletConnect() {
   };
 
   if (!signer) {
-    const inlineIndicator = renderStatusIndicator();
     return (
       <Button
         onClick={handleConnect}
@@ -318,7 +315,6 @@ export function WalletConnect() {
           <>
             <Wallet className="w-4 h-4" />
             Connect Wallet
-            {inlineIndicator && <span className="ml-2">{inlineIndicator}</span>}
           </>
         )}
       </Button>
@@ -353,6 +349,7 @@ export function WalletConnect() {
                   {verificationStatus.text}
                 </Badge>
               )}
+              {renderStatusIndicator()}
             </div>
             <ChevronDown className="w-3 h-3" />
           </Button>
@@ -588,13 +585,13 @@ export function WalletConnect() {
 
       {/* Pending transaction dialog */}
       <Dialog open={isPendingModalOpen} onOpenChange={handlePendingModalChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock3 className="w-5 h-5 text-amber-600" />
               {selectedPendingTx?.metadata?.label ?? "Pending transaction"}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="break-all">
               {selectedPendingTx?.metadata?.description ||
                 "We keep recent transactions locally until the RPC reports them so you know data may take a moment to sync."}
             </DialogDescription>
@@ -615,7 +612,7 @@ export function WalletConnect() {
                     >
                       {modalStatusDisplay.label}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground break-all">
                       {modalStatusDisplay.description}
                     </div>
                   </div>

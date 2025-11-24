@@ -3,10 +3,6 @@
 import { useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNostr, DEFAULT_NOSTR_RELAYS } from "@/lib/providers/nostr-provider";
-import {
-  AuthorIndexConfig,
-  deriveAuthorKeys,
-} from "@/lib/nostr/author-index";
 import { NSecSigner, type NPool } from "@nostrify/nostrify";
 import { NostrEvent } from "@nostrify/types";
 import {
@@ -29,19 +25,11 @@ const MAX_VERIFICATION_ROUNDS = 3;
 type SigningKeys = {
   secretKey: Uint8Array;
   pubkey: string;
-  deterministic: boolean;
 };
 
-const resolveSigningKeys = (
-  authorIndex?: AuthorIndexConfig
-): SigningKeys => {
-  if (authorIndex) {
-    const { secretKey, pubkey } = deriveAuthorKeys(authorIndex);
-    return { secretKey, pubkey, deterministic: true };
-  }
-
+const resolveSigningKeys = (): SigningKeys => {
   const secretKey = generateSecretKey();
-  return { secretKey, pubkey: getPublicKey(secretKey), deterministic: false };
+  return { secretKey, pubkey: getPublicKey(secretKey) };
 };
 
 interface SignedEventInput {
@@ -49,7 +37,6 @@ interface SignedEventInput {
   tags?: string[][];
   kind?: number;
   createdAt?: number;
-  authorIndex?: AuthorIndexConfig;
 }
 
 const createSignedEvent = async ({
@@ -57,9 +44,8 @@ const createSignedEvent = async ({
   tags = [],
   kind = CKBOOST_SUBMISSION_KIND,
   createdAt,
-  authorIndex,
 }: SignedEventInput) => {
-  const signingKeys = resolveSigningKeys(authorIndex);
+  const signingKeys = resolveSigningKeys();
   const event: NostrEvent = {
     kind,
     content,
@@ -238,6 +224,10 @@ const publishAndVerifyEvent = async (
 
   if (copies > 0) {
     log.info("Event stored successfully with ID:", event.id);
+    log.info(
+      "Nevent ID:",
+      nip19.neventEncode({ id: event.id, relays: verificationRelays })
+    );
     return verificationRelays;
   }
 
@@ -261,7 +251,6 @@ export function useNostrStorage() {
       userAddress: string;
       content: string;
       timestamp?: number;
-      authorIndex?: AuthorIndexConfig;
     }) => {
       if (!nostr) {
         throw new Error("Nostr not initialized");
@@ -271,7 +260,6 @@ export function useNostrStorage() {
 
       const { signedEvent, signingKeys } = await createSignedEvent({
         content: submission.content,
-        authorIndex: submission.authorIndex,
         tags: [
           [
             "d",
@@ -284,12 +272,6 @@ export function useNostrStorage() {
           ["timestamp", submissionTimestamp.toString()],
         ],
       });
-
-      if (signingKeys.deterministic) {
-        log.info("Using deterministic author index for submission", {
-          pubkey: signingKeys.pubkey,
-        });
-      }
 
       // Publish event to relays
       log.info("Publishing event to Nostr relays...");
@@ -328,7 +310,6 @@ export function useNostrStorage() {
       contentType: "cover_image" | "long_description";
       content: string;
       metadata?: Record<string, string>;
-      authorIndex?: AuthorIndexConfig;
     }) => {
       if (!nostr) {
         throw new Error("Nostr not initialized");
@@ -356,14 +337,7 @@ export function useNostrStorage() {
       const { signedEvent, signingKeys } = await createSignedEvent({
         content: payload.content,
         tags,
-        authorIndex: payload.authorIndex,
       });
-
-      if (signingKeys.deterministic) {
-        log.info("Using deterministic author index for campaign content", {
-          pubkey: signingKeys.pubkey,
-        });
-      }
 
       log.info("Publishing event to Nostr relays...");
       log.info("Event ID:", signedEvent.id);
@@ -393,7 +367,6 @@ export function useNostrStorage() {
       title: string;
       content: string;
       metadata?: Record<string, string>;
-      authorIndex?: AuthorIndexConfig;
     }) => {
       if (!nostr) {
         throw new Error("Nostr not initialized");
@@ -419,14 +392,7 @@ export function useNostrStorage() {
       const { signedEvent, signingKeys } = await createSignedEvent({
         content: payload.content,
         tags,
-        authorIndex: payload.authorIndex,
       });
-
-      if (signingKeys.deterministic) {
-        log.info("Using deterministic author index for achievement metadata", {
-          pubkey: signingKeys.pubkey,
-        });
-      }
 
       const verificationRelays = await publishAndVerifyEvent(
         nostr,
@@ -445,10 +411,9 @@ export function useNostrStorage() {
     },
   });
 
-  const storeAuthorIndexedEvent = useMutation({
+  const storeEvent = useMutation({
     mutationFn: async (payload: {
       content: string;
-      authorIndex: AuthorIndexConfig;
       tags?: string[][];
       metadata?: Record<string, string>;
       kind?: number;
@@ -470,16 +435,9 @@ export function useNostrStorage() {
         tags,
         kind: payload.kind,
         createdAt: payload.createdAt,
-        authorIndex: payload.authorIndex,
       });
 
-      if (signingKeys.deterministic) {
-        log.info("Publishing with deterministic author index", {
-          author: signingKeys.pubkey,
-        });
-      }
-
-      log.info("Publishing author-indexed event to Nostr relays...", {
+      log.info("Publishing event to Nostr relays...", {
         kind: signedEvent.kind,
         author: signingKeys.pubkey,
       });
@@ -487,7 +445,7 @@ export function useNostrStorage() {
       const verificationRelays = await publishAndVerifyEvent(
         nostr,
         signedEvent,
-        "Failed to verify Nostr storage for indexed event. Please try again."
+        "Failed to verify Nostr storage for event. Please try again."
       );
 
       const recommendedRelays = verificationRelays.length
@@ -653,7 +611,7 @@ export function useNostrStorage() {
     storeSubmission,
     storeCampaignContent,
     storeAchievementMetadata,
-    storeAuthorIndexedEvent,
+    storeEvent,
     retrieveSubmission,
     checkSubmissionExists,
     useSubmission,

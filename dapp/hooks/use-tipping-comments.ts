@@ -4,6 +4,7 @@ import { useUser } from "@/lib/providers/user-provider";
 import { getLatestDisplayName } from "@/lib/profile/profile-data";
 import { createScopedLogger } from "ssri-ckboost";
 import { Comment } from "@/components/social-interactions";
+import { nip19 } from "nostr-tools";
 
 const log = createScopedLogger("useTippingComments");
 
@@ -26,9 +27,12 @@ type CommentsApiResponse = {
     commentsCount: number;
     likesCount: number;
     totalTipAmount: string;
+    tipCommentsCount?: number;
   };
   comments: Comment[];
+  tipComments?: Comment[];
   totalComments: number;
+  commonCommentsTotal?: number;
   page: number;
   limit: number;
   isLiked?: boolean;
@@ -48,12 +52,16 @@ const shortenHash = (hash?: string | null) => {
 const formatTimestamp = (timestamp: number) =>
   new Date(timestamp).toLocaleString();
 
-export function useTippingComments(tippingTypeId?: string) {
-  const { storeAuthorIndexedEvent } = useNostrStorage();
+export function useTippingComments(
+  tippingTypeId?: string,
+  longDescriptionNevent?: string | null
+) {
+  const { storeEvent } = useNostrStorage();
   const { currentUserData, currentUserTypeId, userRecommendedAddressObj } =
     useUser();
 
   const [comments, setComments] = useState<Comment[]>([]);
+  const [tipComments, setTipComments] = useState<Comment[]>([]);
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,9 +70,36 @@ export function useTippingComments(tippingTypeId?: string) {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalComments, setTotalComments] = useState(0);
+  const [totalTipAmountCkb, setTotalTipAmountCkb] = useState(0);
+  const [tipPage, setTipPage] = useState(1);
+  const targetEventId = useMemo(() => {
+    if (!longDescriptionNevent) return null;
+    if (longDescriptionNevent.startsWith("nevent1")) {
+      try {
+        const decoded = nip19.decode(longDescriptionNevent);
+        if (decoded.type === "nevent") {
+          return (decoded.data as { id: string }).id;
+        }
+      } catch {
+        return null;
+      }
+    }
+    return longDescriptionNevent;
+  }, [longDescriptionNevent]);
   const lastCommentRef = useRef<{ text: string; timestamp: number } | null>(
     null
   );
+  const TIP_PAGE_SIZE = 5;
+
+  const toCkbAmount = useCallback((fixedPoint: string | undefined | null): number => {
+    if (!fixedPoint) return 0;
+    try {
+      const raw = BigInt(fixedPoint);
+      return Number(raw) / 10 ** 8;
+    } catch {
+      return 0;
+    }
+  }, []);
 
   const currentLockHash = useMemo(() => {
     try {
@@ -86,6 +121,10 @@ export function useTippingComments(tippingTypeId?: string) {
   const fetchComments = useCallback(
     async (pageParam: number, reset: boolean) => {
       if (!tippingTypeId) return;
+      if (!targetEventId) {
+        setError("Missing target event for comments");
+        return;
+      }
 
       setIsLoading(true);
       setError(null);
@@ -96,6 +135,7 @@ export function useTippingComments(tippingTypeId?: string) {
           id: tippingTypeId,
           page: String(pageParam),
           limit: "20",
+          targetEventId,
         });
         if (currentLockHash) {
           params.append("userLockHash", currentLockHash);
@@ -111,24 +151,43 @@ export function useTippingComments(tippingTypeId?: string) {
 
         const data: CommentsApiResponse = await response.json();
 
+        const nextTipComments = data.tipComments ?? [];
+        setTipComments(nextTipComments);
+        if (reset) {
+          setTipPage(1);
+        }
+
         setComments((prev) => {
-          const newComments = reset
-            ? data.comments
-            : [...prev, ...data.comments];
-          // Update hasMore based on total count from API
-          setHasMore(newComments.length < data.totalComments);
-          return newComments;
+          const existing = reset
+            ? new Map<string, Comment>()
+            : new Map(prev.map((c) => [c.neventId, c]));
+
+          [...nextTipComments, ...data.comments].forEach((c) => {
+            existing.set(c.neventId, c);
+          });
+
+          return Array.from(existing.values()).sort(
+            (a, b) =>
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          );
         });
 
         setLikesCount(data.stats.likesCount);
         setTotalComments(data.totalComments);
+        setTotalTipAmountCkb(toCkbAmount(data.stats.totalTipAmount));
         setIsLiked(Boolean(data.isLiked));
+
+        const commonTotal =
+          data.commonCommentsTotal ??
+          Math.max(
+            data.totalComments - (data.tipComments?.length ?? 0),
+            data.comments.length
+          );
+        const hasMoreCommon = pageParam * data.limit < commonTotal;
+        setHasMore(hasMoreCommon);
 
         const nextPage = (data.page || pageParam) + 1;
         setPage(nextPage);
-        if (reset) {
-          setHasMore(data.comments.length < data.totalComments);
-        }
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to load comments";
@@ -138,11 +197,13 @@ export function useTippingComments(tippingTypeId?: string) {
         setIsLoading(false);
       }
     },
-    [tippingTypeId, currentLockHash]
+    [tippingTypeId, currentLockHash, toCkbAmount, targetEventId]
   );
 
   const reload = useCallback(() => {
     setComments([]);
+    setTipComments([]);
+    setTipPage(1);
     setTotalComments(0);
     setHasMore(true);
     setPage(1);
@@ -154,6 +215,21 @@ export function useTippingComments(tippingTypeId?: string) {
     fetchComments(page, false);
   }, [fetchComments, hasMore, isLoading, page]);
 
+  const visibleTipComments = useMemo(
+    () => tipComments.slice(0, tipPage * TIP_PAGE_SIZE),
+    [tipComments, tipPage]
+  );
+
+  const hasMoreTipComments = useMemo(
+    () => tipComments.length > tipPage * TIP_PAGE_SIZE,
+    [tipComments, tipPage]
+  );
+
+  const loadMoreTipComments = useCallback(() => {
+    if (!hasMoreTipComments) return;
+    setTipPage((prev) => prev + 1);
+  }, [hasMoreTipComments]);
+
   useEffect(() => {
     reload();
   }, [reload]);
@@ -163,6 +239,7 @@ export function useTippingComments(tippingTypeId?: string) {
       if (!tippingTypeId) throw new Error("Missing tipping proposal type ID");
       if (!currentUserTypeId) throw new Error("User profile required");
       if (!currentLockHash) throw new Error("User lock hash required");
+      if (!targetEventId) throw new Error("Missing target event for comments");
 
       const trimmedContent = content.trim();
       if (!trimmedContent) throw new Error("Comment cannot be empty");
@@ -197,6 +274,7 @@ export function useTippingComments(tippingTypeId?: string) {
         ["client", "ckboost-dapp"],
         ["timestamp", createdAt.toString()],
         ["user_lock", currentLockHash],
+        ["e", targetEventId, "", "ckboost-tipping"],
       ];
 
       if (tipData) tags.push(["is_tip", "true"]);
@@ -205,9 +283,8 @@ export function useTippingComments(tippingTypeId?: string) {
       setIsPosting(true);
       try {
         const contentString = JSON.stringify(payload);
-        const proposalResult = await storeAuthorIndexedEvent.mutateAsync({
+        const proposalResult = await storeEvent.mutateAsync({
           content: contentString,
-          authorIndex: { privateKey: tippingTypeId },
           tags,
         });
 
@@ -225,19 +302,16 @@ export function useTippingComments(tippingTypeId?: string) {
           tipTxHash: tipData?.txHash,
         };
 
-        setComments((prev) => [newComment, ...prev]);
-        lastCommentRef.current = { text: trimmedContent, timestamp: createdAt };
-
-        // Also try to post to user index (best effort)
-        try {
-          await storeAuthorIndexedEvent.mutateAsync({
-            content: contentString,
-            authorIndex: { privateKey: currentLockHash },
-            tags,
-          });
-        } catch (e) {
-          log.warn("Failed to post to user index", e);
+        setComments((prev) => {
+          const existing = new Map(prev.map((c) => [c.neventId, c]));
+          existing.delete(newComment.neventId);
+          return [newComment, ...existing.values()];
+        });
+        if (tipData) {
+          setTipComments((prev) => [newComment, ...prev]);
+          setTipPage(1);
         }
+        lastCommentRef.current = { text: trimmedContent, timestamp: createdAt };
       } catch (err) {
         log.error("Failed to post comment", err);
         throw err;
@@ -250,7 +324,8 @@ export function useTippingComments(tippingTypeId?: string) {
       currentUserTypeId,
       currentLockHash,
       currentDisplayName,
-      storeAuthorIndexedEvent,
+      storeEvent,
+      targetEventId,
     ]
   );
 
@@ -258,6 +333,7 @@ export function useTippingComments(tippingTypeId?: string) {
     if (!tippingTypeId) throw new Error("Missing tipping ID");
     if (!currentUserTypeId) throw new Error("User profile required");
     if (!currentLockHash) throw new Error("User lock hash required");
+    if (!targetEventId) throw new Error("Missing target event for likes");
 
     const createdAt = Date.now();
 
@@ -279,13 +355,13 @@ export function useTippingComments(tippingTypeId?: string) {
       ["timestamp", createdAt.toString()],
       ["user_lock", currentLockHash],
       ["user_type", currentUserTypeId],
+      ["e", targetEventId, "", "ckboost-tipping"],
     ];
 
     setIsPosting(true);
     try {
-      await storeAuthorIndexedEvent.mutateAsync({
+      await storeEvent.mutateAsync({
         content: JSON.stringify(payload),
-        authorIndex: { privateKey: tippingTypeId },
         tags,
       });
 
@@ -302,11 +378,15 @@ export function useTippingComments(tippingTypeId?: string) {
     currentUserTypeId,
     currentLockHash,
     currentDisplayName,
-    storeAuthorIndexedEvent,
+    storeEvent,
+    targetEventId,
   ]);
 
   return {
     comments,
+    tipComments,
+    visibleTipComments,
+    hasMoreTipComments,
     likesCount,
     isLiked,
     isLoading,
@@ -318,5 +398,7 @@ export function useTippingComments(tippingTypeId?: string) {
     loadMore,
     hasMore,
     totalComments,
+    totalTipAmountCkb,
+    loadMoreTipComments,
   };
 }

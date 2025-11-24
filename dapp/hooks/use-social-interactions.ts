@@ -9,35 +9,47 @@ export interface SocialInteractions {
   totalTipAmount: string;
 }
 
-export function useSocialInteractions(tippingTypeIds: string[]) {
+type SocialInput = { id: string; targetEventId?: string | null };
+
+export function useSocialInteractions(inputs: SocialInput[]) {
   const [stats, setStats] = useState<Record<string, SocialInteractions>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const idsKey = JSON.stringify(tippingTypeIds);
+  const idsKey = JSON.stringify(inputs);
 
   useEffect(() => {
-    if (!tippingTypeIds.length) return;
+    if (!inputs.length) return;
 
     const fetchStats = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const queryParams = new URLSearchParams();
-        queryParams.append("mode", "stats");
-        tippingTypeIds.forEach((id) => queryParams.append("ids", id));
-
-        const response = await fetch(
-          `/api/social-interactions?${queryParams.toString()}`
+        const results = await Promise.all(
+          inputs.map(async ({ id, targetEventId }) => {
+            if (!id || !targetEventId) return null;
+            const params = new URLSearchParams();
+            params.append("mode", "stats");
+            params.append("id", id);
+            params.append("targetEventId", targetEventId);
+            const response = await fetch(
+              `/api/social-interactions?${params.toString()}`
+            );
+            if (!response.ok) {
+              throw new Error(
+                `Failed to fetch interactions for ${id}: ${response.statusText}`
+              );
+            }
+            const data = await response.json();
+            return { id, data };
+          })
         );
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch interactions: ${response.statusText}`
-          );
-        }
 
-        const data = await response.json();
-        setStats(data);
+        const next: Record<string, SocialInteractions> = {};
+        results.forEach((item) => {
+          if (item) next[item.id] = item.data;
+        });
+        setStats(next);
       } catch (err) {
         const message =
           err instanceof Error

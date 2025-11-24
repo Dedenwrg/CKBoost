@@ -22,6 +22,8 @@ import {
 
 export interface Comment {
   neventId: string;
+  eventId: string;
+  pubkey?: string;
   author: string;
   content: string;
   timestamp: string;
@@ -55,6 +57,7 @@ interface SocialInteractionsProps {
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
   totalComments?: number;
+  isAdmin?: boolean;
 }
 
 export function SocialInteractions({
@@ -76,6 +79,7 @@ export function SocialInteractions({
   onLoadMore,
   isLoadingMore = false,
   totalComments,
+  isAdmin = false,
 }: SocialInteractionsProps) {
   const getExplorerUrl = (hash?: string) => {
     if (!hash) return null;
@@ -175,16 +179,6 @@ export function SocialInteractions({
         if (result === false) {
           shouldClearInput = false;
         }
-      } else {
-        const comment: Comment = {
-          neventId: Date.now().toString(),
-          author: "CurrentUser",
-          content: commentValue,
-          timestamp: "now",
-          likes: 0,
-          isLiked: false,
-        };
-        setComments((prev) => [comment, ...prev]);
       }
       if (shouldClearInput) {
         setCommentValue("");
@@ -198,20 +192,6 @@ export function SocialInteractions({
     } finally {
       setIsSubmittingComment(false);
     }
-  };
-
-  const handleCommentLike = (commentNeventId: string) => {
-    setComments((prev) =>
-      prev.map((comment) =>
-        comment.neventId === commentNeventId
-          ? {
-              ...comment,
-              isLiked: !comment.isLiked,
-              likes: comment.isLiked ? comment.likes - 1 : comment.likes + 1,
-            }
-          : comment
-      )
-    );
   };
 
   const handleShare = () => {
@@ -451,35 +431,31 @@ export function SocialInteractions({
                                 </a>
                               </>
                             )}
+                          {isAdmin && (
+                            <>
+                              <span className="text-muted-foreground">•</span>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[11px] text-muted-foreground">
+                                  Event ID:{" "}
+                                  <span className="font-mono break-all">
+                                    {comment.eventId}
+                                  </span>
+                                </span>
+                                {comment.pubkey && (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Pubkey:{" "}
+                                    <span className="font-mono break-all">
+                                      {comment.pubkey}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 px-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleCommentLike(comment.neventId)}
-                        className={`h-6 px-2 text-xs ${
-                          comment.isLiked
-                            ? "text-red-600"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        <Heart
-                          className={`w-3 h-3 mr-1 ${
-                            comment.isLiked ? "fill-current" : ""
-                          }`}
-                        />
-                        {comment.likes > 0 && comment.likes}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs text-muted-foreground"
-                      >
-                        Reply
-                      </Button>
-                    </div>
+                    <div className="flex items-center gap-2 px-3"></div>
                   </div>
                 </div>
               ))}

@@ -65,6 +65,16 @@ export function SubmissionReviewModal({
   const [submissionContent, setSubmissionContent] = useState<string>("");
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [contentError, setContentError] = useState<string | null>(null);
+  const [nostrEvents, setNostrEvents] = useState<
+    Array<{
+      neventId: string;
+      eventId?: string;
+      pubkey?: string;
+      createdAt?: number;
+      relays?: string[];
+      error?: string;
+    }>
+  >([]);
 
   useEffect(() => {
     if (isOpen && submission.submission_content) {
@@ -75,6 +85,8 @@ export function SubmissionReviewModal({
   async function loadSubmissionContent() {
     setIsLoadingContent(true);
     setContentError(null);
+    setNostrEvents([]);
+    setSubmissionContent("");
 
     try {
       const content = submission.submission_content;
@@ -95,18 +107,68 @@ export function SubmissionReviewModal({
       }
 
       // Check if it's a nevent ID
-      if (contentStr.startsWith("nevent1")) {
-        log.log("Fetching Nostr content for", contentStr);
-        const nostrData = await fetchSubmission(contentStr);
-        if (nostrData) {
-          setSubmissionContent(nostrData.content);
-        } else {
-          setContentError("Failed to fetch content from Nostr");
-          setSubmissionContent(`Nostr Event ID: ${contentStr}`);
+      const neventMatches = (() => {
+        const matches = contentStr.match(/nevent1[0-9a-z]+/gi) || [];
+        return Array.from(new Set(matches));
+      })();
+
+      let primaryContent: string | null = null;
+
+      if (neventMatches.length > 0) {
+        const fetchedEvents: Array<{
+          neventId: string;
+          eventId?: string;
+          pubkey?: string;
+          createdAt?: number;
+          relays?: string[];
+          error?: string;
+        }> = [];
+
+        for (const nevent of neventMatches) {
+          try {
+            log.log("Fetching Nostr content for", nevent);
+            const nostrData = await fetchSubmission(nevent);
+            if (nostrData) {
+              fetchedEvents.push({
+                neventId: nevent,
+                eventId: nostrData.eventId,
+                pubkey: nostrData.author,
+                createdAt: nostrData.created_at,
+                relays: nostrData.relays,
+              });
+              // Use first event content as primary submission view
+              if (!primaryContent) {
+                primaryContent = nostrData.content;
+              }
+            } else {
+              fetchedEvents.push({
+                neventId: nevent,
+                error: "Failed to fetch content from Nostr",
+              });
+            }
+          } catch (err) {
+            fetchedEvents.push({
+              neventId: nevent,
+              error:
+                err instanceof Error ? err.message : "Failed to fetch from Nostr",
+            });
+          }
         }
+
+        if (!primaryContent && fetchedEvents.length > 0) {
+          primaryContent = `Nostr Event ID: ${fetchedEvents[0].neventId}`;
+        }
+        if (primaryContent) {
+          setSubmissionContent(primaryContent);
+        }
+        setNostrEvents(fetchedEvents);
+      } else if (contentStr.startsWith("nevent1")) {
+        // Should be covered above, but keep fallback
+        setSubmissionContent(`Nostr Event ID: ${contentStr}`);
       } else {
         // Direct content
-        setSubmissionContent(contentStr);
+        primaryContent = contentStr;
+        setSubmissionContent(primaryContent);
       }
     } catch (err) {
       console.error("Failed to load submission content:", err);
@@ -347,6 +409,84 @@ export function SubmissionReviewModal({
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertCircle className="w-3 h-3" />
                 Content fetched from Nostr event
+              </div>
+            )}
+
+            {nostrEvents.length > 0 && (
+              <div className="border rounded-lg p-3 bg-muted/40 space-y-2">
+                <h4 className="text-sm font-semibold">
+                  Linked Nostr Event{nostrEvents.length > 1 ? "s" : ""}
+                </h4>
+                <div className="space-y-2">
+                  {nostrEvents.map((evt, idx) => (
+                    <details
+                      key={evt.neventId + idx}
+                      className="border rounded-md bg-background"
+                    >
+                      <summary className="px-3 py-2 cursor-pointer text-sm font-medium flex items-center justify-between">
+                        <span>
+                          Event #{idx + 1}: {evt.neventId.slice(0, 20)}...
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {evt.error ? "Error" : "Details"}
+                        </span>
+                      </summary>
+                      <div className="px-3 py-2 space-y-1 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium text-foreground">
+                            nevent:
+                          </span>
+                          <span className="break-all">{evt.neventId}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => copyToClipboard(evt.neventId)}
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        {evt.eventId && (
+                          <div>
+                            <span className="font-medium text-foreground">
+                              event id:
+                            </span>{" "}
+                            <span className="break-all">{evt.eventId}</span>
+                          </div>
+                        )}
+                        {evt.pubkey && (
+                          <div>
+                            <span className="font-medium text-foreground">
+                              pubkey:
+                            </span>{" "}
+                            <span className="break-all">{evt.pubkey}</span>
+                          </div>
+                        )}
+                        {evt.createdAt && (
+                          <div>
+                            <span className="font-medium text-foreground">
+                              created:
+                            </span>{" "}
+                            {formatDateConsistent(
+                              new Date(evt.createdAt * 1000)
+                            )}
+                          </div>
+                        )}
+                        {evt.relays && evt.relays.length > 0 && (
+                          <div>
+                            <span className="font-medium text-foreground">
+                              relays:
+                            </span>{" "}
+                            {evt.relays.join(", ")}
+                          </div>
+                        )}
+                        {evt.error && (
+                          <div className="text-destructive">{evt.error}</div>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
               </div>
             )}
           </div>

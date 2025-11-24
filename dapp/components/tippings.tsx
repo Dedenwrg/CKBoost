@@ -19,6 +19,7 @@ import { ccc } from "@ckb-ccc/connector-react";
 import { InsufficientTippingFundingError } from "@/lib/services/tipping-service";
 import { createScopedLogger } from "ssri-ckboost";
 import { useSocialInteractions } from "@/hooks/use-social-interactions";
+import { nip19 } from "nostr-tools";
 
 const log = createScopedLogger("Tippings");
 
@@ -45,11 +46,36 @@ export function Tippings() {
   const tippingRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Extract type IDs for social stats
-  const tippingTypeIds = useMemo(() => {
-    return tippings.map((t) => t.typeId).filter((id) => !!id) as string[];
+  const tippingSocialInputs = useMemo(() => {
+    const decodeEventId = (value?: string | null): string | null => {
+      if (!value) return null;
+      if (value.startsWith("nevent1")) {
+        try {
+          const decoded = nip19.decode(value);
+          if (decoded.type === "nevent") {
+            return (decoded.data as { id: string }).id;
+          }
+        } catch {
+          return null;
+        }
+      }
+      return value;
+    };
+
+    return tippings
+      .map((t) => {
+        const id = t.typeId;
+        const targetEventId = decodeEventId(
+          (t.metadata as { long_description?: string })?.long_description ??
+            t.data.metadata.long_description
+        );
+        if (!id || !targetEventId) return null;
+        return { id, targetEventId };
+      })
+      .filter((x): x is { id: string; targetEventId: string } => !!x);
   }, [tippings]);
 
-  const { stats: socialStats } = useSocialInteractions(tippingTypeIds);
+  const { stats: socialStats } = useSocialInteractions(tippingSocialInputs);
 
   useEffect(() => {
     setTippings(contextTippings);
