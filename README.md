@@ -25,12 +25,12 @@ CKBoost addresses key challenges in community management:
 
 ### Key Features
 
-- **Campaign & Quest Management**: Multi-task campaigns with detailed quests, success metrics, and fully funded reward pools
-- **On-Chain Points & Badges**: All achievements tracked via dedicated UDT for transparent rewards
-- **Gamification Elements**: Streak bonuses, difficulty multipliers, dynamic leaderboards, and badge milestones
-- **Anti-Sybil Verification**: Flexible verification starting with manual Telegram proof, expanding to DID/KYC
-- **Community Tipping**: Peer recognition system with democratic approval flow and automated payouts
-- **Comprehensive Dashboards**: Tools for campaign creators, admins, and reviewers to monitor progress
+- **Campaign & Quest Management**: Multi-quest campaigns with on-chain configuration, Nostr-backed submission storage, and admin/staff dashboard for review/approval/reward distribution flows
+- **On-Chain Points & Badges**: Points UDT and achievement scripts with reward history/leaderboard services tracing mint transactions for transparent payouts;
+- **Gamification Elements**: Streak bonus and achievement validators in serverless functions, and leaderboard;
+- **Anti-Sybil Verification**: Telegram login + on-chain binding live in the identity flow, with DID/KYC and other methods on the roadmap
+- **Community Tipping**: Peer recognition system with democratic approval flow and automated payouts from both community treasury and personal tippers;
+- **Comprehensive Dashboards**: Platform admin (protocol + approvals), campaign admin (staff + quest reviews), contributor dashboard/leaderboard/profile/tipping views
 
 ## 🏗️ Project Structure
 
@@ -45,14 +45,16 @@ CKBoost/
 │   │   ├── ckb/             # Blockchain integration layer
 │   │   ├── providers/       # React context providers
 │   │   └── services/        # Data service abstraction
+│   ├── netlify/functions/   # Serverless APIs (social interactions, achievements, streaks, staff approvals, Telegram auth)
 │   └── ...                  # Standard Next.js structure
-├── contracts/               # Smart contracts (Rust)
+├── contracts/               # Smart contracts
 │   ├── contracts/           # Individual contract implementations
+│   │   ├── ckboost-achievement-type/    # Achievement management logic
 │   │   ├── ckboost-campaign-type/    # Campaign management logic
 │   │   ├── ckboost-funding-lock/    # Secure fund vaults
-│   │   ├── ckboost-protocol-type/    # Governance & minting
+│   │   ├── ckboost-protocol-type/    # Governance
 │   │   ├── ckboost-protocol-lock/    # Protocol governance
-│   │   ├── ckboost-user-type/        # Verification & bindings
+│   │   ├── ckboost-user-type/        # Submission, verification, and social bindings
 │   │   ├── ckboost-points-udt/       # Points UDT for rewards
 │   │   ├── ckboost-tipping-type/       # tipping management
 │   │   └── ckboost-shared/           # Common utilities
@@ -80,15 +82,16 @@ CKBoost/
    cd CKBoost
    ```
 
-2. **Start the frontend application**
+2. **Start the application (dApp and serverless functions)**
+
+   Set `dapp/.env.local` (RPC/indexer URLs, `NEXT_PUBLIC_SSRI_EXECUTOR_URL`, `NEXT_PUBLIC_PROTOCOL_TYPE_ARGS` from `deployment-summary.md` or `deployments.json`, `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`, etc.) using `dapp/DEPLOYMENT.md` as a reference.
 
    ```bash
    cd dapp
-   pnpm install
-   pnpm dev
+   netlify dev
    ```
 
-   The application will be available at `http://localhost:3000`
+   The application will be available at `http://localhost:9003` (depending on the port you set in `dapp/netlify.toml`)
 
 3. **Build smart contracts** (optional for frontend development)
    ```bash
@@ -102,10 +105,9 @@ CKBoost/
 
 CKBoost implements a new pattern of decentralization for dApps:
 
-- **Anyone-Can-Host Backend**: All backend services use open-source Cloudflare Workers that anyone can deploy
-- **Trustless Operation**: No reliance on any single, centralized operator
-- **Community Infrastructure**: Campaign sponsors and community members can host their own services
-- **Resilient Network**: Multiple interoperable services instead of single points of failure
+- **Serverless Functions Backend**: Serverless functions in-repo shipped alongside the dApp; no need to host them on private servers.
+- **Transparent Infrastructure**: All modules and code are open-sourced, and complete for anyone to deploy its own instance;deployment records/logs publicly available for transparency and auditability.
+- **Decentralized Data Storage**: CKB Cell data for all on-chain states; Nostr relays for metadata and content; local cache in serverless functions for performance optimization.
 
 ### Technology Stack
 
@@ -115,7 +117,7 @@ CKBoost implements a new pattern of decentralization for dApps:
 - **Styling**: Tailwind CSS with shadcn/ui components
 - **State Management**: React Context with CKB CCC integration
 - **Wallet Integration**: @ckb-ccc/connector-react for universal wallet support
-- **Data Layer**: Abstracted service layer supporting mock and blockchain data
+- **Data Layer**: Abstracted service layer supporting mock and blockchain data with Nostr-backed off-chain submissions and social interactions
 
 #### Smart Contracts
 
@@ -129,33 +131,33 @@ CKBoost implements a new pattern of decentralization for dApps:
 
 #### Decentralized API Services
 
-- **Infrastructure**: Open-source Cloudflare Workers
+- **Infrastructure**: Netlify Functions in this repo (social interactions, streak/achievement validators, Telegram auth, staff approvals, reward history) with optional Cloudflare Worker deployment
 - **Hosting**: By campaign sponsors and community members
-- **Purpose**: Indexing, proof validation, and coordination
+- **Purpose**: Indexing, proof validation, staff approvals, and coordination
 
 #### Data Storage Strategy
 
-- **Critical State**: CKB Cell data for all on-chain states
-- **Non-Critical Data**: Anyone-can-host Neon storage for submissions
-- **Performance**: Local cache for fee optimization
+- **Critical State**: CKB Cell data for all on-chain states and reference to off-chain data;
+- **Non-Critical Data**: Nostr relays for metadata and content;
+- **Performance**: local cache in serverless functions for performance optimization.
 
 ## 📋 Core User Flows
 
 ### Campaign Creation Flow
 
-Define quests → Fund campaign → Set proof requirements → Get admin approval → Launch → Monitor submissions → Distribute rewards
+Define quests → Fund campaign (CKB/UDT) → Assign staff reviewers → Get admin approval via protocol dashboard → Launch with Connected Type IDs → Monitor submissions/approvals → Distribute rewards
 
 ### Contributor Flow
 
-Connect wallet → Browse campaigns → Complete tasks → Submit proof → Pass verification → Claim rewards → Earn badges & ranking
+Connect wallet → Complete Telegram verification → Browse campaigns → Complete tasks → Submit proof (stored via Nostr) → Pass staff approval → Claim rewards/points → Earn badges & ranking
 
 ### Tipping Flow
 
-Propose tip → Receive 5 peer approvals → Automated treasury payout → Permanent profile record
+Propose tip with event link → Receive peer approvals → On-chain funding + explorer link → Permanent profile record with Nostr comments/likes
 
 ### Admin Flow
 
-Identity verification → Campaign sponsor verification → Campaign approval → Base campaign creation
+Identity verification → Campaign sponsor verification → Protocol/campaign approval → Staff approvals + quest reviews → Base campaign creation
 
 ## 🎮 Example Campaign Types
 
@@ -171,7 +173,7 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 - **Escrow Protection**: Funding lock scripts protect all escrowed assets
 - **Multi-Signature**: Support for high-value campaign management
 - **Time Locks**: Campaign duration enforcement and deadline management
-- **Gradual Rollout**: Small initial contract funds with progressive scaling
+- **Gradual Rollout**: Small initial contract funds with progressive scaling and stricter transaction input validation across core scripts
 
 ### Anti-Sybil Protection
 
@@ -185,23 +187,23 @@ Identity verification → Campaign sponsor verification → Campaign approval �
 
 - ✅ Next.js scaffold with CCC wallet integration
 - ✅ Visual and interaction prototyping
-- 🔄 Smart contract development for core scripts
-- 🔄 Campaign & quest creation flows
-- 🔄 Points UDT and reward distribution
+- ✅ Smart contract development for core scripts (campaign, user, protocol, funding, points, tipping, achievement all implemented and testnet-deployed)
+- ✅ Campaign & quest creation flows (platform/campaign admin dashboards, Nostr-backed submissions, staff approvals)
+- 🔄 Points UDT and reward distribution (UDT deployed with reward history + leaderboard services; automated distribution in tuning)
 
 ### Milestone 2: Advanced Features (~Month 2)
 
-- 📅 Expanded verification methods
-- 📅 Leaderboards and user profiles
-- 📅 Gamification features (streaks, multipliers, badges)
-- 📅 Tipping system with peer approvals
-- 📅 Admin dashboard and analytics
+- 🔄 Expanded verification methods (Telegram bot + on-chain binding live; DID/KYC next)
+- ✅ Leaderboards and user profiles (dashboard/profile pages wired to chain data and reward history)
+- 🔄 Gamification features (streaks, multipliers, badges) with streak bonus + achievement validators shipped
+- ✅ Tipping system with peer approvals (tipping proposals, approvals, Nostr comments/likes, explorer links)
+- ✅ Admin dashboard and analytics (protocol + campaign admin consoles, staff review queues, tipping stats)
 
 ### Milestone 3: Launch Preparation (~Month 3)
 
 - 📅 Deploy test campaigns with real users
-- 📅 Automated on-chain verification
-- 📅 Documentation and onboarding guides
+- 🔄 Automated on-chain verification (transaction validation and proxy handling added; end-to-end automation pending)
+- 🔄 Documentation and onboarding guides (deployment summary + Netlify/Telegram setup in place; broader docs in progress)
 - 📅 Final testing and optimization
 - 📅 Community feedback integration
 
@@ -253,6 +255,8 @@ We welcome contributions from the community! Here's how you can help:
 - [UI/UX Demo](https://ckboost.netlify.app/)
 - [Technical Specifications](docs/ckboost-platform.prd.txt)
 - [Transaction Recipes](docs/recipes/)
+- [Deployment Summary](deployment-summary.md)
+- [Netlify/Telegram Deployment Guide](dapp/DEPLOYMENT.md)
 
 ## Utilities
 
@@ -269,12 +273,18 @@ cargo bloat --release --target riscv64imac-unknown-none-elf --crates --package c
 git push origin main
 ```
 
+Netlify Functions (Telegram auth, staff approvals, streak/achievement validators, social interactions, reward history) deploy alongside the frontend build; use `netlify dev` to run them locally.
+
 ### Decentralized Services
 
 ```bash
-# Deploy your own Cloudflare Worker instance
-cd services
-wrangler deploy
+# Serverless APIs (Netlify Functions) shipped in this repo
+cd dapp
+netlify dev --functions netlify/functions
+
+# Optional: deploy Cloudflare Worker variant
+# cd services
+# wrangler deploy
 ```
 
 ### Smart Contracts
@@ -284,6 +294,8 @@ cd contracts
 make deploy-testnet    # Deploy to CKB testnet
 make deploy-mainnet    # Deploy to CKB mainnet
 ```
+
+Type IDs and code hashes are tracked in `deployments.json`; copy the protocol type args into `NEXT_PUBLIC_PROTOCOL_TYPE_ARGS` for the dApp.
 
 ## 🆘 Support & Community
 
