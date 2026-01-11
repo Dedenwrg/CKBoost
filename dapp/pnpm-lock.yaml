@@ -12,7 +12,7 @@ importers:
         specifier: ^1.0.29
         version: 1.0.33(@types/react@19.2.8)(react@19.2.0)(typescript@5.9.3)(zod@3.25.76)
       '@ckb-ccc/shell':
-        specifier: ^1.1.21
+        specifier: ^1.1.24
         version: 1.1.24(typescript@5.9.3)(zod@3.25.76)
       '@hookform/resolvers':
         specifier: ^3.9.1

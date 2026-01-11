@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@ckb-ccc/core':
-        specifier: ^1.12.2
-        version: 1.12.2(typescript@5.8.3)
+        specifier: ^1.12.4
+        version: 1.12.4(typescript@5.8.3)
       '@ckb-ccc/ssri':
         specifier: ^0.2.19
         version: 0.2.19(typescript@5.8.3)
@@ -237,6 +237,9 @@ packages:
 
   '@ckb-ccc/core@1.12.2':
     resolution: {integrity: sha512-fiDn2ox4CWUF5hxTYxPDITnstbyZaPGK93OlO+Jlz7w0/zw64b9Y8tz+A0G29Q5s50nr9zT+aapEE4AbV01tuA==}
+
+  '@ckb-ccc/core@1.12.4':
+    resolution: {integrity: sha512-QLlBSb9Yd3VJEXIywv72drwnXt01UF35mLT1ovp5by3qo7UuA4I3XxpRo4dN0YduSyzQlCgZaioZNUkGWb8vpw==}
 
   '@ckb-ccc/eip6963@1.0.26':
     resolution: {integrity: sha512-xwmCTPKezRkLBPZKpAGQVqXaE7BFto0gvw3b2eTmMmG25N1+7EOKcL/UdWhpzbDdA393ZQbr7Ovsvvwt2Eqcfg==}
@@ -2165,6 +2168,25 @@ snapshots:
       - zod
 
   '@ckb-ccc/core@1.12.2(typescript@5.8.3)':
+    dependencies:
+      '@joyid/ckb': 1.1.2(typescript@5.8.3)
+      '@noble/ciphers': 0.5.3
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      bech32: 2.0.0
+      bs58check: 4.0.0
+      buffer: 6.0.3
+      ethers: 6.15.0
+      isomorphic-ws: 5.0.0(ws@8.18.3)
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@ckb-ccc/core@1.12.4(typescript@5.8.3)':
     dependencies:
       '@joyid/ckb': 1.1.2(typescript@5.8.3)
       '@noble/ciphers': 0.5.3

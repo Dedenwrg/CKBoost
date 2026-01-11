@@ -27,7 +27,7 @@
     "test:debug": "echo 'Open VS Code/Cursor and click Debug above any test. See DEBUG_QUICKSTART.md'"
   },
   "dependencies": {
-    "@ckb-ccc/core": "^1.12.2",
+    "@ckb-ccc/core": "^1.12.4",
     "@ckb-ccc/ssri": "^0.2.19",
     "@ckb-ccc/udt": "^0.1.21",
     "beautify-console-log": "^1.3.17"

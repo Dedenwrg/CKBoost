@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@ckb-ccc/connector-react": "^1.0.29",
-    "@ckb-ccc/shell": "^1.1.21",
+    "@ckb-ccc/shell": "^1.1.24",
     "@hookform/resolvers": "^3.9.1",
     "@netlify/functions": "^2.8.2",
     "@noble/hashes": "^2.0.1",
