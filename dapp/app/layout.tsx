@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 const navbar = (
   <Navbar
     logo={
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 mr-24">
         <div className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
           CKBoost
         </div>
@@ -29,7 +29,7 @@ const navbar = (
     }
     logoLink="/"
     projectLink="https://github.com/Bohemialive/CKBoost"
-    align="right"
+    align="left"
   >
     <div className="hidden md:flex items-center gap-3">
       <PointsBalance />
@@ -69,7 +69,7 @@ export default async function RootLayout({
             navbar={navbar}
             footer={footer}
             pageMap={pageMap}
-            docsRepositoryBase="https://github.com/Bohemialive/CKBoost/tree/main/dapp/docs"
+            docsRepositoryBase="https://github.com/Alive24/CKBoost/tree/main/dapp/content"
           >
             {children}
           </Layout>

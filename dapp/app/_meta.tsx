@@ -1,12 +1,5 @@
-import {
-  Book,
-  Home,
-  Link,
-  MessageSquare,
-  Target,
-  Trophy,
-  User,
-} from "lucide-react";
+import { Book, Home, MessageSquare, Target, Trophy, User } from "lucide-react";
+import React from "react";
 
 export default {
   index: {
@@ -72,5 +65,17 @@ export default {
       </div>
     ),
     href: "/docs",
+  },
+  "campaign-admin": {
+    type: "page",
+    display: "hidden",
+  },
+  identity: {
+    type: "page",
+    display: "hidden",
+  },
+  "platform-admin": {
+    type: "page",
+    display: "hidden",
   },
 };
