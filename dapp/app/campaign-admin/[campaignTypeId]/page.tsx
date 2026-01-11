@@ -2,9 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { Navigation } from "@/components/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useParams, useSearchParams, useRouter } from "next/navigation";import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1496,9 +1494,7 @@ export default function CampaignAdminPage() {
   // Error state
   if (!isCreateMode && !campaign && !isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <Card>
             <CardContent className="py-12">
               <div className="text-center space-y-4">
@@ -1526,9 +1522,7 @@ export default function CampaignAdminPage() {
 
   if (!canViewCampaign && !isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <Card>
             <CardContent className="py-12">
               <div className="text-center space-y-4">
@@ -1558,8 +1552,6 @@ export default function CampaignAdminPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">

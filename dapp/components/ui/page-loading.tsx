@@ -1,6 +1,4 @@
 "use client";
-
-import { Navigation } from "@/components/navigation";
 import { Loader2 } from "lucide-react";
 
 const placeholderCards = new Array(3).fill(null);
@@ -9,19 +7,16 @@ const placeholderRows = new Array(4).fill(null);
 interface PageLoadingProps {
   title?: string;
   description?: string;
-  showNavigation?: boolean;
   statusLabel?: string;
 }
 
 export function PageLoading({
   title = "Loading CKBoost",
   description = "Fetching the latest protocol, campaign, and tipping data.",
-  showNavigation = true,
   statusLabel = "Content is loading",
 }: PageLoadingProps) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-muted/40 to-background">
-      {showNavigation && <Navigation />}
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-12">
         <section
           className="rounded-3xl border border-border/50 bg-background/80 p-10 text-center shadow-xl backdrop-blur"

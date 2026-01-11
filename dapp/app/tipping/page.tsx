@@ -1,13 +1,9 @@
-import { Navigation } from "@/components/navigation";
 import { Tippings } from "@/components/tippings";
 import { TippingProvider } from "../../lib/providers/tipping-provider";
-import { WalletConnect } from "@/components/wallet-connect";
 
 export default function CommunityPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">

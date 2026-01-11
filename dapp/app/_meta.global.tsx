@@ -1,0 +1,76 @@
+import {
+  Book,
+  Home,
+  Link,
+  MessageSquare,
+  Target,
+  Trophy,
+  User,
+} from "lucide-react";
+
+export default {
+  index: {
+    type: "page",
+    display: "hidden",
+  },
+  campaigns: {
+    type: "page",
+    title: (
+      <div className="flex items-center gap-2">
+        <Trophy className="h-4 w-4" />
+        Campaigns
+      </div>
+    ),
+    href: "/",
+  },
+  leaderboard: {
+    type: "page",
+    title: (
+      <div className="flex items-center gap-2">
+        <Target className="h-4 w-4" />
+        Leaderboard
+      </div>
+    ),
+    href: "/leaderboard",
+  },
+  tipping: {
+    type: "page",
+    title: (
+      <div className="flex items-center gap-2">
+        <MessageSquare className="h-4 w-4" />
+        Tipping
+      </div>
+    ),
+    href: "/tipping",
+  },
+  profile: {
+    type: "page",
+    title: (
+      <div className="flex items-center gap-2">
+        <User className="h-4 w-4" />
+        Profile
+      </div>
+    ),
+    href: "/profile",
+  },
+  dashboard: {
+    type: "page",
+    title: (
+      <div className="flex items-center gap-2">
+        <Home className="h-4 w-4" />
+        Dashboard
+      </div>
+    ),
+    href: "/dashboard",
+  },
+  docs: {
+    type: "page",
+    title: (
+      <div className="flex items-center gap-2">
+        <Book className="h-4 w-4" />
+        Documentation
+      </div>
+    ),
+    href: "/docs",
+  },
+};

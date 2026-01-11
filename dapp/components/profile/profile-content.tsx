@@ -12,9 +12,7 @@ import {
   ShieldCheck,
   Star,
 } from "lucide-react";
-import { ckboost } from "ssri-ckboost";
-import { Navigation } from "@/components/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ckboost } from "ssri-ckboost";import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -1116,9 +1114,7 @@ export function ProfileContent({
   const lookupIdentifier = normalizedFallbackAddress ?? userTypeId ?? null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-purple-50/60 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      <Navigation />
-      <main className="container mx-auto px-4 py-10 space-y-8">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-purple-50/60 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">      <main className="container mx-auto px-4 py-10 space-y-8">
         <header className="space-y-2">
           <h1 className="text-4xl font-bold tracking-tight">
             Community Profile

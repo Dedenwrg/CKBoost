@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "target": "ES2020",
     "skipLibCheck": true,
@@ -19,12 +23,29 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "ssri-ckboost": ["../packages/ssri-ckboost/dist"],
-      "ssri-ckboost/*": ["../packages/ssri-ckboost/dist/*"],
-      "ssri-ckboost/types": ["../packages/ssri-ckboost/dist/generated"]
+      "@/*": [
+        "./*"
+      ],
+      "ssri-ckboost": [
+        "../packages/ssri-ckboost/dist"
+      ],
+      "ssri-ckboost/*": [
+        "../packages/ssri-ckboost/dist/*"
+      ],
+      "ssri-ckboost/types": [
+        "../packages/ssri-ckboost/dist/generated"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "lib/generated/**/*"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "lib/generated/**/*"
+  ]
 }

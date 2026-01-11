@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Navigation } from "@/components/navigation"
 import { CampaignCard } from "@/components/campaign-card"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -123,9 +122,7 @@ export default function HomePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="text-red-500 text-xl mb-4">⚠️</div>
@@ -176,8 +173,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Hero Section */}

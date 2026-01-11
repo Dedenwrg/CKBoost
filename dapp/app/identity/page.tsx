@@ -2,9 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Navigation } from "@/components/navigation";
-import { useVerification } from "@/lib/hooks/use-verification";
+import { useSearchParams, useRouter } from "next/navigation";import { useVerification } from "@/lib/hooks/use-verification";
 import { ccc } from "@ckb-ccc/connector-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -332,8 +330,6 @@ export default function VerifyIdentity() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           {/* Header */}

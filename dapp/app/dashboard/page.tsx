@@ -3,9 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
-import { CampaignData, type CampaignDataLike } from "ssri-ckboost/types";
-import { Navigation } from "@/components/navigation";
-import { AchievementsSection } from "@/components/dashboard/achievements-section";
+import { CampaignData, type CampaignDataLike } from "ssri-ckboost/types";import { AchievementsSection } from "@/components/dashboard/achievements-section";
 import {
   Card,
   CardContent,
@@ -809,9 +807,7 @@ export default function Dashboard() {
   // Check wallet connection first
   if (!signer) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[60vh]">
               <Card className="max-w-md w-full">
@@ -866,8 +862,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">

@@ -2,9 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, JSX } from "react";
-import { useParams } from "next/navigation";
-import { Navigation } from "@/components/navigation";
-import {
+import { useParams } from "next/navigation";import {
   Card,
   CardContent,
   CardHeader,
@@ -582,9 +580,7 @@ export default function CampaignDetailPage() {
   // Only show "not found" if we've finished loading and there's no campaign
   if (!campaign) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <div className="max-w-7xl mx-auto">
             <Card>
               <CardContent className="py-16">
@@ -786,8 +782,6 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Back Button */}

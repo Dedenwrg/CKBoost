@@ -1,9 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import { useState, useEffect } from "react";
-import { Navigation } from "@/components/navigation";
-import { ccc } from "@ckb-ccc/connector-react";
+import { useState, useEffect } from "react";import { ccc } from "@ckb-ccc/connector-react";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import {
   fetchCampaignsOwnedByUser,
@@ -643,9 +641,7 @@ export default function CampaignAdminDashboard() {
   // Show access denied message if user doesn't have access
   if (!hasAccess && !isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <Card>
               <CardHeader>
@@ -677,9 +673,7 @@ export default function CampaignAdminDashboard() {
   // Show different message if user is an endorser but has no campaigns yet
   if (isEndorser && ownedCampaigns.length === 0 && !isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <Navigation />
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <Card>
               <CardHeader>
@@ -709,8 +703,6 @@ export default function CampaignAdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <Navigation />
-
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
