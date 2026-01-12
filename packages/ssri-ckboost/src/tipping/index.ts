@@ -68,11 +68,12 @@ export class Tipping extends ssri.Trait {
 
     const txReq = ccc.Transaction.from(tx ?? {});
     // Ensure at least one input for the transaction
-    if (txReq.inputs.length === 0 && !this.script.args) {
+    const connectedTypeId = ConnectedTypeID.decode(this.script.args);
+    const isNewTipping = connectedTypeId.type_id === "0x" + "00".repeat(32);
+    if (txReq.inputs.length === 0 && isNewTipping) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }
-
     const tippingDataBytes = TippingData.encode(tippingData);
     const tippingDataHex = ccc.hexFrom(tippingDataBytes);
     const txHex = ccc.hexFrom(txReq.toBytes());
