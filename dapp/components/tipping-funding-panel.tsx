@@ -160,7 +160,7 @@ export function TippingFundingPanel() {
   };
 
   return (
-    <Card>
+    <Card className="border-gray-200 dark:border-gray-700">
       <CardHeader className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <PiggyBank className="w-5 h-5 text-purple-500" />
@@ -223,8 +223,8 @@ export function TippingFundingPanel() {
                   <ul className="mt-2 space-y-1 text-sm list-disc list-inside">
                     {fundingShortage.ckb && (
                       <li>
-                        CKB required {formatCKB(fundingShortage.ckb.required)}
-                        , available {formatCKB(fundingShortage.ckb.available)}
+                        CKB required {formatCKB(fundingShortage.ckb.required)},
+                        available {formatCKB(fundingShortage.ckb.available)}
                       </li>
                     )}
                     {fundingShortage.udts.map((item) => {
@@ -239,10 +239,7 @@ export function TippingFundingPanel() {
                             item.available,
                             token
                           )} available`
-                        : `${item.scriptHash.slice(
-                            0,
-                            10
-                          )}… hash shortage`;
+                        : `${item.scriptHash.slice(0, 10)}… hash shortage`;
                       return <li key={item.scriptHash}>{label}</li>;
                     })}
                   </ul>
@@ -258,19 +255,19 @@ export function TippingFundingPanel() {
                     Fund with CKB
                   </div>
                   <Input
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  placeholder="Amount in CKB"
-                  value={ckbAmount}
-                  onChange={(event) => setCkbAmount(event.target.value)}
-                />
-                <Button
-                  onClick={handleFundCKB}
-                  disabled={!signer || isFundingCKB || !ckbAmount.trim()}
-                >
-                  {isFundingCKB ? "Submitting…" : "Deposit CKB"}
-                </Button>
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    placeholder="Amount in CKB"
+                    value={ckbAmount}
+                    onChange={(event) => setCkbAmount(event.target.value)}
+                  />
+                  <Button
+                    onClick={handleFundCKB}
+                    disabled={!signer || isFundingCKB || !ckbAmount.trim()}
+                  >
+                    {isFundingCKB ? "Submitting…" : "Deposit CKB"}
+                  </Button>
                 </div>
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-sm font-medium">

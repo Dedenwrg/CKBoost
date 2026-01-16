@@ -1,6 +1,11 @@
-import { NSecSigner } from '@nostrify/nostrify';
-import { NostrEvent, NostrFilter } from '@nostrify/types';
-import { nip19, getEventHash, generateSecretKey, getPublicKey } from 'nostr-tools';
+import { NSecSigner } from "@nostrify/nostrify";
+import { NostrEvent, NostrFilter } from "@nostrify/types";
+import {
+  nip19,
+  getEventHash,
+  generateSecretKey,
+  getPublicKey,
+} from "nostr-tools";
 import { createScopedLogger } from "ssri-ckboost";
 
 const log = createScopedLogger("NostrStorageService");
@@ -8,10 +13,15 @@ const log = createScopedLogger("NostrStorageService");
 // Default public Nostr relays (free to use)
 const DEFAULT_NOSTR_RELAYS = [
   "wss://relay.nostr.band",
-  "wss://purplerelay.com", 
+  "wss://purplerelay.com",
   "wss://relay.nostr.net",
   "wss://relay.damus.io",
 ];
+
+type SigningKeys = {
+  secretKey: Uint8Array;
+  pubkey: string;
+};
 
 // Custom kind for CKBoost quest submissions (parameterized replaceable event)
 const CKBOOST_SUBMISSION_KIND = 30078;
@@ -23,11 +33,22 @@ export class NostrStorageService {
     this.relays = relays;
   }
 
-  private resolveSigningKeys() {
-    const secretKey = generateSecretKey();
-    const pubkey = getPublicKey(secretKey);
-    return { secretKey, pubkey };
-  }
+  resolveSigningKeys = async (seed?: string): Promise<SigningKeys> => {
+    let secretKey: Uint8Array;
+
+    if (seed) {
+      // Generate deterministic key from seed using SHA-256
+      const encoder = new TextEncoder();
+      const seedBytes = encoder.encode(seed);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", seedBytes);
+      secretKey = new Uint8Array(hashBuffer);
+    } else {
+      // Generate random key if no seed provided
+      secretKey = generateSecretKey();
+    }
+
+    return { secretKey, pubkey: getPublicKey(secretKey) };
+  };
 
   /**
    * Store quest submission data on Nostr
@@ -40,14 +61,17 @@ export class NostrStorageService {
     content: string; // HTML content with base64 images or URLs
     timestamp: number;
   }): Promise<string> {
-    const { secretKey, pubkey } = this.resolveSigningKeys();
-    
+    const { secretKey, pubkey } = await this.resolveSigningKeys();
+
     // Create the event manually
     const event: NostrEvent = {
       kind: CKBOOST_SUBMISSION_KIND,
       content: submission.content,
       tags: [
-        ["d", `ckboost-submission-${submission.campaignTypeId}-${submission.questId}`], // Unique identifier
+        [
+          "d",
+          `ckboost-submission-${submission.campaignTypeId}-${submission.questId}`,
+        ], // Unique identifier
         ["campaign", submission.campaignTypeId],
         ["quest", submission.questId.toString()],
         ["user", submission.userAddress],
@@ -56,13 +80,13 @@ export class NostrStorageService {
       ],
       created_at: Math.floor(Date.now() / 1000),
       pubkey,
-      id: '',
-      sig: ''
+      id: "",
+      sig: "",
     };
 
     // Generate event hash - nostr-tools expects a slightly different type
     event.id = getEventHash(event as Parameters<typeof getEventHash>[0]);
-    
+
     // Sign using NSecSigner from nostrify
     const signer = new NSecSigner(secretKey);
     const signedEvent = await signer.signEvent(event);
@@ -72,25 +96,25 @@ export class NostrStorageService {
       id: signedEvent.id,
       relays: this.relays.slice(0, 3),
     });
-    
+
     log.info(`Storing submission with nevent ID: ${neventId}`);
-    
+
     // Note: Actual relay publishing would be handled by the React hook
     // This service just prepares the event
-    
+
     return neventId;
   }
 
   /**
    * Parse a nevent ID to get the event data
    */
-  parseNeventId(neventId: string): { 
-    id: string; 
+  parseNeventId(neventId: string): {
+    id: string;
     relays?: string[];
   } | null {
     try {
       const decoded = nip19.decode(neventId);
-      if (decoded.type === 'nevent') {
+      if (decoded.type === "nevent") {
         return {
           id: decoded.data.id,
           relays: decoded.data.relays,
@@ -98,7 +122,7 @@ export class NostrStorageService {
       }
       return null;
     } catch (error) {
-      log.error('Failed to decode nevent:', error);
+      log.error("Failed to decode nevent:", error);
       return null;
     }
   }
@@ -130,7 +154,7 @@ export class NostrStorageService {
    * Check if content is a Nostr reference
    */
   isNostrReference(content: string): boolean {
-    return content.startsWith('nevent1');
+    return content.startsWith("nevent1");
   }
 
   /**
@@ -154,35 +178,40 @@ export class NostrStorageService {
     // Parse the nevent ID
     const parsed = this.parseNeventId(neventId);
     if (!parsed) {
-      throw new Error('Invalid nevent ID format');
+      throw new Error("Invalid nevent ID format");
     }
 
     // Use the relays from nevent or default relays
     const relays = parsed.relays?.length ? parsed.relays : this.relays;
-    
+
     // Try to fetch from multiple relays
-    const fetchPromises = relays.map(relay => this.fetchFromRelay(relay, parsed.id));
-    
+    const fetchPromises = relays.map((relay) =>
+      this.fetchFromRelay(relay, parsed.id)
+    );
+
     try {
       // Race all relay connections - return first successful response
       const result = await Promise.race(fetchPromises);
       if (result) {
         return {
           ...result,
-          relays: relays
+          relays: relays,
         };
       }
     } catch (error) {
-      log.error('Failed to fetch from any relay:', error);
+      log.error("Failed to fetch from any relay:", error);
     }
-    
+
     return null;
   }
 
   /**
    * Fetch event from a specific relay
    */
-  private async fetchFromRelay(relayUrl: string, eventId: string): Promise<{
+  private async fetchFromRelay(
+    relayUrl: string,
+    eventId: string
+  ): Promise<{
     id: string;
     content: string;
     author: string;
@@ -191,7 +220,7 @@ export class NostrStorageService {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(relayUrl);
       let timeout: NodeJS.Timeout;
-      
+
       ws.onopen = () => {
         // Send REQ subscription to fetch the specific event
         const subscriptionId = Math.random().toString(36).substring(7);
@@ -200,48 +229,48 @@ export class NostrStorageService {
           subscriptionId,
           {
             ids: [eventId],
-            kinds: [CKBOOST_SUBMISSION_KIND]
-          }
+            kinds: [CKBOOST_SUBMISSION_KIND],
+          },
         ]);
         ws.send(request);
-        
+
         // Set timeout for response
         timeout = setTimeout(() => {
           ws.close();
           resolve(null);
         }, 5000); // 5 second timeout
       };
-      
+
       ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          
+
           // Handle EVENT message
           if (message[0] === "EVENT" && message[2]) {
             clearTimeout(timeout);
             const nostrEvent = message[2];
-            
+
             // Extract the submission data from tags
             const metadata = this.extractMetadata(nostrEvent);
-            
+
             // Build the content JSON from event content and tags
             const submissionData = {
-              campaignTypeId: metadata.campaign || '',
-              questId: parseInt(metadata.quest || '0'),
-              userAddress: metadata.user || '',
+              campaignTypeId: metadata.campaign || "",
+              questId: parseInt(metadata.quest || "0"),
+              userAddress: metadata.user || "",
               content: nostrEvent.content,
-              timestamp: parseInt(metadata.timestamp || '0')
+              timestamp: parseInt(metadata.timestamp || "0"),
             };
-            
+
             ws.close();
             resolve({
               id: nostrEvent.id,
               content: JSON.stringify(submissionData),
               author: nostrEvent.pubkey,
-              created_at: nostrEvent.created_at
+              created_at: nostrEvent.created_at,
             });
           }
-          
+
           // Handle EOSE (End of Stored Events)
           if (message[0] === "EOSE") {
             clearTimeout(timeout);
@@ -249,16 +278,16 @@ export class NostrStorageService {
             resolve(null);
           }
         } catch (error) {
-          log.error('Error parsing message from relay:', error);
+          log.error("Error parsing message from relay:", error);
         }
       };
-      
+
       ws.onerror = (error) => {
         clearTimeout(timeout);
         log.error(`WebSocket error for ${relayUrl}:`, error);
         reject(error);
       };
-      
+
       ws.onclose = () => {
         clearTimeout(timeout);
       };

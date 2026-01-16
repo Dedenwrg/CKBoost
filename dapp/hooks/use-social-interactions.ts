@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
 import { createScopedLogger } from "ssri-ckboost";
+import { nip19 } from "nostr-tools";
+import { useNostrStorage } from "./use-nostr-storage";
+import { CommentListReplaceableKey } from "./use-tipping-comments";
+import { useNostrFetch } from "./use-nostr-fetch";
 
 const log = createScopedLogger("useSocialInteractions");
 
@@ -12,6 +16,8 @@ export interface SocialInteractions {
 type SocialInput = { id: string; targetEventId?: string | null };
 
 export function useSocialInteractions(inputs: SocialInput[]) {
+  const { fetchEventById } = useNostrStorage();
+  const { fetchReplaceableEvent } = useNostrFetch();
   const [stats, setStats] = useState<Record<string, SocialInteractions>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,21 +33,114 @@ export function useSocialInteractions(inputs: SocialInput[]) {
       try {
         const results = await Promise.all(
           inputs.map(async ({ id, targetEventId }) => {
-            if (!id || !targetEventId) return null;
-            const params = new URLSearchParams();
-            params.append("mode", "stats");
-            params.append("id", id);
-            params.append("targetEventId", targetEventId);
-            const response = await fetch(
-              `/api/social-interactions?${params.toString()}`
-            );
-            if (!response.ok) {
-              throw new Error(
-                `Failed to fetch interactions for ${id}: ${response.statusText}`
+            try {
+              if (!id || !targetEventId) return null;
+              console.log(
+                "Attempting to fetch long description event",
+                targetEventId
               );
+              const longDescEvent = await fetchEventById(targetEventId);
+              console.log("longDescEvent", longDescEvent);
+              if (!longDescEvent?.content) return null;
+
+              let commentListReplaceableKey:
+                | CommentListReplaceableKey
+                | undefined = undefined;
+              try {
+                const parsed = JSON.parse(longDescEvent.content);
+                commentListReplaceableKey =
+                  parsed.commentListReplaceableKey || undefined;
+              } catch {
+                commentListReplaceableKey = undefined;
+              }
+
+              if (!commentListReplaceableKey) {
+                return {
+                  id,
+                  data: {
+                    commentsCount: 0,
+                    likesCount: 0,
+                    totalTipAmount: "0",
+                  },
+                };
+              }
+
+              const commentListEvent = await fetchReplaceableEvent(
+                commentListReplaceableKey.authorPubkey,
+                commentListReplaceableKey.dTag
+              );
+              if (!commentListEvent?.content) {
+                return {
+                  id,
+                  data: {
+                    commentsCount: 0,
+                    likesCount: 0,
+                    totalTipAmount: "0",
+                  },
+                };
+              }
+
+              let commentNeventIds: string[] = [];
+              try {
+                const parsed = JSON.parse(commentListEvent.content);
+                commentNeventIds = parsed.commentNeventIds || [];
+              } catch {
+                commentNeventIds = [];
+              }
+
+              // Fetch comment events
+              const commentEvents = await Promise.all(
+                commentNeventIds.map(async (neventId) => {
+                  try {
+                    const dec = nip19.decode(neventId);
+                    if (dec.type === "nevent") {
+                      return await fetchEventById(dec.data.id);
+                    }
+                  } catch {
+                    return null;
+                  }
+                  return null;
+                })
+              );
+
+              let commentsCount = 0;
+              let tipCommentsCount = 0;
+              let totalTipAmount = BigInt(0);
+
+              for (const evt of commentEvents) {
+                if (!evt) continue;
+                try {
+                  const payload = JSON.parse(evt.content);
+                  if (payload.type === "tipping_comment") {
+                    commentsCount += 1;
+                    if (payload.isTip) {
+                      tipCommentsCount += 1;
+                      if (payload.amount) {
+                        try {
+                          totalTipAmount += BigInt(payload.amount);
+                        } catch {
+                          // ignore parse errors
+                        }
+                      }
+                    }
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+
+              return {
+                id,
+                data: {
+                  commentsCount: commentsCount + tipCommentsCount,
+                  likesCount: 0,
+                  totalTipAmount: totalTipAmount.toString(),
+                },
+              };
+            } catch (e) {
+              log.error("Failed to fetch stats from nostr", e);
+              return null;
             }
-            const data = await response.json();
-            return { id, data };
           })
         );
 

@@ -58,6 +58,7 @@ interface SocialInteractionsProps {
   isLoadingMore?: boolean;
   totalComments?: number;
   isAdmin?: boolean;
+  isCommentListInitialized?: boolean;
 }
 
 export function SocialInteractions({
@@ -80,6 +81,7 @@ export function SocialInteractions({
   isLoadingMore = false,
   totalComments,
   isAdmin = false,
+  isCommentListInitialized = false,
 }: SocialInteractionsProps) {
   const getExplorerUrl = (hash?: string) => {
     if (!hash) return null;
@@ -96,12 +98,6 @@ export function SocialInteractions({
     return hash.length <= 18 ? hash : `${hash.slice(0, 10)}…${hash.slice(-6)}`;
   };
 
-  console.log("SocialInteractions props:", {
-    totalComments,
-    commentsLength: initialComments.length,
-    hasMore,
-    pageSize,
-  });
   const [liked, setLiked] = useState(isLiked);
   const [likes, setLikes] = useState(initialLikes);
   const [comments, setComments] = useState(initialComments);
@@ -129,6 +125,17 @@ export function SocialInteractions({
   const previewComments = comments.slice(0, previewCount);
 
   const visibleComments = showPagedComments ? pagedComments : previewComments;
+
+  const showText = (content: string) => {
+    if (!content.startsWith("{") && !content.startsWith("[")) {
+      return content;
+    }
+    const text = JSON.parse(content);
+    if (text.type === "tipping_comment") {
+      return text.text;
+    }
+    return content;
+  };
 
   useEffect(() => {
     setLiked(isLiked);
@@ -235,6 +242,16 @@ export function SocialInteractions({
     }
     prevCommentsLength.current = comments.length;
   }, [comments.length, showPagedComments, isLoadingMore]);
+
+  if (!isCommentListInitialized) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Comments list not initialized
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -404,7 +421,7 @@ export function SocialInteractions({
                         )}
                       </div>
                       <p className="text-sm whitespace-pre-line">
-                        {comment.content}
+                        {showText(comment.content)}
                       </p>
                       {comment.link && (
                         <div className="mt-1 flex items-center gap-2 text-xs">

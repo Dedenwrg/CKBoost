@@ -6,6 +6,7 @@ import {
   UserData,
   UserDataLike,
   type AchievementDataLike,
+  ProtocolData,
 } from "ssri-ckboost/types";
 import { createLogger } from "./log";
 
@@ -661,3 +662,29 @@ export const ensureFieldRestrictions = <
     }
   }
 };
+
+export async function verifyPlatformAdmin(
+  userLockHash: string,
+  client: ccc.Client
+): Promise<boolean> {
+  try {
+    const protocolCell = await fetchProtocolCell(client);
+    if (!protocolCell) return false;
+    const protocolData = ProtocolData.decode(protocolCell.outputData);
+    const adminHashes = protocolData.protocol_config.admin_lock_hash_vec || [];
+    const normalized = userLockHash.toLowerCase();
+    return adminHashes.some((hash: ccc.HexLike) => {
+      const hex = typeof hash === "string" ? hash : ccc.hexFrom(hash);
+      return hex.toLowerCase() === normalized;
+    });
+  } catch (error) {
+    log.error("Failed platform admin check", { error });
+    return false;
+  }
+}
+
+export function createClient(network: string, rpcUrl: string): ccc.Client {
+  return network === "mainnet"
+    ? new ccc.ClientPublicMainnet({ url: rpcUrl })
+    : new ccc.ClientPublicTestnet({ url: rpcUrl });
+}

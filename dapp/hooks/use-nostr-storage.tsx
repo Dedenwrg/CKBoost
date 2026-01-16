@@ -27,8 +27,20 @@ type SigningKeys = {
   pubkey: string;
 };
 
-const resolveSigningKeys = (): SigningKeys => {
-  const secretKey = generateSecretKey();
+const resolveSigningKeys = async (seed?: string): Promise<SigningKeys> => {
+  let secretKey: Uint8Array;
+
+  if (seed) {
+    // Generate deterministic key from seed using SHA-256
+    const encoder = new TextEncoder();
+    const seedBytes = encoder.encode(seed);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", seedBytes);
+    secretKey = new Uint8Array(hashBuffer);
+  } else {
+    // Generate random key if no seed provided
+    secretKey = generateSecretKey();
+  }
+
   return { secretKey, pubkey: getPublicKey(secretKey) };
 };
 
@@ -37,6 +49,7 @@ interface SignedEventInput {
   tags?: string[][];
   kind?: number;
   createdAt?: number;
+  seed?: string;
 }
 
 const createSignedEvent = async ({
@@ -44,8 +57,9 @@ const createSignedEvent = async ({
   tags = [],
   kind = CKBOOST_SUBMISSION_KIND,
   createdAt,
+  seed,
 }: SignedEventInput) => {
-  const signingKeys = resolveSigningKeys();
+  const signingKeys = await resolveSigningKeys(seed);
   const event: NostrEvent = {
     kind,
     content,
@@ -418,6 +432,7 @@ export function useNostrStorage() {
       metadata?: Record<string, string>;
       kind?: number;
       createdAt?: number;
+      seed?: string;
     }) => {
       if (!nostr) {
         throw new Error("Nostr not initialized");
@@ -435,6 +450,7 @@ export function useNostrStorage() {
         tags,
         kind: payload.kind,
         createdAt: payload.createdAt,
+        seed: payload.seed,
       });
 
       log.info("Publishing event to Nostr relays...", {
@@ -606,6 +622,70 @@ export function useNostrStorage() {
     [nostr]
   );
 
+  /**
+   * Fetch a replaceable event by its "d" tag parameter
+   */
+  const fetchReplaceableEvent = useCallback(
+    async (dTag: string, kind: number = 30078): Promise<NostrEvent | null> => {
+      if (!nostr) {
+        throw new Error("Nostr not initialized");
+      }
+
+      try {
+        const events = await nostr.query([
+          {
+            kinds: [kind],
+            "#d": [dTag],
+            limit: 1,
+          },
+        ]);
+
+        if (events.length === 0) {
+          return null;
+        }
+
+        // For replaceable events, return the latest one (they should be sorted by created_at)
+        return events.sort((a, b) => b.created_at - a.created_at)[0];
+      } catch (error) {
+        log.error("Failed to fetch replaceable event", { dTag, kind, error });
+        throw error;
+      }
+    },
+    [nostr]
+  );
+
+  /**
+   * Fetch an event by its eventId
+   */
+  const fetchEventById = useCallback(
+    async (eventId: string, kind?: number): Promise<NostrEvent | null> => {
+      if (!nostr) {
+        throw new Error("Nostr not initialized");
+      }
+
+      try {
+        const filter: any = {
+          ids: [eventId],
+        };
+        if (kind !== undefined) {
+          filter.kinds = [kind];
+        }
+
+        const events = await nostr.query([filter]);
+
+        if (events.length === 0) {
+          return null;
+        }
+
+        return events[0];
+      } catch (error) {
+        log.error("Failed to fetch event by ID", { eventId, kind, error });
+        throw error;
+      }
+    },
+    [nostr]
+  );
+
   return {
     isConnected: !!nostr,
     storeSubmission,
@@ -616,6 +696,8 @@ export function useNostrStorage() {
     checkSubmissionExists,
     useSubmission,
     retrieveMultipleSubmissions,
+    fetchReplaceableEvent,
+    fetchEventById,
   };
 }
 

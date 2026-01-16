@@ -23,7 +23,10 @@ import { TippingInfo } from "@/lib/providers/tipping-provider";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { ccc } from "@ckb-ccc/connector-react";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
-import { useTippingComments } from "@/hooks/use-tipping-comments";
+import {
+  CommentListReplaceableKey,
+  useTippingComments,
+} from "@/hooks/use-tipping-comments";
 import { createScopedLogger } from "ssri-ckboost";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
 
@@ -67,7 +70,7 @@ export function TippingCard({
   const [additionalTipAmount, setAdditionalTipAmount] = useState("");
   const [additionalTipMessage, setAdditionalTipMessage] = useState("");
   const [isSendingTip, setIsSendingTip] = useState(false);
-  const { protocolData, resolveEndorser } = useProtocol();
+  const { protocolData, resolveEndorser, isAdmin } = useProtocol();
   const tippingConfig = protocolData?.tipping_config;
   const { fetchSubmission } = useNostrFetch();
   const [resolvedLongDescription, setResolvedLongDescription] =
@@ -75,6 +78,9 @@ export function TippingCard({
   const [isResolvingLongDescription, setIsResolvingLongDescription] =
     useState(false);
   const [resolveError, setResolveError] = useState<string | null>(null);
+  const [commentListReplaceableKey, setCommentListReplaceableKey] = useState<
+    CommentListReplaceableKey | undefined
+  >(undefined);
   const signer = ccc.useSigner();
 
   const {
@@ -86,6 +92,8 @@ export function TippingCard({
     error: commentsError,
     postComment,
     postLike,
+    deleteComment,
+    blacklistSender,
     likesCount,
     isLiked,
     hasMore,
@@ -95,7 +103,8 @@ export function TippingCard({
     totalTipAmountCkb,
   } = useTippingComments(
     tipping.typeId,
-    tipping.data.metadata.long_description
+    commentListReplaceableKey,
+    isAdmin || isViewerAdmin
   );
 
   const proposerLockHash = useMemo(() => {
@@ -134,10 +143,16 @@ export function TippingCard({
       if (
         parsed &&
         typeof parsed === "object" &&
-        (parsed as { format?: string }).format ===
-          "ckboost-tipping-long-description" &&
+        ((parsed as { format?: string }).format ===
+          "ckboost-tipping-long-description" ||
+          (parsed as { format?: string }).format ===
+            "ckboost-tipping-metadata") &&
         typeof (parsed as { contentHtml?: unknown }).contentHtml === "string"
       ) {
+        setCommentListReplaceableKey(
+          (parsed as { commentListReplaceableKey?: CommentListReplaceableKey })
+            .commentListReplaceableKey || undefined
+        );
         return (parsed as { contentHtml: string }).contentHtml;
       }
     } catch {
@@ -789,67 +804,68 @@ export function TippingCard({
               </div>
             </div>
             <div className="space-y-2">
-              {(tipCommentsPage.length ? tipCommentsPage : tipping.additionalTips).map(
-                (tip) => {
-                  const amount =
-                    "tipAmount" in tip && tip.tipAmount
-                      ? tip.tipAmount
-                      : "amount" in tip
-                      ? String(tip.amount)
-                      : "0";
-                  const from =
-                    "author" in tip
-                      ? tip.author
-                      : "from" in tip
-                      ? tip.from
-                      : "Unknown";
-                  const timestamp =
-                    "timestamp" in tip ? tip.timestamp : undefined;
-                  const key = "neventId" in tip ? tip.neventId : tip.id ?? from;
-                  return (
-                    <div
-                      key={key}
-                      className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
-                    >
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback className="text-sm bg-gradient-to-br from-green-200 to-emerald-200">
-                          {from.charAt(0).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium text-sm break-all">
-                            {from}
+              {(tipCommentsPage.length
+                ? tipCommentsPage
+                : tipping.additionalTips
+              ).map((tip) => {
+                const amount =
+                  "tipAmount" in tip && tip.tipAmount
+                    ? tip.tipAmount
+                    : "amount" in tip
+                    ? String(tip.amount)
+                    : "0";
+                const from =
+                  "author" in tip
+                    ? tip.author
+                    : "from" in tip
+                    ? tip.from
+                    : "Unknown";
+                const timestamp =
+                  "timestamp" in tip ? tip.timestamp : undefined;
+                const key = "neventId" in tip ? tip.neventId : tip.id ?? from;
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
+                  >
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="text-sm bg-gradient-to-br from-green-200 to-emerald-200">
+                        {from.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-sm break-all">
+                          {from}
+                        </span>
+                        <span className="text-green-600 font-semibold text-sm">
+                          {amount} CKB
+                        </span>
+                        {timestamp && (
+                          <span className="text-xs text-muted-foreground">
+                            {timestamp}
                           </span>
-                          <span className="text-green-600 font-semibold text-sm">
-                            {amount} CKB
-                          </span>
-                          {timestamp && (
-                            <span className="text-xs text-muted-foreground">
-                              {timestamp}
-                            </span>
-                          )}
-                        </div>
-                        {"content" in tip && tip.content && (
-                          <div className="text-sm text-muted-foreground italic break-words">
-                            &quot;{tip.content}&quot;
-                          </div>
-                        )}
-                        {"message" in tip && tip.message && (
-                          <div className="text-sm text-muted-foreground italic break-words">
-                            &quot;{tip.message}&quot;
-                          </div>
-                        )}
-                        {"tipTxHash" in tip && tip.tipTxHash && (
-                          <div className="text-xs text-muted-foreground">
-                            Tx: {tip.tipTxHash}
-                          </div>
                         )}
                       </div>
+                      {"content" in tip && tip.content && (
+                        <div className="text-sm text-muted-foreground italic break-words">
+                          &quot;{tip.content}&quot;
+                        </div>
+                      )}
+                      {"message" in tip && tip.message && (
+                        <div className="text-sm text-muted-foreground italic break-words">
+                          &quot;{tip.message}&quot;
+                        </div>
+                      )}
+                      {"tipTxHash" in tip && tip.tipTxHash && (
+                        <div className="text-xs text-muted-foreground">
+                          Tx: {tip.tipTxHash}
+                        </div>
+                      )}
                     </div>
-                  );
-                }
-              )}
+                  </div>
+                );
+              })}
             </div>
             {hasMoreTipComments && (
               <div className="flex justify-center">
@@ -979,6 +995,7 @@ export function TippingCard({
             isLoading={isCommentsLoading}
             totalComments={totalComments}
             isViewerAdmin={isViewerAdmin}
+            isCommentListInitialized={!!commentListReplaceableKey}
           />
         </div>
       </CardContent>

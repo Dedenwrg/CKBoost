@@ -5,6 +5,8 @@ import { getLatestDisplayName } from "@/lib/profile/profile-data";
 import { createScopedLogger } from "ssri-ckboost";
 import { Comment } from "@/components/social-interactions";
 import { nip19 } from "nostr-tools";
+import { ccc } from "@ckb-ccc/connector-react";
+import { NostrComment, useNostrFetch } from "./use-nostr-fetch";
 
 const log = createScopedLogger("useTippingComments");
 
@@ -22,21 +24,10 @@ interface TippingCommentPayload {
   amount?: string;
 }
 
-type CommentsApiResponse = {
-  stats: {
-    commentsCount: number;
-    likesCount: number;
-    totalTipAmount: string;
-    tipCommentsCount?: number;
-  };
-  comments: Comment[];
-  tipComments?: Comment[];
-  totalComments: number;
-  commonCommentsTotal?: number;
-  page: number;
-  limit: number;
-  isLiked?: boolean;
-};
+export interface CommentListReplaceableKey {
+  authorPubkey: string;
+  dTag: string;
+}
 
 const COMMENT_TAG_TYPE = "tipping_comment";
 const LIKE_TAG_TYPE = "tipping_like";
@@ -54,12 +45,19 @@ const formatTimestamp = (timestamp: number) =>
 
 export function useTippingComments(
   tippingTypeId?: string,
-  longDescriptionNevent?: string | null
+  commentListReplaceableKey?: CommentListReplaceableKey,
+  isAdmin?: boolean
 ) {
-  const { storeEvent } = useNostrStorage();
+  const { storeEvent, fetchEventById } = useNostrStorage();
+  const {
+    fetchCommentsWithNostrCommentList,
+    fetchEventWithNeventId,
+    fetchReplaceableEvent,
+  } = useNostrFetch();
   const { currentUserData, currentUserTypeId, userRecommendedAddressObj } =
     useUser();
-
+  const signer = ccc.useSigner();
+  const [commentList, setCommentList] = useState<NostrComment[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [tipComments, setTipComments] = useState<Comment[]>([]);
   const [likesCount, setLikesCount] = useState(0);
@@ -72,34 +70,23 @@ export function useTippingComments(
   const [totalComments, setTotalComments] = useState(0);
   const [totalTipAmountCkb, setTotalTipAmountCkb] = useState(0);
   const [tipPage, setTipPage] = useState(1);
-  const targetEventId = useMemo(() => {
-    if (!longDescriptionNevent) return null;
-    if (longDescriptionNevent.startsWith("nevent1")) {
-      try {
-        const decoded = nip19.decode(longDescriptionNevent);
-        if (decoded.type === "nevent") {
-          return (decoded.data as { id: string }).id;
-        }
-      } catch {
-        return null;
-      }
-    }
-    return longDescriptionNevent;
-  }, [longDescriptionNevent]);
   const lastCommentRef = useRef<{ text: string; timestamp: number } | null>(
     null
   );
   const TIP_PAGE_SIZE = 5;
 
-  const toCkbAmount = useCallback((fixedPoint: string | undefined | null): number => {
-    if (!fixedPoint) return 0;
-    try {
-      const raw = BigInt(fixedPoint);
-      return Number(raw) / 10 ** 8;
-    } catch {
-      return 0;
-    }
-  }, []);
+  const toCkbAmount = useCallback(
+    (fixedPoint: string | undefined | null): number => {
+      if (!fixedPoint) return 0;
+      try {
+        const raw = BigInt(fixedPoint);
+        return Number(raw) / 10 ** 8;
+      } catch {
+        return 0;
+      }
+    },
+    []
+  );
 
   const currentLockHash = useMemo(() => {
     try {
@@ -118,76 +105,90 @@ export function useTippingComments(
     [currentUserData?.profile_data, currentLockHash]
   );
 
+  const fetchCommentList = useCallback(async () => {
+    if (!commentListReplaceableKey) return;
+    const commentListEvent = await fetchReplaceableEvent(
+      commentListReplaceableKey.authorPubkey,
+      commentListReplaceableKey.dTag
+    );
+    if (!commentListEvent?.content) return;
+    const commentListData = JSON.parse(commentListEvent.content) as {
+      comments: NostrComment[];
+      blacklistedSenders: string[];
+    };
+    setCommentList(commentListData.comments);
+  }, [commentListReplaceableKey]);
+
   const fetchComments = useCallback(
     async (pageParam: number, reset: boolean) => {
       if (!tippingTypeId) return;
-      if (!targetEventId) {
-        setError("Missing target event for comments");
-        return;
-      }
+      if (!commentList || commentList.length === 0) return;
+      if (!commentListReplaceableKey) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const params = new URLSearchParams({
-          mode: "details",
-          id: tippingTypeId,
-          page: String(pageParam),
-          limit: "20",
-          targetEventId,
-        });
-        if (currentLockHash) {
-          params.append("userLockHash", currentLockHash);
-        }
+        // Try to get comments list neventId from long description
 
-        const response = await fetch(
-          `/api/social-interactions?${params.toString()}`
-        );
+        try {
+          const commentListSlice = commentList.slice(
+            (pageParam - 1) * 20,
+            Math.min(commentList.length, pageParam * 20)
+          );
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch comments");
-        }
+          // Fetch each comment event by neventId
+          const fetchedComments = await fetchCommentsWithNostrCommentList(
+            commentListSlice
+          );
+          if (!fetchedComments) return;
+          // Separate tip comments from regular comments
+          const tipComments = fetchedComments.filter((c) => c.isTip);
+          const regularComments = fetchedComments.filter((c) => !c.isTip);
 
-        const data: CommentsApiResponse = await response.json();
+          setComments((prev) => {
+            const existing = reset
+              ? new Map<string, Comment>()
+              : new Map(prev.map((c) => [c.neventId, c]));
 
-        const nextTipComments = data.tipComments ?? [];
-        setTipComments(nextTipComments);
-        if (reset) {
-          setTipPage(1);
-        }
+            [...tipComments, ...regularComments].forEach((c) => {
+              existing.set(c.neventId, c);
+            });
 
-        setComments((prev) => {
-          const existing = reset
-            ? new Map<string, Comment>()
-            : new Map(prev.map((c) => [c.neventId, c]));
-
-          [...nextTipComments, ...data.comments].forEach((c) => {
-            existing.set(c.neventId, c);
+            return Array.from(existing.values()).sort(
+              (a, b) =>
+                new Date(b.timestamp).getTime() -
+                new Date(a.timestamp).getTime()
+            );
           });
 
-          return Array.from(existing.values()).sort(
-            (a, b) =>
-              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+          setTipComments(tipComments);
+          setTotalComments(regularComments.length + tipComments.length);
+          // likes currently not tracked via nostr list
+          setLikesCount(0);
+          const totalTipAmount = tipComments.reduce(
+            (acc, c) => acc + toCkbAmount(c.tipAmount),
+            0
           );
-        });
+          setTotalTipAmountCkb(totalTipAmount);
+          setHasMore(commentList.length > pageParam * 20);
+          setPage(pageParam + 1);
+          setIsLoading(false);
+          return;
+        } catch {
+          // If parsing fails, fall through to empty state below
+        }
 
-        setLikesCount(data.stats.likesCount);
-        setTotalComments(data.totalComments);
-        setTotalTipAmountCkb(toCkbAmount(data.stats.totalTipAmount));
-        setIsLiked(Boolean(data.isLiked));
-
-        const commonTotal =
-          data.commonCommentsTotal ??
-          Math.max(
-            data.totalComments - (data.tipComments?.length ?? 0),
-            data.comments.length
-          );
-        const hasMoreCommon = pageParam * data.limit < commonTotal;
-        setHasMore(hasMoreCommon);
-
-        const nextPage = (data.page || pageParam) + 1;
-        setPage(nextPage);
+        // If no comments list reference, return empty without error
+        if (reset) {
+          setComments([]);
+          setTipComments([]);
+        }
+        setTotalComments(0);
+        setLikesCount(0);
+        setTotalTipAmountCkb(0);
+        setHasMore(false);
+        setPage(reset ? 1 : pageParam + 1);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Failed to load comments";
@@ -197,7 +198,7 @@ export function useTippingComments(
         setIsLoading(false);
       }
     },
-    [tippingTypeId, currentLockHash, toCkbAmount, targetEventId]
+    [tippingTypeId, toCkbAmount, commentList]
   );
 
   const reload = useCallback(() => {
@@ -207,8 +208,9 @@ export function useTippingComments(
     setTotalComments(0);
     setHasMore(true);
     setPage(1);
+    fetchCommentList();
     fetchComments(1, true);
-  }, [fetchComments]);
+  }, [fetchCommentList, fetchComments]);
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoading) return;
@@ -239,7 +241,8 @@ export function useTippingComments(
       if (!tippingTypeId) throw new Error("Missing tipping proposal type ID");
       if (!currentUserTypeId) throw new Error("User profile required");
       if (!currentLockHash) throw new Error("User lock hash required");
-      if (!targetEventId) throw new Error("Missing target event for comments");
+      if (!commentListReplaceableKey)
+        throw new Error("Missing comments list neventId");
 
       const trimmedContent = content.trim();
       if (!trimmedContent) throw new Error("Comment cannot be empty");
@@ -274,7 +277,6 @@ export function useTippingComments(
         ["client", "ckboost-dapp"],
         ["timestamp", createdAt.toString()],
         ["user_lock", currentLockHash],
-        ["e", targetEventId, "", "ckboost-tipping"],
       ];
 
       if (tipData) tags.push(["is_tip", "true"]);
@@ -282,21 +284,82 @@ export function useTippingComments(
 
       setIsPosting(true);
       try {
+        // Step 1: Post the comment as a regular event first
         const contentString = JSON.stringify(payload);
-        const proposalResult = await storeEvent.mutateAsync({
+        const storeCommentResult = await storeEvent.mutateAsync({
           content: contentString,
           tags,
         });
 
+        // Step 2: Use neventId directly (no need to decode)
+        const commentNeventId = storeCommentResult.neventId;
+
+        // Step 3: Call Netlify function to update the comments list event
+        // The server-side function will derive the correct private key and update the separate comments list event
+        if (!tippingTypeId) {
+          throw new Error("Missing tipping type ID for updating comments");
+        }
+
+        if (!signer) {
+          throw new Error("Signer required for message signing");
+        }
+
+        // Create message to sign
+        const message = JSON.stringify({
+          action: "add",
+          commentNeventId,
+          tippingTypeId,
+          timestamp: Date.now(),
+        });
+
+        // Sign the message
+        const signature = await signer.signMessage(message);
+        const addRequestBody = {
+          action: "add",
+          commentNeventId,
+          commentListAuthor: commentListReplaceableKey.authorPubkey,
+          dTag: commentListReplaceableKey.dTag,
+          message,
+          signatureString: signature.signature,
+          signatureIdentity: signature.identity,
+          signatureSignType: signature.signType,
+        };
+        console.log("addRequestBody", addRequestBody);
+        const response = await fetch("/api/update-tipping-comments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(addRequestBody),
+        });
+
+        if (!response.ok) {
+          const error = await response
+            .json()
+            .catch(() => ({ error: "Failed to add comment" }));
+          throw new Error(
+            error.message || error.error || "Failed to add comment"
+          );
+        }
+
+        const result = await response.json();
+        log.info("Successfully added comment to comments list", {
+          commentNeventId,
+          commentListAuthor: commentListReplaceableKey.authorPubkey,
+          dTag: commentListReplaceableKey.dTag,
+        });
+
         // Optimistic update
+
         const newComment: Comment = {
-          neventId: proposalResult.neventId,
+          neventId: storeCommentResult.neventId,
+          eventId: storeCommentResult.neventId, // eventId can be either neventId or raw eventId for backward compatibility
           author: currentDisplayName,
           content: trimmedContent,
           timestamp: formatTimestamp(createdAt),
           likes: 0,
           isLiked: false,
-          link: `https://njump.me/${proposalResult.neventId}`,
+          link: `https://njump.me/${storeCommentResult.neventId}`,
           isTip: !!tipData,
           tipAmount: tipData?.amount,
           tipTxHash: tipData?.txHash,
@@ -325,7 +388,8 @@ export function useTippingComments(
       currentLockHash,
       currentDisplayName,
       storeEvent,
-      targetEventId,
+      tippingTypeId,
+      commentListReplaceableKey,
     ]
   );
 
@@ -333,7 +397,6 @@ export function useTippingComments(
     if (!tippingTypeId) throw new Error("Missing tipping ID");
     if (!currentUserTypeId) throw new Error("User profile required");
     if (!currentLockHash) throw new Error("User lock hash required");
-    if (!targetEventId) throw new Error("Missing target event for likes");
 
     const createdAt = Date.now();
 
@@ -355,7 +418,6 @@ export function useTippingComments(
       ["timestamp", createdAt.toString()],
       ["user_lock", currentLockHash],
       ["user_type", currentUserTypeId],
-      ["e", targetEventId, "", "ckboost-tipping"],
     ];
 
     setIsPosting(true);
@@ -379,8 +441,165 @@ export function useTippingComments(
     currentLockHash,
     currentDisplayName,
     storeEvent,
-    targetEventId,
+    commentListReplaceableKey,
   ]);
+
+  const deleteComment = useCallback(
+    async (commentNeventId: string) => {
+      if (!isAdmin) {
+        throw new Error("Admin privileges required to delete comments");
+      }
+      if (!tippingTypeId) {
+        throw new Error("Missing tipping type ID");
+      }
+      if (!signer) {
+        throw new Error("Signer required");
+      }
+      if (!commentListReplaceableKey) {
+        throw new Error("Missing comments list neventId");
+      }
+
+      setIsPosting(true);
+      try {
+        const userAddress = await signer.getRecommendedAddress();
+
+        // Create message to sign
+        const message = JSON.stringify({
+          action: "delete",
+          commentNeventId,
+          tippingTypeId,
+          timestamp: Date.now(),
+        });
+
+        // Sign the message
+        const signature = await signer.signMessage(message);
+
+        const response = await fetch("/api/update-tipping-comments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "delete",
+            commentNeventId,
+            commentListAuthor: commentListReplaceableKey.authorPubkey,
+            dTag: commentListReplaceableKey.dTag,
+            message,
+            signatureString: signature.signature,
+            signatureIdentity: signature.identity,
+            signatureSignType: signature.signType,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response
+            .json()
+            .catch(() => ({ error: "Failed to delete comment" }));
+          throw new Error(
+            error.message || error.error || "Failed to delete comment"
+          );
+        }
+
+        const result = await response.json();
+        log.info("Successfully deleted comment", {
+          commentNeventId,
+          commentListAuthor: commentListReplaceableKey.authorPubkey,
+          dTag: commentListReplaceableKey.dTag,
+        });
+
+        // Optimistic update - remove comment from state
+        setComments((prev) =>
+          prev.filter((c) => c.neventId !== commentNeventId)
+        );
+        setTipComments((prev) =>
+          prev.filter((c) => c.neventId !== commentNeventId)
+        );
+        setTotalComments((prev) => Math.max(0, prev - 1));
+
+        return result;
+      } catch (err) {
+        log.error("Failed to delete comment", err);
+        throw err;
+      } finally {
+        setIsPosting(false);
+      }
+    },
+    [isAdmin, tippingTypeId, signer, commentListReplaceableKey]
+  );
+
+  const blacklistSender = useCallback(
+    async (senderAddress: string) => {
+      if (!isAdmin) {
+        throw new Error("Admin privileges required to blacklist senders");
+      }
+      if (!tippingTypeId) {
+        throw new Error("Missing tipping type ID");
+      }
+      if (!signer) {
+        throw new Error("Signer required");
+      }
+      if (!commentListReplaceableKey) {
+        throw new Error("Missing comments list replaceable key");
+      }
+
+      setIsPosting(true);
+      try {
+        // Create message to sign
+        const message = JSON.stringify({
+          action: "blacklist",
+          targetSenderAddress: senderAddress,
+          timestamp: Date.now(),
+        });
+
+        // Sign the message
+        const signature = await signer.signMessage(message);
+
+        const response = await fetch("/api/update-tipping-comments", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "blacklist",
+            commentListAuthor: commentListReplaceableKey.authorPubkey,
+            dTag: commentListReplaceableKey.dTag,
+            message,
+            signatureString: signature.signature,
+            signatureIdentity: signature.identity,
+            signatureSignType: signature.signType,
+            targetSenderAddress: senderAddress,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response
+            .json()
+            .catch(() => ({ error: "Failed to blacklist sender" }));
+          throw new Error(
+            error.message || error.error || "Failed to blacklist sender"
+          );
+        }
+
+        const result = await response.json();
+        log.info("Successfully blacklisted sender", {
+          senderAddress,
+          commentListAuthor: commentListReplaceableKey.authorPubkey,
+          dTag: commentListReplaceableKey.dTag,
+        });
+
+        // Reload comments to reflect blacklist changes
+        reload();
+
+        return result;
+      } catch (err) {
+        log.error("Failed to blacklist sender", err);
+        throw err;
+      } finally {
+        setIsPosting(false);
+      }
+    },
+    [isAdmin, tippingTypeId, signer, reload, commentListReplaceableKey]
+  );
 
   return {
     comments,
@@ -394,6 +613,8 @@ export function useTippingComments(
     error,
     postComment,
     postLike,
+    deleteComment,
+    blacklistSender,
     reload,
     loadMore,
     hasMore,

@@ -21,7 +21,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";import {
+import { Badge } from "@/components/ui/badge";
+import {
   ArrowLeft,
   CheckCircle,
   AlertCircle,
@@ -38,13 +39,18 @@ import { TippingDataLike } from "ssri-ckboost/types";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
+import { CommentListReplaceableKey } from "@/hooks/use-tipping-comments";
 
 export default function ProposeTippingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const signer = ccc.useSigner();
   const { updateTipping } = useTippingContext();
-  const { storeSubmission, isConnected: nostrConnected } = useNostrStorage();
+  const {
+    isConnected: nostrConnected,
+    fetchEventById,
+    storeEvent,
+  } = useNostrStorage();
   const storageModal = useStorageModal();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -319,50 +325,89 @@ export default function ProposeTippingPage() {
       }
 
       let longDescriptionForChain = formData.longDescription;
+      let commentListReplaceableKey: CommentListReplaceableKey | null = null;
 
       if (
         longDescriptionForChain &&
         !longDescriptionForChain.startsWith("nevent1") &&
         nostrConnected
       ) {
-        const identifier = finalTargetLockHash || proposerLockHash;
-        if (identifier) {
-          try {
-            const userAddress =
-              proposerAddress || proposerLockHash || "unknown";
-            const uniqueQuestId = Date.now();
-            const serializedContent = JSON.stringify({
-              format: "ckboost-tipping-long-description",
-              version: "1.0",
-              timestamp: Date.now(),
-              metadata: {
-                targetLockHash: finalTargetLockHash,
-                proposerLockHash,
-                contributionTitle: formData.contributionTitle,
-                shortDescription: formData.shortDescription,
-                typeTags: formData.typeTags
-                  .split(",")
-                  .map((tag) => tag.trim())
-                  .filter((tag) => tag.length > 0),
-              },
-              contentHtml: longDescriptionForChain,
-            });
-            const neventId = await storeSubmission.mutateAsync({
-              campaignTypeId: identifier,
-              questId: uniqueQuestId,
-              userAddress,
-              content: serializedContent,
-              timestamp: Date.now(),
-            });
-            longDescriptionForChain = neventId;
-            setPendingNeventId(neventId);
-          } catch (nostrError) {
-            console.warn(
-              "Failed to store long description on Nostr; falling back to on-chain storage",
-              nostrError
-            );
-          }
+        const dTag = `ckboost-tipping-${Date.now()}`;
+        console.log(
+          "Creating empty comments list event for tipping proposal..."
+        );
+        // Sign dTag with proposer signer
+        if (!signer) {
+          throw new Error("Signer required to sign dTag");
         }
+        const signature = await signer.signMessage(dTag);
+        const commentListResponse = await fetch(
+          "/api/update-tipping-comments",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "initialize",
+              dTag,
+              signatureString: signature.signature,
+              signatureIdentity: signature.identity,
+              signatureSignType: signature.signType,
+            }),
+          }
+        );
+
+        if (commentListResponse.ok && commentListResponse.status == 200) {
+          const commentListResult = await commentListResponse.json();
+          commentListReplaceableKey = {
+            authorPubkey: commentListResult.authorPubkey,
+            dTag: commentListResult.dTag,
+          };
+          console.log(
+            "Created empty comment list event for tipping proposal:",
+            commentListReplaceableKey.authorPubkey
+          );
+        } else {
+          throw new Error(
+            `Failed to create comments list event: ${commentListResponse.statusText}`
+          );
+        }
+
+        // Step 2: Store long description with reference to comments list (if available)
+        const serializedContent = JSON.stringify({
+          format: "ckboost-tipping-metadata",
+          version: "1.0",
+          timestamp: Date.now(),
+          metadata: {
+            targetLockHash: finalTargetLockHash,
+            proposerLockHash,
+            contributionTitle: formData.contributionTitle,
+            shortDescription: formData.shortDescription,
+            typeTags: formData.typeTags
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter((tag) => tag.length > 0),
+          },
+          contentHtml: longDescriptionForChain,
+          commentListReplaceableKey,
+        });
+        console.log("Storing metadata event for tipping proposal...");
+        const tags: string[][] = [
+          ["type", "ckboost-tipping-metadata"],
+          ["client", "ckboost-dapp"],
+          ["d", dTag],
+        ];
+        const metadataEvent = await storeEvent.mutateAsync({
+          content: serializedContent,
+          tags,
+        });
+        console.log(
+          "Created metadata event for tipping proposal:",
+          metadataEvent.neventId
+        );
+        longDescriptionForChain = metadataEvent.neventId;
+        setPendingNeventId(metadataEvent.neventId);
       }
 
       let ckbAmountRaw = 0n;
@@ -643,7 +688,9 @@ export default function ProposeTippingPage() {
 
                 {recipientInputMode === "address" && (
                   <div className="space-y-2">
-                    <Label htmlFor="recipientAddress">Recipient Address *</Label>
+                    <Label htmlFor="recipientAddress">
+                      Recipient Address *
+                    </Label>
                     <Input
                       id="recipientAddress"
                       value={recipientAddress}
@@ -660,14 +707,18 @@ export default function ProposeTippingPage() {
                       </p>
                     )}
                     {recipientError && (
-                      <p className="text-sm text-destructive">{recipientError}</p>
+                      <p className="text-sm text-destructive">
+                        {recipientError}
+                      </p>
                     )}
                   </div>
                 )}
 
                 {recipientInputMode === "script" && (
                   <div className="space-y-2">
-                    <Label htmlFor="recipientLockHash">Recipient Lock Hash *</Label>
+                    <Label htmlFor="recipientLockHash">
+                      Recipient Lock Hash *
+                    </Label>
                     <Input
                       id="recipientLockHash"
                       value={recipientLockHash}
@@ -684,7 +735,9 @@ export default function ProposeTippingPage() {
                       </p>
                     )}
                     {recipientError && (
-                      <p className="text-sm text-destructive">{recipientError}</p>
+                      <p className="text-sm text-destructive">
+                        {recipientError}
+                      </p>
                     )}
                   </div>
                 )}

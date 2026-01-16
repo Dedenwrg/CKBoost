@@ -63,6 +63,11 @@ from = "/api/verification/*"
 to = "/.netlify/functions/verification-api/:splat"
 status = 200
 
+[[redirects]]
+from = "/api/update-tipping-comments"
+to = "/.netlify/functions/update-tipping-comments"
+status = 200
+
 # Environment variables (set in Netlify dashboard)
 # TELEGRAM_BOT_TOKEN=your_bot_token
 # TELEGRAM_BOT_USERNAME=your_bot_username  

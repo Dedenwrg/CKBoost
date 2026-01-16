@@ -35,6 +35,7 @@ export function TippingCommentsSection({
   isLoading,
   totalComments,
   isViewerAdmin,
+  isCommentListInitialized,
 }: {
   tippingTypeId?: string;
   comments: Comment[];
@@ -53,6 +54,7 @@ export function TippingCommentsSection({
   isLoading?: boolean;
   totalComments?: number;
   isViewerAdmin?: boolean;
+  isCommentListInitialized?: boolean;
 }) {
   const {
     currentUserTypeId,
@@ -249,6 +251,7 @@ export function TippingCommentsSection({
         isLoadingMore={isLoading}
         totalComments={totalComments}
         isAdmin={isViewerAdmin}
+        isCommentListInitialized={isCommentListInitialized}
       />
 
       <Dialog open={showProfileDialog} onOpenChange={handleProfileDialogChange}>

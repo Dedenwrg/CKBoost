@@ -151,7 +151,7 @@ export function CampaignCard({
     useCampaignCoverImage(campaign.image);
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full max-w-[420px] md:w-[420px] justify-self-center">
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full max-w-[420px] md:w-[420px] justify-self-center border-gray-200 dark:border-gray-700">
       <CampaignCoverImage
         src={coverImageSrc}
         alt={campaign.title}

@@ -21,14 +21,14 @@ export const metadata: Metadata = {
 const navbar = (
   <Navbar
     logo={
-      <div className="flex items-center gap-2 mr-24">
+      <div className="flex items-center gap-2 mr-18">
         <div className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
           CKBoost
         </div>
       </div>
     }
     logoLink="/"
-    projectLink="https://github.com/Bohemialive/CKBoost"
+    projectLink="https://github.com/Alive24/CKBoost"
     align="left"
   >
     <div className="hidden md:flex items-center gap-3">
@@ -74,7 +74,7 @@ export default async function RootLayout({
             {children}
           </Layout>
           {/* WUUNU SNIPPET - DON'T CHANGE THIS (START) */}
-          {process.env.NODE_ENV !== "production" && (
+          {/* {process.env.NODE_ENV !== "production" && (
             <>
               <Script id="wuunu-ws" strategy="afterInteractive">
                 {`window.__WUUNU_WS__ = "http://127.0.0.1:65051/?token=365f185309b1a2d457f3ed34448dbb0f66cf94c5a500fe75";`}
@@ -86,7 +86,7 @@ export default async function RootLayout({
                 crossOrigin="anonymous"
               />
             </>
-          )}
+          )} */}
           {/* WUUNU SNIPPET - DON'T CHANGE THIS (END) */}
         </Providers>
       </body>
