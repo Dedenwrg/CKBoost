@@ -72,8 +72,9 @@ const resolveCacheStorage = async (
   }
 
   if (cacheBinding) {
-    const defaultCandidate =
-      (cacheBinding as { default?: CacheLike | Promise<CacheLike> }).default;
+    const defaultCandidate = (
+      cacheBinding as { default?: CacheLike | Promise<CacheLike> }
+    ).default;
     if (defaultCandidate) {
       try {
         const resolved = await Promise.resolve(defaultCandidate);
@@ -109,9 +110,11 @@ const resolveCacheStorage = async (
     return null;
   }
 
-  const maybeCaches = (globalThis as unknown as {
-    caches?: CacheStorageLike;
-  })?.caches;
+  const maybeCaches = (
+    globalThis as unknown as {
+      caches?: CacheStorageLike;
+    }
+  )?.caches;
 
   if (!maybeCaches || typeof maybeCaches.open !== "function") {
     return null;
@@ -157,12 +160,12 @@ export const readCache = async <T>(
 
     try {
       const body = (await response.json()) as CacheRecord<T>;
-      log.info("cache_read_hit", {
-        key,
-        namespace,
-        storage: "netlify",
-        ageMs: Date.now() - body.createdAt,
-      });
+      // log.info("cache_read_hit", {
+      //   key,
+      //   namespace,
+      //   storage: "netlify",
+      //   ageMs: Date.now() - body.createdAt,
+      // });
       return {
         value: body.value,
         hit: true,
@@ -179,12 +182,12 @@ export const readCache = async <T>(
     return null;
   }
 
-  log.info("cache_read_hit", {
-    key,
-    namespace,
-    storage: "memory",
-    ageMs: Date.now() - record.createdAt,
-  });
+  // log.info("cache_read_hit", {
+  //   key,
+  //   namespace,
+  //   storage: "memory",
+  //   ageMs: Date.now() - record.createdAt,
+  // });
 
   return {
     value: record.value as T,
@@ -316,7 +319,9 @@ export const withCache = async <T>(
   const waitUntil = options.waitUntil;
   const requestedTtl = options.ttlMs;
   const ttlMs =
-    typeof requestedTtl === "number" && requestedTtl > 0 ? requestedTtl : undefined;
+    typeof requestedTtl === "number" && requestedTtl > 0
+      ? requestedTtl
+      : undefined;
   const skipCache = options.skipCache ?? false;
   const disableCaching =
     typeof requestedTtl === "number" && requestedTtl <= 0 ? true : false;

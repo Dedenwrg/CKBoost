@@ -9,6 +9,7 @@ import {
   ProtocolData,
 } from "ssri-ckboost/types";
 import { createLogger } from "./log";
+import { withCache, type CacheControlOptions } from "./cache";
 
 const log = createLogger("NetlifyUtils");
 
@@ -501,19 +502,6 @@ export function isUserCellConnectedToProtocol(
     const connectedTypeId = ConnectedTypeID.decode(ccc.bytesFrom(args));
     const connectedKey = ccc.hexFrom(connectedTypeId.connected_key);
     const isMatch = connectedKey === protocolTypeHash;
-    if (isMatch) {
-      log.info(
-        `Cell ${cell.outPoint.txHash.slice(0, 10)}:${
-          cell.outPoint.index
-        } is connected to protocol ${protocolTypeHash.slice(0, 10)}...`
-      );
-    } else {
-      log.info(
-        `Cell ${cell.outPoint.txHash.slice(0, 10)}:${
-          cell.outPoint.index
-        } is not connected to protocol ${protocolTypeHash.slice(0, 10)}...`
-      );
-    }
     return isMatch;
   } catch (error) {
     log.error("Failed to check protocol connection:", error);
@@ -524,10 +512,12 @@ export function isUserCellConnectedToProtocol(
 /**
  * Fetch protocol cell from CKB blockchain
  * @param client - CCC client instance
+ * @param cacheOptions - Additional cache control options
  * @returns Protocol cell or null if not found
  */
 export async function fetchProtocolCell(
-  client: ccc.Client
+  client: ccc.Client,
+  cacheOptions?: Omit<CacheControlOptions, "skipCache">
 ): Promise<ccc.Cell | null> {
   try {
     // Check if client is properly initialized
@@ -535,8 +525,12 @@ export async function fetchProtocolCell(
       throw new Error("Client is not initialized.");
     }
 
-    // Get protocol type script
-    let protocolTypeScript;
+    // Get protocol type script for cache key generation
+    let protocolTypeScript: {
+      codeHash: string;
+      hashType: "type";
+      args: string;
+    };
     try {
       protocolTypeScript = getProtocolTypeScript();
     } catch (error) {
@@ -547,45 +541,60 @@ export async function fetchProtocolCell(
       );
     }
 
-    log.info("Searching for protocol cell with type script:", {
-      codeHash: protocolTypeScript.codeHash,
-      hashType: protocolTypeScript.hashType,
-      args: protocolTypeScript.args,
-    });
+    // Generate cache key based on network and protocol type script
+    const network = deploymentManager.getCurrentNetwork();
+    const cacheKey = `protocol-cell:${network}:${protocolTypeScript.codeHash}:${protocolTypeScript.args}`;
 
-    // Search for protocol cell by type script
-    const cellsGenerator = client.findCells({
-      script: protocolTypeScript,
-      scriptType: "type",
-      scriptSearchMode: "exact",
-    });
-
-    // Get first cell from async generator
-    const firstCell = await cellsGenerator.next();
-    log.info("Cell search result:", {
-      done: firstCell.done,
-      hasValue: !!firstCell.value,
-    });
-
-    if (firstCell.done || !firstCell.value) {
-      log.warn(
-        "No protocol cell found on blockchain with the configured type script"
-      );
-      // Provide more specific guidance based on the type script args
-      if (protocolTypeScript.args === "0x") {
-        throw new Error(
-          "No protocol cell exists on the blockchain yet. " +
-            "Please deploy a new protocol cell using the Protocol Management interface."
+    // Use withCache to handle caching
+    const { value: cell } = await withCache(
+      cacheKey,
+      async () => {
+        log.info(
+          "No Cache hit for protocol cell, searching for protocol cell with type script:",
+          {
+            codeHash: protocolTypeScript.codeHash,
+            hashType: protocolTypeScript.hashType,
+            args: protocolTypeScript.args,
+          }
         );
-      } else {
-        throw new Error(
-          `No protocol cell found with type script args: ${protocolTypeScript.args}. ` +
-            "The protocol cell may have been consumed or the configuration may be incorrect."
-        );
-      }
-    }
 
-    const cell = firstCell.value;
+        // Search for protocol cell by type script
+        const cellsGenerator = client.findCells({
+          script: protocolTypeScript,
+          scriptType: "type",
+          scriptSearchMode: "exact",
+        });
+
+        // Get first cell from async generator
+        const firstCell = await cellsGenerator.next();
+        log.info("Cell search result:", {
+          done: firstCell.done,
+          hasValue: !!firstCell.value,
+        });
+
+        if (firstCell.done || !firstCell.value) {
+          log.warn(
+            "No protocol cell found on blockchain with the configured type script"
+          );
+          // Provide more specific guidance based on the type script args
+          if (protocolTypeScript.args === "0x") {
+            throw new Error(
+              "No protocol cell exists on the blockchain yet. " +
+                "Please deploy a new protocol cell using the Protocol Management interface."
+            );
+          } else {
+            throw new Error(
+              `No protocol cell found with type script args: ${protocolTypeScript.args}. ` +
+                "The protocol cell may have been consumed or the configuration may be incorrect."
+            );
+          }
+        }
+
+        return firstCell.value;
+      },
+      cacheOptions
+    );
+
     return cell;
   } catch (error) {
     log.error("Failed to fetch protocol cell:", error);

@@ -131,7 +131,7 @@ export function PointsBalance() {
 
     const interval = setInterval(() => {
       void loadBalances();
-    }, 300000);
+    }, 3000000);
     return () => clearInterval(interval);
   }, [loadBalances]);
 
@@ -249,9 +249,13 @@ export function PointsBalance() {
 
       await tx.completeInputsByCapacity(signer);
       for (let i = 0; i < tx.inputs.length; i += 1) {
-        const inputCell = await signer.client.getCell(tx.inputs[i].previousOutput);
+        const inputCell = await signer.client.getCell(
+          tx.inputs[i].previousOutput
+        );
         if (!inputCell) {
-          throw new Error("Input cell not found while preparing mint transaction.");
+          throw new Error(
+            "Input cell not found while preparing mint transaction."
+          );
         }
         tx.inputs[i] = ccc.CellInput.from({
           previousOutput: inputCell.outPoint,
@@ -332,9 +336,7 @@ export function PointsBalance() {
     }
   })();
 
-  const isBonusAvailable =
-    Boolean(bonus?.eligible) &&
-    bonusAmount > 0n;
+  const isBonusAvailable = Boolean(bonus?.eligible) && bonusAmount > 0n;
 
   const isDisabled =
     !isBonusAvailable ||

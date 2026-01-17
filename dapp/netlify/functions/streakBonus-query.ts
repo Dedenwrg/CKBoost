@@ -1,7 +1,7 @@
 /**
  * Netlify function: returns streak bonus eligibility metadata and unsigned transaction.
  */
-import type { Handler, HandlerEvent } from "@netlify/functions";
+import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { ccc } from "@ckb-ccc/shell";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import type { StreakBonusQueryResponse } from "@/netlify/lib/streak-bonus";
@@ -141,17 +141,25 @@ export const handler: Handler = async (event, context) => {
     limit,
   });
 
+  const contextWithCache = context as HandlerContext & {
+    caches?: { default?: unknown } | unknown;
+    waitUntil?: (promise: Promise<unknown>) => void;
+  };
   const cacheBinding =
-    (context?.caches as { default?: unknown } | undefined)?.default ??
-    context?.caches ??
+    (contextWithCache?.caches as { default?: unknown } | undefined)?.default ??
+    (contextWithCache?.caches as { default?: unknown } | undefined) ??
     null;
   const waitUntil =
-    typeof context?.waitUntil === "function"
-      ? context.waitUntil.bind(context)
+    typeof contextWithCache?.waitUntil === "function"
+      ? contextWithCache.waitUntil.bind(contextWithCache)
       : null;
 
   try {
-    const { value: calculation, hit, metadata } = await withCache(
+    const {
+      value: calculation,
+      hit,
+      metadata,
+    } = await withCache(
       cacheKey,
       async () => {
         try {
@@ -266,10 +274,7 @@ const shouldBypassCache = (
 
   const cacheControl =
     headers["cache-control"] ?? headers["Cache-Control"] ?? undefined;
-  if (
-    typeof cacheControl === "string" &&
-    hasNoCacheDirective(cacheControl)
-  ) {
+  if (typeof cacheControl === "string" && hasNoCacheDirective(cacheControl)) {
     return true;
   }
 
