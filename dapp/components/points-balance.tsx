@@ -395,18 +395,6 @@ export function PointsBalance() {
         />
         <span className="sr-only">Refresh points and streak bonus</span>
       </Button>
-      {isAdmin && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleTestMint}
-          disabled={
-            isLoading || bonusLoading || claiming || minting || !userAddress
-          }
-        >
-          {minting ? "Minting..." : "Mint +100"}
-        </Button>
-      )}
     </div>
   );
 }
