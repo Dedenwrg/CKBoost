@@ -22,9 +22,12 @@ const navbar = (
   <Navbar
     logo={
       <div className="flex items-center gap-2 mr-18">
-        <div className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-          CKBoost
-        </div>
+        <img
+          src="/assets/branding/CKBoost Pixel Art Logo - Navigation.svg"
+          alt="CKBoost"
+          className="h-8 w-auto"
+          style={{ imageRendering: "pixelated" }}
+        />
       </div>
     }
     logoLink="/"

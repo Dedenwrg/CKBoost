@@ -18,6 +18,7 @@ import {
 import { useProtocol } from "@/lib/providers/protocol-provider"
 import { createScopedLogger } from "ssri-ckboost"
 import { PageLoading } from "@/components/ui/page-loading"
+import { PixelLogo } from "@/components/pixel-logo"
 
 const log = createScopedLogger("HomePage")
 
@@ -172,35 +173,59 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <main className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-black dark:bg-black">
+      {/* Pixelated stars background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0" style={{
+          backgroundImage: `
+            radial-gradient(2px 2px at 20px 30px, #60A5FA, transparent),
+            radial-gradient(2px 2px at 60px 70px, #FBBF24, transparent),
+            radial-gradient(1px 1px at 50px 50px, #FFFFFF, transparent),
+            radial-gradient(1px 1px at 80px 90px, #EC4899, transparent),
+            radial-gradient(2px 2px at 160px 40px, #60A5FA, transparent),
+            radial-gradient(1px 1px at 200px 100px, #FBBF24, transparent),
+            radial-gradient(2px 2px at 300px 150px, #60A5FA, transparent),
+            radial-gradient(1px 1px at 350px 80px, #FFFFFF, transparent)
+          `,
+          backgroundSize: '400px 200px',
+          backgroundRepeat: 'repeat',
+          imageRendering: 'pixelated'
+        }} />
+      </div>
+      
+      <main className="container mx-auto px-4 py-8 relative z-10">
         <div className="max-w-7xl mx-auto">
           {/* Hero Section */}
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="text-6xl">🚀</div>
-              <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                CKBoost
-              </h1>
-            </div>
-            <p className="text-xl text-muted-foreground mb-8 max-w-3xl mx-auto">
-              Join campaigns, complete quests, and earn rewards while contributing to the CKB ecosystem. Build your
-              reputation and grow with the community.
-            </p>
-            <div className="flex items-center justify-center gap-4">
-              <Link href="/dashboard">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                >
-                  View My Progress
-                </Button>
-              </Link>
-              <Link href="/leaderboard">
-                <Button size="lg" variant="outline" className="bg-transparent backdrop-blur-sm">
-                  View Leaderboard
-                </Button>
-              </Link>
+          <div className="mb-12">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-10 max-w-5xl mx-auto px-4">
+              {/* Left: Pixel Art Logo */}
+              <div className="flex-shrink-0 w-full md:w-auto">
+                <PixelLogo className="w-full max-w-xs md:max-w-sm mx-auto md:mx-0" />
+              </div>
+              
+              {/* Right: Text and Buttons */}
+              <div className="flex-1 text-center md:text-left space-y-6 min-w-0">
+                <p className="text-base md:text-lg text-white leading-relaxed max-w-md mx-auto md:mx-0 font-sans antialiased">
+                  Join campaigns, complete quests, and earn rewards while contributing to the CKB ecosystem. Build your
+                  reputation and grow with the community.
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3">
+                  <Link href="/dashboard" className="w-full sm:w-auto">
+                    <button
+                      className="w-full sm:w-auto bg-[#10B981] hover:bg-[#059669] active:bg-[#047857] text-white font-medium rounded-2xl px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
+                    >
+                      View My Progress
+                    </button>
+                  </Link>
+                  <Link href="/leaderboard" className="w-full sm:w-auto">
+                    <button 
+                      className="w-full sm:w-auto bg-[#3B82F6] hover:bg-[#2563EB] active:bg-[#1D4ED8] text-white font-medium rounded-2xl px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
+                    >
+                      View Leaderboard
+                    </button>
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
 
