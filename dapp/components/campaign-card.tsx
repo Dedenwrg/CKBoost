@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   X,
   MessageSquare,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -107,13 +108,18 @@ export function CampaignCard({
   selectedDifficulties = [],
   selectedStatuses = [],
 }: CampaignCardProps) {
+  const capitalizeFirstLetter = (str: string) => {
+    if (!str) return str;
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
+
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "beginner":
       case "easy":
         return "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100";
       case "medium":
-        return "bg-yellow-100 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-100";
+        return "bg-cyan-100 dark:bg-cyan-800 text-cyan-900 dark:text-cyan-100";
       case "advanced":
         return "bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-100";
       default:
@@ -130,7 +136,7 @@ export function CampaignCard({
       case "upcoming":
         return "bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100";
       case "completed":
-        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100";
+        return "bg-yellow-100 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100";
       default:
         return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100";
     }
@@ -151,7 +157,39 @@ export function CampaignCard({
     useCampaignCoverImage(campaign.image);
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full max-w-[420px] md:w-[420px] justify-self-center border-gray-200 dark:border-gray-700">
+    <div className="relative w-full max-w-[420px] md:w-[420px] justify-self-center">
+      {/* Four corner square indents - positioned outside the card */}
+      {/* Top-left: no border */}
+      <div 
+        className="absolute -top-1 -left-1 w-4 h-4 bg-black dark:bg-black z-20"
+      />
+      {/* Top-right: left border (inset) */}
+      <div 
+        className="absolute -top-1 -right-1 w-4 h-4 bg-black dark:bg-black z-20"
+        style={{
+          boxShadow: "inset 1px 0 0 0 #1F2937",
+        }}
+      />
+      {/* Bottom-right: top and left border (inset) */}
+      <div 
+        className="absolute -bottom-1 -right-1 w-4 h-4 bg-black dark:bg-black z-20"
+        style={{
+          boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
+        }}
+      />
+      {/* Bottom-left: top border (inset) */}
+      <div 
+        className="absolute -bottom-1 -left-1 w-4 h-4 bg-black dark:bg-black z-20"
+        style={{
+          boxShadow: "inset 0 1px 0 0 #1F2937",
+        }}
+      />
+    <Card 
+      className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-black dark:bg-black border-gray-800 dark:border-gray-800 relative z-10"
+      style={{
+        borderRadius: "8px",
+      }}
+    >
       <CampaignCoverImage
         src={coverImageSrc}
         alt={campaign.title}
@@ -177,7 +215,7 @@ export function CampaignCard({
                 : undefined
             }
           >
-            {campaign.status}
+            {capitalizeFirstLetter(campaign.status)}
           </Badge>
           <Badge
             className={`${getDifficultyColor(campaign.difficulty)} ${
@@ -197,7 +235,7 @@ export function CampaignCard({
                 : undefined
             }
           >
-            {campaign.difficulty}
+            {capitalizeFirstLetter(campaign.difficulty)}
           </Badge>
         </div>
         <div className="absolute top-4 right-4">
@@ -221,23 +259,23 @@ export function CampaignCard({
         </div>
       </CampaignCoverImage>
 
-      <CardHeader className="flex-shrink-0 max-w-[420px]">
+      <CardHeader className="flex-shrink-0 max-w-[420px] bg-black dark:bg-black">
         <div className="flex items-start justify-between width-full">
           <div className="flex-1 w-full">
-            <CardTitle className="text-lg mb-2 break-words whitespace-normal w-full">
+            <CardTitle className="text-lg mb-2 break-words whitespace-normal w-full text-white">
               {campaign.title}
             </CardTitle>
-            <p className="text-sm text-muted-foreground mb-3 break-words whitespace-normal">
+            <p className="text-sm text-gray-400 mb-3 break-words whitespace-normal">
               {campaign.shortDescription}
             </p>
-            <div className="text-xs text-muted-foreground break-words whitespace-normal">
+            <div className="text-xs text-gray-400 break-words whitespace-normal">
               Endorsed by {campaign.endorserName}
             </div>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col justify-between">
+      <CardContent className="flex-1 flex flex-col justify-between bg-black dark:bg-black">
         {/* Main content */}
         <div className="space-y-4">
           {/* Categories */}
@@ -249,10 +287,10 @@ export function CampaignCard({
               return (
                 <Badge
                   key={category}
-                  variant={isSelected ? "default" : "outline"}
-                  className={`text-xs ${
-                    onCategoryClick ? "cursor-pointer hover:bg-primary/10" : ""
-                  } border-gray-300 dark:border-gray-600`}
+                  variant="outline"
+                  className={`text-xs rounded-full ${
+                    onCategoryClick ? "cursor-pointer hover:opacity-80" : ""
+                  } bg-black border border-white text-white`}
                   onClick={
                     onCategoryClick
                       ? (e) => {
@@ -270,7 +308,7 @@ export function CampaignCard({
             {campaign.categories.length > 3 && (
               <Badge
                 variant="outline"
-                className="text-xs border-gray-300 dark:border-gray-600"
+                className="text-xs rounded-full bg-black border border-white text-white"
               >
                 +{campaign.categories.length - 3}
               </Badge>
@@ -279,12 +317,31 @@ export function CampaignCard({
 
           {/* Progress (time-based, consistent with campaign detail) */}
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm text-white">
               <span>Campaign Progress</span>
               <span>{getProgressPercentage().toFixed(0)}%</span>
             </div>
-            <Progress value={getProgressPercentage()} className="h-2" />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div 
+              className="relative w-full overflow-hidden transition-all"
+              style={{
+                height: "17px",
+                borderRadius: "99px",
+                background: "linear-gradient(180deg, #313131 0%, #535353 100%)",
+                boxShadow: "0 1px 1.7px 0 rgba(0, 0, 0, 0.25) inset",
+              }}
+            >
+              <div 
+                className="h-full transition-all"
+                style={{
+                  width: `${getProgressPercentage()}%`,
+                  height: "17px",
+                  borderRadius: "99px",
+                  background: "linear-gradient(180deg, #00FFC3 0%, #00B88D 100%)",
+                  boxShadow: "3px 0 3.9px 0 rgba(0, 0, 0, 0.14), 0 2px 2px 0 #FFF inset",
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-gray-400">
               <span>Started: {formatDateConsistent(campaign.startDate)}</span>
               <span>Ends: {formatDateConsistent(campaign.endDate)}</span>
             </div>
@@ -292,12 +349,12 @@ export function CampaignCard({
 
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-600" />
+            <div className="flex items-center gap-2 text-white">
+              <Users className="w-4 h-4 text-blue-400" />
               <span>{Number(campaign.total_completions || 0)} completions</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-orange-600" />
+            <div className="flex items-center gap-2 text-white">
+              <Calendar className="w-4 h-4 text-orange-400" />
               <span>
                 Ends {new Date(campaign.endDate).toLocaleDateString()}
               </span>
@@ -306,13 +363,13 @@ export function CampaignCard({
 
           {/* Rewards */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Trophy className="w-4 h-4 text-yellow-600" />
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <Trophy className="w-4 h-4 text-yellow-400" />
               <span>Total Rewards per User</span>
             </div>
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-4 text-sm text-white">
               <div className="flex items-center gap-1">
-                <Trophy className="w-3 h-3 text-yellow-600" />
+                <Trophy className="w-3 h-3 text-yellow-400" />
                 <span>{campaign.totalRewards.points.toString()} Points</span>
               </div>
               {campaign.totalRewards.tokens.map((token, index) => {
@@ -324,7 +381,7 @@ export function CampaignCard({
 
                 return (
                   <div key={index} className="flex items-center gap-1">
-                    <Coins className="w-3 h-3 text-green-600" />
+                    <Coins className="w-3 h-3 text-green-400" />
                     <span>
                       {formattedAmount} {token.symbol}
                     </span>
@@ -574,10 +631,23 @@ export function CampaignCard({
               className={
                 isExpired
                   ? "w-full border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
-                  : "w-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 text-white font-semibold shadow-lg shadow-purple-500/30 hover:shadow-xl border-0 hover:from-purple-500 hover:to-blue-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500"
+                  : "w-full rounded-full text-white font-semibold shadow-lg border-0 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 hover:opacity-90 transition-opacity"
+              }
+              style={
+                !isExpired
+                  ? {
+                      backgroundColor: "#0000FF",
+                    }
+                  : undefined
               }
             >
-              {isExpired ? "View Details" : "Get Started!"}
+              {isExpired ? (
+                "View Details"
+              ) : (
+                <>
+                  Get Started! <ArrowRight className="w-4 h-4 ml-1 inline" />
+                </>
+              )}
             </Button>
           </Link>
           {isExpired && (
@@ -588,5 +658,6 @@ export function CampaignCard({
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }

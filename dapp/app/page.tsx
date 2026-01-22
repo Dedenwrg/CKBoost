@@ -309,22 +309,54 @@ export default function HomePage() {
 
           {/* Search and Filters */}
           <div className="mb-8 space-y-4">
-            <Card className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-gray-200 dark:border-gray-700">
+            <div className="relative w-full">
+              {/* Four corner square indents - positioned outside the card */}
+              {/* Top-left: no border */}
+              <div 
+                className="absolute -top-1 -left-1 w-4 h-4 bg-black dark:bg-black z-20"
+              />
+              {/* Top-right: left border (inset) */}
+              <div 
+                className="absolute -top-1 -right-1 w-4 h-4 bg-black dark:bg-black z-20"
+                style={{
+                  boxShadow: "inset 1px 0 0 0 #1F2937",
+                }}
+              />
+              {/* Bottom-right: top and left border (inset) */}
+              <div 
+                className="absolute -bottom-1 -right-1 w-4 h-4 bg-black dark:bg-black z-20"
+                style={{
+                  boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
+                }}
+              />
+              {/* Bottom-left: top border (inset) */}
+              <div 
+                className="absolute -bottom-1 -left-1 w-4 h-4 bg-black dark:bg-black z-20"
+                style={{
+                  boxShadow: "inset 0 1px 0 0 #1F2937",
+                }}
+              />
+            <Card 
+              className="bg-gray-900 dark:bg-gray-900 border-gray-800 dark:border-gray-800 relative z-10"
+              style={{
+                borderRadius: "8px",
+              }}
+            >
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Search className="w-4 h-4 text-muted-foreground" />
-                  <h3 className="text-sm font-medium">Search & Filter All Campaigns</h3>
+                  <Search className="w-4 h-4 text-white" />
+                  <h3 className="text-sm font-medium text-white">Search & Filter All Campaigns</h3>
                 </div>
               </CardHeader>
               
               <CardContent className="space-y-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Search campaigns..."
+                    placeholder="Search Campaigns..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                    className="pl-10 bg-gray-800 dark:bg-gray-800 border-gray-700 dark:border-gray-700 text-white placeholder:text-gray-400"
                   />
                 </div>
 
@@ -332,81 +364,95 @@ export default function HomePage() {
                   {/* Difficulty Filter */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">Difficulty:</span>
+                      <span className="text-sm font-medium text-gray-400">Difficulty:</span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedDifficulties([])}
-                        className={`h-auto p-1 text-xs ${selectedDifficulties.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedDifficulties.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       >
                         <X className="w-3 h-3 mr-1" />
                         Clear
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {["beginner", "easy", "medium", "advanced"].map((level) => (
-                        <Badge
-                          key={level}
-                          variant={selectedDifficulties.includes(level) ? "default" : "outline"}
-                          className="cursor-pointer hover:bg-primary/10 border-gray-300 dark:border-gray-600"
-                          onClick={() => {
-                            if (selectedDifficulties.includes(level)) {
-                              setSelectedDifficulties(selectedDifficulties.filter(d => d !== level))
-                            } else {
-                              setSelectedDifficulties([...selectedDifficulties, level])
-                            }
-                          }}
-                        >
-                          {level.charAt(0).toUpperCase() + level.slice(1)}
-                        </Badge>
-                      ))}
+                      {["beginner", "easy", "medium", "advanced"].map((level) => {
+                        const isSelected = selectedDifficulties.includes(level);
+                        return (
+                          <Badge
+                            key={level}
+                            variant="outline"
+                            className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                            style={{
+                              borderRadius: "79px",
+                              border: "1px solid #3A3A3A",
+                            }}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedDifficulties(selectedDifficulties.filter(d => d !== level))
+                              } else {
+                                setSelectedDifficulties([...selectedDifficulties, level])
+                              }
+                            }}
+                          >
+                            {level.charAt(0).toUpperCase() + level.slice(1)}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Category Filter */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">Category:</span>
+                      <span className="text-sm font-medium text-gray-400">Category:</span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedCategories([])}
-                        className={`h-auto p-1 text-xs ${selectedCategories.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedCategories.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       >
                         <X className="w-3 h-3 mr-1" />
                         Clear
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {allCategories.map((category) => (
-                        <Badge
-                          key={category}
-                          variant={selectedCategories.includes(category.toLowerCase()) ? "default" : "outline"}
-                          className="cursor-pointer hover:bg-primary/10 border-gray-300 dark:border-gray-600"
-                          onClick={() => {
-                            const categoryLower = category.toLowerCase()
-                            if (selectedCategories.includes(categoryLower)) {
-                              setSelectedCategories(selectedCategories.filter(c => c !== categoryLower))
-                            } else {
-                              setSelectedCategories([...selectedCategories, categoryLower])
-                            }
-                          }}
-                        >
-                          {category}
-                        </Badge>
-                      ))}
+                      {allCategories.map((category) => {
+                        const isSelected = selectedCategories.includes(category.toLowerCase());
+                        return (
+                          <Badge
+                            key={category}
+                            variant="outline"
+                            className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                            style={{
+                              borderRadius: "79px",
+                              border: "1px solid #3A3A3A",
+                            }}
+                            onClick={() => {
+                              const categoryLower = category.toLowerCase()
+                              if (isSelected) {
+                                setSelectedCategories(selectedCategories.filter(c => c !== categoryLower))
+                              } else {
+                                setSelectedCategories([...selectedCategories, categoryLower])
+                              }
+                            }}
+                          >
+                            {category}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Endorser Filter */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">Endorser:</span>
+                      <span className="text-sm font-medium text-gray-400">Endorser:</span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedEndorsers([])}
-                        className={`h-auto p-1 text-xs ${selectedEndorsers.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedEndorsers.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       >
                         <X className="w-3 h-3 mr-1" />
                         Clear
@@ -414,26 +460,32 @@ export default function HomePage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {endorserOptions.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">No endorsers available</span>
+                        <span className="text-xs text-gray-400">No endorsers available</span>
                       ) : (
-                        endorserOptions.map((endorser) => (
-                          <Badge
-                            key={endorser.lockHash}
-                            variant={selectedEndorsers.includes(endorser.lockHash) ? "default" : "outline"}
-                            className="cursor-pointer hover:bg-primary/10 border-gray-300 dark:border-gray-600"
-                            onClick={() => {
-                              const isSelected = selectedEndorsers.includes(endorser.lockHash)
-                              setSelectedEndorsers((prev) =>
-                                isSelected
-                                  ? prev.filter((hash) => hash !== endorser.lockHash)
-                                  : [...prev, endorser.lockHash]
-                              )
-                              setTimeout(() => scrollToAllCampaigns(), 100)
-                            }}
-                          >
-                            {endorser.name}
-                          </Badge>
-                        ))
+                        endorserOptions.map((endorser) => {
+                          const isSelected = selectedEndorsers.includes(endorser.lockHash);
+                          return (
+                            <Badge
+                              key={endorser.lockHash}
+                              variant="outline"
+                              className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                              style={{
+                                borderRadius: "79px",
+                                border: "1px solid #3A3A3A",
+                              }}
+                              onClick={() => {
+                                setSelectedEndorsers((prev) =>
+                                  isSelected
+                                    ? prev.filter((hash) => hash !== endorser.lockHash)
+                                    : [...prev, endorser.lockHash]
+                                )
+                                setTimeout(() => scrollToAllCampaigns(), 100)
+                              }}
+                            >
+                              {endorser.name}
+                            </Badge>
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -441,34 +493,41 @@ export default function HomePage() {
                   {/* Status Filter */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">Status:</span>
+                      <span className="text-sm font-medium text-gray-400">Status:</span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedStatuses([])}
-                        className={`h-auto p-1 text-xs ${selectedStatuses.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedStatuses.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                       >
                         <X className="w-3 h-3 mr-1" />
                         Clear
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {["active", "ending-soon", "upcoming", "completed"].map((status) => (
-                        <Badge
-                          key={status}
-                          variant={selectedStatuses.includes(status) ? "default" : "outline"}
-                          className="cursor-pointer hover:bg-primary/10 border-gray-300 dark:border-gray-600"
-                          onClick={() => {
-                            if (selectedStatuses.includes(status)) {
-                              setSelectedStatuses(selectedStatuses.filter(s => s !== status))
-                            } else {
-                              setSelectedStatuses([...selectedStatuses, status])
-                            }
-                          }}
-                        >
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </Badge>
-                      ))}
+                      {["active", "ending-soon", "upcoming", "completed"].map((status) => {
+                        const isSelected = selectedStatuses.includes(status);
+                        return (
+                          <Badge
+                            key={status}
+                            variant="outline"
+                            className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                            style={{
+                              borderRadius: "79px",
+                              border: "1px solid #3A3A3A",
+                            }}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedStatuses(selectedStatuses.filter(s => s !== status))
+                              } else {
+                                setSelectedStatuses([...selectedStatuses, status])
+                              }
+                            }}
+                          >
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -490,6 +549,7 @@ export default function HomePage() {
                 </div>
               </CardContent>
             </Card>
+            </div>
           </div>
 
           {/* All Campaigns */}
