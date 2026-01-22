@@ -174,37 +174,33 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-black dark:bg-black">
-      {/* Pixelated stars background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `
-            radial-gradient(2px 2px at 20px 30px, #60A5FA, transparent),
-            radial-gradient(2px 2px at 60px 70px, #FBBF24, transparent),
-            radial-gradient(1px 1px at 50px 50px, #FFFFFF, transparent),
-            radial-gradient(1px 1px at 80px 90px, #EC4899, transparent),
-            radial-gradient(2px 2px at 160px 40px, #60A5FA, transparent),
-            radial-gradient(1px 1px at 200px 100px, #FBBF24, transparent),
-            radial-gradient(2px 2px at 300px 150px, #60A5FA, transparent),
-            radial-gradient(1px 1px at 350px 80px, #FFFFFF, transparent)
-          `,
-          backgroundSize: '400px 200px',
-          backgroundRepeat: 'repeat',
-          imageRendering: 'pixelated'
-        }} />
-      </div>
+      {/* Starlight background - only for main content area, not footer */}
+      <div 
+        className="fixed inset-0 overflow-hidden pointer-events-none" 
+        style={{ 
+          zIndex: 0,
+          background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+          backgroundSize: '100vw 100vh',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'center',
+          imageRendering: 'pixelated',
+          width: '100%',
+          height: '100%'
+        }}
+      />
       
-      <main className="container mx-auto px-4 py-8 relative z-10">
+      <main className="container mx-auto px-4 py-8 relative" style={{ zIndex: 10 }}>
         <div className="max-w-7xl mx-auto">
           {/* Hero Section */}
           <div className="mb-12">
-            <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-10 max-w-5xl mx-auto px-4">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-10 mx-auto px-4 w-fit">
               {/* Left: Pixel Art Logo */}
               <div className="flex-shrink-0 w-full md:w-auto">
                 <PixelLogo className="w-full max-w-xs md:max-w-sm mx-auto md:mx-0" />
               </div>
               
               {/* Right: Text and Buttons */}
-              <div className="flex-1 text-center md:text-left space-y-6 min-w-0">
+              <div className="text-center md:text-left space-y-6 w-full md:w-auto">
                 <p className="text-base md:text-lg text-white leading-relaxed max-w-md mx-auto md:mx-0 font-sans antialiased">
                   Join campaigns, complete quests, and earn rewards while contributing to the CKB ecosystem. Build your
                   reputation and grow with the community.
@@ -212,14 +208,14 @@ export default function HomePage() {
                 <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3">
                   <Link href="/dashboard" className="w-full sm:w-auto">
                     <button
-                      className="w-full sm:w-auto bg-[#10B981] hover:bg-[#059669] active:bg-[#047857] text-white font-medium rounded-2xl px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
+                      className="w-full sm:w-auto bg-[#00FF99] hover:bg-[#00E687] active:bg-[#00CC6F] text-[#2A2A2A] font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
                     >
                       View My Progress
                     </button>
                   </Link>
                   <Link href="/leaderboard" className="w-full sm:w-auto">
                     <button 
-                      className="w-full sm:w-auto bg-[#3B82F6] hover:bg-[#2563EB] active:bg-[#1D4ED8] text-white font-medium rounded-2xl px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
+                      className="w-full sm:w-auto bg-[#3300FF] hover:bg-[#2A00CC] active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
                     >
                       View Leaderboard
                     </button>
@@ -233,7 +229,23 @@ export default function HomePage() {
           {/* Featured Campaigns */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold">Featured Campaigns</h2>
+              <h2 
+                className="text-white"
+                style={{
+                  fontFamily: 'Pixellari, monospace',
+                  fontSize: '37px',
+                  lineHeight: '165%',
+                  fontWeight: 500,
+                  fontStyle: 'normal',
+                  color: '#FFF',
+                  textTransform: 'none',
+                  letterSpacing: 'normal',
+                  WebkitFontSmoothing: 'none',
+                  textRendering: 'optimizeSpeed'
+                }}
+              >
+                Featured Campaigns
+              </h2>
               <Badge variant="outline" className="bg-white dark:bg-gray-800">
                 {featuredCampaigns.length} featured
               </Badge>

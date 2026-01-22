@@ -42,7 +42,11 @@ const navbar = (
   </Navbar>
 );
 
-const footer = <Footer>© {new Date().getFullYear()} CKBoost.</Footer>;
+const footer = (
+  <div style={{ position: 'relative', zIndex: 20, backgroundColor: '#000000' }}>
+    <Footer>© {new Date().getFullYear()} CKBoost.</Footer>
+  </div>
+);
 
 const defaultLogLevel: LogLevel =
   process.env.NODE_ENV === "production" ? "error" : "debug";
