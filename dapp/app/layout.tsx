@@ -31,13 +31,12 @@ const navbar = (
       </div>
     }
     logoLink="/"
-    projectLink="https://github.com/Alive24/CKBoost"
     align="left"
   >
     <div className="hidden md:flex items-center gap-3">
       <PointsBalance />
-      <ThemeToggle />
       <WalletConnect />
+      <ThemeToggle />
     </div>
   </Navbar>
 );

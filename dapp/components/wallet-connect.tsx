@@ -435,17 +435,28 @@ export function WalletConnect() {
       <Button
         onClick={handleConnect}
         disabled={isConnecting}
-        variant="outline"
-        className="flex items-center gap-2 bg-transparent"
+        className={cn(
+          "flex items-center gap-2 rounded-full px-4 py-2 h-10",
+          "text-white font-medium",
+          "border-0",
+          "transition-all duration-200",
+          "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+          "hover:opacity-90 active:opacity-80"
+        )}
+        style={{
+          backgroundColor: "#3300FF",
+          boxShadow: "0 0 12px rgba(51, 0, 255, 0.4), 0 0 20px rgba(51, 0, 255, 0.2)",
+        }}
       >
         {isConnecting ? (
           <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
             Connecting...
           </>
         ) : (
           <>
-            <Wallet className="w-4 h-4" />
+            <Wallet className="w-4 h-4" strokeWidth={2} />
             Connect Wallet
           </>
         )}
@@ -458,12 +469,22 @@ export function WalletConnect() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="outline"
-            className="flex items-center gap-2 bg-transparent"
+            className={cn(
+              "flex items-center gap-2 rounded-full px-4 py-2 h-10",
+              "text-white font-medium",
+              "border-0",
+              "transition-all duration-200",
+              "hover:opacity-90 active:opacity-80",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            )}
+            style={{
+              backgroundColor: "#3300FF",
+              boxShadow: "0 0 12px rgba(51, 0, 255, 0.4), 0 0 20px rgba(51, 0, 255, 0.2)",
+            }}
           >
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600" />
-              <span className="font-mono text-sm">
+              <CheckCircle className="w-4 h-4 text-white" strokeWidth={2} />
+              <span className="font-mono text-sm text-white">
                 {formatAddress(address)}
               </span>
               {verificationStatus.verifiedCount > 0 && (
@@ -483,18 +504,18 @@ export function WalletConnect() {
               )}
               {renderStatusIndicator()}
             </div>
-            <ChevronDown className="w-3 h-3" />
+            <ChevronDown className="w-3 h-3 text-white" strokeWidth={2} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuContent align="end" className="w-72 border-gray-300 dark:border-gray-600">
           {/* Wallet Info */}
-          <div className="px-3 py-2 border-b">
+          <div className="px-3 py-2 border-b border-gray-300 dark:border-gray-600">
             <div className="text-sm font-medium">Wallet Connected</div>
             <div className="text-xs text-muted-foreground">CKB Testnet</div>
           </div>
 
           {/* Transaction Monitor */}
-          <div className="px-3 py-3 border-b space-y-3">
+          <div className="px-3 py-3 border-b border-gray-300 dark:border-gray-600 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <button
@@ -619,7 +640,7 @@ export function WalletConnect() {
           </div>
 
           {/* Verification Status */}
-          <div className="px-3 py-2 border-b">
+          <div className="px-3 py-2 border-b border-gray-300 dark:border-gray-600">
             <div className="flex items-center gap-2 mb-1">
               <VerificationIcon
                 className={cn("w-4 h-4", verificationStatus.color)}

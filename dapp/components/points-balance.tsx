@@ -347,6 +347,8 @@ export function PointsBalance() {
     !userAddress ||
     !protocolCell;
 
+  const pointsValue = balance !== null ? formatPointsBalance(balance) : "0";
+
   return (
     <div className="flex items-center gap-2">
       <button
@@ -354,44 +356,106 @@ export function PointsBalance() {
         onClick={handleClaimBonus}
         disabled={isDisabled}
         className={cn(
-          badgeVariants({ variant: "secondary" }),
-          "bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800",
-          "flex items-center gap-1.5 transition",
+          "flex items-center gap-2 rounded-full px-3 py-1.5 h-10",
+          "transition-all duration-200",
+          "border-0",
+          "shadow-[0_0_12px_rgba(255,0,255,0.6),0_0_20px_rgba(255,0,255,0.3)]",
           isDisabled ? "cursor-default opacity-80" : "cursor-pointer",
           claiming ? "animate-pulse" : ""
         )}
+        style={{
+          backgroundColor: "#FF00FF",
+        }}
       >
-        <Coins className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-        <span className="font-semibold text-purple-700 dark:text-purple-300">
-          {balance !== null ? formatPointsBalance(balance) : "0"}
-        </span>
-        <span className="text-xs text-purple-600 dark:text-purple-400">
-          Points
-        </span>
+        {/* Icon with neon glow effect */}
+        <div className="relative">
+          <Coins 
+            className="w-4 h-4 text-white" 
+            strokeWidth={2}
+            style={{
+              filter: "drop-shadow(0 0 4px rgba(255,255,255,0.8)) drop-shadow(0 0 8px rgba(255,255,255,0.4))",
+            }}
+          />
+        </div>
+        
+        {/* Points value and text */}
+        <div className="flex items-center gap-1">
+          <span 
+            className="font-semibold text-sm"
+            style={{
+              color: "#00BFFF",
+              fontFamily: "Pixellari, monospace",
+              textShadow: "0 0 8px rgba(0,191,255,0.8), 0 0 12px rgba(0,191,255,0.5)",
+            }}
+          >
+            {pointsValue}
+          </span>
+          <span 
+            className="text-sm font-medium"
+            style={{
+              color: "#FFFFFF",
+              fontFamily: "Pixellari, monospace",
+              textShadow: "0 0 6px rgba(255,255,255,0.8), 0 0 10px rgba(255,255,255,0.4)",
+            }}
+          >
+            Points
+          </span>
+        </div>
+
         {claiming ? (
-          <span className="text-xs text-purple-500 dark:text-purple-300">
+          <span 
+            className="text-xs font-medium"
+            style={{
+              color: "#FFFFFF",
+              textShadow: "0 0 4px rgba(255,255,255,0.6)",
+            }}
+          >
             Claiming...
           </span>
         ) : (
           isBonusAvailable && (
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+            <span 
+              className="text-xs font-semibold"
+              style={{
+                color: "#00FF00",
+                textShadow: "0 0 6px rgba(0,255,0,0.8), 0 0 10px rgba(0,255,0,0.4)",
+              }}
+            >
               +{formatPointsBalance(bonusAmount)} bonus
             </span>
           )
         )}
       </button>
+      
+      {/* Refresh button with metallic/shiny effect */}
       <Button
         variant="outline"
         size="icon"
         onClick={handleRefresh}
         disabled={isLoading || bonusLoading || claiming || minting}
-        className="h-7 w-7"
+        className={cn(
+          "h-10 w-10 rounded-full",
+          "border-0",
+          "transition-all duration-200",
+          "shadow-sm",
+          isLoading || bonusLoading ? "" : "hover:shadow-md",
+          "disabled:opacity-50 disabled:cursor-not-allowed"
+        )}
+        style={{
+          backgroundColor: "#4a4a4a",
+          boxShadow: "inset 0 1px 2px rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.2)",
+        }}
       >
         <RefreshCw
           className={cn(
             "h-4 w-4",
             isLoading || bonusLoading ? "animate-spin" : ""
           )}
+          style={{
+            color: "#c0c0c0",
+            filter: "drop-shadow(0 -1px 1px rgba(255,255,255,0.6)) drop-shadow(0 1px 1px rgba(0,0,0,0.3))",
+          }}
+          strokeWidth={2}
         />
         <span className="sr-only">Refresh points and streak bonus</span>
       </Button>
