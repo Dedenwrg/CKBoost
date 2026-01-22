@@ -4,6 +4,7 @@ import {
   UserData,
   type UserDataLike,
   UserSubmissionRecord,
+  ConnectedTypeID,
 } from "../generated";
 import { createScopedLogger } from "../logging/index.js";
 
@@ -60,7 +61,15 @@ export class User extends ssri.Trait {
 
     const txReq = ccc.Transaction.from(tx ?? {});
     // Ensure at least one input for the transaction if User instance does not have a script.
-    if (txReq.inputs.length === 0 && !this.script.args) {
+    let isNewUser = false;
+    // Ensure at least one input for the transaction
+    if (this.script.args.length <= 2) {
+      isNewUser = true;
+    } else {
+    const connectedTypeId = ConnectedTypeID.decode(this.script.args);
+      isNewUser = connectedTypeId.type_id === "0x" + "00".repeat(32);
+    }
+    if (txReq.inputs.length === 0 && isNewUser) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }
@@ -123,7 +132,9 @@ export class User extends ssri.Trait {
 
     const txReq = ccc.Transaction.from(tx ?? {});
     // Ensure at least one input for the transaction (admin signer provides an input)
-    if (txReq.inputs.length === 0 && !this.script.args) {
+    const connectedTypeId = ConnectedTypeID.decode(this.script.args);
+    const isNewUser = connectedTypeId.type_id === "0x" + "00".repeat(32);
+    if (txReq.inputs.length === 0 && isNewUser) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }

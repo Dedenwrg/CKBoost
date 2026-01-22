@@ -1,6 +1,6 @@
 import { ccc } from "@ckb-ccc/core";
 import { ssri } from "@ckb-ccc/ssri";
-import { AchievementDataVec, type AchievementDataLike } from "../generated";
+import { AchievementDataVec, ConnectedTypeID, type AchievementDataLike } from "../generated";
 
 /**
  * Lightweight helper around the CKBoost achievement type contract.
@@ -77,7 +77,15 @@ export class Achievement extends ssri.Trait {
     }
 
     let txReq = ccc.Transaction.from(tx ?? {});
-    if (txReq.inputs.length === 0 && !this.script.args) {
+    let isNewAchievement = false;
+    // Ensure at least one input for the transaction
+    if (this.script.args.length <= 2) {
+      isNewAchievement = true;
+    } else {
+    const connectedTypeId = ConnectedTypeID.decode(this.script.args);
+      isNewAchievement = connectedTypeId.type_id === "0x" + "00".repeat(32);
+    }
+    if (txReq.inputs.length === 0 && isNewAchievement) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }

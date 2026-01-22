@@ -62,8 +62,15 @@ export class Campaign extends ssri.Trait {
     let resTx;
 
     const txReq = ccc.Transaction.from(tx ?? {});
+    let isNewCampaign = false;
     // Ensure at least one input for the transaction
-    if (txReq.inputs.length === 0 && !this.script.args) {
+    if (this.script.args.length <= 2) {
+      isNewCampaign = true;
+    } else {
+    const connectedTypeId = ConnectedTypeID.decode(this.script.args);
+      isNewCampaign = connectedTypeId.type_id === "0x" + "00".repeat(32);
+    }
+    if (txReq.inputs.length === 0 && isNewCampaign) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }
