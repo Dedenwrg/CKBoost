@@ -36,16 +36,6 @@ export default {
     ),
     href: "/tipping",
   },
-  profile: {
-    type: "page",
-    title: (
-      <div className="flex items-center gap-2">
-        <User className="h-4 w-4" />
-        Profile
-      </div>
-    ),
-    href: "/profile",
-  },
   dashboard: {
     type: "page",
     title: (
@@ -55,16 +45,6 @@ export default {
       </div>
     ),
     href: "/dashboard",
-  },
-  docs: {
-    type: "page",
-    title: (
-      <div className="flex items-center gap-2">
-        <Book className="h-4 w-4" />
-        Documentation
-      </div>
-    ),
-    href: "/docs",
   },
   "campaign-admin": {
     type: "page",

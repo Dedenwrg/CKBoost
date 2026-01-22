@@ -32,6 +32,9 @@ import {
   Loader2,
   Clock3,
   Info,
+  User,
+  Coins,
+  Book,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -43,18 +46,24 @@ import { calculateVerificationStatus } from "@/lib/config/verification-config";
 import { usePendingTransactions } from "@/lib/providers/pending-transaction-provider";
 import type { PendingTransactionRecord } from "@/lib/providers/pending-transaction-provider";
 import { createScopedLogger } from "ssri-ckboost";
+import { useToast } from "@/components/ui/use-toast";
+import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import { registerPendingTransaction } from "@/lib/pending-transactions";
 
 const log = createScopedLogger("WalletConnect");
 
 export function WalletConnect() {
   const { open } = ccc.useCcc();
   const signer = ccc.useSigner();
-  const { isAdmin, isEndorser } = useProtocol();
+  const { client } = ccc.useCcc();
+  const { isAdmin, isEndorser, protocolCell } = useProtocol();
   const { verificationStatus: verificationData } = useVerification();
+  const { toast } = useToast();
   const [address, setAddress] = React.useState<string>("");
   const [isConnecting, setIsConnecting] = React.useState(false);
   const [showNeventParser, setShowNeventParser] = React.useState(false);
   const [isMonitorCollapsed, setIsMonitorCollapsed] = React.useState(true);
+  const [minting, setMinting] = React.useState(false);
   const {
     pendingTransactions,
     activeCount,
@@ -286,6 +295,129 @@ export function WalletConnect() {
     // CCC handles disconnection through the wallet interface
     await open();
   };
+
+  const handleTestMint = React.useCallback(async () => {
+    if (!isAdmin) {
+      return;
+    }
+    if (!signer || !address || !protocolCell?.cellOutput.type) {
+      toast({
+        title: "Mint unavailable",
+        description: "Connect an admin wallet before minting test points.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setMinting(true);
+
+      const recommended = await signer.getRecommendedAddressObj();
+      const userLockScript = recommended.script;
+      const network = deploymentManager.getCurrentNetwork();
+      const pointsCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostPointsUdt"
+      );
+      if (!pointsCodeHash) {
+        throw new Error("Points UDT contract not configured.");
+      }
+
+      const protocolTypeHash = protocolCell.cellOutput.type.hash();
+      const pointsTypeScript = ccc.Script.from({
+        codeHash: pointsCodeHash,
+        hashType: "type" as ccc.HashType,
+        args: protocolTypeHash,
+      });
+
+      const amount = 100n;
+      const pointsData = ccc.hexFrom(ccc.numToBytes(amount, 16));
+
+      const tx = ccc.Transaction.from({});
+
+      await tx.addOutput(
+        ccc.CellOutput.from({
+          capacity: ccc.numFrom(200n * 10n ** 8n),
+          lock: userLockScript,
+          type: pointsTypeScript,
+        }),
+        pointsData
+      );
+
+      const contractNames = [
+        "ckboostPointsUdt",
+        "ckboostProtocolType",
+        "ckboostProtocolLock",
+      ] as const;
+      for (const name of contractNames) {
+        const outPoint = deploymentManager.getContractOutPoint(network, name);
+        if (outPoint) {
+          tx.addCellDeps({
+            outPoint: { txHash: outPoint.txHash, index: outPoint.index },
+            depType: "code",
+          });
+        }
+      }
+
+      tx.addCellDeps({
+        outPoint: {
+          txHash: protocolCell.outPoint.txHash,
+          index: protocolCell.outPoint.index,
+        },
+        depType: "code",
+      });
+
+      await tx.completeInputsByCapacity(signer);
+      for (let i = 0; i < tx.inputs.length; i += 1) {
+        const inputCell = await signer.client.getCell(
+          tx.inputs[i].previousOutput
+        );
+        if (!inputCell) {
+          throw new Error(
+            "Input cell not found while preparing mint transaction."
+          );
+        }
+        tx.inputs[i] = ccc.CellInput.from({
+          previousOutput: inputCell.outPoint,
+          since: tx.inputs[i].since ?? "0x0",
+          cellOutput: inputCell.cellOutput,
+          outputData: inputCell.outputData,
+        });
+      }
+      for (let i = 0; i < tx.outputs.length; i += 1) {
+        const out = tx.outputs[i];
+        if (out.type) {
+          tx.outputs[i] = ccc.CellOutput.from(
+            { lock: out.lock, type: out.type },
+            tx.outputsData[i] as ccc.HexLike
+          );
+        }
+      }
+      await tx.completeFeeBy(signer);
+      const txHash = await signer.sendTransaction(tx);
+      registerPendingTransaction(txHash, {
+        label: "Test mint",
+        context: "WalletConnect",
+      });
+
+      toast({
+        title: "Test mint submitted",
+        description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
+          -6
+        )} submitted.`,
+      });
+    } catch (error) {
+      log.error("Failed to mint test points:", error);
+      toast({
+        title: "Mint failed",
+        description:
+          error instanceof Error ? error.message : "Unexpected mint error.",
+        variant: "destructive",
+      });
+    } finally {
+      setMinting(false);
+    }
+  }, [isAdmin, protocolCell, signer, toast, address]);
 
   const copyAddress = async () => {
     if (address) {
@@ -539,6 +671,14 @@ export function WalletConnect() {
             </Link>
           </DropdownMenuItem>
 
+          {/* Profile */}
+          <DropdownMenuItem asChild>
+            <Link href="/profile" className="w-full">
+              <User className="w-4 h-4 mr-2" />
+              Profile
+            </Link>
+          </DropdownMenuItem>
+
           <DropdownMenuSeparator />
 
           {/* Campaign Admin - Visible to endorsers and admins */}
@@ -564,6 +704,15 @@ export function WalletConnect() {
                 Parse Nevent Submission
               </DropdownMenuItem>
 
+              {/* Mint +100 - Admin only */}
+              <DropdownMenuItem
+                onClick={handleTestMint}
+                disabled={minting || !address || !protocolCell}
+              >
+                <Coins className="w-4 h-4 mr-2" />
+                {minting ? "Minting..." : "Mint +100"}
+              </DropdownMenuItem>
+
               {/* Platform Admin */}
               <DropdownMenuItem asChild>
                 <Link href="/platform-admin" className="w-full">
@@ -575,7 +724,12 @@ export function WalletConnect() {
               <DropdownMenuSeparator />
             </>
           )}
-
+          <DropdownMenuItem asChild>
+            <Link href="/docs" className="w-full">
+              <Book className="w-4 h-4 mr-2" />
+              Documentation
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleDisconnect} className="text-red-600">
             <Wallet className="w-4 h-4 mr-2" />
             Disconnect
