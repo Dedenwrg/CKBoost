@@ -377,7 +377,7 @@ export default function HomePage() {
                 }}
               />
               <Card
-                className="bg-gray-900 dark:bg-gray-900 border-gray-800 dark:border-gray-800 relative z-10"
+                className="bg-gray-900 dark:bg-[#1b1b1b] border-gray-800 dark:border-[#1e2939] relative z-10"
                 style={{
                   borderRadius: "8px",
                 }}
@@ -398,7 +398,7 @@ export default function HomePage() {
                       placeholder="Search Campaigns..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-gray-800 dark:bg-gray-800 border-gray-700 dark:border-gray-700 text-white placeholder:text-gray-400"
+                      className="pl-10 bg-white dark:bg-black border-gray-700 dark:border-gray-700 text-white placeholder:text-gray-400"
                     />
                   </div>
 
@@ -428,10 +428,16 @@ export default function HomePage() {
                               <Badge
                                 key={level}
                                 variant="outline"
-                                className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                                className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
+                                  isSelected
+                                    ? "text-white bg-white/10"
+                                    : "text-white bg-transparent"
+                                }`}
                                 style={{
                                   borderRadius: "79px",
-                                  border: "1px solid #3A3A3A",
+                                  border: isSelected
+                                    ? "1px solid #FFFFFF"
+                                    : "1px solid #3A3A3A",
                                 }}
                                 onClick={() => {
                                   if (isSelected) {
@@ -481,10 +487,16 @@ export default function HomePage() {
                             <Badge
                               key={category}
                               variant="outline"
-                              className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                              className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
+                                isSelected
+                                  ? "text-white bg-white/10"
+                                  : "text-white bg-transparent"
+                              }`}
                               style={{
                                 borderRadius: "79px",
-                                border: "1px solid #3A3A3A",
+                                border: isSelected
+                                  ? "1px solid #FFFFFF"
+                                  : "1px solid #3A3A3A",
                               }}
                               onClick={() => {
                                 const categoryLower = category.toLowerCase();
@@ -539,10 +551,16 @@ export default function HomePage() {
                               <Badge
                                 key={endorser.lockHash}
                                 variant="outline"
-                                className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                                className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
+                                  isSelected
+                                    ? "text-white bg-white/10"
+                                    : "text-white bg-transparent"
+                                }`}
                                 style={{
                                   borderRadius: "79px",
-                                  border: "1px solid #3A3A3A",
+                                  border: isSelected
+                                    ? "1px solid #FFFFFF"
+                                    : "1px solid #3A3A3A",
                                 }}
                                 onClick={() => {
                                   setSelectedEndorsers((prev) =>
@@ -588,10 +606,16 @@ export default function HomePage() {
                               <Badge
                                 key={status}
                                 variant="outline"
-                                className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                                className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
+                                  isSelected
+                                    ? "text-white bg-white/10"
+                                    : "text-white bg-transparent"
+                                }`}
                                 style={{
                                   borderRadius: "79px",
-                                  border: "1px solid #3A3A3A",
+                                  border: isSelected
+                                    ? "1px solid #FFFFFF"
+                                    : "1px solid #3A3A3A",
                                 }}
                                 onClick={() => {
                                   if (isSelected) {

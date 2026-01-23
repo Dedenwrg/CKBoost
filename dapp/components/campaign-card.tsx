@@ -157,7 +157,7 @@ export function CampaignCard({
     useCampaignCoverImage(campaign.image);
 
   return (
-    <div className="relative w-full max-w-[420px] md:w-[420px] justify-self-center">
+    <div className="relative w-full max-w-[420px] md:w-[420px] justify-self-center ">
       {/* Four corner square indents - aligned with card border corners */}
       {/* Top-left: no border */}
       <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
@@ -183,7 +183,7 @@ export function CampaignCard({
         }}
       />
       <Card
-        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-black dark:bg-black border-gray-800 dark:border-gray-800 relative z-10"
+        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#1e2939] dark:border-[#1e2939] border-gray-800 dark:border-gray-800 relative z-10"
         style={{
           borderRadius: "8px",
         }}
@@ -257,7 +257,7 @@ export function CampaignCard({
           </div>
         </CampaignCoverImage>
 
-        <CardHeader className="flex-shrink-0 max-w-[420px] bg-black dark:bg-black">
+        <CardHeader className="flex-shrink-0 max-w-[420px]">
           <div className="flex items-start justify-between width-full">
             <div className="flex-1 w-full">
               <CardTitle className="text-lg mb-2 break-words whitespace-normal w-full text-white">
@@ -273,7 +273,7 @@ export function CampaignCard({
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 flex flex-col bg-black dark:bg-black">
+        <CardContent className="flex-1 flex flex-col">
           {/* Main content - anchored near action button with minimal spacing */}
           <div className="flex-1 flex flex-col">
             <div className="space-y-4 mt-auto mb-0">
@@ -287,9 +287,17 @@ export function CampaignCard({
                     <Badge
                       key={category}
                       variant="outline"
-                      className={`text-xs rounded-full ${
-                        onCategoryClick ? "cursor-pointer hover:opacity-80" : ""
-                      } bg-black border border-white text-white`}
+                      className={`text-xs rounded-full cursor-pointer hover:opacity-80 transition-all ${
+                        isSelected
+                          ? "text-white bg-white/10"
+                          : "text-white bg-transparent"
+                      }`}
+                      style={{
+                        borderRadius: "79px",
+                        border: isSelected
+                          ? "1px solid #FFFFFF"
+                          : "1px solid #3A3A3A",
+                      }}
                       onClick={
                         onCategoryClick
                           ? (e) => {
@@ -307,7 +315,11 @@ export function CampaignCard({
                 {campaign.categories.length > 3 && (
                   <Badge
                     variant="outline"
-                    className="text-xs rounded-full bg-black border border-white text-white"
+                    className="text-xs rounded-full text-white bg-transparent"
+                    style={{
+                      borderRadius: "79px",
+                      border: "1px solid #3A3A3A",
+                    }}
                   >
                     +{campaign.categories.length - 3}
                   </Badge>
