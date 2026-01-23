@@ -91,9 +91,9 @@ export function PointsBalance() {
             fetchUserPointsBalance(
               client,
               recommended.script,
-              protocolTypeHash
+              protocolTypeHash,
             ),
-          { refresh: forceRefresh }
+          { refresh: forceRefresh },
         );
 
         const streakBonusService = new StreakBonusService();
@@ -123,7 +123,7 @@ export function PointsBalance() {
         setBonusLoading(false);
       }
     },
-    [signer, client, protocolCell]
+    [signer, client, protocolCell],
   );
 
   useEffect(() => {
@@ -157,7 +157,7 @@ export function PointsBalance() {
       toast({
         title: "Streak bonus claimed",
         description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
-          -6
+          -6,
         )} submitted.`,
       });
       await loadBalances(true);
@@ -197,7 +197,7 @@ export function PointsBalance() {
       const network = deploymentManager.getCurrentNetwork();
       const pointsCodeHash = deploymentManager.getContractCodeHash(
         network,
-        "ckboostPointsUdt"
+        "ckboostPointsUdt",
       );
       if (!pointsCodeHash) {
         throw new Error("Points UDT contract not configured.");
@@ -221,7 +221,7 @@ export function PointsBalance() {
           lock: userLockScript,
           type: pointsTypeScript,
         }),
-        pointsData
+        pointsData,
       );
 
       const contractNames = [
@@ -250,11 +250,11 @@ export function PointsBalance() {
       await tx.completeInputsByCapacity(signer);
       for (let i = 0; i < tx.inputs.length; i += 1) {
         const inputCell = await signer.client.getCell(
-          tx.inputs[i].previousOutput
+          tx.inputs[i].previousOutput,
         );
         if (!inputCell) {
           throw new Error(
-            "Input cell not found while preparing mint transaction."
+            "Input cell not found while preparing mint transaction.",
           );
         }
         tx.inputs[i] = ccc.CellInput.from({
@@ -269,7 +269,7 @@ export function PointsBalance() {
         if (out.type) {
           tx.outputs[i] = ccc.CellOutput.from(
             { lock: out.lock, type: out.type },
-            tx.outputsData[i] as ccc.HexLike
+            tx.outputsData[i] as ccc.HexLike,
           );
         }
       }
@@ -283,7 +283,7 @@ export function PointsBalance() {
       toast({
         title: "Test mint submitted",
         description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
-          -6
+          -6,
         )} submitted.`,
       });
       await loadBalances(true);
@@ -317,7 +317,7 @@ export function PointsBalance() {
       <div
         className={cn(
           badgeVariants({ variant: "secondary" }),
-          "bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800"
+          "bg-gradient-to-r from-purple-100 to-blue-100 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800",
         )}
       >
         <div className="animate-pulse flex items-center gap-1.5">
@@ -359,9 +359,8 @@ export function PointsBalance() {
           "flex items-center gap-2 rounded-full px-3 py-1.5 h-10",
           "transition-all duration-200",
           "border-0",
-          "shadow-[0_0_12px_rgba(255,0,255,0.6),0_0_20px_rgba(255,0,255,0.3)]",
           isDisabled ? "cursor-default opacity-80" : "cursor-pointer",
-          claiming ? "animate-pulse" : ""
+          claiming ? "animate-pulse" : "",
         )}
         style={{
           backgroundColor: "#FF00FF",
@@ -369,33 +368,25 @@ export function PointsBalance() {
       >
         {/* Icon with neon glow effect */}
         <div className="relative">
-          <Coins 
-            className="w-4 h-4 text-white" 
-            strokeWidth={2}
-            style={{
-              filter: "drop-shadow(0 0 4px rgba(255,255,255,0.8)) drop-shadow(0 0 8px rgba(255,255,255,0.4))",
-            }}
-          />
+          <Coins className="w-4 h-4 text-white" strokeWidth={2} />
         </div>
-        
+
         {/* Points value and text */}
         <div className="flex items-center gap-1">
-          <span 
+          <span
             className="font-semibold text-sm"
             style={{
               color: "#00BFFF",
               fontFamily: "Pixellari, monospace",
-              textShadow: "0 0 8px rgba(0,191,255,0.8), 0 0 12px rgba(0,191,255,0.5)",
             }}
           >
             {pointsValue}
           </span>
-          <span 
+          <span
             className="text-sm font-medium"
             style={{
               color: "#FFFFFF",
               fontFamily: "Pixellari, monospace",
-              textShadow: "0 0 6px rgba(255,255,255,0.8), 0 0 10px rgba(255,255,255,0.4)",
             }}
           >
             Points
@@ -403,7 +394,7 @@ export function PointsBalance() {
         </div>
 
         {claiming ? (
-          <span 
+          <span
             className="text-xs font-medium"
             style={{
               color: "#FFFFFF",
@@ -414,11 +405,12 @@ export function PointsBalance() {
           </span>
         ) : (
           isBonusAvailable && (
-            <span 
+            <span
               className="text-xs font-semibold"
               style={{
                 color: "#00FF00",
-                textShadow: "0 0 6px rgba(0,255,0,0.8), 0 0 10px rgba(0,255,0,0.4)",
+                textShadow:
+                  "0 0 6px rgba(0,255,0,0.8), 0 0 10px rgba(0,255,0,0.4)",
               }}
             >
               +{formatPointsBalance(bonusAmount)} bonus
@@ -426,7 +418,7 @@ export function PointsBalance() {
           )
         )}
       </button>
-      
+
       {/* Refresh button with metallic/shiny effect */}
       <Button
         variant="outline"
@@ -439,21 +431,23 @@ export function PointsBalance() {
           "transition-all duration-200",
           "shadow-sm",
           isLoading || bonusLoading ? "" : "hover:shadow-md",
-          "disabled:opacity-50 disabled:cursor-not-allowed"
+          "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         style={{
           backgroundColor: "#4a4a4a",
-          boxShadow: "inset 0 1px 2px rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.2)",
+          boxShadow:
+            "inset 0 1px 2px rgba(255,255,255,0.1), 0 1px 2px rgba(0,0,0,0.2)",
         }}
       >
         <RefreshCw
           className={cn(
             "h-4 w-4",
-            isLoading || bonusLoading ? "animate-spin" : ""
+            isLoading || bonusLoading ? "animate-spin" : "",
           )}
           style={{
             color: "#c0c0c0",
-            filter: "drop-shadow(0 -1px 1px rgba(255,255,255,0.6)) drop-shadow(0 1px 1px rgba(0,0,0,0.3))",
+            filter:
+              "drop-shadow(0 -1px 1px rgba(255,255,255,0.6)) drop-shadow(0 1px 1px rgba(0,0,0,0.3))",
           }}
           strokeWidth={2}
         />

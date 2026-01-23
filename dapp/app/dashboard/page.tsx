@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CardWithIndents } from "@/components/ui/card-with-indents";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -692,7 +693,7 @@ export default function Dashboard() {
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className="h-20 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse"
+              className="h-20 rounded-lg bg-gray-800 animate-pulse"
             />
           ))}
         </div>
@@ -701,15 +702,20 @@ export default function Dashboard() {
 
     if (entries.length === 0) {
       return (
-        <div className="text-center py-8 text-muted-foreground">
-          <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>
+        <div className="text-center py-8 text-gray-400">
+          <Target className="w-12 h-12 mx-auto mb-4 opacity-50 text-white" />
+          <p className="text-white">
             {status === "pending"
               ? "No quests waiting for review"
               : "No approved quests yet"}
           </p>
           <Link href="/">
-            <Button className="mt-4">Browse Campaigns</Button>
+            <Button
+              className="mt-4 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: "#0000FF" }}
+            >
+              Browse Campaigns
+            </Button>
           </Link>
         </div>
       );
@@ -733,23 +739,29 @@ export default function Dashboard() {
               ),
             );
             deadlineBadge = (
-              <Badge variant={daysLeft <= 3 ? "destructive" : "secondary"}>
+              <Badge
+                variant={daysLeft <= 3 ? "destructive" : "secondary"}
+                className="bg-red-900/30 text-red-200 border-red-700"
+              >
                 {daysLeft}d left
               </Badge>
             );
           }
 
           return (
-            <div key={entry.key} className="border rounded-lg p-4 space-y-4">
+            <div
+              key={entry.key}
+              className="border border-gray-700 rounded-lg p-4 space-y-4 bg-gray-800"
+            >
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold text-base">
+                  <h3 className="font-semibold text-base text-white">
                     {entry.questTitle}
                   </h3>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-gray-400">
                     Campaign: {entry.campaignTitle}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className="text-xs text-gray-400 mt-1">
                     Submitted {submittedAt}
                   </div>
                 </div>
@@ -760,8 +772,8 @@ export default function Dashboard() {
                     }
                     className={
                       entry.status === "approved"
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200"
-                        : "border-blue-300 text-blue-600 dark:border-blue-500 dark:text-blue-200"
+                        ? "bg-green-900/30 text-green-200 border-green-700"
+                        : "border-blue-400 text-blue-300 bg-blue-900/30"
                     }
                   >
                     {entry.status === "approved"
@@ -774,12 +786,12 @@ export default function Dashboard() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span>Points reward</span>
-                  <span className="font-semibold">
+                  <span className="text-gray-400">Points reward</span>
+                  <span className="font-semibold text-white">
                     {formatPoints(entry.points)} pts
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <div className="flex items-center justify-between text-sm text-gray-400">
                   <span>Quest #{entry.questId}</span>
                   {deadlineDate && <span>Deadline {deadlineDate}</span>}
                 </div>
@@ -793,7 +805,11 @@ export default function Dashboard() {
                 <Link
                   href={`/campaign/${entry.campaignTypeId}/quest/${entry.questId}`}
                 >
-                  <Button variant="outline" size="sm">
+                  <Button
+                    size="sm"
+                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: "#0000FF" }}
+                  >
                     View Quest
                   </Button>
                 </Link>
@@ -808,25 +824,41 @@ export default function Dashboard() {
   // Check wallet connection first
   if (!signer) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        {" "}
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+        {/* Starlight background */}
+        <div
+          className="fixed inset-0 overflow-hidden pointer-events-none"
+          style={{
+            zIndex: 0,
+            background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+            backgroundSize: "100vw 100vh",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "center",
+            imageRendering: "pixelated",
+            width: "100%",
+            height: "100%",
+          }}
+        />
+        <main
+          className="container mx-auto px-4 py-8 relative"
+          style={{ zIndex: 10 }}
+        >
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[60vh]">
-              <Card className="max-w-md w-full">
-                <CardHeader className="text-center">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mb-4">
-                    <Wallet className="h-8 w-8 text-blue-600 dark:text-blue-300" />
+              <CardWithIndents className="max-w-md w-full">
+                <CardHeader className="text-center bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-blue-900 flex items-center justify-center mb-4">
+                    <Wallet className="h-8 w-8 text-blue-300" />
                   </div>
-                  <CardTitle className="text-2xl">
+                  <CardTitle className="text-2xl text-white">
                     Wallet Connection Required
                   </CardTitle>
-                  <CardDescription className="text-base mt-2">
+                  <CardDescription className="text-base mt-2 text-gray-400">
                     Please connect your wallet to access your dashboard and view
                     your progress.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4">
+                <CardContent className="flex flex-col items-center gap-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
                   <Button
                     onClick={async () => {
                       try {
@@ -836,17 +868,18 @@ export default function Dashboard() {
                       }
                     }}
                     size="lg"
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: "#0000FF" }}
                   >
                     <Wallet className="w-5 h-5 mr-2" />
                     Connect Wallet
                   </Button>
-                  <p className="text-sm text-muted-foreground text-center">
+                  <p className="text-sm text-gray-400 text-center">
                     Connect your CKB wallet to view your quest submissions,
                     points balance, and achievements.
                   </p>
                 </CardContent>
-              </Card>
+              </CardWithIndents>
             </div>
           </div>
         </main>
@@ -864,7 +897,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-black dark:bg-black">
+    <div className="min-h-screen bg-[#1b1b1b] dark:bg-[#1b1b1b]">
       {/* Starlight background - only for main content area, not footer */}
       <div
         className="fixed inset-0 overflow-hidden pointer-events-none"
@@ -888,11 +921,23 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="flex items-center gap-3 mb-4">
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                    Welcome back, {displayName}
+                  <h1
+                    className="text-4xl font-bold"
+                    style={{
+                      fontFamily: "Pixellari, monospace",
+                    }}
+                  >
+                    <span className="text-white">Welcome back, </span>
+                    <span
+                      style={{
+                        color: "#FF00FF",
+                      }}
+                    >
+                      {displayName}
+                    </span>
                   </h1>
                 </div>
-                <p className="text-lg text-muted-foreground">
+                <p className="text-lg text-white">
                   Track your submissions and monitor quest approvals in real
                   time.
                 </p>
@@ -900,7 +945,10 @@ export default function Dashboard() {
 
               {!isVerified && userAddress && (
                 <Link href="/identity">
-                  <Button className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white">
+                  <Button
+                    className="flex items-center gap-2 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: "#FFD700" }}
+                  >
                     <Shield className="w-4 h-4" />
                     Verify Identity
                   </Button>
@@ -938,8 +986,8 @@ export default function Dashboard() {
                         <div className="mt-4">
                           <Link href="/platform-admin">
                             <Button
-                              variant="outline"
-                              className="w-full justify-start bg-white/80 text-orange-900 hover:bg-orange-100 dark:bg-transparent dark:text-orange-100"
+                              className="w-full justify-start rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: "#0000FF" }}
                             >
                               <Settings className="w-4 h-4 mr-2" />
                               Platform Admin Dashboard
@@ -965,8 +1013,8 @@ export default function Dashboard() {
                         <div className="mt-4">
                           <Link href="/campaign-admin">
                             <Button
-                              variant="outline"
-                              className="w-full justify-start bg-white/80 text-orange-900 hover:bg-orange-100 dark:bg-transparent dark:text-orange-100"
+                              className="w-full justify-start rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+                              style={{ backgroundColor: "#0000FF" }}
                             >
                               <UserCog className="w-4 h-4 mr-2" />
                               Campaign Admin Dashboard
@@ -992,92 +1040,108 @@ export default function Dashboard() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+            <CardWithIndents>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-white">
                   Points Balance
                 </CardTitle>
-                <Trophy className="h-4 w-4 text-yellow-600" />
+                <Trophy className="h-4 w-4 text-yellow-400" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{pointsBalanceDisplay}</div>
-                <p className="text-xs text-muted-foreground">
+              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-white">
+                  {pointsBalanceDisplay}
+                </div>
+                <p className="text-xs text-gray-400">
                   On-chain Points UDT balance
                 </p>
               </CardContent>
-            </Card>
+            </CardWithIndents>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+            <CardWithIndents>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-white">
                   Approved Quests
                 </CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
+                <CheckCircle className="h-4 w-4 text-green-400" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-white">
                   {approvedSubmissions.length}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-gray-400">
                   {pendingSubmissions.length} pending review
                 </p>
               </CardContent>
-            </Card>
+            </CardWithIndents>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+            <CardWithIndents>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-white">
                   Pending Reviews
                 </CardTitle>
-                <Activity className="h-4 w-4 text-blue-600" />
+                <Activity className="h-4 w-4 text-blue-400" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-white">
                   {pendingSubmissions.length}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-gray-400">
                   Waiting for campaign managers
                 </p>
               </CardContent>
-            </Card>
+            </CardWithIndents>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
+            <CardWithIndents>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-white">
                   Campaigns Joined
                 </CardTitle>
-                <Users className="h-4 w-4 text-purple-600" />
+                <Users className="h-4 w-4 text-purple-400" />
               </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
+              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-white">
                   {campaignsParticipated}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-gray-400">
                   Unique campaigns contributed
                 </p>
               </CardContent>
-            </Card>
+            </CardWithIndents>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
-              <Card>
-                <CardHeader className="flex flex-col gap-4">
+              <CardWithIndents>
+                <CardHeader className="flex flex-col gap-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
                   <div className="flex items-center gap-2">
-                    <Target className="w-5 h-5 text-blue-600" />
-                    <CardTitle>Your Quests</CardTitle>
+                    <Target className="w-5 h-5 text-blue-400" />
+                    <CardTitle className="text-white">Your Quests</CardTitle>
                   </div>
+                </CardHeader>
+                <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
                   <Tabs
                     value={questFilter}
                     onValueChange={(value) =>
                       setQuestFilter(value as "pending" | "approved")
                     }
                   >
-                    <TabsList>
-                      <TabsTrigger value="pending">
+                    <TabsList className="bg-gray-800 border-gray-700">
+                      <TabsTrigger
+                        value="pending"
+                        className="rounded-full text-white font-semibold shadow-lg border-0 transition-all hover:opacity-90 data-[state=active]:opacity-100 data-[state=inactive]:opacity-60 data-[state=inactive]:bg-gray-700"
+                        style={{
+                          backgroundColor: "#0000FF",
+                        }}
+                      >
                         Pending Review ({pendingSubmissions.length})
                       </TabsTrigger>
-                      <TabsTrigger value="approved">
+                      <TabsTrigger
+                        value="approved"
+                        className="rounded-full text-white font-semibold shadow-lg border-0 transition-all hover:opacity-90 data-[state=active]:opacity-100 data-[state=inactive]:opacity-60 data-[state=inactive]:bg-gray-700"
+                        style={{
+                          backgroundColor: "#0000FF",
+                        }}
+                      >
                         Approved ({approvedSubmissions.length})
                       </TabsTrigger>
                     </TabsList>
@@ -1088,21 +1152,21 @@ export default function Dashboard() {
                       {renderQuestList(approvedSubmissions, "approved")}
                     </TabsContent>
                   </Tabs>
-                </CardHeader>
-              </Card>
+                </CardContent>
+              </CardWithIndents>
             </div>
 
             <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Coins className="w-5 h-5 text-purple-600" />
+              <CardWithIndents>
+                <CardHeader className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <Coins className="w-5 h-5 text-purple-400" />
                     Asset Balances
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
                   {!userAddress ? (
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-gray-400">
                       Connect your wallet to view balances.
                     </div>
                   ) : tokenBalancesLoading ? (
@@ -1110,12 +1174,12 @@ export default function Dashboard() {
                       {Array.from({ length: 3 }).map((_, index) => (
                         <div
                           key={index}
-                          className="h-10 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse"
+                          className="h-10 rounded-lg bg-gray-800 animate-pulse"
                         />
                       ))}
                     </div>
                   ) : tokenBalances.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-gray-400">
                       No token balances found.
                     </div>
                   ) : (
@@ -1125,34 +1189,38 @@ export default function Dashboard() {
                         className="flex items-center justify-between"
                       >
                         <div className="flex flex-col">
-                          <span className="font-medium">{token.symbol}</span>
+                          <span className="font-medium text-white">
+                            {token.symbol}
+                          </span>
                           {!token.isPoints && token.scriptHash && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-gray-400">
                               {shorten(token.scriptHash, 6, 6)}
                             </span>
                           )}
                         </div>
-                        <span className="font-semibold">{token.formatted}</span>
+                        <span className="font-semibold text-white">
+                          {token.formatted}
+                        </span>
                       </div>
                     ))
                   )}
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-gray-400">
                     Balances are calculated from on-chain CKB and UDT cells held
                     by your wallet.
                   </div>
                 </CardContent>
-              </Card>
+              </CardWithIndents>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-orange-600" />
+              <CardWithIndents>
+                <CardHeader className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <Calendar className="w-5 h-5 text-orange-400" />
                     Upcoming Deadlines
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
                   {upcomingDeadlines.length === 0 ? (
-                    <div className="text-center py-4 text-muted-foreground text-sm">
+                    <div className="text-center py-4 text-gray-400 text-sm">
                       No upcoming deadlines
                     </div>
                   ) : (
@@ -1178,15 +1246,15 @@ export default function Dashboard() {
                           href={`/campaign/${entry.campaignTypeId}`}
                           className="block"
                         >
-                          <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors cursor-pointer">
+                          <div className="flex items-center justify-between p-3 bg-gray-800 dark:bg-gray-800 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors cursor-pointer">
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm mb-1">
+                              <div className="font-medium text-sm mb-1 text-white">
                                 {entry.questTitle}
                               </div>
-                              <div className="text-xs text-muted-foreground mt-1">
+                              <div className="text-xs text-gray-400 mt-1">
                                 {entry.campaignTitle}
                               </div>
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-gray-400">
                                 Due {deadline}
                               </div>
                             </div>
@@ -1224,18 +1292,18 @@ export default function Dashboard() {
                     })
                   )}
                 </CardContent>
-              </Card>
+              </CardWithIndents>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-blue-600" />
+              <CardWithIndents>
+                <CardHeader className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                  <CardTitle className="flex items-center gap-2 text-white">
+                    <TrendingUp className="w-5 h-5 text-blue-400" />
                     Recent Activity
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
                   {recentActivity.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-gray-400">
                       No submissions yet. Complete a quest to see it here.
                     </div>
                   ) : (
@@ -1246,11 +1314,11 @@ export default function Dashboard() {
                       >
                         {getActivityIcon(entry.status)}
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm">
+                          <div className="text-sm text-white">
                             {formatActivityText(entry)}
                           </div>
                           {entry.submissionTimestamp && (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-xs text-gray-400">
                               {formatDateConsistent(
                                 new Date(entry.submissionTimestamp),
                               )}
@@ -1261,7 +1329,7 @@ export default function Dashboard() {
                     ))
                   )}
                 </CardContent>
-              </Card>
+              </CardWithIndents>
             </div>
           </div>
 

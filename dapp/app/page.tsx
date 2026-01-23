@@ -381,7 +381,7 @@ export default function HomePage() {
                 }}
               />
               <Card
-                className="bg-gray-900 dark:bg-[#1b1b1b] border-[#535353] dark:border-[#535353] border-r-5 border-b-5 relative z-10"
+                className="bg-[#1b1b1b] dark:bg-[#1b1b1b] border-[#535353] dark:border-[#535353] relative z-10"
                 style={{
                   borderRadius: "8px",
                 }}

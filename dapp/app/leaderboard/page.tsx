@@ -285,7 +285,7 @@ export default function Leaderboard() {
   }
 
   return (
-    <div className="min-h-screen bg-black dark:bg-black">
+    <div className="min-h-screen bg-[#1b1b1b] dark:bg-[#1b1b1b]">
       {/* Starlight background - only for main content area, not footer */}
       <div
         className="fixed inset-0 overflow-hidden pointer-events-none"
@@ -316,16 +316,16 @@ export default function Leaderboard() {
           {combinedError && (
             <div className="relative w-full justify-self-center mb-8">
               {/* Four corner square indents - aligned with card border corners */}
-              <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+              <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
               <div
-                className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                 style={{
                   boxShadow: "inset 1px 0 0 0 #1F2937",
                   borderLeft: "5px solid #535353",
                 }}
               />
               <div
-                className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                className="absolute bottom-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                 style={{
                   boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                   borderTop: "5px solid #535353",
@@ -333,13 +333,13 @@ export default function Leaderboard() {
                 }}
               />
               <div
-                className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                className="absolute bottom-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                 style={{
                   boxShadow: "inset 0 1px 0 0 #1F2937",
                   borderTop: "5px solid #535353",
                 }}
               />
-              <Card className="relative z-10 bg-black dark:bg-black border border-[#535353] dark:border-[#535353] border-r-5 border-b-5">
+              <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-5 border-b-5">
                 <CardContent className="py-4">
                   <div className="text-sm text-red-700 dark:text-red-200">
                     {combinedError}
@@ -353,16 +353,16 @@ export default function Leaderboard() {
             <div className="lg:col-span-2 space-y-6">
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "5px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -371,13 +371,13 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "5px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-[#535353] dark:border-[#535353] border-r-5 border-b-5">
+                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-5 border-b-5">
                   <CardContent className="p-0">
                     <div
                       className="relative w-full h-full px-9 py-6 flex items-center justify-between"
@@ -438,16 +438,16 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "5px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -456,13 +456,13 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "5px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-[#535353] dark:border-[#535353] border-r-5 border-b-5">
+                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-5 border-b-5">
                   <CardHeader className="flex flex-row space-y-0 items-center justify-between gap-4 pb-4 border-[#3a3a3a] bg-[#1b1b1b]">
                     <div className="flex items-center gap-2 text-white">
                       <Star className="w-5 h-5 text-purple-500" />
@@ -560,16 +560,16 @@ export default function Leaderboard() {
             <div className="space-y-6">
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "5px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -578,7 +578,7 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "5px solid #535353",
@@ -632,16 +632,16 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "5px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -650,7 +650,7 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "5px solid #535353",
@@ -684,7 +684,7 @@ export default function Leaderboard() {
                         return (
                           <div
                             key={record.txHash}
-                            className="p-4 rounded-lg border border-[#535353] bg-black dark:bg-black"
+                            className="p-4 rounded-lg border border-[#535353] bg-[#1b1b1b] dark:bg-[#1b1b1b]"
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-semibold">
@@ -744,16 +744,16 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "5px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -762,7 +762,7 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
                   style={{
                     boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "5px solid #535353",

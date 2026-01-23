@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
-import { Loader2, ShieldCheck, Sparkles, Trophy, Target } from "lucide-react";
+import { Loader2, ShieldCheck, Sparkles, Trophy, Target, RefreshCw } from "lucide-react";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import {
   AchievementService,
@@ -22,6 +22,7 @@ import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import { useProtocol } from "@/lib/providers/protocol-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardDescription } from "@/components/ui/card";
+import { CardWithIndents } from "@/components/ui/card-with-indents";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -470,49 +471,50 @@ export function AchievementsSection(): React.JSX.Element {
   }, [availableAchievements, fetchSubmission, resolvedMetadata]);
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <CardWithIndents className="overflow-hidden">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-[#1b1b1b] dark:bg-[#1b1b1b]">
         <div>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Trophy className="h-5 w-5 text-amber-500" />
+          <CardTitle className="flex items-center gap-2 text-xl text-white">
+            <Trophy className="h-5 w-5 text-yellow-400" />
             Achievements
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-gray-400">
             Track milestones you&apos;ve earned and preview what you can claim
             next.
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
             size="sm"
             onClick={() => loadAchievements()}
             disabled={isDisabled || isLoading}
+            className="h-10 w-10 rounded-full border-0 p-0 flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-50"
+            style={{ backgroundColor: "#383838" }}
           >
             {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <RefreshCw className="h-4 w-4 text-white animate-spin" />
             ) : (
-              <Sparkles className="mr-2 h-4 w-4" />
+              <RefreshCw className="h-4 w-4 text-white" />
             )}
-            Refresh
           </Button>
           <Button
-            variant="outline"
             size="sm"
             onClick={() => handleClaimAchievements()}
             disabled={
               isDisabled || isLoading || grantableAchievements.length === 0
             }
+            className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+            style={{ backgroundColor: "#0000FF" }}
           >
             Claim Achievements
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
         {!userAddress && (
-          <Alert variant="default">
-            <AlertTitle>Wallet not connected</AlertTitle>
-            <AlertDescription>
+          <Alert variant="default" className="bg-gray-800 border-gray-700">
+            <AlertTitle className="text-white">Wallet not connected</AlertTitle>
+            <AlertDescription className="text-gray-400">
               Connect your wallet to load personalised achievements and preview
               claimable rewards.
             </AlertDescription>
@@ -520,44 +522,44 @@ export function AchievementsSection(): React.JSX.Element {
         )}
 
         {serviceError && userAddress && (
-          <Alert variant="destructive">
-            <AlertTitle>Achievements unavailable</AlertTitle>
-            <AlertDescription>{serviceError}</AlertDescription>
+          <Alert variant="destructive" className="bg-red-900/30 border-red-800">
+            <AlertTitle className="text-red-200">Achievements unavailable</AlertTitle>
+            <AlertDescription className="text-red-300">{serviceError}</AlertDescription>
           </Alert>
         )}
 
         {achievements.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-green-500" />
+            <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-400">
+                <ShieldCheck className="h-4 w-4 text-green-400" />
                 Claimed
               </div>
-              <div className="mt-2 text-2xl font-semibold">
+              <div className="mt-2 text-2xl font-semibold text-white">
                 {claimedAchievements.length}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-400">
                 Successfully recorded on-chain.
               </p>
               {claimedAchievements.map((achievement) => (
-                <Badge key={achievement.id}>{achievement.title}</Badge>
+                <Badge key={achievement.id} className="bg-green-900/30 text-green-200 border-green-700 mt-1">{achievement.title}</Badge>
               ))}
             </div>
-            <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Sparkles className="h-4 w-4 text-amber-500" />
+            <div className="rounded-xl border border-gray-700 bg-gray-800 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-400">
+                <Sparkles className="h-4 w-4 text-yellow-400" />
                 Grantable
               </div>
-              <div className="mt-2 text-2xl font-semibold">
+              <div className="mt-2 text-2xl font-semibold text-white">
                 {grantableAchievements.length}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-gray-400">
                 Based on the last previewed transaction.
               </p>
               {previewState.result &&
                 previewState.result.success &&
                 previewState.result.grantable.map((achievement) => (
-                  <Badge key={achievement}>{achievement}</Badge>
+                  <Badge key={achievement} className="bg-yellow-900/30 text-yellow-200 border-yellow-700 mt-1">{achievement}</Badge>
                 ))}
             </div>
           </div>
@@ -569,17 +571,17 @@ export function AchievementsSection(): React.JSX.Element {
               value="available-achievements"
               className="border-none"
             >
-              <AccordionTrigger className="rounded-lg border border-border/60 bg-muted/40 px-4 py-3 hover:no-underline">
+              <AccordionTrigger className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 hover:no-underline hover:bg-gray-700">
                 <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-blue-500" />
-                  <span className="font-medium">
+                  <Target className="h-4 w-4 text-blue-400" />
+                  <span className="font-medium text-white">
                     Available Achievements ({availableAchievements.length})
                   </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-gray-400">
                     Achievements you haven&apos;t earned yet. Complete the
                     requirements to make them grantable.
                   </p>
@@ -594,27 +596,27 @@ export function AchievementsSection(): React.JSX.Element {
                       return (
                         <div
                           key={achievement.id}
-                          className="group rounded-lg border border-border/60 bg-muted/20 p-4 transition-colors hover:bg-muted/40"
+                          className="group rounded-lg border border-gray-700 bg-gray-800 p-4 transition-colors hover:bg-gray-700"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 space-y-2">
-                              <h4 className="font-medium leading-tight">
+                              <h4 className="font-medium leading-tight text-white">
                                 {achievement.title || achievement.id}
                               </h4>
                               {metadata?.loading && (
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-2 text-xs text-gray-400">
                                   <Loader2 className="h-3 w-3 animate-spin" />
                                   Loading metadata...
                                 </div>
                               )}
                               {metadata?.error && (
-                                <p className="text-xs text-red-500">
+                                <p className="text-xs text-red-400">
                                   {metadata.error}
                                 </p>
                               )}
                               {metadata?.content && (
                                 <div
-                                  className="text-xs text-muted-foreground prose prose-sm max-w-none"
+                                  className="text-xs text-gray-400 prose prose-sm max-w-none prose-invert"
                                   dangerouslySetInnerHTML={{
                                     __html: metadata.content,
                                   }}
@@ -623,12 +625,12 @@ export function AchievementsSection(): React.JSX.Element {
                               {!metadata &&
                                 neventId &&
                                 neventId.startsWith("nevent1") && (
-                                  <p className="text-xs text-muted-foreground font-mono break-all">
+                                  <p className="text-xs text-gray-400 font-mono break-all">
                                     {neventId.slice(0, 20)}...
                                   </p>
                                 )}
                               {!achievement.title && !neventId && (
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-gray-400">
                                   ID: {achievement.id}
                                 </p>
                               )}
@@ -644,6 +646,6 @@ export function AchievementsSection(): React.JSX.Element {
           </Accordion>
         )}
       </CardContent>
-    </Card>
+    </CardWithIndents>
   );
 }
