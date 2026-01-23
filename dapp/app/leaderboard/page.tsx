@@ -331,7 +331,7 @@ export default function Leaderboard() {
                 className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                 style={{ boxShadow: "inset 0 1px 0 0 #1F2937" }}
               />
-              <Card className="relative z-10 bg-black dark:bg-black border border-gray-800 dark:border-gray-800">
+              <Card className="relative z-10 bg-black dark:bg-black border border-[#1e2939] dark:border-[#1e2939]">
                 <CardContent className="py-4">
                   <div className="text-sm text-red-700 dark:text-red-200">
                     {combinedError}
@@ -361,10 +361,10 @@ export default function Leaderboard() {
                   className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                   style={{ boxShadow: "inset 0 1px 0 0 #1F2937" }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-gray-800 dark:border-gray-800">
+                <Card className="relative z-10 bg-black dark:bg-black border border-[#1e2939] dark:border-[#1e2939]">
                   <CardContent className="p-0">
                     <div
-                      className="relative rounded-[37px] w-full h-full px-9 py-6 flex items-center justify-between"
+                      className="relative w-full h-full px-9 py-6 flex items-center justify-between"
                       style={{
                         background:
                           "linear-gradient(90deg, #1A4DFF 0%, #B72BFF 100%)",
@@ -438,32 +438,34 @@ export default function Leaderboard() {
                   className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                   style={{ boxShadow: "inset 0 1px 0 0 #1F2937" }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-gray-800 dark:border-gray-800">
-                  <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <CardTitle>Top Performers</CardTitle>
+                <Card className="relative z-10 bg-black dark:bg-black border border-[#1e2939] dark:border-[#1e2939]">
+                  <CardHeader className="flex flex-row space-y-0 items-center justify-between gap-4 pb-4 border-[#3a3a3a] bg-[#1b1b1b]">
+                    <div className="flex items-center gap-2 text-white">
+                      <Star className="w-5 h-5 text-purple-500" />
+                      <CardTitle className="text-lg">Top Performers</CardTitle>
+                    </div>
                     <div className="flex items-center gap-3">
                       {stats?.lastProcessedBlock && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-[#696969]">
                           Last block tracked: #{stats.lastProcessedBlock}
                         </span>
                       )}
                       <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         onClick={handleRefresh}
                         disabled={!service || isRefreshing || isLoading}
-                        className="flex items-center gap-1"
+                        className="h-10 w-10 rounded-full bg-[#585858] hover:bg-[#6a6a6a] border-0 text-white flex items-center justify-center"
                       >
                         <RefreshCw
                           className={`w-4 h-4 ${
                             isRefreshing ? "animate-spin" : ""
                           }`}
                         />
-                        Refresh
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3 pt-4 bg-[#1b1b1b]">
                     {isInitialLoading ? (
                       <div className="space-y-3">
                         {Array.from({ length: 5 }).map((_, index) => (
@@ -484,14 +486,15 @@ export default function Leaderboard() {
                         const displayName = shorten(identifier, 16, 6);
                         const lockLabel = shorten(entry.lockHash, 14, 6);
                         const mintedPoints = formatPoints(entry.totalMinted);
+                        const isTopThree = rank <= 3;
 
                         return (
                           <div
                             key={`${entry.lockHash}-${rank}`}
-                            className={`flex items-center justify-between p-4 rounded-lg border ${
-                              rank <= 3
-                                ? "bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200 dark:from-yellow-900/20 dark:to-orange-900/20 dark:border-yellow-800"
-                                : "bg-white dark:bg-gray-800"
+                            className={`flex items-center justify-between px-6 py-4 rounded-[14px] border ${
+                              isTopThree
+                                ? "bg-[#002725] border-[#008b76]"
+                                : "bg-black border-[#3a3a3a]"
                             }`}
                           >
                             <div className="flex items-center gap-4">
@@ -504,20 +507,20 @@ export default function Leaderboard() {
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-semibold">
+                                <div className="font-medium text-white text-[16px]">
                                   {displayName}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-[#696969]">
                                   Lock: {lockLabel}
                                 </div>
                               </div>
                             </div>
 
                             <div className="text-right">
-                              <div className="font-bold text-lg">
+                              <div className="text-[28px] leading-tight font-semibold text-white">
                                 {mintedPoints}
                               </div>
-                              <div className="text-sm text-muted-foreground">
+                              <div className="text-[13px] text-[#696969]">
                                 Points minted
                               </div>
                             </div>
@@ -549,8 +552,8 @@ export default function Leaderboard() {
                   className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                   style={{ boxShadow: "inset 0 1px 0 0 #1F2937" }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-gray-800 dark:border-gray-800">
-                  <CardHeader className="flex items-center gap-2">
+                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#1e2939] dark:border-[#1e2939]">
+                  <CardHeader className="flex items-center gap-2 border-0 text-white">
                     <Activity className="w-5 h-5 text-green-600" />
                     <CardTitle>Leaderboard Metrics</CardTitle>
                   </CardHeader>
@@ -613,8 +616,8 @@ export default function Leaderboard() {
                   className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                   style={{ boxShadow: "inset 0 1px 0 0 #1F2937" }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-gray-800 dark:border-gray-800">
-                  <CardHeader className="flex items-center gap-2">
+                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#1e2939] dark:border-[#1e2939]">
+                  <CardHeader className="flex items-center gap-2 bg-[#1b1b1b] border-0 text-white">
                     <Clock className="w-5 h-5 text-blue-600" />
                     <CardTitle>Recent Minting Activity</CardTitle>
                   </CardHeader>
@@ -641,7 +644,7 @@ export default function Leaderboard() {
                         return (
                           <div
                             key={record.txHash}
-                            className="p-4 rounded-lg border bg-gray-50 dark:bg-gray-800/50"
+                            className="p-4 rounded-lg border border-[#1e2939] bg-black dark:bg-black"
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-semibold">
@@ -717,7 +720,7 @@ export default function Leaderboard() {
                   className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                   style={{ boxShadow: "inset 0 1px 0 0 #1F2937" }}
                 />
-                <Card className="relative z-10">
+                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#1e2939] dark:border-[#1e2939]">
                   <CardHeader className="flex items-center gap-2">
                     <Info className="w-5 h-5 text-blue-600" />
                     <CardTitle>Rules & Information</CardTitle>
