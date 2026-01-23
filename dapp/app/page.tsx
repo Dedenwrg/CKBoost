@@ -1,59 +1,69 @@
-"use client"
+"use client";
 
-import { useMemo, useState } from "react"
-import { CampaignCard } from "@/components/campaign-card"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Switch } from "@/components/ui/switch"
-import { Search, Star, X } from "lucide-react"
-import Link from "next/link"
+import { useMemo, useState } from "react";
+import { CampaignCard } from "@/components/campaign-card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Search, Star, X } from "lucide-react";
+import Link from "next/link";
 import {
   getDerivedStatus,
   useCampaigns,
   cellToCampaignDisplay,
   type CampaignDisplay,
-} from "@/lib"
-import { useProtocol } from "@/lib/providers/protocol-provider"
-import { createScopedLogger } from "ssri-ckboost"
-import { PageLoading } from "@/components/ui/page-loading"
-import { PixelLogo } from "@/components/pixel-logo"
+} from "@/lib";
+import { useProtocol } from "@/lib/providers/protocol-provider";
+import { createScopedLogger } from "ssri-ckboost";
+import { PageLoading } from "@/components/ui/page-loading";
+import { PixelLogo } from "@/components/pixel-logo";
 
-const log = createScopedLogger("HomePage")
-
+const log = createScopedLogger("HomePage");
 
 export default function HomePage() {
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedDifficulties, setSelectedDifficulties] = useState<string[]>([])
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([])
-  const [selectedEndorsers, setSelectedEndorsers] = useState<string[]>([])
-  const [excludeExpired, setExcludeExpired] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDifficulties, setSelectedDifficulties] = useState<string[]>(
+    [],
+  );
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedEndorsers, setSelectedEndorsers] = useState<string[]>([]);
+  const [excludeExpired, setExcludeExpired] = useState(false);
 
   // Use campaign provider
-  const { campaigns: campaignCells, featuredCampaigns: featuredCells, isLoading, error } = useCampaigns()
-  const { endorserResolver } = useProtocol()
+  const {
+    campaigns: campaignCells,
+    featuredCampaigns: featuredCells,
+    isLoading,
+    error,
+  } = useCampaigns();
+  const { endorserResolver } = useProtocol();
 
   // Convert Cell data to display format
-  const campaigns = campaignCells.map(cell => {
-    try {
-      return cellToCampaignDisplay(cell, { endorserResolver })
-    } catch (err) {
-      log.error("Failed to convert campaign cell:", err)
-      return null
-    }
-  }).filter((c): c is CampaignDisplay => c !== null)
+  const campaigns = campaignCells
+    .map((cell) => {
+      try {
+        return cellToCampaignDisplay(cell, { endorserResolver });
+      } catch (err) {
+        log.error("Failed to convert campaign cell:", err);
+        return null;
+      }
+    })
+    .filter((c): c is CampaignDisplay => c !== null);
 
-  const featuredCampaigns = featuredCells.map(cell => {
-    try {
-      return cellToCampaignDisplay(cell, { endorserResolver })
-    } catch (err) {
-      log.error("Failed to convert featured campaign cell:", err)
-      return null
-    }
-  }).filter((c): c is CampaignDisplay => c !== null)
-    .filter((campaign) => !campaign.isExpired)
+  const featuredCampaigns = featuredCells
+    .map((cell) => {
+      try {
+        return cellToCampaignDisplay(cell, { endorserResolver });
+      } catch (err) {
+        log.error("Failed to convert featured campaign cell:", err);
+        return null;
+      }
+    })
+    .filter((c): c is CampaignDisplay => c !== null)
+    .filter((campaign) => !campaign.isExpired);
 
   const hasActiveFilters =
     searchTerm !== "" ||
@@ -61,55 +71,77 @@ export default function HomePage() {
     selectedCategories.length > 0 ||
     selectedStatuses.length > 0 ||
     selectedEndorsers.length > 0 ||
-    excludeExpired
+    excludeExpired;
 
   const filteredCampaigns = campaigns.filter((campaign) => {
     // If no filters are active, exclude featured campaigns from "All Campaigns" section
-    if (!hasActiveFilters && featuredCampaigns.some(fc => fc.id === campaign.id)) {
-      return false
+    if (
+      !hasActiveFilters &&
+      featuredCampaigns.some((fc) => fc.id === campaign.id)
+    ) {
+      return false;
     }
 
     const matchesSearch =
       campaign.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      campaign.shortDescription.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesDifficulty = selectedDifficulties.length === 0 || selectedDifficulties.includes(campaign.difficulty.toLowerCase())
+      campaign.shortDescription
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+    const matchesDifficulty =
+      selectedDifficulties.length === 0 ||
+      selectedDifficulties.includes(campaign.difficulty.toLowerCase());
     const matchesCategory =
       selectedCategories.length === 0 ||
-      campaign.categories.some((cat) => selectedCategories.includes(cat.toLowerCase()))
-    
+      campaign.categories.some((cat) =>
+        selectedCategories.includes(cat.toLowerCase()),
+      );
+
     // Handle status filter with derived status
-    const derivedStatus = getDerivedStatus(campaign)
-    const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(derivedStatus)
+    const derivedStatus = getDerivedStatus(campaign);
+    const matchesStatus =
+      selectedStatuses.length === 0 || selectedStatuses.includes(derivedStatus);
     const matchesEndorser =
       selectedEndorsers.length === 0 ||
       (campaign.endorserLockHash &&
-        selectedEndorsers.includes(campaign.endorserLockHash))
-    const matchesExpiration = !excludeExpired || !campaign.isExpired
+        selectedEndorsers.includes(campaign.endorserLockHash));
+    const matchesExpiration = !excludeExpired || !campaign.isExpired;
 
-    return matchesSearch && matchesDifficulty && matchesCategory && matchesStatus && matchesEndorser && matchesExpiration
-  })
+    return (
+      matchesSearch &&
+      matchesDifficulty &&
+      matchesCategory &&
+      matchesStatus &&
+      matchesEndorser &&
+      matchesExpiration
+    );
+  });
 
-  const allCategories = Array.from(new Set(campaigns.flatMap((c) => c.categories)))
+  const allCategories = Array.from(
+    new Set(campaigns.flatMap((c) => c.categories)),
+  );
   const endorserOptions = useMemo(() => {
-    const mapping = new Map<string, { lockHash: string; name: string }>()
+    const mapping = new Map<string, { lockHash: string; name: string }>();
     campaigns.forEach((campaign) => {
       if (!campaign.endorserLockHash) {
-        return
+        return;
       }
       if (!mapping.has(campaign.endorserLockHash)) {
         mapping.set(campaign.endorserLockHash, {
           lockHash: campaign.endorserLockHash,
-          name: campaign.endorser?.name || campaign.endorserName || campaign.endorserLockHash,
-        })
+          name:
+            campaign.endorser?.name ||
+            campaign.endorserName ||
+            campaign.endorserLockHash,
+        });
       }
-    })
+    });
     return Array.from(mapping.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-    )
-  }, [campaigns])
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+  }, [campaigns]);
 
   const noCampaignsLoaded =
-    !isLoading && campaigns.length === 0 && featuredCampaigns.length === 0
+    !isLoading && campaigns.length === 0 && featuredCampaigns.length === 0;
 
   // Handle loading and empty dataset states
   if (isLoading || noCampaignsLoaded) {
@@ -118,78 +150,92 @@ export default function HomePage() {
         title="Loading Campaigns"
         description="Fetching the latest CKBoost campaigns and featured quests."
       />
-    )
+    );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        {" "}
+        <main className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <div className="text-red-500 text-xl mb-4">⚠️</div>
-              <h2 className="text-xl font-semibold mb-2">Failed to Load Campaigns</h2>
+              <h2 className="text-xl font-semibold mb-2">
+                Failed to Load Campaigns
+              </h2>
               <p className="text-muted-foreground mb-4">{error}</p>
-              <Button onClick={() => window.location.reload()}>Try Again</Button>
+              <Button onClick={() => window.location.reload()}>
+                Try Again
+              </Button>
             </div>
           </div>
         </main>
       </div>
-    )
+    );
   }
 
   const scrollToAllCampaigns = () => {
-    const allCampaignsSection = document.getElementById('all-campaigns')
+    const allCampaignsSection = document.getElementById("all-campaigns");
     if (allCampaignsSection) {
-      allCampaignsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      allCampaignsSection.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }
-  }
+  };
 
   const handleCategoryClick = (category: string) => {
     if (selectedCategories.includes(category)) {
-      setSelectedCategories(selectedCategories.filter(c => c !== category))
+      setSelectedCategories(selectedCategories.filter((c) => c !== category));
     } else {
-      setSelectedCategories([...selectedCategories, category])
+      setSelectedCategories([...selectedCategories, category]);
     }
     // Scroll to filtered results after a brief delay to allow state update
-    setTimeout(() => scrollToAllCampaigns(), 100)
-  }
+    setTimeout(() => scrollToAllCampaigns(), 100);
+  };
 
   const handleDifficultyClick = (difficulty: string) => {
     if (selectedDifficulties.includes(difficulty)) {
-      setSelectedDifficulties(selectedDifficulties.filter(d => d !== difficulty))
+      setSelectedDifficulties(
+        selectedDifficulties.filter((d) => d !== difficulty),
+      );
     } else {
-      setSelectedDifficulties([...selectedDifficulties, difficulty])
+      setSelectedDifficulties([...selectedDifficulties, difficulty]);
     }
-    setTimeout(() => scrollToAllCampaigns(), 100)
-  }
+    setTimeout(() => scrollToAllCampaigns(), 100);
+  };
 
   const handleStatusClick = (status: string) => {
     if (selectedStatuses.includes(status)) {
-      setSelectedStatuses(selectedStatuses.filter(s => s !== status))
+      setSelectedStatuses(selectedStatuses.filter((s) => s !== status));
     } else {
-      setSelectedStatuses([...selectedStatuses, status])
+      setSelectedStatuses([...selectedStatuses, status]);
     }
-    setTimeout(() => scrollToAllCampaigns(), 100)
-  }
+    setTimeout(() => scrollToAllCampaigns(), 100);
+  };
 
   return (
     <div className="min-h-screen bg-black dark:bg-black">
       {/* Starlight background - only for main content area, not footer */}
-      <div 
-        className="fixed inset-0 overflow-hidden pointer-events-none" 
-        style={{ 
+      <div
+        className="fixed inset-0 overflow-hidden pointer-events-none"
+        style={{
           zIndex: 0,
           background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
-          backgroundSize: '100vw 100vh',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'center',
-          imageRendering: 'pixelated',
-          width: '100%',
-          height: '100%'
+          backgroundSize: "100vw 100vh",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+          imageRendering: "pixelated",
+          width: "100%",
+          height: "100%",
         }}
       />
-      
-      <main className="container mx-auto px-4 py-8 relative" style={{ zIndex: 10 }}>
+
+      <main
+        className="container mx-auto px-4 py-8 relative"
+        style={{ zIndex: 10 }}
+      >
         <div className="max-w-7xl mx-auto">
           {/* Hero Section */}
           <div className="mb-12">
@@ -198,25 +244,22 @@ export default function HomePage() {
               <div className="flex-shrink-0 w-full md:w-auto">
                 <PixelLogo className="w-full max-w-xs md:max-w-sm mx-auto md:mx-0" />
               </div>
-              
+
               {/* Right: Text and Buttons */}
               <div className="text-center md:text-left space-y-6 w-full md:w-auto">
                 <p className="text-base md:text-lg text-white leading-relaxed max-w-md mx-auto md:mx-0 font-sans antialiased">
-                  Join campaigns, complete quests, and earn rewards while contributing to the CKB ecosystem. Build your
-                  reputation and grow with the community.
+                  Join campaigns, complete quests, and earn rewards while
+                  contributing to the CKB ecosystem. Build your reputation and
+                  grow with the community.
                 </p>
                 <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3">
                   <Link href="/dashboard" className="w-full sm:w-auto">
-                    <button
-                      className="w-full sm:w-auto bg-[#00FF99] hover:bg-[#00E687] active:bg-[#00CC6F] text-[#2A2A2A] font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
-                    >
+                    <button className="w-full sm:w-auto bg-[#00FF99] hover:bg-[#00E687] active:bg-[#00CC6F] text-[#2A2A2A] font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer">
                       View My Progress
                     </button>
                   </Link>
                   <Link href="/leaderboard" className="w-full sm:w-auto">
-                    <button 
-                      className="w-full sm:w-auto bg-[#3300FF] hover:bg-[#2A00CC] active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer"
-                    >
+                    <button className="w-full sm:w-auto bg-[#3300FF] hover:bg-[#2A00CC] active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer">
                       View Leaderboard
                     </button>
                   </Link>
@@ -225,23 +268,22 @@ export default function HomePage() {
             </div>
           </div>
 
-
           {/* Featured Campaigns */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 
+              <h2
                 className="text-white"
                 style={{
-                  fontFamily: 'Pixellari, monospace',
-                  fontSize: '37px',
-                  lineHeight: '165%',
+                  fontFamily: "Pixellari, monospace",
+                  fontSize: "37px",
+                  lineHeight: "165%",
                   fontWeight: 500,
-                  fontStyle: 'normal',
-                  color: '#FFF',
-                  textTransform: 'none',
-                  letterSpacing: 'normal',
-                  WebkitFontSmoothing: 'none',
-                  textRendering: 'optimizeSpeed'
+                  fontStyle: "normal",
+                  color: "#FFF",
+                  textTransform: "none",
+                  letterSpacing: "normal",
+                  WebkitFontSmoothing: "none",
+                  textRendering: "optimizeSpeed",
                 }}
               >
                 Featured Campaigns
@@ -310,163 +352,134 @@ export default function HomePage() {
           {/* Search and Filters */}
           <div className="mb-8 space-y-4">
             <div className="relative w-full">
-              {/* Four corner square indents - positioned outside the card */}
+              {/* Four corner square indents - aligned with card border corners */}
               {/* Top-left: no border */}
-              <div 
-                className="absolute -top-1 -left-1 w-4 h-4 bg-black dark:bg-black z-20"
-              />
+              <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
               {/* Top-right: left border (inset) */}
-              <div 
-                className="absolute -top-1 -right-1 w-4 h-4 bg-black dark:bg-black z-20"
+              <div
+                className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
                 style={{
                   boxShadow: "inset 1px 0 0 0 #1F2937",
                 }}
               />
               {/* Bottom-right: top and left border (inset) */}
-              <div 
-                className="absolute -bottom-1 -right-1 w-4 h-4 bg-black dark:bg-black z-20"
+              <div
+                className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
                 style={{
                   boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                 }}
               />
               {/* Bottom-left: top border (inset) */}
-              <div 
-                className="absolute -bottom-1 -left-1 w-4 h-4 bg-black dark:bg-black z-20"
+              <div
+                className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
                 style={{
                   boxShadow: "inset 0 1px 0 0 #1F2937",
                 }}
               />
-            <Card 
-              className="bg-gray-900 dark:bg-gray-900 border-gray-800 dark:border-gray-800 relative z-10"
-              style={{
-                borderRadius: "8px",
-              }}
-            >
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Search className="w-4 h-4 text-white" />
-                  <h3 className="text-sm font-medium text-white">Search & Filter All Campaigns</h3>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <Input
-                    placeholder="Search Campaigns..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-gray-800 dark:bg-gray-800 border-gray-700 dark:border-gray-700 text-white placeholder:text-gray-400"
-                  />
-                </div>
+              <Card
+                className="bg-gray-900 dark:bg-gray-900 border-gray-800 dark:border-gray-800 relative z-10"
+                style={{
+                  borderRadius: "8px",
+                }}
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Search className="w-4 h-4 text-white" />
+                    <h3 className="text-sm font-medium text-white">
+                      Search & Filter All Campaigns
+                    </h3>
+                  </div>
+                </CardHeader>
 
-                <div className="space-y-4">
-                  {/* Difficulty Filter */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-400">Difficulty:</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedDifficulties([])}
-                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedDifficulties.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      >
-                        <X className="w-3 h-3 mr-1" />
-                        Clear
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {["beginner", "easy", "medium", "advanced"].map((level) => {
-                        const isSelected = selectedDifficulties.includes(level);
-                        return (
-                          <Badge
-                            key={level}
-                            variant="outline"
-                            className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
-                            style={{
-                              borderRadius: "79px",
-                              border: "1px solid #3A3A3A",
-                            }}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedDifficulties(selectedDifficulties.filter(d => d !== level))
-                              } else {
-                                setSelectedDifficulties([...selectedDifficulties, level])
-                              }
-                            }}
-                          >
-                            {level.charAt(0).toUpperCase() + level.slice(1)}
-                          </Badge>
-                        );
-                      })}
-                    </div>
+                <CardContent className="space-y-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Input
+                      placeholder="Search Campaigns..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 bg-gray-800 dark:bg-gray-800 border-gray-700 dark:border-gray-700 text-white placeholder:text-gray-400"
+                    />
                   </div>
 
-                  {/* Category Filter */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-400">Category:</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedCategories([])}
-                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedCategories.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      >
-                        <X className="w-3 h-3 mr-1" />
-                        Clear
-                      </Button>
+                  <div className="space-y-4">
+                    {/* Difficulty Filter */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-400">
+                          Difficulty:
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedDifficulties([])}
+                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedDifficulties.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Clear
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["beginner", "easy", "medium", "advanced"].map(
+                          (level) => {
+                            const isSelected =
+                              selectedDifficulties.includes(level);
+                            return (
+                              <Badge
+                                key={level}
+                                variant="outline"
+                                className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                                style={{
+                                  borderRadius: "79px",
+                                  border: "1px solid #3A3A3A",
+                                }}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedDifficulties(
+                                      selectedDifficulties.filter(
+                                        (d) => d !== level,
+                                      ),
+                                    );
+                                  } else {
+                                    setSelectedDifficulties([
+                                      ...selectedDifficulties,
+                                      level,
+                                    ]);
+                                  }
+                                }}
+                              >
+                                {level.charAt(0).toUpperCase() + level.slice(1)}
+                              </Badge>
+                            );
+                          },
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {allCategories.map((category) => {
-                        const isSelected = selectedCategories.includes(category.toLowerCase());
-                        return (
-                          <Badge
-                            key={category}
-                            variant="outline"
-                            className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
-                            style={{
-                              borderRadius: "79px",
-                              border: "1px solid #3A3A3A",
-                            }}
-                            onClick={() => {
-                              const categoryLower = category.toLowerCase()
-                              if (isSelected) {
-                                setSelectedCategories(selectedCategories.filter(c => c !== categoryLower))
-                              } else {
-                                setSelectedCategories([...selectedCategories, categoryLower])
-                              }
-                            }}
-                          >
-                            {category}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Endorser Filter */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-400">Endorser:</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedEndorsers([])}
-                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedEndorsers.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      >
-                        <X className="w-3 h-3 mr-1" />
-                        Clear
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {endorserOptions.length === 0 ? (
-                        <span className="text-xs text-gray-400">No endorsers available</span>
-                      ) : (
-                        endorserOptions.map((endorser) => {
-                          const isSelected = selectedEndorsers.includes(endorser.lockHash);
+                    {/* Category Filter */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-400">
+                          Category:
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedCategories([])}
+                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedCategories.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Clear
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {allCategories.map((category) => {
+                          const isSelected = selectedCategories.includes(
+                            category.toLowerCase(),
+                          );
                           return (
                             <Badge
-                              key={endorser.lockHash}
+                              key={category}
                               variant="outline"
                               className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
                               style={{
@@ -474,81 +487,158 @@ export default function HomePage() {
                                 border: "1px solid #3A3A3A",
                               }}
                               onClick={() => {
-                                setSelectedEndorsers((prev) =>
-                                  isSelected
-                                    ? prev.filter((hash) => hash !== endorser.lockHash)
-                                    : [...prev, endorser.lockHash]
-                                )
-                                setTimeout(() => scrollToAllCampaigns(), 100)
+                                const categoryLower = category.toLowerCase();
+                                if (isSelected) {
+                                  setSelectedCategories(
+                                    selectedCategories.filter(
+                                      (c) => c !== categoryLower,
+                                    ),
+                                  );
+                                } else {
+                                  setSelectedCategories([
+                                    ...selectedCategories,
+                                    categoryLower,
+                                  ]);
+                                }
                               }}
                             >
-                              {endorser.name}
+                              {category}
                             </Badge>
                           );
-                        })
-                      )}
+                        })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Status Filter */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-400">Status:</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedStatuses([])}
-                        className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedStatuses.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                      >
-                        <X className="w-3 h-3 mr-1" />
-                        Clear
-                      </Button>
+                    {/* Endorser Filter */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-400">
+                          Endorser:
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedEndorsers([])}
+                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedEndorsers.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Clear
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {endorserOptions.length === 0 ? (
+                          <span className="text-xs text-gray-400">
+                            No endorsers available
+                          </span>
+                        ) : (
+                          endorserOptions.map((endorser) => {
+                            const isSelected = selectedEndorsers.includes(
+                              endorser.lockHash,
+                            );
+                            return (
+                              <Badge
+                                key={endorser.lockHash}
+                                variant="outline"
+                                className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                                style={{
+                                  borderRadius: "79px",
+                                  border: "1px solid #3A3A3A",
+                                }}
+                                onClick={() => {
+                                  setSelectedEndorsers((prev) =>
+                                    isSelected
+                                      ? prev.filter(
+                                          (hash) => hash !== endorser.lockHash,
+                                        )
+                                      : [...prev, endorser.lockHash],
+                                  );
+                                  setTimeout(() => scrollToAllCampaigns(), 100);
+                                }}
+                              >
+                                {endorser.name}
+                              </Badge>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {["active", "ending-soon", "upcoming", "completed"].map((status) => {
-                        const isSelected = selectedStatuses.includes(status);
-                        return (
-                          <Badge
-                            key={status}
-                            variant="outline"
-                            className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
-                            style={{
-                              borderRadius: "79px",
-                              border: "1px solid #3A3A3A",
-                            }}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedStatuses(selectedStatuses.filter(s => s !== status))
-                              } else {
-                                setSelectedStatuses([...selectedStatuses, status])
-                              }
-                            }}
-                          >
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Expiration Filter */}
-                  <div className="inline-flex w-fit items-center gap-3 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 px-4 py-2">
-                    <Switch
-                      checked={excludeExpired}
-                      onCheckedChange={(checked) => {
-                        setExcludeExpired(checked)
-                        setTimeout(() => scrollToAllCampaigns(), 100)
-                      }}
-                      aria-label="Toggle to hide expired campaigns"
-                    />
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-muted-foreground">Exclude expired events</p>
-                      <p className="text-xs text-muted-foreground">Hide campaigns whose quests have ended.</p>
+                    {/* Status Filter */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-400">
+                          Status:
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedStatuses([])}
+                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedStatuses.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Clear
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["active", "ending-soon", "upcoming", "completed"].map(
+                          (status) => {
+                            const isSelected =
+                              selectedStatuses.includes(status);
+                            return (
+                              <Badge
+                                key={status}
+                                variant="outline"
+                                className="cursor-pointer px-3 py-1 text-sm text-white bg-transparent transition-all hover:opacity-80"
+                                style={{
+                                  borderRadius: "79px",
+                                  border: "1px solid #3A3A3A",
+                                }}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedStatuses(
+                                      selectedStatuses.filter(
+                                        (s) => s !== status,
+                                      ),
+                                    );
+                                  } else {
+                                    setSelectedStatuses([
+                                      ...selectedStatuses,
+                                      status,
+                                    ]);
+                                  }
+                                }}
+                              >
+                                {status.charAt(0).toUpperCase() +
+                                  status.slice(1)}
+                              </Badge>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Expiration Filter */}
+                    <div className="inline-flex w-fit items-center gap-3 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 px-4 py-2">
+                      <Switch
+                        checked={excludeExpired}
+                        onCheckedChange={(checked) => {
+                          setExcludeExpired(checked);
+                          setTimeout(() => scrollToAllCampaigns(), 100);
+                        }}
+                        aria-label="Toggle to hide expired campaigns"
+                      />
+                      <div className="space-y-0.5">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Exclude expired events
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Hide campaigns whose quests have ended.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
             </div>
           </div>
 
@@ -617,16 +707,19 @@ export default function HomePage() {
             {filteredCampaigns.length === 0 && (
               <div className="text-center py-12">
                 <Star className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-xl font-semibold mb-2">No campaigns found</h3>
+                <h3 className="text-xl font-semibold mb-2">
+                  No campaigns found
+                </h3>
                 <p className="text-muted-foreground mb-4">
-                  Try adjusting your search terms or filters to find campaigns that match your interests.
+                  Try adjusting your search terms or filters to find campaigns
+                  that match your interests.
                 </p>
                 <Button
                   onClick={() => {
-                    setSearchTerm("")
-                    setSelectedDifficulties([])
-                    setSelectedCategories([])
-                    setSelectedStatuses([])
+                    setSearchTerm("");
+                    setSelectedDifficulties([]);
+                    setSelectedCategories([]);
+                    setSelectedStatuses([]);
                   }}
                   variant="outline"
                 >
@@ -635,9 +728,8 @@ export default function HomePage() {
               </div>
             )}
           </div>
-
         </div>
       </main>
     </div>
-  )
+  );
 }

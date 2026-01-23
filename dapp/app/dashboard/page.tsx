@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/connector-react";
-import { CampaignData, type CampaignDataLike } from "ssri-ckboost/types";import { AchievementsSection } from "@/components/dashboard/achievements-section";
+import { CampaignData, type CampaignDataLike } from "ssri-ckboost/types";
+import { AchievementsSection } from "@/components/dashboard/achievements-section";
 import {
   Card,
   CardContent,
@@ -73,7 +74,7 @@ interface DeadlineEntry {
 const shorten = (
   value: string | null | undefined,
   head = 8,
-  tail = 4
+  tail = 4,
 ): string => {
   if (!value) return "Unknown";
   if (value.length <= head + tail) return value;
@@ -98,7 +99,7 @@ const normalizeHex = (value: unknown): string | null => {
 };
 
 const toMillis = (
-  value: number | bigint | string | undefined | null
+  value: number | bigint | string | undefined | null,
 ): number | null => {
   if (value === undefined || value === null) return null;
   const numeric = Number(value);
@@ -117,7 +118,7 @@ const readUdtAmount = (data: ccc.Hex): bigint => {
 };
 
 const formatPoints = (
-  value: number | bigint | string | undefined | null
+  value: number | bigint | string | undefined | null,
 ): string => {
   if (value === undefined || value === null) return "0";
   const numeric = Number(value);
@@ -128,7 +129,7 @@ const formatPoints = (
 const buildSubmissionEntries = (
   submissions: UserSubmissionRecordLike[] | undefined,
   campaignMap: Map<string, CampaignDataLike>,
-  userTypeId: string | null
+  userTypeId: string | null,
 ): SubmissionDisplayEntry[] => {
   if (!submissions || submissions.length === 0) return [];
 
@@ -143,7 +144,7 @@ const buildSubmissionEntries = (
     const campaignData = campaignMap.get(campaignTypeId.toLowerCase());
     const questId = Number(submission.quest_id);
     const quest = campaignData?.quests?.find(
-      (item) => Number(item.quest_id) === questId
+      (item) => Number(item.quest_id) === questId,
     );
 
     const acceptedIds = quest?.accepted_submission_user_type_ids || [];
@@ -151,7 +152,7 @@ const buildSubmissionEntries = (
       normalizedUserTypeId !== null
         ? acceptedIds.some(
             (candidate) =>
-              normalizeHex(candidate)?.toLowerCase() === normalizedUserTypeId
+              normalizeHex(candidate)?.toLowerCase() === normalizedUserTypeId,
           )
         : false;
 
@@ -159,7 +160,7 @@ const buildSubmissionEntries = (
     const campaignTitle = campaignData?.metadata?.title || "Unknown campaign";
     const points = Number(quest?.points ?? 0);
     const submissionTimestamp = toMillis(
-      Number(submission.submission_timestamp)
+      Number(submission.submission_timestamp),
     );
     const deadlineTimestamp = toMillis(Number(quest?.completion_deadline));
 
@@ -237,7 +238,7 @@ export default function Dashboard() {
       return profileName;
     }
     const identityName = extractIdentityDisplayName(
-      currentUserData?.verification_data?.identity_verification_data
+      currentUserData?.verification_data?.identity_verification_data,
     );
     if (identityName) {
       return identityName;
@@ -254,7 +255,7 @@ export default function Dashboard() {
   const isVerified = useMemo(() => {
     if (!currentUserData) return false;
     const telegramId = Number(
-      currentUserData.verification_data?.telegram_personal_chat_id || 0
+      currentUserData.verification_data?.telegram_personal_chat_id || 0,
     );
     const identityBytes =
       currentUserData.verification_data?.identity_verification_data || "";
@@ -273,7 +274,7 @@ export default function Dashboard() {
           return;
         }
         const campaignData = CampaignData.decode(
-          cell.outputData
+          cell.outputData,
         ) as CampaignDataLike;
         map.set(typeId.toLowerCase(), campaignData);
       } catch (error) {
@@ -288,9 +289,9 @@ export default function Dashboard() {
       buildSubmissionEntries(
         currentUserData?.submission_records,
         campaignMap,
-        currentUserTypeId
+        currentUserTypeId,
       ),
-    [currentUserData, campaignMap, currentUserTypeId]
+    [currentUserData, campaignMap, currentUserTypeId],
   );
 
   const approvedSubmissions = useMemo(
@@ -299,9 +300,9 @@ export default function Dashboard() {
         (entry) =>
           entry.status === "approved" &&
           entry.userTypeId ===
-            (currentUserTypeId ? currentUserTypeId.toLowerCase() : null)
+            (currentUserTypeId ? currentUserTypeId.toLowerCase() : null),
       ),
-    [submissionEntries, currentUserTypeId]
+    [submissionEntries, currentUserTypeId],
   );
   const pendingSubmissions = useMemo(
     () =>
@@ -309,19 +310,19 @@ export default function Dashboard() {
         (entry) =>
           entry.status === "pending" &&
           entry.userTypeId ===
-            (currentUserTypeId ? currentUserTypeId.toLowerCase() : null)
+            (currentUserTypeId ? currentUserTypeId.toLowerCase() : null),
       ),
-    [submissionEntries, currentUserTypeId]
+    [submissionEntries, currentUserTypeId],
   );
   const campaignsParticipated = useMemo(() => {
     const normalizedUserTypeId = currentUserTypeId
       ? currentUserTypeId.toLowerCase()
       : null;
     const userEntries = submissionEntries.filter(
-      (entry) => entry.userTypeId === normalizedUserTypeId
+      (entry) => entry.userTypeId === normalizedUserTypeId,
     );
     const unique = new Set(
-      userEntries.map((entry) => entry.campaignTypeId.toLowerCase())
+      userEntries.map((entry) => entry.campaignTypeId.toLowerCase()),
     );
     return unique.size;
   }, [submissionEntries, currentUserTypeId]);
@@ -365,7 +366,7 @@ export default function Dashboard() {
         }
 
         const campaignData = CampaignData.decode(
-          cell.outputData
+          cell.outputData,
         ) as CampaignDataLike;
 
         // Check if campaign is still active (not ended)
@@ -380,7 +381,7 @@ export default function Dashboard() {
         // Iterate through all quests in the campaign
         campaignData.quests?.forEach((quest) => {
           const questDeadline = toMillis(
-            ccc.numFrom(quest.completion_deadline)
+            ccc.numFrom(quest.completion_deadline),
           );
           if (!questDeadline || questDeadline <= now) {
             return; // Quest deadline has passed or doesn't exist
@@ -391,7 +392,7 @@ export default function Dashboard() {
 
           // Check if user has submitted to this quest
           const submissionKey = `${campaignTypeId.toLowerCase()}:${Number(
-            quest.quest_id
+            quest.quest_id,
           )}`;
           const submissionStatus = submissionMap.get(submissionKey);
 
@@ -491,7 +492,7 @@ export default function Dashboard() {
         const lockScript = (await signer.getRecommendedAddressObj()).script;
 
         const gatherAmountForScript = async (
-          script: ccc.Script
+          script: ccc.Script,
         ): Promise<bigint> => {
           let total = 0n;
           const collector = client.findCells({
@@ -678,12 +679,12 @@ export default function Dashboard() {
   }, [userAddress, pointsBalance, tokenBalancesLoading]);
 
   const [questFilter, setQuestFilter] = useState<"pending" | "approved">(
-    "pending"
+    "pending",
   );
 
   const renderQuestList = (
     entries: SubmissionDisplayEntry[],
-    status: "pending" | "approved"
+    status: "pending" | "approved",
   ) => {
     if (loading) {
       return (
@@ -728,8 +729,8 @@ export default function Dashboard() {
             const daysLeft = Math.max(
               0,
               Math.ceil(
-                (entry.deadlineTimestamp! - Date.now()) / (1000 * 60 * 60 * 24)
-              )
+                (entry.deadlineTimestamp! - Date.now()) / (1000 * 60 * 60 * 24),
+              ),
             );
             deadlineBadge = (
               <Badge variant={daysLeft <= 3 ? "destructive" : "secondary"}>
@@ -807,7 +808,9 @@ export default function Dashboard() {
   // Check wallet connection first
   if (!signer) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        {" "}
+        <main className="container mx-auto px-4 py-8">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[60vh]">
               <Card className="max-w-md w-full">
@@ -861,8 +864,25 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <main className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-black dark:bg-black">
+      {/* Starlight background - only for main content area, not footer */}
+      <div
+        className="fixed inset-0 overflow-hidden pointer-events-none"
+        style={{
+          zIndex: 0,
+          background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+          backgroundSize: "100vw 100vh",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+          imageRendering: "pixelated",
+          width: "100%",
+          height: "100%",
+        }}
+      />
+      <main
+        className="container mx-auto px-4 py-8 relative"
+        style={{ zIndex: 10 }}
+      >
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
@@ -1139,7 +1159,7 @@ export default function Dashboard() {
                     upcomingDeadlines.map((entry) => {
                       const deadline = entry.deadlineTimestamp
                         ? formatDateConsistent(
-                            new Date(entry.deadlineTimestamp)
+                            new Date(entry.deadlineTimestamp),
                           )
                         : "Unknown";
                       const daysLeft = entry.deadlineTimestamp
@@ -1147,8 +1167,8 @@ export default function Dashboard() {
                             0,
                             Math.ceil(
                               (entry.deadlineTimestamp - Date.now()) /
-                                (1000 * 60 * 60 * 24)
-                            )
+                                (1000 * 60 * 60 * 24),
+                            ),
                           )
                         : null;
 
@@ -1232,7 +1252,7 @@ export default function Dashboard() {
                           {entry.submissionTimestamp && (
                             <div className="text-xs text-muted-foreground">
                               {formatDateConsistent(
-                                new Date(entry.submissionTimestamp)
+                                new Date(entry.submissionTimestamp),
                               )}
                             </div>
                           )}

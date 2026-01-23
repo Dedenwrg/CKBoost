@@ -3,8 +3,25 @@ import { TippingProvider } from "../../lib/providers/tipping-provider";
 
 export default function CommunityPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <main className="max-w-4xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-black dark:bg-black">
+      {/* Starlight background - only for main content area, not footer */}
+      <div
+        className="fixed inset-0 overflow-hidden pointer-events-none"
+        style={{
+          zIndex: 0,
+          background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+          backgroundSize: "100vw 100vh",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+          imageRendering: "pixelated",
+          width: "100%",
+          height: "100%",
+        }}
+      />
+      <main
+        className="max-w-4xl mx-auto px-4 py-8 relative"
+        style={{ zIndex: 10 }}
+      >
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-4xl">💰</div>
