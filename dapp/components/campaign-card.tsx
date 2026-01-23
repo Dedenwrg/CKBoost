@@ -166,6 +166,7 @@ export function CampaignCard({
         className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
         style={{
           boxShadow: "inset 1px 0 0 0 #1F2937",
+          borderLeft: "5px solid #535353",
         }}
       />
       {/* Bottom-right: top and left border (inset) */}
@@ -173,6 +174,8 @@ export function CampaignCard({
         className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
         style={{
           boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
+          borderTop: "5px solid #535353",
+          borderLeft: "5px solid #535353",
         }}
       />
       {/* Bottom-left: top border (inset) */}
@@ -180,10 +183,11 @@ export function CampaignCard({
         className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
         style={{
           boxShadow: "inset 0 1px 0 0 #1F2937",
+          borderTop: "5px solid #535353",
         }}
       />
       <Card
-        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#1e2939] dark:border-[#1e2939] border-gray-800 dark:border-gray-800 relative z-10"
+        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-5 border-b-5 border-[#535353] dark:border-[#535353] border-r-5 border-b-5 relative z-10"
         style={{
           borderRadius: "8px",
         }}

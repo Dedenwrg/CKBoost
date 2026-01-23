@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Star,
 } from "lucide-react";
-import { ckboost } from "ssri-ckboost";import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ckboost } from "ssri-ckboost";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -127,7 +128,7 @@ const decodeSubmissionContent = (content: unknown): string | null => {
 };
 
 const formatTimestamp = (
-  value: number | bigint | string | null | undefined
+  value: number | bigint | string | null | undefined,
 ): string => {
   if (value === undefined || value === null) return "Unknown";
   const numeric = Number(value);
@@ -335,7 +336,7 @@ const buildSyntheticRewardEvent = (
     ckb: bigint;
     typeId?: string;
     title?: string;
-  }
+  },
 ): RewardEventDetail => {
   // Check if this is a tipping reward
   if (tippingData && (tippingData.points > 0n || tippingData.ckb > 0n)) {
@@ -449,7 +450,9 @@ export function ProfileContent({
   const [isSavingDisplayName, setIsSavingDisplayName] = useState(false);
   const [displayNameError, setDisplayNameError] = useState<string | null>(null);
   const canEditDisplayName =
-    context === "self" && typeof onDisplayNameChange === "function" && !!userData;
+    context === "self" &&
+    typeof onDisplayNameChange === "function" &&
+    !!userData;
 
   const campaignMap = useMemo(() => {
     const map = new Map<
@@ -510,7 +513,7 @@ export function ProfileContent({
                 } catch (tokenError) {
                   log.warn(
                     "Failed to derive UDT reward for profile",
-                    tokenError
+                    tokenError,
                   );
                   tokenRewards.push({
                     symbol: "UDT",
@@ -551,7 +554,7 @@ export function ProfileContent({
 
   const profileDisplayName = useMemo(
     () => getLatestDisplayName(userData?.profile_data),
-    [userData?.profile_data]
+    [userData?.profile_data],
   );
 
   const displayName = useMemo(() => {
@@ -559,7 +562,7 @@ export function ProfileContent({
       return profileDisplayName;
     }
     const identityName = extractIdentityDisplayName(
-      userData?.verification_data?.identity_verification_data
+      userData?.verification_data?.identity_verification_data,
     );
     if (identityName) {
       return identityName;
@@ -577,7 +580,7 @@ export function ProfileContent({
     const candidate =
       normalizedFallbackAddress && normalizedFallbackAddress.trim().length > 0
         ? normalizedFallbackAddress
-        : userTypeId ?? null;
+        : (userTypeId ?? null);
     if (!candidate) return null;
     if (candidate === displayName) return null;
     return candidate;
@@ -588,11 +591,7 @@ export function ProfileContent({
       return;
     }
     setPendingDisplayName(profileDisplayName ?? "");
-  }, [
-    canEditDisplayName,
-    profileDisplayName,
-    isEditDialogOpen,
-  ]);
+  }, [canEditDisplayName, profileDisplayName, isEditDialogOpen]);
 
   const openDisplayNameDialog = () => {
     if (!canEditDisplayName) {
@@ -672,7 +671,7 @@ export function ProfileContent({
 
         const questInfo = campaignInfo?.quests?.[questId];
         const submissionContent = decodeSubmissionContent(
-          record.submission_content
+          record.submission_content,
         );
 
         return {
@@ -710,7 +709,7 @@ export function ProfileContent({
         });
 
         const response = await fetch(
-          `/.netlify/functions/reward-history?${params.toString()}`
+          `/.netlify/functions/reward-history?${params.toString()}`,
         );
 
         if (!response.ok) {
@@ -735,8 +734,8 @@ export function ProfileContent({
             new Set(
               transactions
                 .map((tx) => tx.blockNumber)
-                .filter((bn): bn is string => Boolean(bn))
-            )
+                .filter((bn): bn is string => Boolean(bn)),
+            ),
           );
 
           if (blocks.length > 0) {
@@ -760,19 +759,19 @@ export function ProfileContent({
                   log.warn(
                     "Failed to load block header for reward transaction",
                     bn,
-                    error
+                    error,
                   );
                   return null;
                 }
-              })
+              }),
             );
 
             timestampMap = new Map(
               results
                 .filter((item): item is { block: string; timestamp: number } =>
-                  Boolean(item && item.timestamp)
+                  Boolean(item && item.timestamp),
                 )
-                .map((item) => [item.block, item.timestamp])
+                .map((item) => [item.block, item.timestamp]),
             );
           }
         }
@@ -781,9 +780,9 @@ export function ProfileContent({
           (tx) => ({
             ...tx,
             timestamp: tx.blockNumber
-              ? timestampMap.get(tx.blockNumber) ?? null
+              ? (timestampMap.get(tx.blockNumber) ?? null)
               : null,
-          })
+          }),
         );
 
         if (!cancelled) {
@@ -796,7 +795,7 @@ export function ProfileContent({
           setPointsError(
             error instanceof Error
               ? error.message
-              : "Failed to load reward transactions"
+              : "Failed to load reward transactions",
           );
         }
       } finally {
@@ -823,7 +822,7 @@ export function ProfileContent({
     });
 
     const submissionsAscending = [...submissionEntries].sort(
-      (a, b) => a.submissionTimestamp - b.submissionTimestamp
+      (a, b) => a.submissionTimestamp - b.submissionTimestamp,
     );
 
     let submissionCursor = 0;
@@ -905,7 +904,7 @@ export function ProfileContent({
         const syntheticEvent = buildSyntheticRewardEvent(
           tx,
           remainingPoints,
-          tippingReward
+          tippingReward,
         );
         events.push(syntheticEvent);
 
@@ -986,7 +985,7 @@ export function ProfileContent({
         const network = deploymentManager.getCurrentNetwork();
         const tippingCodeHash = deploymentManager.getContractCodeHash(
           network,
-          "ckboostTippingType"
+          "ckboostTippingType",
         );
 
         if (!tippingCodeHash) {
@@ -1056,11 +1055,11 @@ export function ProfileContent({
                         typeId,
                         tippingCodeHash,
                         client,
-                        protocolCell
+                        protocolCell,
                       );
                       if (tippingCell) {
                         const tippingCellData = TippingData.decode(
-                          tippingCell.outputData
+                          tippingCell.outputData,
                         );
                         tippingTitle =
                           tippingCellData.metadata?.contribution_title;
@@ -1068,7 +1067,7 @@ export function ProfileContent({
                     } catch (error) {
                       log.warn(
                         `Failed to fetch tipping title for ${typeId}`,
-                        error
+                        error,
                       );
                     }
 
@@ -1083,7 +1082,7 @@ export function ProfileContent({
                 } catch (error) {
                   log.warn(
                     `Failed to parse tipping cell in tx ${tx.txHash}`,
-                    error
+                    error,
                   );
                 }
               }
@@ -1114,7 +1113,9 @@ export function ProfileContent({
   const lookupIdentifier = normalizedFallbackAddress ?? userTypeId ?? null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-purple-50/60 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">      <main className="container mx-auto px-4 py-10 space-y-8">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-purple-50/60 to-white dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      {" "}
+      <main className="container mx-auto px-4 py-10 space-y-8">
         <header className="space-y-2">
           <h1 className="text-4xl font-bold tracking-tight">
             Community Profile
@@ -1328,7 +1329,7 @@ export function ProfileContent({
                         new Set(
                           submissionEntries
                             .map((entry) => entry.campaignTitle)
-                            .filter(Boolean)
+                            .filter(Boolean),
                         ).size
                       }
                     </p>
@@ -1381,7 +1382,7 @@ export function ProfileContent({
                 </p>
               </div>
 
-              <Card className="overflow-hidden border-gray-200 dark:border-gray-800">
+              <Card className="overflow-hidden border-gray-200 dark:border-[#535353] border-r-5 border-b-5">
                 {submissionEntries.length === 0 ? (
                   <CardContent className="py-10 text-center text-sm text-muted-foreground">
                     No contributions tracked yet. Explore active campaigns and
@@ -1469,7 +1470,7 @@ export function ProfileContent({
                 </p>
               </div>
 
-              <Card className="overflow-hidden border-gray-200 dark:border-gray-800">
+              <Card className="overflow-hidden border-gray-200 dark:border-[#535353] border-r-5 border-b-5">
                 {pointsLoading ? (
                   <CardContent className="space-y-4 p-6">
                     <Skeleton className="h-6 w-1/3" />
@@ -1588,7 +1589,7 @@ export function ProfileContent({
                                       ? formatCkbAmount(token.amount)
                                       : formatTokenAmount(
                                           token.amount,
-                                          token.token
+                                          token.token,
                                         )}{" "}
                                     {token.symbol}
                                   </Badge>
