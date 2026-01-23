@@ -1382,7 +1382,7 @@ export function ProfileContent({
                 </p>
               </div>
 
-              <Card className="overflow-hidden border-gray-200 dark:border-[#535353] border-r-5 border-b-5">
+              <Card className="overflow-hidden border-gray-200 dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
                 {submissionEntries.length === 0 ? (
                   <CardContent className="py-10 text-center text-sm text-muted-foreground">
                     No contributions tracked yet. Explore active campaigns and
@@ -1470,7 +1470,7 @@ export function ProfileContent({
                 </p>
               </div>
 
-              <Card className="overflow-hidden border-gray-200 dark:border-[#535353] border-r-5 border-b-5">
+              <Card className="overflow-hidden border-gray-200 dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
                 {pointsLoading ? (
                   <CardContent className="space-y-4 p-6">
                     <Skeleton className="h-6 w-1/3" />

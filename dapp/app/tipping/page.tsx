@@ -25,12 +25,11 @@ export default function CommunityPage() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-4xl">💰</div>
-            <h1 
+            <h1
               className="text-4xl font-bold"
               style={{
                 fontFamily: "Pixellari, monospace",
                 color: "#FFFFFF",
-                textShadow: "0 0 8px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)",
               }}
             >
               Community Tipping Proposals

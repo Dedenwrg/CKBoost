@@ -912,6 +912,32 @@ export default function Dashboard() {
           height: "100%",
         }}
       />
+      {/* Rabbit in top-right corner */}
+      <div
+        className="fixed top-0 right-0 overflow-hidden pointer-events-none"
+        style={{
+          zIndex: 1,
+          width: "40vw",
+          height: "30vh",
+        }}
+      >
+        <img
+          src="/assets/branding/Rabbit - Background.svg"
+          alt="Rabbit Top Right"
+          style={{
+            position: "absolute",
+            top: "0",
+            right: "-5%",
+            width: "auto",
+            height: "100%",
+            maxHeight: "400px",
+            imageRendering: "pixelated",
+            opacity: 0.7,
+            filter: "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+            transform: "rotate(-15deg)",
+          }}
+        />
+      </div>
       <main
         className="container mx-auto px-4 py-8 relative"
         style={{ zIndex: 10 }}
@@ -1338,6 +1364,31 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
+      
+      {/* Rabbit on Logo at bottom */}
+      <div
+        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none"
+        style={{
+          zIndex: 1,
+          height: "400px",
+        }}
+      >
+        <img
+          src="/assets/branding/Rabbit on Logo.svg"
+          alt="Rabbit on Logo"
+          style={{
+            position: "absolute",
+            bottom: "0",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "auto",
+            height: "350px",
+            maxHeight: "60vh",
+            imageRendering: "pixelated",
+            opacity: 0.9,
+          }}
+        />
+      </div>
     </div>
   );
 }

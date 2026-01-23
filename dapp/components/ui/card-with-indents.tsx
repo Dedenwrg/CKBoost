@@ -1,9 +1,9 @@
-import * as React from "react"
-import { Card } from "@/components/ui/card"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface CardWithIndentsProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export const CardWithIndents = React.forwardRef<
@@ -20,7 +20,7 @@ export const CardWithIndents = React.forwardRef<
         className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
         style={{
           boxShadow: "inset 1px 0 0 0 #1F2937",
-          borderLeft: "5px solid #535353",
+          borderLeft: "3px solid #535353",
         }}
       />
       {/* Bottom-right: top and left border (inset) */}
@@ -28,8 +28,8 @@ export const CardWithIndents = React.forwardRef<
         className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
         style={{
           boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
-          borderTop: "5px solid #535353",
-          borderLeft: "5px solid #535353",
+          borderTop: "3px solid #535353",
+          borderLeft: "3px solid #535353",
         }}
       />
       {/* Bottom-left: top border (inset) */}
@@ -37,14 +37,14 @@ export const CardWithIndents = React.forwardRef<
         className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
         style={{
           boxShadow: "inset 0 1px 0 0 #1F2937",
-          borderTop: "5px solid #535353",
+          borderTop: "3px solid #535353",
         }}
       />
       <Card
         ref={ref}
         className={cn(
-          "bg-[#1b1b1b] dark:bg-[#1b1b1b] border-[#535353] dark:border-[#535353] relative z-10",
-          className
+          "bg-[#1b1b1b] dark:bg-[#1b1b1b] border-[#535353] dark:border-[#535353] relative border-r-3 border-b-3 border-t-0 border-l-0 z-10",
+          className,
         )}
         style={{
           borderRadius: "8px",
@@ -54,7 +54,7 @@ export const CardWithIndents = React.forwardRef<
         {children}
       </Card>
     </div>
-  )
-})
+  );
+});
 
-CardWithIndents.displayName = "CardWithIndents"
+CardWithIndents.displayName = "CardWithIndents";

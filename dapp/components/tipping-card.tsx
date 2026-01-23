@@ -570,6 +570,11 @@ export function TippingCard({
     return new Date(Number(ccc.numFrom(timestamp))).toLocaleDateString();
   }, [tipping.data.metadata.creation_timestamp]);
 
+  // Don't render if commentListReplaceableKey is not available
+  if (!commentListReplaceableKey) {
+    return null;
+  }
+
   return (
     <CardWithIndents>
       <CardHeader className="pb-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
