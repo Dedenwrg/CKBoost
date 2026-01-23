@@ -164,7 +164,9 @@ export default function HomePage() {
               <h2 className="text-xl font-semibold mb-2">
                 Failed to Load Campaigns
               </h2>
-              <p className="text-muted-foreground mb-4">{error}</p>
+              <p className="text-gray-900 dark:text-muted-foreground mb-4">
+                {error}
+              </p>
               <Button onClick={() => window.location.reload()}>
                 Try Again
               </Button>
@@ -216,13 +218,13 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-black dark:bg-black">
+    <div className="min-h-screen bg-white dark:bg-black">
       {/* Starlight background - only for main content area, not footer */}
       <div
-        className="fixed inset-0 overflow-hidden pointer-events-none"
+        className="fixed inset-0 overflow-hidden pointer-events-none bg-white dark:bg-black"
         style={{
           zIndex: 0,
-          background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+          backgroundImage: `url('/assets/Base%20UI/Starlight%20background.svg')`,
           backgroundSize: "100vw 100vh",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
@@ -247,7 +249,7 @@ export default function HomePage() {
 
               {/* Right: Text and Buttons */}
               <div className="text-center md:text-left space-y-6 w-full md:w-auto">
-                <p className="text-base md:text-lg text-white leading-relaxed max-w-md mx-auto md:mx-0 font-sans antialiased">
+                <p className="text-base md:text-lg text-gray-900 dark:text-white leading-relaxed max-w-md mx-auto md:mx-0 font-sans antialiased">
                   Join campaigns, complete quests, and earn rewards while
                   contributing to the CKB ecosystem. Build your reputation and
                   grow with the community.
@@ -259,7 +261,7 @@ export default function HomePage() {
                     </button>
                   </Link>
                   <Link href="/leaderboard" className="w-full sm:w-auto">
-                    <button className="w-full sm:w-auto bg-[#3300FF] hover:bg-[#2A00CC] active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer">
+                    <button className="w-full sm:w-auto bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer">
                       View Leaderboard
                     </button>
                   </Link>
@@ -272,14 +274,13 @@ export default function HomePage() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-6">
               <h2
-                className="text-white"
+                className="text-[#0000FF] dark:text-white"
                 style={{
                   fontFamily: "Pixellari, monospace",
                   fontSize: "37px",
                   lineHeight: "165%",
                   fontWeight: 500,
                   fontStyle: "normal",
-                  color: "#FFF",
                   textTransform: "none",
                   letterSpacing: "normal",
                   WebkitFontSmoothing: "none",
@@ -288,13 +289,16 @@ export default function HomePage() {
               >
                 Featured Campaigns
               </h2>
-              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+              <Badge
+                variant="outline"
+                className="bg-black text-white dark:bg-gray-800 dark:text-white"
+              >
                 {featuredCampaigns.length} featured
               </Badge>
             </div>
 
             {featuredCampaigns.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                 No featured campaigns are available right now. Check back soon!
               </p>
             ) : (
@@ -354,42 +358,35 @@ export default function HomePage() {
             <div className="relative w-full">
               {/* Four corner square indents - aligned with card border corners */}
               {/* Top-left: no border */}
-              <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+              <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
               {/* Top-right: left border (inset) */}
               <div
-                className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
-                style={{
-                  boxShadow: "inset 1px 0 0 0 #1F2937",
-                  borderLeft: "3px solid #535353",
-                }}
+                className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-l border-gray-300 dark:border-[#535353]"
+                style={{}}
               />
               {/* Bottom-right: top and left border (inset) */}
               <div
-                className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-t border-l border-gray-300 dark:border-[#535353]"
                 style={{
-                  boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
-                  borderTop: "3px solid #535353",
-                  borderLeft: "3px solid #535353",
+                  boxShadow:
+                    "inset 1px 0 0 0 rgba(0,0,0,0.1), inset 0 1px 0 0 rgba(0,0,0,0.1)",
                 }}
               />
               {/* Bottom-left: top border (inset) */}
               <div
-                className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
-                style={{
-                  boxShadow: "inset 0 1px 0 0 #1F2937",
-                  borderTop: "3px solid #535353",
-                }}
+                className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-t border-gray-300 dark:border-[#535353]"
+                style={{}}
               />
               <Card
-                className="bg-[#1b1b1b] dark:bg-[#1b1b1b] border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0 relative z-10"
+                className="bg-[#F2FAF4] dark:bg-[#1b1b1b] border-gray-300 dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0 relative z-10"
                 style={{
                   borderRadius: "8px",
                 }}
               >
                 <CardHeader>
                   <div className="flex items-center gap-2">
-                    <Search className="w-4 h-4 text-white" />
-                    <h3 className="text-sm font-medium text-white">
+                    <Search className="w-4 h-4 text-gray-900 dark:text-white" />
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                       Search & Filter All Campaigns
                     </h3>
                   </div>
@@ -397,12 +394,12 @@ export default function HomePage() {
 
                 <CardContent className="space-y-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
                     <Input
                       placeholder="Search Campaigns..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 bg-white dark:bg-black border-gray-700 dark:border-gray-700 text-white placeholder:text-gray-400"
+                      className="pl-10 bg-white dark:bg-black border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                     />
                   </div>
 
@@ -410,14 +407,14 @@ export default function HomePage() {
                     {/* Difficulty Filter */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-400">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-400">
                           Difficulty:
                         </span>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedDifficulties([])}
-                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedDifficulties.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          className={`h-auto p-1 text-xs text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white ${selectedDifficulties.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
                         >
                           <X className="w-3 h-3 mr-1" />
                           Clear
@@ -434,14 +431,11 @@ export default function HomePage() {
                                 variant="outline"
                                 className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
                                   isSelected
-                                    ? "text-white bg-white/10"
-                                    : "text-white bg-transparent"
+                                    ? "!bg-black !text-white !border-black dark:!bg-white/10 dark:!text-white dark:!border-white"
+                                    : "!bg-transparent !text-black !border-black dark:!bg-transparent dark:!text-white dark:!border-[#3A3A3A]"
                                 }`}
                                 style={{
                                   borderRadius: "79px",
-                                  border: isSelected
-                                    ? "1px solid #FFFFFF"
-                                    : "1px solid #3A3A3A",
                                 }}
                                 onClick={() => {
                                   if (isSelected) {
@@ -469,14 +463,14 @@ export default function HomePage() {
                     {/* Category Filter */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-400">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-400">
                           Category:
                         </span>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedCategories([])}
-                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedCategories.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          className={`h-auto p-1 text-xs text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white ${selectedCategories.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
                         >
                           <X className="w-3 h-3 mr-1" />
                           Clear
@@ -493,14 +487,11 @@ export default function HomePage() {
                               variant="outline"
                               className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
                                 isSelected
-                                  ? "text-white bg-white/10"
-                                  : "text-white bg-transparent"
+                                  ? "!bg-black !text-white !border-black dark:!bg-white/10 dark:!text-white dark:!border-white"
+                                  : "!bg-transparent !text-black !border-black dark:!bg-transparent dark:!text-white dark:!border-[#3A3A3A]"
                               }`}
                               style={{
                                 borderRadius: "79px",
-                                border: isSelected
-                                  ? "1px solid #FFFFFF"
-                                  : "1px solid #3A3A3A",
                               }}
                               onClick={() => {
                                 const categoryLower = category.toLowerCase();
@@ -528,14 +519,14 @@ export default function HomePage() {
                     {/* Endorser Filter */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-400">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-400">
                           Endorser:
                         </span>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedEndorsers([])}
-                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedEndorsers.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          className={`h-auto p-1 text-xs text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white ${selectedEndorsers.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
                         >
                           <X className="w-3 h-3 mr-1" />
                           Clear
@@ -543,7 +534,7 @@ export default function HomePage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {endorserOptions.length === 0 ? (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-gray-600 dark:text-gray-400">
                             No endorsers available
                           </span>
                         ) : (
@@ -557,14 +548,11 @@ export default function HomePage() {
                                 variant="outline"
                                 className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
                                   isSelected
-                                    ? "text-white bg-white/10"
-                                    : "text-white bg-transparent"
+                                    ? "!bg-black !text-white !border-black dark:!bg-white/10 dark:!text-white dark:!border-white"
+                                    : "!bg-transparent !text-black !border-black dark:!bg-transparent dark:!text-white dark:!border-[#3A3A3A]"
                                 }`}
                                 style={{
                                   borderRadius: "79px",
-                                  border: isSelected
-                                    ? "1px solid #FFFFFF"
-                                    : "1px solid #3A3A3A",
                                 }}
                                 onClick={() => {
                                   setSelectedEndorsers((prev) =>
@@ -588,14 +576,14 @@ export default function HomePage() {
                     {/* Status Filter */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-400">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-400">
                           Status:
                         </span>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedStatuses([])}
-                          className={`h-auto p-1 text-xs text-gray-400 hover:text-white ${selectedStatuses.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                          className={`h-auto p-1 text-xs text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white ${selectedStatuses.length > 0 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
                         >
                           <X className="w-3 h-3 mr-1" />
                           Clear
@@ -612,14 +600,11 @@ export default function HomePage() {
                                 variant="outline"
                                 className={`cursor-pointer px-3 py-1 text-sm transition-all hover:opacity-80 ${
                                   isSelected
-                                    ? "text-white bg-white/10"
-                                    : "text-white bg-transparent"
+                                    ? "!bg-black !text-white !border-black dark:!bg-white/10 dark:!text-white dark:!border-white"
+                                    : "!bg-transparent !text-black !border-black dark:!bg-transparent dark:!text-white dark:!border-[#3A3A3A]"
                                 }`}
                                 style={{
                                   borderRadius: "79px",
-                                  border: isSelected
-                                    ? "1px solid #FFFFFF"
-                                    : "1px solid #3A3A3A",
                                 }}
                                 onClick={() => {
                                   if (isSelected) {
@@ -646,7 +631,7 @@ export default function HomePage() {
                     </div>
 
                     {/* Expiration Filter */}
-                    <div className="inline-flex w-fit items-center gap-3 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 px-4 py-2">
+                    <div className="inline-flex w-fit items-center gap-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 px-4 py-2 bg-white/50 dark:bg-transparent">
                       <Switch
                         checked={excludeExpired}
                         onCheckedChange={(checked) => {
@@ -656,10 +641,10 @@ export default function HomePage() {
                         aria-label="Toggle to hide expired campaigns"
                       />
                       <div className="space-y-0.5">
-                        <p className="text-sm font-medium text-muted-foreground">
+                        <p className="text-sm font-medium text-gray-700 dark:text-muted-foreground">
                           Exclude expired events
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-gray-600 dark:text-muted-foreground">
                           Hide campaigns whose quests have ended.
                         </p>
                       </div>
@@ -673,10 +658,25 @@ export default function HomePage() {
           {/* All Campaigns */}
           <div id="all-campaigns" className="mb-12">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">
+              <h2
+                className="text-[#0000FF] dark:text-white text-2xl font-bold "
+                style={{
+                  fontFamily: "Pixellari, monospace",
+                  lineHeight: "165%",
+                  fontWeight: 500,
+                  fontStyle: "normal",
+                  textTransform: "none",
+                  letterSpacing: "normal",
+                  WebkitFontSmoothing: "none",
+                  textRendering: "optimizeSpeed",
+                }}
+              >
                 {hasActiveFilters ? "Filtered Campaigns" : "Other Campaigns"}
               </h2>
-              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+              <Badge
+                variant="outline"
+                className="bg-black text-white dark:bg-gray-800 dark:text-white"
+              >
                 {filteredCampaigns.length} campaigns
               </Badge>
             </div>
@@ -734,11 +734,11 @@ export default function HomePage() {
 
             {filteredCampaigns.length === 0 && (
               <div className="text-center py-12">
-                <Star className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-xl font-semibold mb-2">
+                <Star className="w-16 h-16 mx-auto mb-4 text-gray-400 dark:text-muted-foreground opacity-50" />
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
                   No campaigns found
                 </h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-gray-600 dark:text-muted-foreground mb-4">
                   Try adjusting your search terms or filters to find campaigns
                   that match your interests.
                 </p>
@@ -750,6 +750,7 @@ export default function HomePage() {
                     setSelectedStatuses([]);
                   }}
                   variant="outline"
+                  className="border-gray-400 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   Clear Filters
                 </Button>

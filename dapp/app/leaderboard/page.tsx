@@ -345,16 +345,16 @@ export default function Leaderboard() {
           {combinedError && (
             <div className="relative w-full justify-self-center mb-8">
               {/* Four corner square indents - aligned with card border corners */}
-              <div className="absolute top-0 left-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20" />
+              <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
               <div
-                className="absolute top-0 right-0 w-4 h-4 bg-[#1b1b1b] dark:bg-[#1b1b1b] z-20"
+                className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                 style={{
                   boxShadow: "inset 1px 0 0 0 #1F2937",
                   borderLeft: "3px solid #535353",
                 }}
               />
               <div
-                className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                 style={{
                   boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                   borderTop: "3px solid #535353",
@@ -362,9 +362,8 @@ export default function Leaderboard() {
                 }}
               />
               <div
-                className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
                 style={{
-                  boxShadow: "inset 0 1px 0 0 #1F2937",
                   borderTop: "3px solid #535353",
                 }}
               />
@@ -382,16 +381,16 @@ export default function Leaderboard() {
             <div className="lg:col-span-2 space-y-6">
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -400,9 +399,8 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
-                    boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                   }}
                 />
@@ -467,16 +465,16 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -485,9 +483,8 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
-                    boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                   }}
                 />
@@ -589,16 +586,16 @@ export default function Leaderboard() {
             <div className="space-y-6">
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -607,9 +604,8 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
-                    boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                   }}
                 />
@@ -661,16 +657,16 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -679,9 +675,8 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
-                    boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                   }}
                 />
@@ -773,16 +768,16 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
                     boxShadow:
                       "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
@@ -791,9 +786,8 @@ export default function Leaderboard() {
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
                   style={{
-                    boxShadow: "inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                   }}
                 />
@@ -876,7 +870,8 @@ export default function Leaderboard() {
             maxHeight: "35vh",
             imageRendering: "pixelated",
             opacity: 1,
-            filter: "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
           }}
         />
         {/* Second rabbit - center */}
@@ -892,7 +887,8 @@ export default function Leaderboard() {
             maxHeight: "55vh",
             imageRendering: "pixelated",
             opacity: 1,
-            filter: "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
           }}
         />
         {/* Third rabbit - right */}
@@ -908,7 +904,8 @@ export default function Leaderboard() {
             maxHeight: "25vh",
             imageRendering: "pixelated",
             opacity: 1,
-            filter: "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
           }}
         />
       </div>

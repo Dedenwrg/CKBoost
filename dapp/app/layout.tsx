@@ -25,7 +25,7 @@ const navbar = (
         <img
           src="/assets/branding/CKBoost Pixel Art Logo - Navigation.svg"
           alt="CKBoost"
-          className="h-8 w-auto"
+          className="h-8 w-auto dark:brightness-100 brightness-0"
           style={{ imageRendering: "pixelated" }}
         />
       </div>
@@ -42,7 +42,7 @@ const navbar = (
 );
 
 const footer = (
-  <div style={{ position: 'relative', zIndex: 20, backgroundColor: '#000000' }}>
+  <div style={{ position: "relative", zIndex: 20, backgroundColor: "#000000" }}>
     <Footer>© {new Date().getFullYear()} CKBoost.</Footer>
   </div>
 );
@@ -55,7 +55,7 @@ const configuredLogLevel = parseLogLevel(
     process.env.NEXT_PUBLIC_LOG_LEVEL ??
     process.env.CKBOOST_LOG_LEVEL ??
     process.env.LOG_LEVEL,
-  defaultLogLevel
+  defaultLogLevel,
 );
 
 setLogLevel(configuredLogLevel);

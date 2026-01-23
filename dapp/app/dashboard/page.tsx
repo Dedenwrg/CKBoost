@@ -914,7 +914,7 @@ export default function Dashboard() {
       />
       {/* Rabbit in top-right corner */}
       <div
-        className="fixed top-0 right-0 overflow-hidden pointer-events-none"
+        className="fixed top-0 right-0 overflow-hidden pointer-events-none dark:brightness-100 brightness-0"
         style={{
           zIndex: 1,
           width: "40vw",
@@ -933,7 +933,8 @@ export default function Dashboard() {
             maxHeight: "400px",
             imageRendering: "pixelated",
             opacity: 0.7,
-            filter: "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
             transform: "rotate(-15deg)",
           }}
         />
@@ -1364,10 +1365,10 @@ export default function Dashboard() {
           </div>
         </div>
       </main>
-      
+
       {/* Rabbit on Logo at bottom */}
       <div
-        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none"
+        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none dark:brightness-100 brightness-0"
         style={{
           zIndex: 1,
           height: "400px",

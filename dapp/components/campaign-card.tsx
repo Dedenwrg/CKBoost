@@ -117,28 +117,28 @@ export function CampaignCard({
     switch (difficulty.toLowerCase()) {
       case "beginner":
       case "easy":
-        return "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100";
+        return "bg-black text-white dark:bg-green-800 dark:text-green-100";
       case "medium":
-        return "bg-cyan-100 dark:bg-cyan-800 text-cyan-900 dark:text-cyan-100";
+        return "bg-black text-white dark:bg-cyan-800 dark:text-cyan-100";
       case "advanced":
-        return "bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-100";
+        return "bg-black text-white dark:bg-red-800 dark:text-red-100";
       default:
-        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100";
+        return "bg-black text-white dark:bg-gray-700 dark:text-gray-100";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "active":
-        return "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-100";
+        return "bg-black text-white dark:bg-green-800 dark:text-green-100";
       case "ending-soon":
-        return "bg-orange-100 dark:bg-orange-800 text-orange-800 dark:text-orange-100";
+        return "bg-black text-white dark:bg-orange-800 dark:text-orange-100";
       case "upcoming":
-        return "bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-100";
+        return "bg-black text-white dark:bg-blue-800 dark:text-blue-100";
       case "completed":
-        return "bg-yellow-100 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100";
+        return "bg-black text-white dark:bg-yellow-800 dark:text-yellow-100";
       default:
-        return "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100";
+        return "bg-black text-white dark:bg-gray-700 dark:text-gray-100";
     }
   };
 
@@ -160,34 +160,31 @@ export function CampaignCard({
     <div className="relative w-full max-w-[420px] md:w-[420px] justify-self-center ">
       {/* Four corner square indents - aligned with card border corners */}
       {/* Top-left: no border */}
-      <div className="absolute top-0 left-0 w-4 h-4 bg-black dark:bg-black z-20" />
+      <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
       {/* Top-right: left border (inset) */}
       <div
-        className="absolute top-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+        className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
         style={{
-          boxShadow: "inset 1px 0 0 0 #1F2937",
           borderLeft: "3px solid #535353",
         }}
       />
       {/* Bottom-right: top and left border (inset) */}
       <div
-        className="absolute bottom-0 right-0 w-4 h-4 bg-black dark:bg-black z-20"
+        className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
         style={{
-          boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
           borderTop: "3px solid #535353",
           borderLeft: "3px solid #535353",
         }}
       />
       {/* Bottom-left: top border (inset) */}
       <div
-        className="absolute bottom-0 left-0 w-4 h-4 bg-black dark:bg-black z-20"
+        className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
         style={{
-          boxShadow: "inset 0 1px 0 0 #1F2937",
           borderTop: "3px solid #535353",
         }}
       />
       <Card
-        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-0 border-l-0 relative z-10"
+        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-0 border-l-0 relative z-10"
         style={{
           borderRadius: "8px",
         }}
@@ -244,7 +241,7 @@ export function CampaignCard({
             {isExpired ? (
               <Badge
                 variant="outline"
-                className="bg-white/90 dark:bg-gray-900/70 text-red-600 dark:text-red-300 border-red-200 dark:border-red-500"
+                className="bg-black text-white dark:bg-gray-900/70 dark:text-red-300 border-black dark:border-red-500"
               >
                 <AlertTriangle className="w-3 h-3 mr-1" />
                 Event ended
@@ -252,7 +249,7 @@ export function CampaignCard({
             ) : (
               <Badge
                 variant="outline"
-                className="bg-white/90 dark:bg-gray-800 dark:text-gray-200"
+                className="bg-black text-white dark:bg-gray-800 dark:text-gray-200 border-black dark:border-gray-700"
               >
                 <Clock className="w-3 h-3 mr-1" />
                 {getDaysUntilEnd(campaign.endDate)}d left
@@ -264,13 +261,13 @@ export function CampaignCard({
         <CardHeader className="flex-shrink-0 max-w-[420px]">
           <div className="flex items-start justify-between width-full">
             <div className="flex-1 w-full">
-              <CardTitle className="text-lg mb-2 break-words whitespace-normal w-full text-white">
+              <CardTitle className="text-lg mb-2 break-words whitespace-normal w-full text-black dark:text-white">
                 {campaign.title}
               </CardTitle>
-              <p className="text-sm text-gray-400 mb-3 break-words whitespace-normal">
+              <p className="text-sm text-[#696969] dark:text-gray-400 mb-3 break-words whitespace-normal">
                 {campaign.shortDescription}
               </p>
-              <div className="text-xs text-gray-400 break-words whitespace-normal">
+              <div className="text-xs text-[#696969] dark:text-gray-400 break-words whitespace-normal">
                 Endorsed by {campaign.endorserName}
               </div>
             </div>
@@ -279,7 +276,7 @@ export function CampaignCard({
 
         <CardContent className="flex-1 flex flex-col">
           {/* Main content - anchored near action button with minimal spacing */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col dark:text-white text-black">
             <div className="space-y-4 mt-auto mb-0">
               {/* Categories */}
               <div className="flex flex-wrap gap-1">
@@ -293,8 +290,8 @@ export function CampaignCard({
                       variant="outline"
                       className={`text-xs rounded-full cursor-pointer hover:opacity-80 transition-all ${
                         isSelected
-                          ? "text-white bg-white/10"
-                          : "text-white bg-transparent"
+                          ? "bg-black text-white dark:bg-white/10 dark:text-white"
+                          : "bg-black text-white dark:bg-transparent dark:text-white"
                       }`}
                       style={{
                         borderRadius: "79px",
@@ -332,7 +329,7 @@ export function CampaignCard({
 
               {/* Progress (time-based, consistent with campaign detail) */}
               <div className="space-y-2">
-                <div className="flex justify-between text-sm text-white">
+                <div className="flex justify-between text-sm text-black dark:text-white">
                   <span>Campaign Progress</span>
                   <span>{getProgressPercentage().toFixed(0)}%</span>
                 </div>
@@ -359,7 +356,7 @@ export function CampaignCard({
                     }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-gray-400">
+                <div className="flex justify-between text-xs text-[#696969] dark:text-gray-400">
                   <span>
                     Started: {formatDateConsistent(campaign.startDate)}
                   </span>
@@ -369,13 +366,13 @@ export function CampaignCard({
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-2 text-white">
+                <div className="flex items-center gap-2 text-black dark:text-white">
                   <Users className="w-4 h-4 text-blue-400" />
                   <span>
                     {Number(campaign.total_completions || 0)} completions
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-white">
+                <div className="flex items-center gap-2 text-black dark:text-white">
                   <Calendar className="w-4 h-4 text-orange-400" />
                   <span>
                     Ends {new Date(campaign.endDate).toLocaleDateString()}
@@ -385,11 +382,11 @@ export function CampaignCard({
 
               {/* Rewards */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-white">
+                <div className="flex items-center gap-2 text-sm font-medium dark:text-white text-black">
                   <Trophy className="w-4 h-4 text-yellow-400" />
                   <span>Total Rewards per User</span>
                 </div>
-                <div className="flex items-center gap-4 text-sm text-white">
+                <div className="flex items-center gap-4 text-sm text-black dark:text-white">
                   <div className="flex items-center gap-1">
                     <Trophy className="w-3 h-3 text-yellow-400" />
                     <span>
@@ -657,22 +654,15 @@ export function CampaignCard({
                     ? "View campaign details"
                     : "Go to campaign and start completing quests"
                 }
-                variant={isExpired ? "outline" : undefined}
+                variant={isExpired ? undefined : undefined}
                 className={
                   isExpired
-                    ? "w-full border-dashed border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100"
-                    : "w-full rounded-full text-white font-semibold shadow-lg border-0 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 hover:opacity-90 transition-opacity"
-                }
-                style={
-                  !isExpired
-                    ? {
-                        backgroundColor: "#0000FF",
-                      }
-                    : undefined
+                    ? "w-full rounded-full text-black bg-white font-semibold shadow-lg border-0 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 hover:opacity-90 transition-opacity"
+                    : "w-full rounded-full text-white font-semibold shadow-lg border-0 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 hover:opacity-90 transition-opacity bg-[#FF4D00] dark:bg-[#0000FF]"
                 }
               >
                 {isExpired ? (
-                  "View Details"
+                  `View Campaign (Ended on ${formatDateConsistent(campaign.endDate)})`
                 ) : (
                   <>
                     Get Started! <ArrowRight className="w-4 h-4 ml-1 inline" />
@@ -680,11 +670,6 @@ export function CampaignCard({
                 )}
               </Button>
             </Link>
-            {isExpired && (
-              <p className="text-xs text-center text-muted-foreground mt-2">
-                Ended on {formatDateConsistent(campaign.endDate)}
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>

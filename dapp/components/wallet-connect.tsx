@@ -442,12 +442,11 @@ export function WalletConnect() {
           "transition-all duration-200",
           "disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-          "hover:opacity-90 active:opacity-80"
+          "bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00]",
+          "dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]",
+          "shadow-[0_0_12px_rgba(255,77,0,0.4),0_0_20px_rgba(255,77,0,0.2)]",
+          "dark:shadow-[0_0_12px_rgba(51,0,255,0.4),0_0_20px_rgba(51,0,255,0.2)]"
         )}
-        style={{
-          backgroundColor: "#3300FF",
-          boxShadow: "0 0 12px rgba(51, 0, 255, 0.4), 0 0 20px rgba(51, 0, 255, 0.2)",
-        }}
       >
         {isConnecting ? (
           <>
@@ -475,12 +474,12 @@ export function WalletConnect() {
               "border-0",
               "transition-all duration-200",
               "hover:opacity-90 active:opacity-80",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+              "bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00]",
+              "dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]",
+              "shadow-[0_0_12px_rgba(255,77,0,0.4),0_0_20px_rgba(255,77,0,0.2)]",
+              "dark:shadow-[0_0_12px_rgba(51,0,255,0.4),0_0_20px_rgba(51,0,255,0.2)]"
             )}
-            style={{
-              backgroundColor: "#3300FF",
-              boxShadow: "0 0 12px rgba(51, 0, 255, 0.4), 0 0 20px rgba(51, 0, 255, 0.2)",
-            }}
           >
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-white" strokeWidth={2} />
