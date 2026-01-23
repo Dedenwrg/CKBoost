@@ -415,16 +415,19 @@ export function Tippings() {
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <Input
             placeholder="Search proposals..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 bg-[#1b1b1b] border-[#535353] text-white placeholder:text-gray-400"
           />
         </div>
         <Link href="/tipping/propose-tipping">
-          <Button className="flex items-center gap-2">
+          <Button 
+            className="flex items-center gap-2 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: "#0000FF" }}
+          >
             <Plus className="w-4 h-4" />
             Propose Tipping
           </Button>
@@ -432,13 +435,13 @@ export function Tippings() {
       </div>
 
       {isLoading && (
-        <div className="text-center text-muted-foreground py-6">
+        <div className="text-center text-gray-400 py-6">
           Loading proposals…
         </div>
       )}
 
       {error && (
-        <div className="text-center text-destructive py-4 text-sm">{error}</div>
+        <div className="text-center text-red-400 py-4 text-sm">{error}</div>
       )}
 
       {/* Proposals List */}
@@ -475,8 +478,8 @@ export function Tippings() {
       {filteredTippings.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">💰</div>
-          <h3 className="text-xl font-semibold mb-2">No proposals found</h3>
-          <p className="text-muted-foreground">
+          <h3 className="text-xl font-semibold mb-2 text-white">No proposals found</h3>
+          <p className="text-gray-400">
             {searchTerm
               ? "Try adjusting your search terms"
               : "Be the first to create a tip proposal!"}

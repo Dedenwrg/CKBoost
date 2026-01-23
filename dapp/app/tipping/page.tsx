@@ -25,11 +25,18 @@ export default function CommunityPage() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-4xl">💰</div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <h1 
+              className="text-4xl font-bold"
+              style={{
+                fontFamily: "Pixellari, monospace",
+                color: "#FFFFFF",
+                textShadow: "0 0 8px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)",
+              }}
+            >
               Community Tipping Proposals
             </h1>
           </div>
-          <p className="text-lg text-muted-foreground mb-6">
+          <p className="text-lg text-white mb-6">
             Discover and support valuable community contributions through tip
             proposals. Vote on community-funded tips or add your own personal
             tips to show appreciation.

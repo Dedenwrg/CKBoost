@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { CardWithIndents } from "@/components/ui/card-with-indents";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -570,8 +571,8 @@ export function TippingCard({
   }, [tipping.data.metadata.creation_timestamp]);
 
   return (
-    <Card className="border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
-      <CardHeader className="pb-4">
+    <CardWithIndents>
+      <CardHeader className="pb-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
         {/* Header */}
         <div className="flex items-stretch justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -579,7 +580,7 @@ export function TippingCard({
               {getTypeIcon(tipping.data.metadata.contribution_type_tags[0])}
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-bold mb-2">
+              <h3 className="text-xl font-bold mb-2 text-white">
                 {tipping.data.metadata.contribution_title}
               </h3>
               <div className="flex items-center gap-2 mb-2">
@@ -587,18 +588,18 @@ export function TippingCard({
                   variant="outline"
                   className={`${getTypeColor(
                     tipping.data.metadata.contribution_type_tags[0]
-                  )} whitespace-nowrap`}
+                  )} whitespace-nowrap border-gray-700`}
                 >
                   {tipping.data.metadata.contribution_type_tags[0]}
                 </Badge>
               </div>
-              <p className="text-muted-foreground mb-3">
+              <p className="text-gray-400 mb-3">
                 {tipping.data.metadata.short_description}
               </p>
             </div>
           </div>
           <div className="text-right flex flex-col items-end h-full">
-            <div className="text-2xl font-bold text-yellow-600 whitespace-nowrap">
+            <div className="text-2xl font-bold text-yellow-400 whitespace-nowrap">
               {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB
             </div>
             <div className="mt-1">{getStatusBadge()}</div>
@@ -606,19 +607,19 @@ export function TippingCard({
         </div>
 
         {/* Recipient & Proposer Info */}
-        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-700">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-200 to-blue-200 flex items-center justify-center font-semibold">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center font-semibold text-white">
               {ccc
                 .hexFrom(tipping.data.target_lock_hash)
                 .charAt(0)
                 .toUpperCase()}
             </div>
             <div>
-              <div className="font-semibold">
+              <div className="font-semibold text-white">
                 {ccc.hexFrom(tipping.data.target_lock_hash)}
               </div>
-              <div className="text-sm text-muted-foreground font-mono">
+              <div className="text-sm text-gray-400 font-mono">
                 {ccc.hexFrom(tipping.data.target_lock_hash).slice(0, 8)}...
                 {ccc.hexFrom(tipping.data.target_lock_hash).slice(-6)}
               </div>
@@ -627,10 +628,10 @@ export function TippingCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
         {/* Justification */}
-        <div className="p-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="text-sm font-medium mb-2">Justification:</div>
+        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+          <div className="text-sm font-medium mb-2 text-white">Justification:</div>
           {isResolvingLongDescription ? (
             <div className="text-sm text-muted-foreground italic">
               Loading description from Nostr…
@@ -691,15 +692,15 @@ export function TippingCard({
         {/* Community Tip Progress */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Users className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <Users className="w-4 h-4 text-white" />
               Community Tipping Progress
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowDetails(!showDetails)}
-              className="text-xs"
+              className="text-xs text-gray-400 hover:text-white"
             >
               <Eye className="w-3 h-3 mr-1" />
               {showDetails ? "Hide" : "Show"} Details
@@ -708,7 +709,7 @@ export function TippingCard({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
+              <span className="text-gray-400">
                 {tipping.data.status === "pending" && approvalsNeeded > 0
                   ? `Needs ${approvalsNeeded} more approval${
                       approvalsNeeded !== 1 ? "s" : ""
@@ -717,7 +718,7 @@ export function TippingCard({
                   ? "Ready for execution"
                   : `${tipping.data.supporter_lock_hashes.length}/${approvalRequirement} approvals`}
               </span>
-              <span className="font-medium">
+              <span className="font-medium text-white">
                 {tipping.data.supporter_lock_hashes.length}/
                 {approvalRequirement}
               </span>
@@ -777,15 +778,15 @@ export function TippingCard({
         </div>
 
         {/* Points Summary */}
-        <div className="rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-3">
-          <p className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-300">
+        <div className="rounded-lg border border-indigo-700 bg-indigo-900/20 p-3">
+          <p className="text-xs uppercase tracking-wide text-indigo-300">
             {hasGrantedStatus ? "Granted Points" : "Pending Points"}
           </p>
-          <p className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">
+          <p className="text-lg font-semibold text-indigo-100">
             {basePointsAmount}
           </p>
           {!hasGrantedStatus && (
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-[10px] text-gray-400 mt-1">
               Points will be distributed once the tip is granted.
             </p>
           )}
@@ -798,8 +799,8 @@ export function TippingCard({
           <div className="space-y-3">
             <Separator />
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Gift className="w-4 h-4 text-green-600" />
+              <div className="flex items-center gap-2 text-sm font-medium text-white">
+                <Gift className="w-4 h-4 text-green-400" />
                 Additional Tips ({totalAdditionalTips} CKB)
               </div>
             </div>
@@ -826,23 +827,23 @@ export function TippingCard({
                 return (
                   <div
                     key={key}
-                    className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
+                    className="flex items-center gap-3 p-3 bg-green-900/20 rounded-lg border border-green-700"
                   >
                     <Avatar className="w-8 h-8">
-                      <AvatarFallback className="text-sm bg-gradient-to-br from-green-200 to-emerald-200">
+                      <AvatarFallback className="text-sm bg-gradient-to-br from-green-400 to-emerald-400 text-white">
                         {from.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-sm break-all">
+                        <span className="font-medium text-sm break-all text-white">
                           {from}
                         </span>
-                        <span className="text-green-600 font-semibold text-sm">
+                        <span className="text-green-400 font-semibold text-sm">
                           {amount} CKB
                         </span>
                         {timestamp && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-gray-400">
                             {timestamp}
                           </span>
                         )}
@@ -889,12 +890,10 @@ export function TippingCard({
               onClick={handleApprove}
               disabled={isApproving || hasViewerApproved || !onApprove}
               size="sm"
-              className={`${
-                hasViewerApproved
-                  ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-900"
-                  : "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
-              }`}
-              variant={hasViewerApproved ? "outline" : "default"}
+              className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+              style={{
+                backgroundColor: hasViewerApproved ? "#10B981" : "#0000FF",
+              }}
             >
               {isApproving ? (
                 <>
@@ -921,8 +920,8 @@ export function TippingCard({
           <Button
             onClick={() => setIsAdditionalTipModalOpen(true)}
             size="sm"
-            variant="outline"
-            className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30"
+            className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: "#10B981" }}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Personal Tip
@@ -1080,7 +1079,8 @@ export function TippingCard({
                 !additionalTipAmount ||
                 Number.parseFloat(additionalTipAmount) <= 0
               }
-              className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+              className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+              style={{ backgroundColor: "#10B981" }}
             >
               {isSendingTip ? (
                 <>
@@ -1097,6 +1097,6 @@ export function TippingCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </CardWithIndents>
   );
 }
