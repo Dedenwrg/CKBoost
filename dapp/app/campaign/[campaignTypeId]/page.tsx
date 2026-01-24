@@ -2,13 +2,14 @@
 "use client";
 
 import { useState, useEffect, useMemo, JSX } from "react";
-import { useParams } from "next/navigation";import {
-  Card,
+import { useParams } from "next/navigation";
+import {
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { CardWithIndents } from "@/components/ui/card-with-indents";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -107,7 +108,7 @@ const formatLongDescriptionHtml = (content: string): string => {
 const SHANNON_FACTOR = 10n ** 8n;
 
 const formatCkbAmount = (
-  value: ccc.NumLike | bigint | number | string | null | undefined
+  value: ccc.NumLike | bigint | number | string | null | undefined,
 ): string => {
   if (value === null || value === undefined) {
     return "0";
@@ -118,8 +119,8 @@ const formatCkbAmount = (
       typeof value === "bigint"
         ? value
         : typeof value === "number"
-        ? BigInt(Math.floor(value))
-        : BigInt(ccc.numFrom(value as ccc.NumLike));
+          ? BigInt(Math.floor(value))
+          : BigInt(ccc.numFrom(value as ccc.NumLike));
 
     const integer = bigintValue / SHANNON_FACTOR;
     const fractional = bigintValue % SHANNON_FACTOR;
@@ -154,7 +155,7 @@ export default function CampaignDetailPage() {
   } = useUser();
   const { fetchSubmission } = useNostrFetch();
   const [resolvedDescription, setResolvedDescription] = useState<string | null>(
-    null
+    null,
   );
   const [descriptionLoading, setDescriptionLoading] = useState(false);
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
@@ -164,7 +165,7 @@ export default function CampaignDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedQuestIndex, setSelectedQuestIndex] = useState<number | null>(
-    null
+    null,
   );
   const [questSubmissionStatuses, setQuestSubmissionStatuses] = useState<
     Record<number, boolean>
@@ -173,7 +174,7 @@ export default function CampaignDetailPage() {
   const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
   const [isStaff, setIsStaff] = useState(false);
   const [fundingData, setFundingData] = useState<Map<ccc.Hex, bigint>>(
-    new Map()
+    new Map(),
   );
   const [fundingCkb, setFundingCkb] = useState<bigint>(0n);
   const [isLoadingFunding, setIsLoadingFunding] = useState(true);
@@ -243,7 +244,7 @@ export default function CampaignDetailPage() {
           fundingLockCodeHash,
           campaignTypeCodeHash,
           protocolCellTypeHash,
-          signer
+          signer,
         );
 
         let nativeCkbBalance = 0n;
@@ -319,7 +320,7 @@ export default function CampaignDetailPage() {
         const protocolTypeHash = protocolCell.cellOutput.type?.hash();
         const protocolLockCodeHash = deploymentManager.getContractCodeHash(
           deploymentManager.getCurrentNetwork(),
-          "ckboostProtocolLock"
+          "ckboostProtocolLock",
         );
 
         if (!protocolTypeHash || !protocolLockCodeHash) {
@@ -358,7 +359,7 @@ export default function CampaignDetailPage() {
     try {
       const staffHashes =
         campaign.staff_lock_hash_vec?.map((hash) =>
-          ccc.hexFrom(hash as ccc.HexLike).toLowerCase()
+          ccc.hexFrom(hash as ccc.HexLike).toLowerCase(),
         ) ?? [];
       setIsStaff(staffHashes.includes(viewerLockHash));
     } catch (error) {
@@ -400,18 +401,17 @@ export default function CampaignDetailPage() {
           setIsLoading(false);
           return;
         }
-        const { fetchCampaignByTypeId } = await import(
-          "@/lib/ckb/campaign-cells"
-        );
+        const { fetchCampaignByTypeId } =
+          await import("@/lib/ckb/campaign-cells");
         const cell = await fetchCampaignByTypeId(
           campaignTypeId,
           campaignCodeHash,
           client,
-          protocolCell
+          protocolCell,
         );
         if (cell) {
           const campaignData = CampaignData.decode(
-            cell.outputData
+            cell.outputData,
           ) as CampaignDataLike;
           setCampaign({
             ...campaignData,
@@ -462,7 +462,7 @@ export default function CampaignDetailPage() {
         } else if (rawDescription.startsWith("0x")) {
           try {
             decodedContent = new TextDecoder().decode(
-              ccc.bytesFrom(rawDescription)
+              ccc.bytesFrom(rawDescription),
             );
           } catch (error) {
             log.warn("Failed to decode hex long description", error);
@@ -471,7 +471,7 @@ export default function CampaignDetailPage() {
         }
 
         const html = formatLongDescriptionHtml(
-          extractHtmlFromContent(decodedContent)
+          extractHtmlFromContent(decodedContent),
         );
 
         if (!cancelled) {
@@ -485,7 +485,7 @@ export default function CampaignDetailPage() {
           setDescriptionError(
             error instanceof Error
               ? error.message
-              : "Failed to load campaign description."
+              : "Failed to load campaign description.",
           );
         }
       } finally {
@@ -514,7 +514,7 @@ export default function CampaignDetailPage() {
         const submitted = await hasUserSubmittedQuest(
           currentUserTypeId,
           campaignTypeId,
-          questId
+          questId,
         );
         statuses[questId] = submitted;
       }
@@ -580,16 +580,34 @@ export default function CampaignDetailPage() {
   // Only show "not found" if we've finished loading and there's no campaign
   if (!campaign) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-white dark:bg-black">
+        {/* Starlight background */}
+        <div
+          className="fixed inset-0 overflow-hidden pointer-events-none bg-white dark:bg-black"
+          style={{
+            zIndex: 0,
+            backgroundImage: `url('/assets/Base%20UI/Starlight%20background.svg')`,
+            backgroundSize: "100vw 100vh",
+            backgroundRepeat: "no-repeat",
+            backgroundPosition: "center",
+            imageRendering: "pixelated",
+            width: "100%",
+            height: "100%",
+          }}
+        />
+        <main
+          className="container mx-auto px-4 py-8 relative"
+          style={{ zIndex: 10 }}
+        >
           <div className="max-w-7xl mx-auto">
-            <Card>
-              <CardContent className="py-16">
+            <CardWithIndents>
+              <CardContent className="py-16 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                 <div className="text-center">
-                  <Trophy className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <h2 className="text-2xl font-bold mb-2">
+                  <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-600 dark:text-muted-foreground opacity-50" />
+                  <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">
                     Campaign Not Found
                   </h2>
-                  <p className="text-muted-foreground mb-6">
+                  <p className="text-gray-600 dark:text-muted-foreground mb-6">
                     The campaign you're looking for doesn't exist or has been
                     removed.
                   </p>
@@ -601,7 +619,7 @@ export default function CampaignDetailPage() {
                   </Link>
                 </div>
               </CardContent>
-            </Card>
+            </CardWithIndents>
           </div>
         </main>
       </div>
@@ -625,10 +643,10 @@ export default function CampaignDetailPage() {
   };
 
   const getEndorserInfo = (
-    endorserLockHash: ccc.Hex
+    endorserLockHash: ccc.Hex,
   ): EndorserInfoLike | undefined => {
     return protocolData?.endorsers_whitelist.find(
-      (e) => e.endorser_lock_hash === endorserLockHash
+      (e) => e.endorser_lock_hash === endorserLockHash,
     );
   };
 
@@ -662,7 +680,7 @@ export default function CampaignDetailPage() {
   // Check if campaign is approved using helper function
   const isApproved = isCampaignApproved(
     campaignTypeId,
-    protocolData?.campaigns_approved as ccc.Hex[] | undefined
+    protocolData?.campaigns_approved as ccc.Hex[] | undefined,
   );
 
   // Debug logging for approval status
@@ -680,17 +698,17 @@ export default function CampaignDetailPage() {
   const status = !isApproved
     ? "under-review"
     : now < startDate
-    ? "upcoming"
-    : now > endDate
-    ? "completed"
-    : "active";
+      ? "upcoming"
+      : now > endDate
+        ? "completed"
+        : "active";
   const isCampaignExpired = status === "completed";
 
   // Calculate progress (only if approved)
   const totalDuration = endDate.getTime() - startDate.getTime();
   const elapsed = Math.max(
     0,
-    Math.min(now.getTime() - startDate.getTime(), totalDuration)
+    Math.min(now.getTime() - startDate.getTime(), totalDuration),
   );
   const progress =
     isApproved && totalDuration > 0 ? (elapsed / totalDuration) * 100 : 0;
@@ -701,17 +719,17 @@ export default function CampaignDetailPage() {
       (sum: number, quest: (typeof campaign.quests)[0]) => {
         const perCompletion = Number(quest.points || 0);
         const completions = Number(
-          quest.accepted_submission_user_type_ids?.length || 0
+          quest.accepted_submission_user_type_ids?.length || 0,
         );
         return sum + perCompletion * completions;
       },
-      0
+      0,
     ) || 0;
 
   const questPreviewLimit = 3;
 
   const getQuestRewardSummary = (
-    quest: CampaignDataLike["quests"][number]
+    quest: CampaignDataLike["quests"][number],
   ): string => {
     const parts: string[] = [];
 
@@ -781,8 +799,25 @@ export default function CampaignDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-green-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <main className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-white dark:bg-black">
+      {/* Starlight background - only for main content area, not footer */}
+      <div
+        className="fixed inset-0 overflow-hidden pointer-events-none bg-white dark:bg-black"
+        style={{
+          zIndex: 0,
+          backgroundImage: `url('/assets/Base%20UI/Starlight%20background.svg')`,
+          backgroundSize: "100vw 100vh",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "center",
+          imageRendering: "pixelated",
+          width: "100%",
+          height: "100%",
+        }}
+      />
+      <main
+        className="container mx-auto px-4 py-8 relative"
+        style={{ zIndex: 10 }}
+      >
         <div className="max-w-7xl mx-auto">
           {/* Back Button */}
           <Link href="/">
@@ -797,14 +832,15 @@ export default function CampaignDetailPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Event ended</AlertTitle>
               <AlertDescription>
-                Submissions closed on {formatDateConsistent(endDate)}. You can still review the quests and past rewards below.
+                Submissions closed on {formatDateConsistent(endDate)}. You can
+                still review the quests and past rewards below.
               </AlertDescription>
             </Alert>
           )}
 
           {/* Campaign Header */}
-          <Card className="mb-8">
-            <CardHeader>
+          <CardWithIndents className="mb-8">
+            <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-4">
@@ -818,10 +854,10 @@ export default function CampaignDetailPage() {
                     <div className="flex-1">
                       <div className="flex items-start justify-between">
                         <div>
-                          <CardTitle className="text-3xl">
+                          <CardTitle className="text-3xl text-gray-900 dark:text-white">
                             {campaign.metadata?.title || "Untitled Campaign"}
                           </CardTitle>
-                          <CardDescription className="text-lg mt-1">
+                          <CardDescription className="text-lg mt-1 text-gray-600 dark:text-gray-400">
                             {campaign.metadata?.short_description ||
                               "No description available"}
                           </CardDescription>
@@ -846,12 +882,12 @@ export default function CampaignDetailPage() {
                         <Badge key={index} variant="outline">
                           {category}
                         </Badge>
-                      )
+                      ),
                     )}
                     {campaign.metadata?.difficulty && (
                       <Badge
                         className={getDifficultyColor(
-                          getDifficultyString(campaign.metadata.difficulty)
+                          getDifficultyString(campaign.metadata.difficulty),
                         )}
                       >
                         {getDifficultyString(campaign.metadata.difficulty)}
@@ -871,18 +907,43 @@ export default function CampaignDetailPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
               {/* Campaign Progress - only show if approved */}
               {isApproved ? (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
+                    <span className="text-gray-600 dark:text-muted-foreground">
                       Campaign Progress
                     </span>
-                    <span className="font-medium">{progress.toFixed(0)}%</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {progress.toFixed(0)}%
+                    </span>
                   </div>
-                  <Progress value={progress} className="h-3" />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  {/* Progress bar - match CampaignCard styling */}
+                  <div
+                    className="relative w-full overflow-hidden transition-all"
+                    style={{
+                      height: "17px",
+                      borderRadius: "99px",
+                      background:
+                        "linear-gradient(180deg, #313131 0%, #535353 100%)",
+                      boxShadow: "0 1px 1.7px 0 rgba(0, 0, 0, 0.25) inset",
+                    }}
+                  >
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${progress}%`,
+                        height: "17px",
+                        borderRadius: "99px",
+                        background:
+                          "linear-gradient(180deg, #00FFC3 0%, #00B88D 100%)",
+                        boxShadow:
+                          "3px 0 3.9px 0 rgba(0, 0, 0, 0.14), 0 2px 2px 0 #FFF inset",
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-600 dark:text-muted-foreground">
                     <span>Started: {formatDateConsistent(startDate)}</span>
                     <span>Ends: {formatDateConsistent(endDate)}</span>
                   </div>
@@ -902,60 +963,66 @@ export default function CampaignDetailPage() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </CardWithIndents>
 
           {/* Campaign Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardContent className="p-6">
+            <CardWithIndents>
+              <CardContent className="p-6 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-gray-600 dark:text-muted-foreground">
                       Total Quests
                     </p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {campaign.quests?.length || 0}
                     </p>
                   </div>
                   <Target className="w-8 h-8 text-blue-600" />
                 </div>
               </CardContent>
-            </Card>
+            </CardWithIndents>
 
-            <Card>
-              <CardContent className="p-6">
+            <CardWithIndents>
+              <CardContent className="p-6 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-gray-600 dark:text-muted-foreground">
                       Total Points
                     </p>
-                    <p className="text-2xl font-bold">{totalPoints}</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {totalPoints}
+                    </p>
                   </div>
                   <Trophy className="w-8 h-8 text-yellow-600" />
                 </div>
               </CardContent>
-            </Card>
+            </CardWithIndents>
 
-            <Card>
-              <CardContent className="p-6">
+            <CardWithIndents>
+              <CardContent className="p-6 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Completions</p>
-                    <p className="text-2xl font-bold">
+                    <p className="text-sm text-gray-600 dark:text-muted-foreground">
+                      Completions
+                    </p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {Number(campaign.total_completions || 0)}
                     </p>
                   </div>
                   <Users className="w-8 h-8 text-purple-600" />
                 </div>
               </CardContent>
-            </Card>
+            </CardWithIndents>
 
-            <Card>
-              <CardContent className="p-6">
+            <CardWithIndents>
+              <CardContent className="p-6 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Created By</p>
-                    <p className="text-sm font-medium truncate">
+                    <p className="text-sm text-gray-600 dark:text-muted-foreground">
+                      Created By
+                    </p>
+                    <p className="text-sm font-medium truncate text-gray-900 dark:text-white">
                       {getEndorserInfo(ccc.hexFrom(campaign.endorser_lock_hash))
                         ?.endorser_name ?? "Unknown"}
                     </p>
@@ -963,23 +1030,42 @@ export default function CampaignDetailPage() {
                   <Star className="w-8 h-8 text-yellow-600" />
                 </div>
               </CardContent>
-            </Card>
+            </CardWithIndents>
           </div>
 
           {/* Main Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="quests">Quests</TabsTrigger>
-              <TabsTrigger value="rewards">Rewards</TabsTrigger>
+            <TabsList
+              className="grid w-full grid-cols-3 rounded-full bg-[#F2FAF4] dark:bg-[#1b1b1b] p-1 border border-gray-300 dark:border-[#535353]"
+            >
+              <TabsTrigger
+                value="overview"
+                className="rounded-full text-xs sm:text-sm font-medium data-[state=active]:bg-[#FF4D00] dark:data-[state=active]:bg-[#3300FF] data-[state=active]:text-white data-[state=inactive]:text-gray-700 dark:data-[state=inactive]:text-gray-300 data-[state=inactive]:bg-transparent transition-colors"
+              >
+                Overview
+              </TabsTrigger>
+              <TabsTrigger
+                value="quests"
+                className="rounded-full text-xs sm:text-sm font-medium data-[state=active]:bg-[#FF4D00] dark:data-[state=active]:bg-[#3300FF] data-[state=active]:text-white data-[state=inactive]:text-gray-700 dark:data-[state=inactive]:text-gray-300 data-[state=inactive]:bg-transparent transition-colors"
+              >
+                Quests
+              </TabsTrigger>
+              <TabsTrigger
+                value="rewards"
+                className="rounded-full text-xs sm:text-sm font-medium data-[state=active]:bg-[#FF4D00] dark:data-[state=active]:bg-[#3300FF] data-[state=active]:text-white data-[state=inactive]:text-gray-700 dark:data-[state=inactive]:text-gray-300 data-[state=inactive]:bg-transparent transition-colors"
+              >
+                Rewards
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Campaign Description</CardTitle>
+              <CardWithIndents>
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="text-gray-900 dark:text-white">
+                    Campaign Description
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   {descriptionLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-6 w-2/3" />
@@ -996,38 +1082,40 @@ export default function CampaignDetailPage() {
                       dangerouslySetInnerHTML={{ __html: resolvedDescription }}
                     />
                   ) : (
-                    <p className="text-muted-foreground whitespace-pre-wrap">
+                    <p className="text-gray-600 dark:text-muted-foreground whitespace-pre-wrap">
                       {campaign.metadata?.short_description ||
                         "No detailed description available."}
                     </p>
                   )}
                 </CardContent>
-              </Card>
+              </CardWithIndents>
 
-              <Card>
-                <CardHeader className="flex flex-col items-center gap-4 text-center">
+              <CardWithIndents>
+                <CardHeader className="flex flex-col items-center gap-4 text-center bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <div>
-                    <CardTitle className="text-2xl font-semibold">
+                    <CardTitle className="text-2xl font-semibold text-gray-900 dark:text-white">
                       Quests
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">
                       {isCampaignExpired
                         ? "This event has ended. Review the quests and their requirements below."
                         : "Jump straight into the quest list to start earning points."}
                     </p>
                   </div>
-                  {campaign?.quests && campaign.quests.length > 0 && !isCampaignExpired && (
-                    <Button
-                      size="lg"
-                      onClick={() => setActiveTab("quests")}
-                      aria-label="Open quests tab and start participating"
-                      className="w-full max-w-xs bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 text-white shadow-lg shadow-purple-500/30 hover:shadow-xl border-0 hover:from-purple-500 hover:to-blue-500 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500"
-                    >
-                      Get Started!
-                    </Button>
-                  )}
+                  {campaign?.quests &&
+                    campaign.quests.length > 0 &&
+                    !isCampaignExpired && (
+                      <Button
+                        size="lg"
+                        onClick={() => setActiveTab("quests")}
+                        aria-label="Open quests tab and start participating"
+                        className="w-full max-w-xs bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 border-0 shadow-none transition-colors"
+                      >
+                        Get Started!
+                      </Button>
+                    )}
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   {campaign?.quests && campaign.quests.length > 0 ? (
                     <>
                       {campaign.quests
@@ -1046,69 +1134,75 @@ export default function CampaignDetailPage() {
                           return (
                             <div
                               key={`quest-preview-${questId}`}
-                              className="space-y-2 border-b border-border/60 pb-4 last:border-none last:pb-0"
+                              className="space-y-2 border-b border-gray-300 dark:border-border/60 pb-4 last:border-none last:pb-0"
                             >
                               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                <h4 className="font-medium text-sm sm:text-base">
+                                <h4 className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">
                                   {questTitle}
                                 </h4>
                                 <span className="text-sm font-medium text-green-700 dark:text-green-400">
                                   {rewardSummary}
                                 </span>
                               </div>
-                              <p className="text-sm text-muted-foreground">
+                              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                                 {shortDescription}
                               </p>
                             </div>
                           );
                         })}
                       {campaign.quests.length > questPreviewLimit && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-gray-600 dark:text-muted-foreground">
                           Showing first {questPreviewLimit} of{" "}
                           {campaign.quests.length} quests.
                         </p>
                       )}
                     </>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-gray-600 dark:text-muted-foreground">
                       No quests available yet for this campaign.
                     </p>
                   )}
                 </CardContent>
-              </Card>
+              </CardWithIndents>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Campaign Rules</CardTitle>
+              <CardWithIndents>
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="text-gray-900 dark:text-white">
+                    Campaign Rules
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <ul className="space-y-2">
                     {campaign.rules?.map((rule: string, index: number) => (
                       <li key={index} className="flex items-start gap-2">
                         <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-                        <span>{rule}</span>
+                        <span className="text-gray-900 dark:text-white">
+                          {rule}
+                        </span>
                       </li>
                     )) || (
-                      <li className="text-muted-foreground">
+                      <li className="text-gray-600 dark:text-muted-foreground">
                         No specific rules defined
                       </li>
                     )}
                   </ul>
                 </CardContent>
-              </Card>
+              </CardWithIndents>
             </TabsContent>
 
             <TabsContent value="quests" className="space-y-6">
               {selectedQuestIndex === null ? (
                 // Quest List View
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Campaign Quests</CardTitle>
-                    <CardDescription>
+                <CardWithIndents>
+                  <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                    <CardTitle className="text-gray-900 dark:text-white">
+                      Campaign Quests
+                    </CardTitle>
+                    <CardDescription className="text-gray-600 dark:text-gray-400">
                       Review quest requirements and subtasks
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                     <div className="space-y-4">
                       {campaign?.quests?.map(
                         (quest: (typeof campaign.quests)[0], index: number) => {
@@ -1116,31 +1210,53 @@ export default function CampaignDetailPage() {
                           const hasSubmission =
                             !!questSubmissionStatuses[questId];
                           return (
-                            <div key={index} className="border rounded-lg">
+                            <div
+                              key={index}
+                              className="border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800"
+                            >
                               <div className="p-4">
                                 <div className="flex items-start justify-between mb-3">
                                   <div className="flex-1">
-                                    <h3 className="font-semibold text-lg mb-2">
+                                    <h3 className="font-semibold text-lg mb-2 text-gray-900 dark:text-white">
                                       {quest.metadata?.title ||
                                         `Quest ${questId}`}
                                     </h3>
-                                    <p className="text-sm text-muted-foreground">
+                                    {/* Time and Difficulty badges - below title */}
+                                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                                      {quest.metadata?.time_estimate && (
+                                        <Badge variant="outline">
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          {Number(
+                                            quest.metadata.time_estimate,
+                                          )}{" "}
+                                          mins
+                                        </Badge>
+                                      )}
+                                      {quest.metadata?.difficulty && (
+                                        <Badge variant="outline">
+                                          Difficulty:{" "}
+                                          {Number(quest.metadata.difficulty)}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-muted-foreground">
                                       {quest.metadata?.short_description ||
                                         quest.metadata?.long_description ||
                                         ""}
                                     </p>
                                   </div>
-                                  <div className="flex flex-col items-end gap-2">
-                                    {/* If accepted, show 'You received' label first */}
-                                    {currentUserTypeId &&
-                                      (
-                                        quest.accepted_submission_user_type_ids ||
-                                        []
-                                      ).includes(currentUserTypeId) && (
-                                        <span className="text-xs text-green-700 font-medium">
-                                          You received:
-                                        </span>
-                                      )}
+                                  {/* If accepted, show 'You received' label first */}
+                                  {currentUserTypeId &&
+                                    (
+                                      quest.accepted_submission_user_type_ids ||
+                                      []
+                                    ).includes(currentUserTypeId) && (
+                                      <span className="text-xs text-green-700 font-medium">
+                                        You received:
+                                      </span>
+                                    )}
+                                  {/* Rewards row - green badges (points, UDT, CKB) */}
+                                  <div className="flex flex-wrap items-center gap-2 justify-end">
                                     {/* Points */}
                                     <Badge className="bg-green-100 text-green-800">
                                       <Trophy className="w-3 h-3 mr-1" />
@@ -1152,7 +1268,7 @@ export default function CampaignDetailPage() {
                                       quest.rewards_on_completion.flatMap(
                                         (
                                           rewardList: AssetListLike,
-                                          idx: number
+                                          idx: number,
                                         ) => {
                                           const badges = [] as JSX.Element[];
                                           if (
@@ -1162,19 +1278,19 @@ export default function CampaignDetailPage() {
                                             rewardList.udt_assets.forEach(
                                               (
                                                 udtAsset: UDTAssetLike,
-                                                udtIdx: number
+                                                udtIdx: number,
                                               ) => {
                                                 const script = ccc.Script.from(
-                                                  udtAsset.udt_script
+                                                  udtAsset.udt_script,
                                                 );
                                                 const token =
                                                   udtRegistry.getTokenByScriptHash(
-                                                    script.hash()
+                                                    script.hash(),
                                                   );
                                                 const amount = token
                                                   ? udtRegistry.formatAmount(
                                                       Number(udtAsset.amount),
-                                                      token
+                                                      token,
                                                     )
                                                   : (
                                                       Number(udtAsset.amount) /
@@ -1189,9 +1305,9 @@ export default function CampaignDetailPage() {
                                                   >
                                                     <Coins className="w-3 h-3 mr-1" />
                                                     {amount} {symbol}
-                                                  </Badge>
+                                                  </Badge>,
                                                 );
-                                              }
+                                              },
                                             );
                                           }
                                           if (
@@ -1207,27 +1323,12 @@ export default function CampaignDetailPage() {
                                                 {Number(rewardList.ckb_amount) /
                                                   10 ** 8}{" "}
                                                 CKB
-                                              </Badge>
+                                              </Badge>,
                                             );
                                           }
                                           return badges;
-                                        }
+                                        },
                                       )}
-                                    {quest.metadata?.time_estimate && (
-                                      <Badge variant="outline">
-                                        <Clock className="w-3 h-3 mr-1" />
-                                        {Number(
-                                          quest.metadata.time_estimate
-                                        )}{" "}
-                                        mins
-                                      </Badge>
-                                    )}
-                                    {quest.metadata?.difficulty && (
-                                      <Badge variant="outline">
-                                        Difficulty:{" "}
-                                        {Number(quest.metadata.difficulty)}
-                                      </Badge>
-                                    )}
                                   </div>
                                 </div>
 
@@ -1246,30 +1347,30 @@ export default function CampaignDetailPage() {
                                 {/* Subtasks */}
                                 {quest.sub_tasks &&
                                   quest.sub_tasks.length > 0 && (
-                                    <div className="border-t pt-3">
-                                      <h4 className="font-medium text-sm mb-3">
+                                    <div className="border-t border-gray-300 dark:border-gray-700 pt-3">
+                                      <h4 className="font-medium text-sm mb-3 text-gray-900 dark:text-white">
                                         Subtasks ({quest.sub_tasks.length})
                                       </h4>
                                       <div className="space-y-2">
                                         {quest.sub_tasks.map(
                                           (
                                             subtask: (typeof quest.sub_tasks)[0],
-                                            subIndex: number
+                                            subIndex: number,
                                           ) => (
                                             <div
                                               key={subIndex}
                                               className="flex items-start gap-3 p-2 bg-gray-50 dark:bg-gray-800 rounded"
                                             >
                                               <div className="flex-shrink-0 mt-0.5">
-                                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                                                  <span className="text-xs font-medium text-gray-600">
+                                                <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center">
+                                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
                                                     {Number(subtask.id) ||
                                                       subIndex + 1}
                                                   </span>
                                                 </div>
                                               </div>
                                               <div className="flex-1">
-                                                <p className="text-sm font-medium">
+                                                <p className="text-sm font-medium text-gray-900 dark:text-white">
                                                   {subtask.title ||
                                                     `Subtask ${
                                                       Number(subtask.id) ||
@@ -1277,7 +1378,7 @@ export default function CampaignDetailPage() {
                                                     }`}
                                                 </p>
                                                 {subtask.description && (
-                                                  <p className="text-xs text-muted-foreground mt-1">
+                                                  <p className="text-xs text-gray-600 dark:text-muted-foreground mt-1">
                                                     {subtask.description}
                                                   </p>
                                                 )}
@@ -1302,15 +1403,15 @@ export default function CampaignDetailPage() {
                                                 </div>
                                               </div>
                                             </div>
-                                          )
+                                          ),
                                         )}
                                       </div>
                                     </div>
                                   )}
 
                                 {/* Quest Actions */}
-                                <div className="flex items-center justify-between mt-4 pt-3 border-t">
-                                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-300 dark:border-gray-700">
+                                  <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-muted-foreground">
                                     {(() => {
                                       const userAccepted = currentUserTypeId
                                         ? (
@@ -1340,7 +1441,9 @@ export default function CampaignDetailPage() {
                                         <>
                                           <Users className="w-4 h-4" />
                                           <span>
-                                            {Number(quest.completion_count || 0)}{" "}
+                                            {Number(
+                                              quest.completion_count || 0,
+                                            )}{" "}
                                             completions
                                           </span>
                                         </>
@@ -1351,7 +1454,9 @@ export default function CampaignDetailPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => setSelectedQuestIndex(index)}
+                                      onClick={() =>
+                                        setSelectedQuestIndex(index)
+                                      }
                                     >
                                       {hasSubmission ? (
                                         <>
@@ -1371,7 +1476,10 @@ export default function CampaignDetailPage() {
                                       )}
                                     </Button>
                                   ) : (
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
                                       Available after approval
                                     </Badge>
                                   )}
@@ -1379,18 +1487,18 @@ export default function CampaignDetailPage() {
                               </div>
                             </div>
                           );
-                        }
+                        },
                       ) || (
                         <div className="text-center py-8">
-                          <Target className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                          <p className="text-muted-foreground">
+                          <Target className="w-12 h-12 mx-auto mb-4 text-gray-600 dark:text-muted-foreground opacity-50" />
+                          <p className="text-gray-600 dark:text-muted-foreground">
                             No quests available yet
                           </p>
                         </div>
                       )}
                     </div>
                   </CardContent>
-                </Card>
+                </CardWithIndents>
               ) : (
                 // Quest Detail View
                 <div className="space-y-6">
@@ -1412,15 +1520,15 @@ export default function CampaignDetailPage() {
                       return (
                         <>
                           {/* Quest Header */}
-                          <Card>
-                            <CardHeader>
+                          <CardWithIndents>
+                            <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                               <div className="flex items-start justify-between">
                                 <div>
-                                  <CardTitle className="text-2xl">
+                                  <CardTitle className="text-2xl text-gray-900 dark:text-white">
                                     {quest.metadata?.title ||
                                       `Quest ${selectedQuestIndex + 1}`}
                                   </CardTitle>
-                                  <CardDescription className="mt-2">
+                                  <CardDescription className="mt-2 text-gray-600 dark:text-gray-400">
                                     {quest.metadata?.short_description || ""}
                                   </CardDescription>
                                 </div>
@@ -1446,7 +1554,7 @@ export default function CampaignDetailPage() {
                                     quest.rewards_on_completion.flatMap(
                                       (
                                         rewardList: AssetListLike,
-                                        idx: number
+                                        idx: number,
                                       ) => {
                                         const badges = [] as JSX.Element[];
                                         if (
@@ -1456,19 +1564,19 @@ export default function CampaignDetailPage() {
                                           rewardList.udt_assets.forEach(
                                             (
                                               udtAsset: UDTAssetLike,
-                                              udtIdx: number
+                                              udtIdx: number,
                                             ) => {
                                               const script = ccc.Script.from(
-                                                udtAsset.udt_script
+                                                udtAsset.udt_script,
                                               );
                                               const token =
                                                 udtRegistry.getTokenByScriptHash(
-                                                  script.hash()
+                                                  script.hash(),
                                                 );
                                               const amount = token
                                                 ? udtRegistry.formatAmount(
                                                     Number(udtAsset.amount),
-                                                    token
+                                                    token,
                                                   )
                                                 : (
                                                     Number(udtAsset.amount) /
@@ -1483,9 +1591,9 @@ export default function CampaignDetailPage() {
                                                 >
                                                   <Coins className="w-4 h-4 mr-1" />
                                                   {amount} {symbol}
-                                                </Badge>
+                                                </Badge>,
                                               );
-                                            }
+                                            },
                                           );
                                         }
                                         if (
@@ -1501,17 +1609,17 @@ export default function CampaignDetailPage() {
                                               {Number(rewardList.ckb_amount) /
                                                 10 ** 8}{" "}
                                               CKB
-                                            </Badge>
+                                            </Badge>,
                                           );
                                         }
                                         return badges;
-                                      }
+                                      },
                                     )}
                                   {quest.metadata?.difficulty && (
                                     <Badge variant="outline">
                                       Difficulty:{" "}
                                       {getDifficultyString(
-                                        quest.metadata.difficulty
+                                        quest.metadata.difficulty,
                                       )}
                                     </Badge>
                                   )}
@@ -1519,7 +1627,7 @@ export default function CampaignDetailPage() {
                                     <Badge variant="outline">
                                       <Clock className="w-4 h-4 mr-1" />
                                       {Number(
-                                        quest.metadata.time_estimate
+                                        quest.metadata.time_estimate,
                                       )}{" "}
                                       mins
                                     </Badge>
@@ -1527,15 +1635,15 @@ export default function CampaignDetailPage() {
                                 </div>
                               </div>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                               <div className="space-y-4">
                                 {/* Quest Description */}
                                 {quest.metadata?.long_description && (
                                   <div>
-                                    <h3 className="font-semibold mb-2">
+                                    <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
                                       Description
                                     </h3>
-                                    <p className="text-muted-foreground whitespace-pre-wrap">
+                                    <p className="text-gray-600 dark:text-muted-foreground whitespace-pre-wrap">
                                       {quest.metadata.long_description}
                                     </p>
                                   </div>
@@ -1544,11 +1652,11 @@ export default function CampaignDetailPage() {
                                 {/* Requirements */}
                                 {quest.metadata?.requirements && (
                                   <div>
-                                    <h3 className="font-semibold mb-2">
+                                    <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">
                                       Requirements
                                     </h3>
                                     <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                      <p className="text-sm">
+                                      <p className="text-sm text-gray-900 dark:text-white">
                                         {quest.metadata.requirements}
                                       </p>
                                     </div>
@@ -1556,7 +1664,7 @@ export default function CampaignDetailPage() {
                                 )}
                               </div>
                             </CardContent>
-                          </Card>
+                          </CardWithIndents>
 
                           {/* Quest Submission Form */}
                           {!isCampaignExpired ? (
@@ -1579,22 +1687,22 @@ export default function CampaignDetailPage() {
                               earnedUdts={(quest.rewards_on_completion || [])
                                 .flatMap(
                                   (rewardList: AssetListLike) =>
-                                    rewardList.udt_assets || []
+                                    rewardList.udt_assets || [],
                                 )
                                 .map((udtAsset: UDTAssetLike) => {
                                   const script = ccc.Script.from(
-                                    udtAsset.udt_script
+                                    udtAsset.udt_script,
                                   );
                                   const token =
                                     udtRegistry.getTokenByScriptHash(
-                                      script.hash()
+                                      script.hash(),
                                     );
                                   if (token) {
                                     return {
                                       symbol: token.symbol,
                                       amount: udtRegistry.formatAmount(
                                         Number(udtAsset.amount),
-                                        token
+                                        token,
                                       ),
                                     };
                                   }
@@ -1619,7 +1727,7 @@ export default function CampaignDetailPage() {
                               onSuccess={async () => {
                                 // Refresh user data after successful submission
                                 log.info(
-                                  "Quest submitted successfully, refreshing data..."
+                                  "Quest submitted successfully, refreshing data...",
                                 );
 
                                 // Wait a bit for transaction to be confirmed
@@ -1637,13 +1745,13 @@ export default function CampaignDetailPage() {
                                     ) {
                                       const quest = campaign.quests[i];
                                       const questId = Number(
-                                        quest.quest_id || i + 1
+                                        quest.quest_id || i + 1,
                                       );
                                       const submitted =
                                         await hasUserSubmittedQuest(
                                           currentUserTypeId,
                                           campaignTypeId,
-                                          questId
+                                          questId,
                                         );
                                       statuses[questId] = submitted;
                                     }
@@ -1657,7 +1765,8 @@ export default function CampaignDetailPage() {
                               <AlertCircle className="w-4 h-4" />
                               <AlertTitle>Submissions closed</AlertTitle>
                               <AlertDescription>
-                                This quest is part of an expired event. Submissions ended on{" "}
+                                This quest is part of an expired event.
+                                Submissions ended on{" "}
                                 {formatDateConsistent(endDate)}.
                               </AlertDescription>
                             </Alert>
@@ -1670,7 +1779,7 @@ export default function CampaignDetailPage() {
                               disabled={selectedQuestIndex === 0}
                               onClick={() =>
                                 setSelectedQuestIndex((prev) =>
-                                  prev !== null ? prev - 1 : 0
+                                  prev !== null ? prev - 1 : 0,
                                 )
                               }
                             >
@@ -1685,7 +1794,7 @@ export default function CampaignDetailPage() {
                               }
                               onClick={() =>
                                 setSelectedQuestIndex((prev) =>
-                                  prev !== null ? prev + 1 : 0
+                                  prev !== null ? prev + 1 : 0,
                                 )
                               }
                             >
@@ -1702,33 +1811,39 @@ export default function CampaignDetailPage() {
 
             <TabsContent value="rewards" className="space-y-6">
               {/* Combined: Total Points (configured) + UDT Rewards Distributed */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Rewards Summary</CardTitle>
-                  <CardDescription>
+              <CardWithIndents>
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="text-gray-900 dark:text-white">
+                    Rewards Summary
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 dark:text-gray-400">
                     Points and rewards (CKB & UDT) distributed so far
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <div className="space-y-4">
                     {/* Total Points Configured */}
-                    <div className="p-4 border rounded-lg flex items-center justify-between">
+                    <div className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Trophy className="w-5 h-5 text-yellow-600" />
-                        <span className="font-medium">Total Points</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          Total Points
+                        </span>
                       </div>
-                      <span className="text-2xl font-bold">
+                      <span className="text-2xl font-bold text-gray-900 dark:text-white">
                         {totalPoints} Points
                       </span>
                     </div>
 
                     {/* CKB Distributed */}
-                    <div className="p-4 border rounded-lg flex items-center justify-between text-right">
+                    <div className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg flex items-center justify-between text-right">
                       <div className="flex items-center gap-2">
                         <Coins className="w-5 h-5 text-blue-600" />
-                        <span className="font-medium">CKB</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          CKB
+                        </span>
                       </div>
-                      <span className="text-2xl font-bold">
+                      <span className="text-2xl font-bold text-gray-900 dark:text-white">
                         {formatCkbAmount(ckbRewardStats.totalDistributed)} CKB
                       </span>
                     </div>
@@ -1748,40 +1863,40 @@ export default function CampaignDetailPage() {
                       campaign?.quests?.forEach(
                         (quest: (typeof campaign.quests)[0]) => {
                           const completions = Number(
-                            quest.accepted_submission_user_type_ids.length || 0
+                            quest.accepted_submission_user_type_ids.length || 0,
                           );
                           quest.rewards_on_completion?.forEach(
                             (rewardList: AssetListLike) => {
                               rewardList.udt_assets?.forEach(
                                 (udtAsset: UDTAssetLike) => {
                                   const script = ccc.Script.from(
-                                    udtAsset.udt_script
+                                    udtAsset.udt_script,
                                   );
                                   const scriptHash = script.hash();
                                   const token =
                                     udtRegistry.getTokenByScriptHash(
-                                      scriptHash
+                                      scriptHash,
                                     );
                                   const symbol = token?.symbol || "UDT";
                                   const amountDistributed =
                                     Number(udtAsset.amount) * completions;
                                   const current = distributedBySymbol.get(
-                                    symbol
+                                    symbol,
                                   ) || { amount: 0, tokenInfo: token };
                                   current.amount += amountDistributed;
                                   current.tokenInfo =
                                     token || current.tokenInfo;
                                   distributedBySymbol.set(symbol, current);
-                                }
+                                },
                               );
-                            }
+                            },
                           );
-                        }
+                        },
                       );
 
                       if (distributedBySymbol.size === 0) {
                         return (
-                          <div className="text-center py-8 text-muted-foreground">
+                          <div className="text-center py-8 text-gray-600 dark:text-muted-foreground">
                             No UDT rewards distributed yet
                           </div>
                         );
@@ -1792,43 +1907,45 @@ export default function CampaignDetailPage() {
                           const formatted = info.tokenInfo
                             ? udtRegistry.formatAmount(
                                 info.amount,
-                                info.tokenInfo
+                                info.tokenInfo,
                               )
                             : `${info.amount / 10 ** 8}`;
                           return (
                             <div
                               key={symbol}
-                              className="p-4 border rounded-lg flex items-center justify-between"
+                              className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg flex items-center justify-between"
                             >
                               <div className="flex items-center gap-2">
                                 <Coins className="w-5 h-5 text-yellow-600" />
-                                <span className="font-medium text-lg">
+                                <span className="font-medium text-lg text-gray-900 dark:text-white">
                                   {symbol}
                                 </span>
                               </div>
                               <div className="text-right">
-                                <span className="text-2xl font-bold">
+                                <span className="text-2xl font-bold text-gray-900 dark:text-white">
                                   {formatted} {symbol}
                                 </span>
                               </div>
                             </div>
                           );
-                        }
+                        },
                       );
                     })()}
                   </div>
                 </CardContent>
-              </Card>
+              </CardWithIndents>
 
               {/* Available Rewards */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Available Rewards</CardTitle>
-                  <CardDescription>
+              <CardWithIndents>
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="text-gray-900 dark:text-white">
+                    Available Rewards
+                  </CardTitle>
+                  <CardDescription className="text-gray-600 dark:text-gray-400">
                     Remaining token rewards bound to this campaign
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <div className="space-y-4">
                     {isLoadingFunding ? (
                       <div className="flex items-center justify-center py-8">
@@ -1856,7 +1973,7 @@ export default function CampaignDetailPage() {
                         campaign?.quests?.forEach(
                           (quest: (typeof campaign.quests)[0]) => {
                             const completions = Number(
-                              quest.completion_count || 0
+                              quest.completion_count || 0,
                             );
 
                             quest.rewards_on_completion?.forEach(
@@ -1864,23 +1981,23 @@ export default function CampaignDetailPage() {
                                 rewardList.udt_assets?.forEach(
                                   (udtAsset: UDTAssetLike) => {
                                     const script = ccc.Script.from(
-                                      udtAsset.udt_script
+                                      udtAsset.udt_script,
                                     );
                                     const scriptHash = script.hash();
                                     const token =
                                       udtRegistry.getTokenByScriptHash(
-                                        scriptHash
+                                        scriptHash,
                                       );
                                     const symbol = token?.symbol || "UDT";
 
                                     const amountPerCompletion = Number(
-                                      udtAsset.amount
+                                      udtAsset.amount,
                                     );
                                     const amountDistributed =
                                       amountPerCompletion * completions;
 
                                     const current = udtRewardsSummary.get(
-                                      symbol
+                                      symbol,
                                     ) || {
                                       totalPerQuest: 0,
                                       totalDistributed: 0,
@@ -1900,11 +2017,11 @@ export default function CampaignDetailPage() {
                                       current.totalPerQuest /
                                       current.questCount;
                                     udtRewardsSummary.set(symbol, current);
-                                  }
+                                  },
                                 );
-                              }
+                              },
                             );
-                          }
+                          },
                         );
 
                         // Use actual funding amounts from funding lock cells
@@ -1915,7 +2032,7 @@ export default function CampaignDetailPage() {
                           // Match funding data by script hash - this is what's currently in the pool
                           if (value.tokenInfo && value.tokenInfo.script) {
                             const tokenScript = ccc.Script.from(
-                              value.tokenInfo.script
+                              value.tokenInfo.script,
                             );
                             const tokenScriptHash = tokenScript.hash();
                             actualAvailableInPool =
@@ -1939,32 +2056,32 @@ export default function CampaignDetailPage() {
                           const formattedAvailableCkb =
                             formatCkbAmount(fundingCkb);
                           const formattedAverageCkb = formatCkbAmount(
-                            ckbRewardStats.averagePerQuest
+                            ckbRewardStats.averagePerQuest,
                           );
                           const ckbCompletionQuota =
                             ckbRewardStats.averagePerQuest > 0n
                               ? Number(
-                                  fundingCkb / ckbRewardStats.averagePerQuest
+                                  fundingCkb / ckbRewardStats.averagePerQuest,
                                 )
                               : 0;
 
                           rewardElements.push(
                             <div
                               key="ckb"
-                              className="p-4 border rounded-lg space-y-3"
+                              className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg space-y-3 bg-white dark:bg-gray-800"
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <Coins className="w-5 h-5 text-blue-600" />
-                                  <span className="font-medium text-lg">
+                                  <span className="font-medium text-lg text-gray-900 dark:text-white">
                                     CKB
                                   </span>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="text-xs text-gray-600 dark:text-muted-foreground">
                                     Available
                                   </p>
-                                  <span className="text-2xl font-bold">
+                                  <span className="text-2xl font-bold text-gray-900 dark:text-white">
                                     {formattedAvailableCkb} CKB
                                   </span>
                                 </div>
@@ -1972,23 +2089,23 @@ export default function CampaignDetailPage() {
 
                               <div className="grid grid-cols-2 gap-4 pt-2">
                                 <div>
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="text-xs text-gray-600 dark:text-muted-foreground">
                                     Average per Quest
                                   </p>
-                                  <p className="font-medium">
+                                  <p className="font-medium text-gray-900 dark:text-white">
                                     {formattedAverageCkb} CKB
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="text-xs text-gray-600 dark:text-muted-foreground">
                                     Available Completions (Estimated)
                                   </p>
-                                  <p className="font-medium">
+                                  <p className="font-medium text-gray-900 dark:text-white">
                                     {ckbCompletionQuota.toLocaleString()} quests
                                   </p>
                                 </div>
                               </div>
-                            </div>
+                            </div>,
                           );
                         }
 
@@ -1997,39 +2114,39 @@ export default function CampaignDetailPage() {
                             const formattedAvailable = info.tokenInfo
                               ? udtRegistry.formatAmount(
                                   info.available,
-                                  info.tokenInfo
+                                  info.tokenInfo,
                                 )
                               : `${info.available / 10 ** 8}`;
                             const formattedAverage = info.tokenInfo
                               ? udtRegistry.formatAmount(
                                   info.averagePerQuest,
-                                  info.tokenInfo
+                                  info.tokenInfo,
                                 )
                               : `${info.averagePerQuest / 10 ** 8}`;
                             const completionQuota =
                               info.averagePerQuest > 0
                                 ? Math.floor(
-                                    info.available / info.averagePerQuest
+                                    info.available / info.averagePerQuest,
                                   )
                                 : 0;
 
                             rewardElements.push(
                               <div
                                 key={symbol}
-                                className="p-4 border rounded-lg space-y-3"
+                                className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg space-y-3 bg-white dark:bg-gray-800"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <Coins className="w-5 h-5 text-yellow-600" />
-                                    <span className="font-medium text-lg">
+                                    <span className="font-medium text-lg text-gray-900 dark:text-white">
                                       {symbol}
                                     </span>
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-gray-600 dark:text-muted-foreground">
                                       Available
                                     </p>
-                                    <span className="text-2xl font-bold">
+                                    <span className="text-2xl font-bold text-gray-900 dark:text-white">
                                       {formattedAvailable} {symbol}
                                     </span>
                                   </div>
@@ -2037,30 +2154,30 @@ export default function CampaignDetailPage() {
 
                                 <div className="grid grid-cols-2 gap-4 pt-2">
                                   <div>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-gray-600 dark:text-muted-foreground">
                                       Average per Quest
                                     </p>
-                                    <p className="font-medium">
+                                    <p className="font-medium text-gray-900 dark:text-white">
                                       {formattedAverage} {symbol}
                                     </p>
                                   </div>
                                   <div>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-gray-600 dark:text-muted-foreground">
                                       Available Completions (Estimated)
                                     </p>
-                                    <p className="font-medium">
+                                    <p className="font-medium text-gray-900 dark:text-white">
                                       {completionQuota.toLocaleString()} quests
                                     </p>
                                   </div>
                                 </div>
-                              </div>
+                              </div>,
                             );
-                          }
+                          },
                         );
 
                         if (rewardElements.length === 0) {
                           return (
-                            <div className="text-center py-8 text-muted-foreground">
+                            <div className="text-center py-8 text-gray-600 dark:text-muted-foreground">
                               No token rewards configured for this campaign
                             </div>
                           );
@@ -2071,7 +2188,7 @@ export default function CampaignDetailPage() {
                     )}
                   </div>
                 </CardContent>
-              </Card>
+              </CardWithIndents>
             </TabsContent>
           </Tabs>
         </div>
