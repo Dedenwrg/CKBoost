@@ -415,18 +415,17 @@ export function Tippings() {
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 w-4 h-4" />
           <Input
             placeholder="Search proposals..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 bg-[#1b1b1b] border-[#535353] text-white placeholder:text-gray-400"
+            className="pl-10 bg-white dark:bg-[#1b1b1b] border-gray-300 dark:border-[#535353] text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
           />
         </div>
         <Link href="/tipping/propose-tipping">
           <Button 
-            className="flex items-center gap-2 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: "#0000FF" }}
+            className="flex items-center gap-2 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
           >
             <Plus className="w-4 h-4" />
             Propose Tipping
@@ -435,13 +434,13 @@ export function Tippings() {
       </div>
 
       {isLoading && (
-        <div className="text-center text-gray-400 py-6">
+        <div className="text-center text-gray-600 dark:text-gray-400 py-6">
           Loading proposals…
         </div>
       )}
 
       {error && (
-        <div className="text-center text-red-400 py-4 text-sm">{error}</div>
+        <div className="text-center text-red-600 dark:text-red-400 py-4 text-sm">{error}</div>
       )}
 
       {/* Proposals List */}
@@ -478,8 +477,8 @@ export function Tippings() {
       {filteredTippings.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">💰</div>
-          <h3 className="text-xl font-semibold mb-2 text-white">No proposals found</h3>
-          <p className="text-gray-400">
+          <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">No proposals found</h3>
+          <p className="text-gray-600 dark:text-gray-400">
             {searchTerm
               ? "Try adjusting your search terms"
               : "Be the first to create a tip proposal!"}

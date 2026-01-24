@@ -134,7 +134,7 @@ export function WalletConnect() {
         case "finalized": {
           const confirmations = Math.max(
             confirmationTarget,
-            tx.confirmations || 0
+            tx.confirmations || 0,
           );
           return {
             label: "Finalized",
@@ -160,7 +160,7 @@ export function WalletConnect() {
           };
       }
     },
-    [confirmationTarget]
+    [confirmationTarget],
   );
 
   const renderStatusIndicator = React.useCallback(() => {
@@ -261,8 +261,8 @@ export function WalletConnect() {
     verificationStatus.icon === "CheckCircle"
       ? CheckCircle
       : verificationStatus.icon === "AlertCircle"
-      ? AlertCircle
-      : UserCheck;
+        ? AlertCircle
+        : UserCheck;
 
   React.useEffect(() => {
     const getAddress = async () => {
@@ -317,7 +317,7 @@ export function WalletConnect() {
       const network = deploymentManager.getCurrentNetwork();
       const pointsCodeHash = deploymentManager.getContractCodeHash(
         network,
-        "ckboostPointsUdt"
+        "ckboostPointsUdt",
       );
       if (!pointsCodeHash) {
         throw new Error("Points UDT contract not configured.");
@@ -341,7 +341,7 @@ export function WalletConnect() {
           lock: userLockScript,
           type: pointsTypeScript,
         }),
-        pointsData
+        pointsData,
       );
 
       const contractNames = [
@@ -370,11 +370,11 @@ export function WalletConnect() {
       await tx.completeInputsByCapacity(signer);
       for (let i = 0; i < tx.inputs.length; i += 1) {
         const inputCell = await signer.client.getCell(
-          tx.inputs[i].previousOutput
+          tx.inputs[i].previousOutput,
         );
         if (!inputCell) {
           throw new Error(
-            "Input cell not found while preparing mint transaction."
+            "Input cell not found while preparing mint transaction.",
           );
         }
         tx.inputs[i] = ccc.CellInput.from({
@@ -389,7 +389,7 @@ export function WalletConnect() {
         if (out.type) {
           tx.outputs[i] = ccc.CellOutput.from(
             { lock: out.lock, type: out.type },
-            tx.outputsData[i] as ccc.HexLike
+            tx.outputsData[i] as ccc.HexLike,
           );
         }
       }
@@ -403,7 +403,7 @@ export function WalletConnect() {
       toast({
         title: "Test mint submitted",
         description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
-          -6
+          -6,
         )} submitted.`,
       });
     } catch (error) {
@@ -445,7 +445,7 @@ export function WalletConnect() {
           "bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00]",
           "dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]",
           "shadow-[0_0_12px_rgba(255,77,0,0.4),0_0_20px_rgba(255,77,0,0.2)]",
-          "dark:shadow-[0_0_12px_rgba(51,0,255,0.4),0_0_20px_rgba(51,0,255,0.2)]"
+          "dark:shadow-[0_0_12px_rgba(51,0,255,0.4),0_0_20px_rgba(51,0,255,0.2)]",
         )}
       >
         {isConnecting ? (
@@ -478,7 +478,7 @@ export function WalletConnect() {
               "bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00]",
               "dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]",
               "shadow-[0_0_12px_rgba(255,77,0,0.4),0_0_20px_rgba(255,77,0,0.2)]",
-              "dark:shadow-[0_0_12px_rgba(51,0,255,0.4),0_0_20px_rgba(51,0,255,0.2)]"
+              "dark:shadow-[0_0_12px_rgba(51,0,255,0.4),0_0_20px_rgba(51,0,255,0.2)]",
             )}
           >
             <div className="flex items-center gap-2">
@@ -494,7 +494,7 @@ export function WalletConnect() {
                     verificationStatus.verifiedCount ===
                       verificationStatus.totalCount
                       ? "bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-100"
-                      : "bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-100"
+                      : "bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-100",
                   )}
                 >
                   <Shield className="w-3 h-3 mr-1" />
@@ -506,7 +506,10 @@ export function WalletConnect() {
             <ChevronDown className="w-3 h-3 text-white" strokeWidth={2} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-72 border-gray-300 dark:border-gray-600">
+        <DropdownMenuContent
+          align="end"
+          className="w-72 border-gray-300 dark:border-gray-600"
+        >
           {/* Wallet Info */}
           <div className="px-3 py-2 border-b border-gray-300 dark:border-gray-600">
             <div className="text-sm font-medium">Wallet Connected</div>
@@ -528,7 +531,7 @@ export function WalletConnect() {
                   <ChevronDown
                     className={cn(
                       "w-4 h-4 transition-transform",
-                      isMonitorCollapsed ? "-rotate-90" : "rotate-0"
+                      isMonitorCollapsed ? "-rotate-90" : "rotate-0",
                     )}
                   />
                 </button>
@@ -559,7 +562,7 @@ export function WalletConnect() {
                               <span
                                 className={cn(
                                   "flex items-center gap-1",
-                                  status.textClass
+                                  status.textClass,
                                 )}
                               >
                                 {status.icon}
@@ -570,7 +573,7 @@ export function WalletConnect() {
                               variant="secondary"
                               className={cn(
                                 "text-[11px] px-2 py-0.5",
-                                status.badgeClass
+                                status.badgeClass,
                               )}
                             >
                               {status.label}
@@ -587,7 +590,7 @@ export function WalletConnect() {
                           <div
                             className={cn(
                               "mt-1 text-xs truncate",
-                              status.textClass
+                              status.textClass,
                             )}
                             title={tx.metadata?.label ?? "Unnamed action"}
                           >
@@ -651,7 +654,7 @@ export function WalletConnect() {
                 <div
                   className={cn(
                     "text-sm font-medium",
-                    verificationStatus.color
+                    verificationStatus.color,
                   )}
                 >
                   {verificationStatus.text}
@@ -781,7 +784,7 @@ export function WalletConnect() {
                     <div
                       className={cn(
                         "text-sm font-semibold",
-                        modalStatusDisplay.textClass
+                        modalStatusDisplay.textClass,
                       )}
                     >
                       {modalStatusDisplay.label}

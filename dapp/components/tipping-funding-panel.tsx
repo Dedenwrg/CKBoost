@@ -162,17 +162,17 @@ export function TippingFundingPanel() {
 
   return (
     <CardWithIndents>
-      <CardHeader className="flex flex-col gap-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+      <CardHeader className="flex flex-col gap-2 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
         <div className="flex items-center gap-2">
           <PiggyBank className="w-5 h-5 text-purple-400" />
-          <CardTitle className="text-white">Protocol Funding Pool</CardTitle>
+          <CardTitle className="text-gray-900 dark:text-white">Protocol Funding Pool</CardTitle>
         </div>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
           Deposit CKB or UDTs into the shared protocol pool powering community
           tippings.
         </p>
       </CardHeader>
-      <CardContent className="space-y-6 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+      <CardContent className="space-y-6 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
         {!fundingSummary ? (
           <Alert>
             <AlertDescription>
@@ -251,7 +251,7 @@ export function TippingFundingPanel() {
             {canFund ? (
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
                     <Coins className="w-4 h-4 text-yellow-400" />
                     Fund with CKB
                   </div>
@@ -262,19 +262,18 @@ export function TippingFundingPanel() {
                     placeholder="Amount in CKB"
                     value={ckbAmount}
                     onChange={(event) => setCkbAmount(event.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                    className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                   />
                   <Button
                     onClick={handleFundCKB}
                     disabled={!signer || isFundingCKB || !ckbAmount.trim()}
-                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50"
-                    style={{ backgroundColor: "#0000FF" }}
+                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50 bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
                   >
                     {isFundingCKB ? "Submitting…" : "Deposit CKB"}
                   </Button>
                 </div>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
                     <Wallet className="w-4 h-4 text-green-400" />
                     Fund with UDT
                   </div>
@@ -282,12 +281,12 @@ export function TippingFundingPanel() {
                     value={selectedTokenSymbol}
                     onValueChange={setSelectedTokenSymbol}
                   >
-                    <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                    <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white">
                       <SelectValue placeholder="Select token" />
                     </SelectTrigger>
-                    <SelectContent className="bg-gray-800 border-gray-700">
+                    <SelectContent className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700">
                       {tokens.map((token) => (
-                        <SelectItem key={token.symbol} value={token.symbol} className="text-white">
+                        <SelectItem key={token.symbol} value={token.symbol} className="text-gray-900 dark:text-white">
                           {token.symbol} • {token.name}
                         </SelectItem>
                       ))}
@@ -300,7 +299,7 @@ export function TippingFundingPanel() {
                     placeholder="Amount to deposit"
                     value={udtAmount}
                     onChange={(event) => setUdtAmount(event.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-400"
+                    className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400"
                   />
                   <Button
                     onClick={handleFundUDT}
@@ -310,8 +309,7 @@ export function TippingFundingPanel() {
                       !udtAmount.trim() ||
                       isFundingUDT
                     }
-                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50"
-                    style={{ backgroundColor: "#0000FF" }}
+                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50 bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
                   >
                     {isFundingUDT ? "Submitting…" : "Deposit UDT"}
                   </Button>

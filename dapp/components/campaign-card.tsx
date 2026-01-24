@@ -159,18 +159,18 @@ export function CampaignCard({
   return (
     <div className="relative w-full max-w-[420px] md:w-[420px] justify-self-center ">
       {/* Four corner square indents - aligned with card border corners */}
-      {/* Top-left: no border */}
-      <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+      {/* Top-left */}
+      <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
       {/* Top-right: left border (inset) */}
       <div
-        className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+        className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
         style={{
           borderLeft: "3px solid #535353",
         }}
       />
       {/* Bottom-right: top and left border (inset) */}
       <div
-        className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+        className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
         style={{
           borderTop: "3px solid #535353",
           borderLeft: "3px solid #535353",
@@ -178,13 +178,13 @@ export function CampaignCard({
       />
       {/* Bottom-left: top border (inset) */}
       <div
-        className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+        className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
         style={{
           borderTop: "3px solid #535353",
         }}
       />
       <Card
-        className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-0 border-l-0 relative z-10"
+        className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none"
         style={{
           borderRadius: "8px",
         }}

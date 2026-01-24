@@ -577,7 +577,7 @@ export function TippingCard({
 
   return (
     <CardWithIndents>
-      <CardHeader className="pb-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+      <CardHeader className="pb-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
         {/* Header */}
         <div className="flex items-stretch justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -585,7 +585,7 @@ export function TippingCard({
               {getTypeIcon(tipping.data.metadata.contribution_type_tags[0])}
             </div>
             <div className="flex-1">
-              <h3 className="text-xl font-bold mb-2 text-white">
+              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
                 {tipping.data.metadata.contribution_title}
               </h3>
               <div className="flex items-center gap-2 mb-2">
@@ -593,12 +593,12 @@ export function TippingCard({
                   variant="outline"
                   className={`${getTypeColor(
                     tipping.data.metadata.contribution_type_tags[0]
-                  )} whitespace-nowrap border-gray-700`}
+                  )} whitespace-nowrap border-gray-300 dark:border-gray-700`}
                 >
                   {tipping.data.metadata.contribution_type_tags[0]}
                 </Badge>
               </div>
-              <p className="text-gray-400 mb-3">
+              <p className="text-gray-600 dark:text-gray-400 mb-3">
                 {tipping.data.metadata.short_description}
               </p>
             </div>
@@ -612,7 +612,7 @@ export function TippingCard({
         </div>
 
         {/* Recipient & Proposer Info */}
-        <div className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-700">
+        <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center font-semibold text-white">
               {ccc
@@ -621,10 +621,10 @@ export function TippingCard({
                 .toUpperCase()}
             </div>
             <div>
-              <div className="font-semibold text-white">
+              <div className="font-semibold text-gray-900 dark:text-white">
                 {ccc.hexFrom(tipping.data.target_lock_hash)}
               </div>
-              <div className="text-sm text-gray-400 font-mono">
+              <div className="text-sm text-gray-600 dark:text-gray-400 font-mono">
                 {ccc.hexFrom(tipping.data.target_lock_hash).slice(0, 8)}...
                 {ccc.hexFrom(tipping.data.target_lock_hash).slice(-6)}
               </div>
@@ -633,10 +633,10 @@ export function TippingCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+      <CardContent className="space-y-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
         {/* Justification */}
-        <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
-          <div className="text-sm font-medium mb-2 text-white">Justification:</div>
+        <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
+          <div className="text-sm font-medium mb-2 text-gray-900 dark:text-white">Justification:</div>
           {isResolvingLongDescription ? (
             <div className="text-sm text-muted-foreground italic">
               Loading description from Nostr…
@@ -697,15 +697,15 @@ export function TippingCard({
         {/* Community Tip Progress */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium text-white">
-              <Users className="w-4 h-4 text-white" />
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+              <Users className="w-4 h-4 text-gray-900 dark:text-white" />
               Community Tipping Progress
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setShowDetails(!showDetails)}
-              className="text-xs text-gray-400 hover:text-white"
+              className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
             >
               <Eye className="w-3 h-3 mr-1" />
               {showDetails ? "Hide" : "Show"} Details
@@ -714,7 +714,7 @@ export function TippingCard({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">
+              <span className="text-gray-600 dark:text-gray-400">
                 {tipping.data.status === "pending" && approvalsNeeded > 0
                   ? `Needs ${approvalsNeeded} more approval${
                       approvalsNeeded !== 1 ? "s" : ""
@@ -723,7 +723,7 @@ export function TippingCard({
                   ? "Ready for execution"
                   : `${tipping.data.supporter_lock_hashes.length}/${approvalRequirement} approvals`}
               </span>
-              <span className="font-medium text-white">
+              <span className="font-medium text-gray-900 dark:text-white">
                 {tipping.data.supporter_lock_hashes.length}/
                 {approvalRequirement}
               </span>
@@ -746,10 +746,10 @@ export function TippingCard({
                           {ccc.hexFrom(approval).charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium">
+                      <span className="font-medium text-gray-900 dark:text-white">
                         {ccc.hexFrom(approval)}
                       </span>
-                      <div className="flex items-center gap-1 text-muted-foreground ml-auto">
+                      <div className="flex items-center gap-1 text-gray-600 dark:text-muted-foreground ml-auto">
                         <Clock className="w-3 h-3" />
                       </div>
                     </div>
@@ -757,7 +757,7 @@ export function TippingCard({
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-gray-600 dark:text-muted-foreground">
                     Endorsed by:
                   </span>
                   <div className="flex gap-1">
@@ -804,7 +804,7 @@ export function TippingCard({
           <div className="space-y-3">
             <Separator />
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
                 <Gift className="w-4 h-4 text-green-400" />
                 Additional Tips ({totalAdditionalTips} CKB)
               </div>
@@ -841,7 +841,7 @@ export function TippingCard({
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium text-sm break-all text-white">
+                        <span className="font-medium text-sm break-all text-gray-900 dark:text-white">
                           {from}
                         </span>
                         <span className="text-green-400 font-semibold text-sm">
@@ -895,9 +895,9 @@ export function TippingCard({
               onClick={handleApprove}
               disabled={isApproving || hasViewerApproved || !onApprove}
               size="sm"
-              className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50 bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
               style={{
-                backgroundColor: hasViewerApproved ? "#10B981" : "#0000FF",
+                backgroundColor: hasViewerApproved ? "#10B981" : undefined,
               }}
             >
               {isApproving ? (

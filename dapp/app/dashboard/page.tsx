@@ -702,18 +702,15 @@ export default function Dashboard() {
 
     if (entries.length === 0) {
       return (
-        <div className="text-center py-8 text-gray-400">
-          <Target className="w-12 h-12 mx-auto mb-4 opacity-50 text-white" />
-          <p className="text-white">
+        <div className="text-center py-8 text-gray-600 dark:text-gray-400">
+          <Target className="w-12 h-12 mx-auto mb-4 opacity-50 text-gray-900 dark:text-white" />
+          <p className="text-gray-900 dark:text-white">
             {status === "pending"
               ? "No quests waiting for review"
               : "No approved quests yet"}
           </p>
           <Link href="/">
-            <Button
-              className="mt-4 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: "#0000FF" }}
-            >
+            <Button className="mt-4 rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]">
               Browse Campaigns
             </Button>
           </Link>
@@ -751,17 +748,17 @@ export default function Dashboard() {
           return (
             <div
               key={entry.key}
-              className="border border-gray-700 rounded-lg p-4 space-y-4 bg-gray-800"
+              className="border border-gray-300 dark:border-gray-700 rounded-lg p-4 space-y-4 bg-white dark:bg-gray-800"
             >
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold text-base text-white">
+                  <h3 className="font-semibold text-base text-gray-900 dark:text-white">
                     {entry.questTitle}
                   </h3>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     Campaign: {entry.campaignTitle}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">
+                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                     Submitted {submittedAt}
                   </div>
                 </div>
@@ -786,12 +783,14 @@ export default function Dashboard() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Points reward</span>
-                  <span className="font-semibold text-white">
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Points reward
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
                     {formatPoints(entry.points)} pts
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-sm text-gray-400">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
                   <span>Quest #{entry.questId}</span>
                   {deadlineDate && <span>Deadline {deadlineDate}</span>}
                 </div>
@@ -824,13 +823,13 @@ export default function Dashboard() {
   // Check wallet connection first
   if (!signer) {
     return (
-      <div className="min-h-screen bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+      <div className="min-h-screen bg-white dark:bg-[#1b1b1b]">
         {/* Starlight background */}
         <div
-          className="fixed inset-0 overflow-hidden pointer-events-none"
+          className="fixed inset-0 overflow-hidden pointer-events-none bg-white dark:bg-black"
           style={{
             zIndex: 0,
-            background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+            backgroundImage: `url('/assets/Base%20UI/Starlight%20background.svg')`,
             backgroundSize: "100vw 100vh",
             backgroundRepeat: "no-repeat",
             backgroundPosition: "center",
@@ -846,19 +845,19 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center min-h-[60vh]">
               <CardWithIndents className="max-w-md w-full">
-                <CardHeader className="text-center bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardHeader className="text-center bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <div className="w-16 h-16 mx-auto rounded-full bg-blue-900 flex items-center justify-center mb-4">
                     <Wallet className="h-8 w-8 text-blue-300" />
                   </div>
-                  <CardTitle className="text-2xl text-white">
+                  <CardTitle className="text-2xl text-gray-900 dark:text-white">
                     Wallet Connection Required
                   </CardTitle>
-                  <CardDescription className="text-base mt-2 text-gray-400">
+                  <CardDescription className="text-base mt-2 text-gray-600 dark:text-gray-400">
                     Please connect your wallet to access your dashboard and view
                     your progress.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center gap-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardContent className="flex flex-col items-center gap-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <Button
                     onClick={async () => {
                       try {
@@ -868,13 +867,12 @@ export default function Dashboard() {
                       }
                     }}
                     size="lg"
-                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: "#0000FF" }}
+                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
                   >
                     <Wallet className="w-5 h-5 mr-2" />
                     Connect Wallet
                   </Button>
-                  <p className="text-sm text-gray-400 text-center">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
                     Connect your CKB wallet to view your quest submissions,
                     points balance, and achievements.
                   </p>
@@ -897,13 +895,13 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+    <div className="min-h-screen bg-white dark:bg-[#1b1b1b]">
       {/* Starlight background - only for main content area, not footer */}
       <div
-        className="fixed inset-0 overflow-hidden pointer-events-none"
+        className="fixed inset-0 overflow-hidden pointer-events-none bg-white dark:bg-black"
         style={{
           zIndex: 0,
-          background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+          backgroundImage: `url('/assets/Base%20UI/Starlight%20background.svg')`,
           backgroundSize: "100vw 100vh",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
@@ -954,7 +952,9 @@ export default function Dashboard() {
                       fontFamily: "Pixellari, monospace",
                     }}
                   >
-                    <span className="text-white">Welcome back, </span>
+                    <span className="text-[#0000FF] dark:text-white">
+                      Welcome back,{" "}
+                    </span>
                     <span
                       style={{
                         color: "#FF00FF",
@@ -964,7 +964,7 @@ export default function Dashboard() {
                     </span>
                   </h1>
                 </div>
-                <p className="text-lg text-white">
+                <p className="text-lg text-gray-700 dark:text-white">
                   Track your submissions and monitor quest approvals in real
                   time.
                 </p>
@@ -1012,10 +1012,7 @@ export default function Dashboard() {
                         </div>
                         <div className="mt-4">
                           <Link href="/platform-admin">
-                            <Button
-                              className="w-full justify-start rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: "#0000FF" }}
-                            >
+                            <Button className="w-full justify-start rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]">
                               <Settings className="w-4 h-4 mr-2" />
                               Platform Admin Dashboard
                             </Button>
@@ -1039,10 +1036,7 @@ export default function Dashboard() {
                         </div>
                         <div className="mt-4">
                           <Link href="/campaign-admin">
-                            <Button
-                              className="w-full justify-start rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity"
-                              style={{ backgroundColor: "#0000FF" }}
-                            >
+                            <Button className="w-full justify-start rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]">
                               <UserCog className="w-4 h-4 mr-2" />
                               Campaign Admin Dashboard
                             </Button>
@@ -1068,68 +1062,68 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <CardWithIndents>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <CardTitle className="text-sm font-medium text-white">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">
                   Points Balance
                 </CardTitle>
                 <Trophy className="h-4 w-4 text-yellow-400" />
               </CardHeader>
-              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <div className="text-2xl font-bold text-white">
+              <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
                   {pointsBalanceDisplay}
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   On-chain Points UDT balance
                 </p>
               </CardContent>
             </CardWithIndents>
 
             <CardWithIndents>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <CardTitle className="text-sm font-medium text-white">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">
                   Approved Quests
                 </CardTitle>
                 <CheckCircle className="h-4 w-4 text-green-400" />
               </CardHeader>
-              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <div className="text-2xl font-bold text-white">
+              <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
                   {approvedSubmissions.length}
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   {pendingSubmissions.length} pending review
                 </p>
               </CardContent>
             </CardWithIndents>
 
             <CardWithIndents>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <CardTitle className="text-sm font-medium text-white">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">
                   Pending Reviews
                 </CardTitle>
                 <Activity className="h-4 w-4 text-blue-400" />
               </CardHeader>
-              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <div className="text-2xl font-bold text-white">
+              <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
                   {pendingSubmissions.length}
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   Waiting for campaign managers
                 </p>
               </CardContent>
             </CardWithIndents>
 
             <CardWithIndents>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <CardTitle className="text-sm font-medium text-white">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">
                   Campaigns Joined
                 </CardTitle>
                 <Users className="h-4 w-4 text-purple-400" />
               </CardHeader>
-              <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                <div className="text-2xl font-bold text-white">
+              <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
                   {campaignsParticipated}
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   Unique campaigns contributed
                 </p>
               </CardContent>
@@ -1139,35 +1133,31 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <CardWithIndents>
-                <CardHeader className="flex flex-col gap-4 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardHeader className="flex flex-col gap-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <div className="flex items-center gap-2">
                     <Target className="w-5 h-5 text-blue-400" />
-                    <CardTitle className="text-white">Your Quests</CardTitle>
+                    <CardTitle className="text-gray-900 dark:text-white">
+                      Your Quests
+                    </CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   <Tabs
                     value={questFilter}
                     onValueChange={(value) =>
                       setQuestFilter(value as "pending" | "approved")
                     }
                   >
-                    <TabsList className="bg-gray-800 border-gray-700">
+                    <TabsList className="bg-gray-200 dark:bg-gray-800 border-gray-300 dark:border-gray-700">
                       <TabsTrigger
                         value="pending"
-                        className="rounded-full text-white font-semibold shadow-lg border-0 transition-all hover:opacity-90 data-[state=active]:opacity-100 data-[state=inactive]:opacity-60 data-[state=inactive]:bg-gray-700"
-                        style={{
-                          backgroundColor: "#0000FF",
-                        }}
+                        className="rounded-full text-white font-semibold shadow-lg border-0 transition-all hover:opacity-90 data-[state=active]:opacity-100 data-[state=inactive]:opacity-60 data-[state=inactive]:bg-gray-300 dark:data-[state=inactive]:bg-gray-700 bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
                       >
                         Pending Review ({pendingSubmissions.length})
                       </TabsTrigger>
                       <TabsTrigger
                         value="approved"
-                        className="rounded-full text-white font-semibold shadow-lg border-0 transition-all hover:opacity-90 data-[state=active]:opacity-100 data-[state=inactive]:opacity-60 data-[state=inactive]:bg-gray-700"
-                        style={{
-                          backgroundColor: "#0000FF",
-                        }}
+                        className="rounded-full text-white font-semibold shadow-lg border-0 transition-all hover:opacity-90 data-[state=active]:opacity-100 data-[state=inactive]:opacity-60 data-[state=inactive]:bg-gray-300 dark:data-[state=inactive]:bg-gray-700 bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
                       >
                         Approved ({approvedSubmissions.length})
                       </TabsTrigger>
@@ -1185,15 +1175,15 @@ export default function Dashboard() {
 
             <div className="space-y-6">
               <CardWithIndents>
-                <CardHeader className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                  <CardTitle className="flex items-center gap-2 text-white">
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                     <Coins className="w-5 h-5 text-purple-400" />
                     Asset Balances
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardContent className="space-y-3 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   {!userAddress ? (
-                    <div className="text-sm text-gray-400">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       Connect your wallet to view balances.
                     </div>
                   ) : tokenBalancesLoading ? (
@@ -1201,12 +1191,12 @@ export default function Dashboard() {
                       {Array.from({ length: 3 }).map((_, index) => (
                         <div
                           key={index}
-                          className="h-10 rounded-lg bg-gray-800 animate-pulse"
+                          className="h-10 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse"
                         />
                       ))}
                     </div>
                   ) : tokenBalances.length === 0 ? (
-                    <div className="text-sm text-gray-400">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       No token balances found.
                     </div>
                   ) : (
@@ -1216,22 +1206,22 @@ export default function Dashboard() {
                         className="flex items-center justify-between"
                       >
                         <div className="flex flex-col">
-                          <span className="font-medium text-white">
+                          <span className="font-medium text-gray-900 dark:text-white">
                             {token.symbol}
                           </span>
                           {!token.isPoints && token.scriptHash && (
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
                               {shorten(token.scriptHash, 6, 6)}
                             </span>
                           )}
                         </div>
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-gray-900 dark:text-white">
                           {token.formatted}
                         </span>
                       </div>
                     ))
                   )}
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-gray-600 dark:text-gray-400">
                     Balances are calculated from on-chain CKB and UDT cells held
                     by your wallet.
                   </div>
@@ -1239,15 +1229,15 @@ export default function Dashboard() {
               </CardWithIndents>
 
               <CardWithIndents>
-                <CardHeader className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                  <CardTitle className="flex items-center gap-2 text-white">
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                     <Calendar className="w-5 h-5 text-orange-400" />
                     Upcoming Deadlines
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardContent className="space-y-3 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   {upcomingDeadlines.length === 0 ? (
-                    <div className="text-center py-4 text-gray-400 text-sm">
+                    <div className="text-center py-4 text-gray-600 dark:text-gray-400 text-sm">
                       No upcoming deadlines
                     </div>
                   ) : (
@@ -1273,15 +1263,15 @@ export default function Dashboard() {
                           href={`/campaign/${entry.campaignTypeId}`}
                           className="block"
                         >
-                          <div className="flex items-center justify-between p-3 bg-gray-800 dark:bg-gray-800 rounded-lg hover:bg-gray-700 dark:hover:bg-gray-700 transition-colors cursor-pointer">
+                          <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer border border-gray-300 dark:border-gray-700">
                             <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm mb-1 text-white">
+                              <div className="font-medium text-sm mb-1 text-gray-900 dark:text-white">
                                 {entry.questTitle}
                               </div>
-                              <div className="text-xs text-gray-400 mt-1">
+                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                                 {entry.campaignTitle}
                               </div>
-                              <div className="text-xs text-gray-400">
+                              <div className="text-xs text-gray-600 dark:text-gray-400">
                                 Due {deadline}
                               </div>
                             </div>
@@ -1322,15 +1312,15 @@ export default function Dashboard() {
               </CardWithIndents>
 
               <CardWithIndents>
-                <CardHeader className="bg-[#1b1b1b] dark:bg-[#1b1b1b]">
-                  <CardTitle className="flex items-center gap-2 text-white">
+                <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                  <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                     <TrendingUp className="w-5 h-5 text-blue-400" />
                     Recent Activity
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3 bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+                <CardContent className="space-y-3 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                   {recentActivity.length === 0 ? (
-                    <div className="text-sm text-gray-400">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
                       No submissions yet. Complete a quest to see it here.
                     </div>
                   ) : (
@@ -1341,11 +1331,11 @@ export default function Dashboard() {
                       >
                         {getActivityIcon(entry.status)}
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm text-white">
+                          <div className="text-sm text-gray-900 dark:text-white">
                             {formatActivityText(entry)}
                           </div>
                           {entry.submissionTimestamp && (
-                            <div className="text-xs text-gray-400">
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
                               {formatDateConsistent(
                                 new Date(entry.submissionTimestamp),
                               )}
@@ -1368,7 +1358,7 @@ export default function Dashboard() {
 
       {/* Rabbit on Logo at bottom */}
       <div
-        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none dark:brightness-100 brightness-0"
+        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none dark:brightness-100"
         style={{
           zIndex: 1,
           height: "400px",

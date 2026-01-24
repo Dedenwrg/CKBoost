@@ -285,13 +285,13 @@ export default function Leaderboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1b1b1b] dark:bg-[#1b1b1b]">
+    <div className="min-h-screen bg-white dark:bg-[#1b1b1b]">
       {/* Starlight background - only for main content area, not footer */}
       <div
-        className="fixed inset-0 overflow-hidden pointer-events-none"
+        className="fixed inset-0 overflow-hidden pointer-events-none bg-white dark:bg-black"
         style={{
           zIndex: 0,
-          background: `url('/assets/Base%20UI/Starlight%20background.svg') black`,
+          backgroundImage: `url('/assets/Base%20UI/Starlight%20background.svg')`,
           backgroundSize: "100vw 100vh",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
@@ -331,10 +331,9 @@ export default function Leaderboard() {
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
               <h1
-                className="text-4xl font-bold"
+                className="text-4xl font-bold text-gray-900 dark:text-white"
                 style={{
                   fontFamily: "Pixellari, monospace",
-                  color: "#FFFFFF",
                 }}
               >
                 Leaderboard
@@ -345,29 +344,27 @@ export default function Leaderboard() {
           {combinedError && (
             <div className="relative w-full justify-self-center mb-8">
               {/* Four corner square indents - aligned with card border corners */}
-              <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+              <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
               <div
-                className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
                 style={{
-                  boxShadow: "inset 1px 0 0 0 #1F2937",
                   borderLeft: "3px solid #535353",
                 }}
               />
               <div
-                className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
                 style={{
-                  boxShadow: "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                   borderTop: "3px solid #535353",
                   borderLeft: "3px solid #535353",
                 }}
               />
               <div
-                className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+                className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
                 style={{
                   borderTop: "3px solid #535353",
                 }}
               />
-              <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
+              <Card className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none">
                 <CardContent className="py-4">
                   <div className="text-sm text-red-700 dark:text-red-200">
                     {combinedError}
@@ -381,30 +378,27 @@ export default function Leaderboard() {
             <div className="lg:col-span-2 space-y-6">
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
                   style={{
-                    boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
                   style={{
-                    boxShadow:
-                      "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
                   style={{
                     borderTop: "3px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-black dark:bg-black border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
+                <Card className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none">
                   <CardContent className="p-0">
                     <div
                       className="relative w-full h-full px-9 py-6 flex items-center justify-between"
@@ -436,14 +430,14 @@ export default function Leaderboard() {
                         ) : (
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className="text-2xl font-bold">
+                              <div className="text-2xl font-bold text-white">
                                 #{currentUserRank}
                               </div>
                               <div>
-                                <div className="font-medium">
+                                <div className="font-medium text-white">
                                   {currentUserLabel}
                                 </div>
-                                <div className="text-sm text-muted-foreground">
+                                <div className="text-sm text-white/70">
                                   {currentUserPoints} points minted
                                 </div>
                               </div>
@@ -453,7 +447,7 @@ export default function Leaderboard() {
                       </div>
 
                       <div className="flex-shrink-0">
-                        <Button className="bg-black hover:bg-black/80 text-white rounded-full px-6 h-10 text-[15px] font-medium flex items-center gap-2 border-0">
+                        <Button className="bg-white hover:bg-gray-100 dark:bg-black dark:hover:bg-black/80 text-black dark:text-white rounded-full px-6 h-10 text-[15px] font-medium flex items-center gap-2 border-0">
                           {currentUserEntry ? "View Details" : "Get Started!"}
                           <ArrowRight className="w-4 h-4" />
                         </Button>
@@ -465,32 +459,29 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
                   style={{
-                    boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
                   style={{
-                    boxShadow:
-                      "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
                   style={{
                     borderTop: "3px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
-                  <CardHeader className="flex flex-row space-y-0 items-center justify-between gap-4 pb-4 border-[#3a3a3a] bg-[#1b1b1b]">
-                    <div className="flex items-center gap-2 text-white">
+                <Card className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none">
+                  <CardHeader className="flex flex-row space-y-0 items-center justify-between gap-4 pb-4 border-gray-300 dark:border-[#3a3a3a] bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+                    <div className="flex items-center gap-2 text-gray-900 dark:text-white">
                       <Star className="w-5 h-5 text-purple-500" />
                       <CardTitle className="text-lg">Top Performers</CardTitle>
                     </div>
@@ -505,7 +496,7 @@ export default function Leaderboard() {
                         size="icon"
                         onClick={handleRefresh}
                         disabled={!service || isRefreshing || isLoading}
-                        className="h-10 w-10 rounded-full bg-[#585858] hover:bg-[#6a6a6a] border-0 text-white flex items-center justify-center"
+                        className="h-10 w-10 rounded-full bg-gray-300 hover:bg-gray-400 dark:bg-[#585858] dark:hover:bg-[#6a6a6a] border-0 text-gray-900 dark:text-white flex items-center justify-center"
                       >
                         <RefreshCw
                           className={`w-4 h-4 ${
@@ -515,7 +506,7 @@ export default function Leaderboard() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3 pt-4 bg-[#1b1b1b]">
+                  <CardContent className="space-y-3 pt-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
                     {isInitialLoading ? (
                       <div className="space-y-3">
                         {Array.from({ length: 5 }).map((_, index) => (
@@ -526,7 +517,7 @@ export default function Leaderboard() {
                         ))}
                       </div>
                     ) : leaderboardTop.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-gray-600 dark:text-muted-foreground">
                         No Points mints recorded yet.
                       </div>
                     ) : (
@@ -543,8 +534,8 @@ export default function Leaderboard() {
                             key={`${entry.lockHash}-${rank}`}
                             className={`flex items-center justify-between px-6 py-4 rounded-[14px] border ${
                               isTopThree
-                                ? "bg-[#002725] border-[#008b76]"
-                                : "bg-black border-[#3a3a3a]"
+                                ? "bg-green-100 dark:bg-[#002725] border-green-300 dark:border-[#008b76]"
+                                : "bg-white dark:bg-black border-gray-300 dark:border-[#3a3a3a]"
                             }`}
                           >
                             <div className="flex items-center gap-4">
@@ -557,20 +548,20 @@ export default function Leaderboard() {
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium text-white text-[16px]">
+                                <div className="font-medium text-gray-900 dark:text-white text-[16px]">
                                   {displayName}
                                 </div>
-                                <div className="text-xs text-[#696969]">
+                                <div className="text-xs text-[#696969] dark:text-[#696969]">
                                   Lock: {lockLabel}
                                 </div>
                               </div>
                             </div>
 
                             <div className="text-right">
-                              <div className="text-[28px] leading-tight font-semibold text-white">
+                              <div className="text-[28px] leading-tight font-semibold text-gray-900 dark:text-white">
                                 {mintedPoints}
                               </div>
-                              <div className="text-[13px] text-[#696969]">
+                              <div className="text-[13px] text-[#696969] dark:text-[#696969]">
                                 Points minted
                               </div>
                             </div>
@@ -586,67 +577,66 @@ export default function Leaderboard() {
             <div className="space-y-6">
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
                   style={{
-                    boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
                   style={{
-                    boxShadow:
-                      "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
                   style={{
                     borderTop: "3px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
-                  <CardHeader className="flex items-center gap-2 border-0 text-white">
+                <Card className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none">
+                  <CardHeader className="flex items-center gap-2 border-0 text-gray-900 dark:text-white">
                     <Activity className="w-5 h-5 text-green-600" />
                     <CardTitle>Leaderboard Metrics</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
+                      <span className="text-gray-600 dark:text-muted-foreground">
                         Total Points minted
                       </span>
-                      <span className="font-semibold">
+                      <span className="font-semibold text-gray-900 dark:text-white">
                         {formatPoints(totalsSummary.totalMinted.toString())}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
+                      <span className="text-gray-600 dark:text-muted-foreground">
                         Unique recipients
                       </span>
-                      <span className="font-semibold">
+                      <span className="font-semibold text-gray-900 dark:text-white">
                         {totalsSummary.uniqueRecipients}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
+                      <span className="text-gray-600 dark:text-muted-foreground">
                         Transactions tracked
                       </span>
-                      <span className="font-semibold">
+                      <span className="font-semibold text-gray-900 dark:text-white">
                         {totalsSummary.transactionsTracked}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
+                      <span className="text-gray-600 dark:text-muted-foreground">
                         Participants ranked
                       </span>
-                      <span className="font-semibold">{participantCount}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {participantCount}
+                      </span>
                     </div>
                     {lastUpdated && (
-                      <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                      <div className="flex items-center justify-between text-xs text-gray-600 dark:text-muted-foreground pt-2 border-t border-gray-300 dark:border-gray-700">
                         <span>Last updated</span>
                         <span>{lastUpdated.toLocaleTimeString()}</span>
                       </div>
@@ -657,31 +647,28 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
                   style={{
-                    boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
                   style={{
-                    boxShadow:
-                      "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
                   style={{
                     borderTop: "3px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
-                  <CardHeader className="flex items-center gap-2 bg-[#1b1b1b] border-0 text-white">
+                <Card className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none">
+                  <CardHeader className="flex items-center gap-2 bg-[#F2FAF4] dark:bg-[#1b1b1b] border-0 text-gray-900 dark:text-white">
                     <Clock className="w-5 h-5 text-blue-600" />
                     <CardTitle>Recent Minting Activity</CardTitle>
                   </CardHeader>
@@ -696,7 +683,7 @@ export default function Leaderboard() {
                         ))}
                       </div>
                     ) : recentTransactions.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-sm text-gray-600 dark:text-muted-foreground">
                         No minting transactions found yet.
                       </div>
                     ) : (
@@ -708,20 +695,20 @@ export default function Leaderboard() {
                         return (
                           <div
                             key={record.txHash}
-                            className="p-4 rounded-lg border border-[#535353] bg-[#1b1b1b] dark:bg-[#1b1b1b]"
+                            className="p-4 rounded-lg border border-gray-300 dark:border-[#535353] bg-white dark:bg-[#1b1b1b]"
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-semibold">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
                                 Tx {shorten(record.txHash, 10, 6)}
                               </span>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-gray-600 dark:text-muted-foreground">
                                 Block{" "}
                                 {record.blockNumber
                                   ? `#${record.blockNumber}`
                                   : "Pending"}
                               </span>
                             </div>
-                            <div className="text-sm mb-2">
+                            <div className="text-sm mb-2 text-gray-900 dark:text-white">
                               Total minted:{" "}
                               <span className="font-semibold">
                                 {formatPoints(record.totalMinted)} points
@@ -729,14 +716,14 @@ export default function Leaderboard() {
                             </div>
                             <div className="space-y-1 text-xs">
                               {topRecipients.length === 0 ? (
-                                <div className="text-muted-foreground">
+                                <div className="text-gray-600 dark:text-muted-foreground">
                                   No recipients recorded.
                                 </div>
                               ) : (
                                 topRecipients.map((recipient, idx) => (
                                   <div
                                     key={`${record.txHash}-${recipient.lockHash}-${idx}`}
-                                    className="flex items-center justify-between text-muted-foreground"
+                                    className="flex items-center justify-between text-gray-600 dark:text-muted-foreground"
                                   >
                                     <span>
                                       {shorten(
@@ -745,14 +732,14 @@ export default function Leaderboard() {
                                         6,
                                       )}
                                     </span>
-                                    <span className="font-medium text-foreground">
+                                    <span className="font-medium text-gray-900 dark:text-foreground">
                                       {formatPoints(recipient.mintedAmount)} pts
                                     </span>
                                   </div>
                                 ))
                               )}
                               {extraRecipients > 0 && (
-                                <div className="text-[11px] text-muted-foreground">
+                                <div className="text-[11px] text-gray-600 dark:text-muted-foreground">
                                   + {extraRecipients} more recipient
                                   {extraRecipients > 1 ? "s" : ""}
                                 </div>
@@ -768,37 +755,34 @@ export default function Leaderboard() {
 
               <div className="relative w-full justify-self-center">
                 {/* Four corner square indents - aligned with card border corners */}
-                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+                <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
                 <div
-                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
                   style={{
-                    boxShadow: "inset 1px 0 0 0 #1F2937",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
                   style={{
-                    boxShadow:
-                      "inset 1px 0 0 0 #1F2937, inset 0 1px 0 0 #1F2937",
                     borderTop: "3px solid #535353",
                     borderLeft: "3px solid #535353",
                   }}
                 />
                 <div
-                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+                  className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
                   style={{
                     borderTop: "3px solid #535353",
                   }}
                 />
-                <Card className="relative z-10 bg-[#1b1b1b] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-t-0 border-l-0">
-                  <CardHeader className="flex items-center gap-2">
+                <Card className="overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none">
+                  <CardHeader className="flex items-center gap-2 text-gray-900 dark:text-white">
                     <Info className="w-5 h-5 text-blue-600" />
                     <CardTitle>Rules & Information</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4 text-sm text-muted-foreground">
+                  <CardContent className="space-y-4 text-sm text-gray-600 dark:text-muted-foreground">
                     <div>
-                      <h4 className="font-semibold text-foreground mb-2">
+                      <h4 className="font-semibold text-gray-900 dark:text-foreground mb-2">
                         Points Overview
                       </h4>
                       <ul className="space-y-1">
@@ -818,7 +802,7 @@ export default function Leaderboard() {
                     </div>
 
                     <div>
-                      <h4 className="font-semibold text-foreground mb-2">
+                      <h4 className="font-semibold text-gray-900 dark:text-foreground mb-2">
                         Ranking Tips
                       </h4>
                       <ul className="space-y-1">
@@ -836,7 +820,7 @@ export default function Leaderboard() {
                       </ul>
                     </div>
 
-                    <div className="text-xs pt-3 border-t">
+                    <div className="text-xs pt-3 border-t border-gray-300 dark:border-gray-700">
                       Last processed block: {stats?.lastProcessedBlock ?? "—"}.
                       Leaderboard data refreshes whenever new Points cells are
                       detected.

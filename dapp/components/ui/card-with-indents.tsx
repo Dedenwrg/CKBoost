@@ -13,18 +13,18 @@ export const CardWithIndents = React.forwardRef<
   return (
     <div className="relative w-full">
       {/* Four corner square indents - aligned with card border corners */}
-      {/* Top-left: no border */}
-      <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20" />
+      {/* Top-left */}
+      <div className="absolute top-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 border-r-1 shadow-none" />
       {/* Top-right: left border (inset) */}
       <div
-        className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+        className="absolute top-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 border-b-1 shadow-none"
         style={{
           borderLeft: "3px solid #535353",
         }}
       />
       {/* Bottom-right: top and left border (inset) */}
       <div
-        className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20"
+        className="absolute bottom-0 right-0 w-4 h-4 bg-white dark:bg-black z-20 shadow-none"
         style={{
           borderTop: "3px solid #535353",
           borderLeft: "3px solid #535353",
@@ -32,7 +32,7 @@ export const CardWithIndents = React.forwardRef<
       />
       {/* Bottom-left: top border (inset) */}
       <div
-        className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20"
+        className="absolute bottom-0 left-0 w-4 h-4 bg-white dark:bg-black z-20 border-r-1 shadow-none"
         style={{
           borderTop: "3px solid #535353",
         }}
@@ -40,7 +40,7 @@ export const CardWithIndents = React.forwardRef<
       <Card
         ref={ref}
         className={cn(
-          "bg-[#1b1b1b] dark:bg-[#1b1b1b] border-[#535353] dark:border-[#535353] relative border-r-3 border-b-3 border-t-0 border-l-0 z-10",
+          "overflow-hidden flex flex-col h-full w-full bg-[#F2FAF4] dark:bg-[#1b1b1b] border border-[#535353] dark:border-[#535353] border-r-3 border-b-3 border-[#535353] dark:border-[#535353] border-t-1 border-l-1 relative z-10 shadow-none",
           className,
         )}
         style={{
