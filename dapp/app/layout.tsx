@@ -25,7 +25,13 @@ const navbar = (
         <img
           src="/assets/branding/CKBoost Pixel Art Logo - Navigation.svg"
           alt="CKBoost"
-          className="h-8 w-auto dark:brightness-100 brightness-0"
+          className="h-8 w-auto hidden dark:block"
+          style={{ imageRendering: "pixelated" }}
+        />
+        <img
+          src="/assets/branding/CKBoost Pixel Art Logo - Navigation - Inverted.svg"
+          alt="CKBoost"
+          className="h-8 w-auto block dark:hidden"
           style={{ imageRendering: "pixelated" }}
         />
       </div>

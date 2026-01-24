@@ -762,6 +762,42 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+        {/* Rabbit at bottom - above Footer */}
+        <div className="relative w-full" style={{ height: "50px", marginBottom: "-2rem", marginTop: "0" }}>
+          <img
+            src="/assets/branding/Rabbit.svg"
+            alt="Rabbit"
+            className="hidden dark:block"
+            style={{
+              position: "absolute",
+              width: "auto",
+              height: "50px",
+              right: "20px",
+              bottom: "0",
+              maxHeight: "30vh",
+              imageRendering: "pixelated",
+              opacity: 1,
+              zIndex: 10,
+            }}
+          />
+          <img
+            src="/assets/branding/Rabbit  - Inverted .svg"
+            alt="Rabbit Inverted"
+            className="block dark:hidden"
+            style={{
+              position: "absolute",
+              width: "auto",
+              height: "50px",
+              right: "20px",
+              bottom: "0",
+              maxHeight: "30vh",
+              imageRendering: "pixelated",
+              opacity: 1,
+              zIndex: 10,
+            }}
+          />
+        </div>
       </main>
     </div>
   );

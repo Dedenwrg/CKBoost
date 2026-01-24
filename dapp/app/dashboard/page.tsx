@@ -912,7 +912,7 @@ export default function Dashboard() {
       />
       {/* Rabbit in top-right corner */}
       <div
-        className="fixed top-0 right-0 overflow-hidden pointer-events-none dark:brightness-100 brightness-0"
+        className="fixed top-0 right-0 overflow-hidden pointer-events-none"
         style={{
           zIndex: 1,
           width: "40vw",
@@ -922,6 +922,7 @@ export default function Dashboard() {
         <img
           src="/assets/branding/Rabbit - Background.svg"
           alt="Rabbit Top Right"
+          className="hidden dark:block"
           style={{
             position: "absolute",
             top: "0",
@@ -930,7 +931,25 @@ export default function Dashboard() {
             height: "100%",
             maxHeight: "400px",
             imageRendering: "pixelated",
-            opacity: 0.7,
+            opacity: 1,
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+            transform: "rotate(-15deg)",
+          }}
+        />
+        <img
+          src="/assets/branding/Rabbit - Background  - Inverted.svg"
+          alt="Rabbit Top Right Inverted"
+          className="block dark:hidden"
+          style={{
+            position: "absolute",
+            top: "0",
+            right: "-5%",
+            width: "auto",
+            height: "100%",
+            maxHeight: "400px",
+            imageRendering: "pixelated",
+            opacity: 1,
             filter:
               "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
             transform: "rotate(-15deg)",
@@ -1358,7 +1377,7 @@ export default function Dashboard() {
 
       {/* Rabbit on Logo at bottom */}
       <div
-        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none dark:brightness-100"
+        className="fixed bottom-0 left-0 right-0 overflow-hidden pointer-events-none"
         style={{
           zIndex: 1,
           height: "400px",
@@ -1367,6 +1386,7 @@ export default function Dashboard() {
         <img
           src="/assets/branding/Rabbit on Logo.svg"
           alt="Rabbit on Logo"
+          className="hidden dark:block"
           style={{
             position: "absolute",
             bottom: "0",
@@ -1376,7 +1396,23 @@ export default function Dashboard() {
             height: "350px",
             maxHeight: "60vh",
             imageRendering: "pixelated",
-            opacity: 0.9,
+            opacity: 1,
+          }}
+        />
+        <img
+          src="/assets/branding/Rabbit on Logo  - Inverted.svg"
+          alt="Rabbit on Logo Inverted"
+          className="block dark:hidden"
+          style={{
+            position: "absolute",
+            bottom: "0",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "auto",
+            height: "350px",
+            maxHeight: "60vh",
+            imageRendering: "pixelated",
+            opacity: 1,
           }}
         />
       </div>

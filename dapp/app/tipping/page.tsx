@@ -42,6 +42,56 @@ export default function CommunityPage() {
         </div>
 
         <Tippings />
+
+        {/* Rabbit at bottom-left - sticky above Footer, showing only right 80% */}
+        <div
+          className="sticky bottom-0 pointer-events-none overflow-visible"
+          style={{
+            height: "0",
+            zIndex: 30,
+            marginBottom: "-2rem", // Offset main's padding to stick directly to footer
+          }}
+        >
+          <div
+            className="absolute bottom-0"
+            style={{
+              left: "calc((min(100vw, 896px) - 100vw) / 2 + 20px)", // max-w-4xl is 896px
+              width: "100px",
+              height: "50px",
+            }}
+          >
+            <img
+              src="/assets/branding/Rabbit.svg"
+              alt="Rabbit"
+              className="hidden dark:block"
+              style={{
+                position: "absolute",
+                width: "auto",
+                height: "50px",
+                left: "-50px", // Pull it left to show only right 80%
+                bottom: "0",
+                maxHeight: "30vh",
+                imageRendering: "pixelated",
+                opacity: 1,
+              }}
+            />
+            <img
+              src="/assets/branding/Rabbit  - Inverted .svg"
+              alt="Rabbit Inverted"
+              className="block dark:hidden"
+              style={{
+                position: "absolute",
+                width: "auto",
+                height: "50px",
+                left: "-50px", // Pull it left to show only right 80%
+                bottom: "0",
+                maxHeight: "30vh",
+                imageRendering: "pixelated",
+                opacity: 1,
+              }}
+            />
+          </div>
+        </div>
       </main>
     </div>
   );

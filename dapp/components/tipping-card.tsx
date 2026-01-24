@@ -605,7 +605,7 @@ export function TippingCard({
           </div>
           <div className="text-right flex flex-col items-end h-full">
             <div className="text-2xl font-bold text-yellow-400 whitespace-nowrap">
-              {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB
+              {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB + {basePointsAmount} Points
             </div>
             <div className="mt-1">{getStatusBadge()}</div>
           </div>
@@ -779,21 +779,6 @@ export function TippingCard({
                 </div>
               )}
             </div>
-          )}
-        </div>
-
-        {/* Points Summary */}
-        <div className="rounded-lg border border-indigo-700 bg-indigo-900/20 p-3">
-          <p className="text-xs uppercase tracking-wide text-indigo-300">
-            {hasGrantedStatus ? "Granted Points" : "Pending Points"}
-          </p>
-          <p className="text-lg font-semibold text-indigo-100">
-            {basePointsAmount}
-          </p>
-          {!hasGrantedStatus && (
-            <p className="text-[10px] text-gray-400 mt-1">
-              Points will be distributed once the tip is granted.
-            </p>
           )}
         </div>
 

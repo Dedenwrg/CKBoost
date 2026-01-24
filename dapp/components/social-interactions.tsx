@@ -350,6 +350,7 @@ export function SocialInteractions({
                       (commentEnabled && !commentValue.trim()) ||
                       isSubmittingComment
                     }
+                    className="rounded-full text-white font-semibold shadow-lg border-0 hover:opacity-90 transition-opacity disabled:opacity-50 bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099]"
                   >
                     {isSubmittingComment ? (
                       <>

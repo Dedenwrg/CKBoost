@@ -845,6 +845,24 @@ export default function Leaderboard() {
         <img
           src="/assets/branding/Rabbit - Background.svg"
           alt="Rabbit Background 1"
+          className="hidden dark:block"
+          style={{
+            position: "absolute",
+            bottom: "100px",
+            left: "10%",
+            width: "auto",
+            height: "200px",
+            maxHeight: "35vh",
+            imageRendering: "pixelated",
+            opacity: 1,
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+          }}
+        />
+        <img
+          src="/assets/branding/Rabbit - Background  - Inverted.svg"
+          alt="Rabbit Background 1 Inverted"
+          className="block dark:hidden"
           style={{
             position: "absolute",
             bottom: "100px",
@@ -862,6 +880,24 @@ export default function Leaderboard() {
         <img
           src="/assets/branding/Rabbit - Background.svg"
           alt="Rabbit Background 2"
+          className="hidden dark:block"
+          style={{
+            position: "absolute",
+            bottom: "80px",
+            left: "30%",
+            width: "auto",
+            height: "350px",
+            maxHeight: "55vh",
+            imageRendering: "pixelated",
+            opacity: 1,
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+          }}
+        />
+        <img
+          src="/assets/branding/Rabbit - Background  - Inverted.svg"
+          alt="Rabbit Background 2 Inverted"
+          className="block dark:hidden"
           style={{
             position: "absolute",
             bottom: "80px",
@@ -879,6 +915,24 @@ export default function Leaderboard() {
         <img
           src="/assets/branding/Rabbit - Background.svg"
           alt="Rabbit Background 3"
+          className="hidden dark:block"
+          style={{
+            position: "absolute",
+            bottom: "60px",
+            right: "15%",
+            width: "auto",
+            height: "150px",
+            maxHeight: "25vh",
+            imageRendering: "pixelated",
+            opacity: 1,
+            filter:
+              "drop-shadow(0 -6px 0 #2A21F8) drop-shadow(0 6px 0 #F426FC)",
+          }}
+        />
+        <img
+          src="/assets/branding/Rabbit - Background  - Inverted.svg"
+          alt="Rabbit Background 3 Inverted"
+          className="block dark:hidden"
           style={{
             position: "absolute",
             bottom: "60px",
