@@ -1035,9 +1035,7 @@ export default function CampaignDetailPage() {
 
           {/* Main Content Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList
-              className="grid w-full grid-cols-3 rounded-full bg-[#F2FAF4] dark:bg-[#1b1b1b] p-1 border border-gray-300 dark:border-[#535353]"
-            >
+            <TabsList className="grid w-full grid-cols-3 rounded-full bg-[#F2FAF4] dark:bg-[#1b1b1b] p-1 border border-gray-300 dark:border-[#535353]">
               <TabsTrigger
                 value="overview"
                 className="rounded-full text-xs sm:text-sm font-medium data-[state=active]:bg-[#FF4D00] dark:data-[state=active]:bg-[#3300FF] data-[state=active]:text-white data-[state=inactive]:text-gray-700 dark:data-[state=inactive]:text-gray-300 data-[state=inactive]:bg-transparent transition-colors"
@@ -1528,6 +1526,22 @@ export default function CampaignDetailPage() {
                                     {quest.metadata?.title ||
                                       `Quest ${selectedQuestIndex + 1}`}
                                   </CardTitle>
+                                  {/* Time and Difficulty badges - below title (match quest list layout) */}
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    {quest.metadata?.time_estimate && (
+                                      <Badge variant="outline">
+                                        <Clock className="w-4 h-4 mr-1" />
+                                        {Number(quest.metadata.time_estimate)}{" "}
+                                        mins
+                                      </Badge>
+                                    )}
+                                    {quest.metadata?.difficulty && (
+                                      <Badge variant="outline">
+                                        Difficulty:{" "}
+                                        {Number(quest.metadata.difficulty)}
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <CardDescription className="mt-2 text-gray-600 dark:text-gray-400">
                                     {quest.metadata?.short_description || ""}
                                   </CardDescription>
@@ -1543,95 +1557,81 @@ export default function CampaignDetailPage() {
                                         You received:
                                       </span>
                                     )}
-                                  {/* Points */}
-                                  <Badge className="bg-green-100 text-green-800">
-                                    <Trophy className="w-4 h-4 mr-1" />
-                                    {Number(quest.points) || 100} points
-                                  </Badge>
-                                  {/* UDT + CKB rewards */}
-                                  {quest.rewards_on_completion &&
-                                    quest.rewards_on_completion.length > 0 &&
-                                    quest.rewards_on_completion.flatMap(
-                                      (
-                                        rewardList: AssetListLike,
-                                        idx: number,
-                                      ) => {
-                                        const badges = [] as JSX.Element[];
-                                        if (
-                                          rewardList.udt_assets &&
-                                          rewardList.udt_assets.length > 0
-                                        ) {
-                                          rewardList.udt_assets.forEach(
-                                            (
-                                              udtAsset: UDTAssetLike,
-                                              udtIdx: number,
-                                            ) => {
-                                              const script = ccc.Script.from(
-                                                udtAsset.udt_script,
-                                              );
-                                              const token =
-                                                udtRegistry.getTokenByScriptHash(
-                                                  script.hash(),
+                                  {/* Rewards row - green badges (points, UDT, CKB), match quest list layout */}
+                                  <div className="flex flex-wrap items-center gap-2 justify-end">
+                                    {/* Points */}
+                                    <Badge className="bg-green-100 text-green-800">
+                                      <Trophy className="w-4 h-4 mr-1" />
+                                      {Number(quest.points) || 100} points
+                                    </Badge>
+                                    {/* UDT + CKB rewards */}
+                                    {quest.rewards_on_completion &&
+                                      quest.rewards_on_completion.length > 0 &&
+                                      quest.rewards_on_completion.flatMap(
+                                        (
+                                          rewardList: AssetListLike,
+                                          idx: number,
+                                        ) => {
+                                          const badges = [] as JSX.Element[];
+                                          if (
+                                            rewardList.udt_assets &&
+                                            rewardList.udt_assets.length > 0
+                                          ) {
+                                            rewardList.udt_assets.forEach(
+                                              (
+                                                udtAsset: UDTAssetLike,
+                                                udtIdx: number,
+                                              ) => {
+                                                const script = ccc.Script.from(
+                                                  udtAsset.udt_script,
                                                 );
-                                              const amount = token
-                                                ? udtRegistry.formatAmount(
-                                                    Number(udtAsset.amount),
-                                                    token,
-                                                  )
-                                                : (
-                                                    Number(udtAsset.amount) /
-                                                    10 ** 8
-                                                  ).toString();
-                                              const symbol =
-                                                token?.symbol || "UDT";
-                                              badges.push(
-                                                <Badge
-                                                  key={`udt2-${idx}-${udtIdx}`}
-                                                  className="bg-green-100 text-green-800"
-                                                >
-                                                  <Coins className="w-4 h-4 mr-1" />
-                                                  {amount} {symbol}
-                                                </Badge>,
-                                              );
-                                            },
-                                          );
-                                        }
-                                        if (
-                                          rewardList.ckb_amount &&
-                                          Number(rewardList.ckb_amount) > 0
-                                        ) {
-                                          badges.push(
-                                            <Badge
-                                              key={`ckb2-${idx}`}
-                                              className="bg-green-100 text-green-800"
-                                            >
-                                              <Coins className="w-4 h-4 mr-1" />
-                                              {Number(rewardList.ckb_amount) /
-                                                10 ** 8}{" "}
-                                              CKB
-                                            </Badge>,
-                                          );
-                                        }
-                                        return badges;
-                                      },
-                                    )}
-                                  {quest.metadata?.difficulty && (
-                                    <Badge variant="outline">
-                                      Difficulty:{" "}
-                                      {getDifficultyString(
-                                        quest.metadata.difficulty,
+                                                const token =
+                                                  udtRegistry.getTokenByScriptHash(
+                                                    script.hash(),
+                                                  );
+                                                const amount = token
+                                                  ? udtRegistry.formatAmount(
+                                                      Number(udtAsset.amount),
+                                                      token,
+                                                    )
+                                                  : (
+                                                      Number(udtAsset.amount) /
+                                                      10 ** 8
+                                                    ).toString();
+                                                const symbol =
+                                                  token?.symbol || "UDT";
+                                                badges.push(
+                                                  <Badge
+                                                    key={`udt2-${idx}-${udtIdx}`}
+                                                    className="bg-green-100 text-green-800"
+                                                  >
+                                                    <Coins className="w-4 h-4 mr-1" />
+                                                    {amount} {symbol}
+                                                  </Badge>,
+                                                );
+                                              },
+                                            );
+                                          }
+                                          if (
+                                            rewardList.ckb_amount &&
+                                            Number(rewardList.ckb_amount) > 0
+                                          ) {
+                                            badges.push(
+                                              <Badge
+                                                key={`ckb2-${idx}`}
+                                                className="bg-green-100 text-green-800"
+                                              >
+                                                <Coins className="w-4 h-4 mr-1" />
+                                                {Number(rewardList.ckb_amount) /
+                                                  10 ** 8}{" "}
+                                                CKB
+                                              </Badge>,
+                                            );
+                                          }
+                                          return badges;
+                                        },
                                       )}
-                                    </Badge>
-                                  )}
-                                  {quest.metadata?.time_estimate && (
-                                    <Badge variant="outline">
-                                      <Clock className="w-4 h-4 mr-1" />
-                                      {Number(
-                                        quest.metadata.time_estimate,
-                                      )}{" "}
-                                      mins
-                                    </Badge>
-                                  )}
+                                  </div>
                                 </div>
                               </div>
                             </CardHeader>

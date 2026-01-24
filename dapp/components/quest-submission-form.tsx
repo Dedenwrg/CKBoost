@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { CardWithIndents } from "@/components/ui/card-with-indents";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -946,9 +947,9 @@ Lines        : 93.84% ( 183/195 )
         )}
 
       {/* Subtasks Submission Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
+      <CardWithIndents>
+        <CardHeader className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
+          <CardTitle className="text-gray-900 dark:text-white">
             {hasSubmitted && !isEditMode
               ? "Your Submission"
               : isEditMode && nostrFetchError
@@ -957,7 +958,7 @@ Lines        : 93.84% ( 183/195 )
               ? "Edit Your Submission"
               : "Submit Your Responses"}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-gray-600 dark:text-gray-400">
             {hasSubmitted &&
             !isEditMode &&
             !nostrFetchError &&
@@ -970,7 +971,7 @@ Lines        : 93.84% ( 183/195 )
               : "Provide your responses for each task below. You can use Markdown formatting."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="bg-[#F2FAF4] dark:bg-[#1b1b1b]">
           <div className="space-y-6">
             {quest.sub_tasks?.map((subtask, subIndex) => (
               <div key={subIndex} className="space-y-3">
@@ -1014,8 +1015,8 @@ Lines        : 93.84% ( 183/195 )
                 <div className="ml-11">
                   {hasSubmitted && !isEditMode && !nostrFetchError ? (
                     // Display mode - show the content as readonly
-                    <div className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="p-4 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900">
+                      <div className="prose prose-sm dark:prose-invert max-w-none text-gray-900 dark:text-white">
                         {subtaskResponses[subIndex] ? (
                           <div
                             dangerouslySetInnerHTML={{
@@ -1023,7 +1024,7 @@ Lines        : 93.84% ( 183/195 )
                             }}
                           />
                         ) : (
-                          <p className="text-muted-foreground italic">
+                          <p className="text-gray-600 dark:text-muted-foreground italic">
                             No response provided
                           </p>
                         )}
@@ -1052,7 +1053,7 @@ Lines        : 93.84% ( 183/195 )
                         height={250}
                       />
                       {subtask.proof_required && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-gray-600 dark:text-muted-foreground mt-2">
                           💡 Tip: Include links, screenshots, or other proof as
                           required. You can use the link button to add URLs.
                         </p>
@@ -1077,7 +1078,7 @@ Lines        : 93.84% ( 183/195 )
 
             {/* Submit/Edit Buttons */}
             {(!hasSubmitted || isEditMode) && (
-              <div className="flex justify-between pt-4 border-t">
+              <div className="flex justify-between pt-4 border-t border-gray-300 dark:border-gray-700">
                 {/* Test Data Button (Development Only) */}
                 {process.env.NODE_ENV === "development" && !hasSubmitted && (
                   <Button
@@ -1116,17 +1117,7 @@ Lines        : 93.84% ( 183/195 )
                     (isFirstTime && !userVerificationData.name) ||
                     Object.keys(subtaskResponses).length === 0
                   }
-                  className={`${
-                    isFirstTime
-                      ? "bg-purple-600 hover:bg-purple-700"
-                      : isEditMode
-                      ? "bg-orange-600 hover:bg-orange-700"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  } ${
-                    process.env.NODE_ENV !== "development" || isEditMode
-                      ? "ml-auto"
-                      : ""
-                  }`}
+                  className="ml-auto bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 border-0 shadow-none transition-colors"
                 >
                   {isSubmitting ? (
                     <>
@@ -1160,7 +1151,7 @@ Lines        : 93.84% ( 183/195 )
             )}
           </div>
         </CardContent>
-      </Card>
+      </CardWithIndents>
 
       {/* Nostr Storage Verification Modal */}
       {/* Modal moved to global provider */}
