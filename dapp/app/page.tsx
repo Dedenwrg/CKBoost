@@ -764,7 +764,10 @@ export default function HomePage() {
         </div>
 
         {/* Rabbit at bottom - above Footer */}
-        <div className="relative w-full" style={{ height: "50px", marginBottom: "-2rem", marginTop: "0" }}>
+        <div
+          className="relative w-full"
+          style={{ height: "50px", marginBottom: "-2rem", marginTop: "0" }}
+        >
           <img
             src="/assets/branding/Rabbit.svg"
             alt="Rabbit"

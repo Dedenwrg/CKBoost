@@ -46,7 +46,7 @@ interface TippingCardProps {
   onComment?: (tippingId: string, comment: string) => void;
   onAdditionalTip?: (
     tippingId: string,
-    tipData: { amount: number; message?: string; txHash?: string }
+    tipData: { amount: number; message?: string; txHash?: string },
   ) => void;
   initialStats?: SocialInteractions;
 }
@@ -105,7 +105,7 @@ export function TippingCard({
   } = useTippingComments(
     tipping.typeId,
     commentListReplaceableKey,
-    isAdmin || isViewerAdmin
+    isAdmin || isViewerAdmin,
   );
 
   const proposerLockHash = useMemo(() => {
@@ -122,8 +122,9 @@ export function TippingCard({
   }, [tipping.data.proposer_lock_hash]);
 
   const proposerInfo = useMemo(
-    () => (proposerLockHash ? resolveEndorser(proposerLockHash) ?? null : null),
-    [resolveEndorser, proposerLockHash]
+    () =>
+      proposerLockHash ? (resolveEndorser(proposerLockHash) ?? null) : null,
+    [resolveEndorser, proposerLockHash],
   );
 
   const proposerDisplayName =
@@ -152,7 +153,7 @@ export function TippingCard({
       ) {
         setCommentListReplaceableKey(
           (parsed as { commentListReplaceableKey?: CommentListReplaceableKey })
-            .commentListReplaceableKey || undefined
+            .commentListReplaceableKey || undefined,
         );
         return (parsed as { contentHtml: string }).contentHtml;
       }
@@ -235,7 +236,7 @@ export function TippingCard({
   };
   const formattedLongDescription = useMemo(
     () => formatLongDescription(resolvedLongDescription),
-    [resolvedLongDescription]
+    [resolvedLongDescription],
   );
   const tipStatus = tipping.data.status?.toLowerCase?.() ?? "pending";
   const supportersCount = tipping.data.supporter_lock_hashes.length;
@@ -245,7 +246,7 @@ export function TippingCard({
     }
     const lockLower = viewerLockHash.toLowerCase();
     return tipping.data.supporter_lock_hashes.findIndex(
-      (hash) => ccc.hexFrom(hash).toLowerCase() === lockLower
+      (hash) => ccc.hexFrom(hash).toLowerCase() === lockLower,
     );
   }, [tipping.data.supporter_lock_hashes, viewerLockHash]);
   const hasViewerApproved = viewerSupportIndex !== -1;
@@ -337,7 +338,7 @@ export function TippingCard({
       setApproveError(
         error instanceof Error
           ? error.message
-          : "Failed to approve tipping proposal."
+          : "Failed to approve tipping proposal.",
       );
     } finally {
       setIsApproving(false);
@@ -356,7 +357,7 @@ export function TippingCard({
 
     if (!response.ok) {
       throw new Error(
-        `Failed to resolve lock script (status ${response.status})`
+        `Failed to resolve lock script (status ${response.status})`,
       );
     }
 
@@ -433,7 +434,7 @@ export function TippingCard({
     } catch (error) {
       console.error("Failed to send personal tip", error);
       setApproveError(
-        error instanceof Error ? error.message : "Failed to send tip"
+        error instanceof Error ? error.message : "Failed to send tip",
       );
     } finally {
       setIsSendingTip(false);
@@ -505,7 +506,7 @@ export function TippingCard({
   const SHANNON_FACTOR = 10n ** 8n;
 
   const formatCkbAmount = (
-    shannons: ccc.NumLike | undefined | null
+    shannons: ccc.NumLike | undefined | null,
   ): string => {
     try {
       const value = shannons ? BigInt(ccc.numFrom(shannons)) : 0n;
@@ -525,7 +526,7 @@ export function TippingCard({
   };
 
   const formatPointsAmount = (
-    points: ccc.NumLike | undefined | null
+    points: ccc.NumLike | undefined | null,
   ): string => {
     try {
       const value = points ? BigInt(ccc.numFrom(points)) : 0n;
@@ -536,19 +537,19 @@ export function TippingCard({
   };
 
   const basePointsAmount = formatPointsAmount(
-    tipping.data.rewards.points_amount
+    tipping.data.rewards.points_amount,
   );
   const hasGrantedStatus = tipStatus === "granted" || tipStatus === "completed";
 
   const matchedThresholds =
     tippingConfig?.approval_requirement_thresholds.filter(
-      (threshold) => threshold <= ccc.numFrom(tipping.data.rewards.ckb_amount)
+      (threshold) => threshold <= ccc.numFrom(tipping.data.rewards.ckb_amount),
     ) ?? [];
   const approvalRequirement = Math.max(1, matchedThresholds.length + 1);
 
   const approvalsNeeded = Math.max(
     approvalRequirement - tipping.data.supporter_lock_hashes.length,
-    0
+    0,
   );
   const progressPercentage =
     (tipping.data.supporter_lock_hashes.length / approvalRequirement) * 100;
@@ -592,7 +593,7 @@ export function TippingCard({
                 <Badge
                   variant="outline"
                   className={`${getTypeColor(
-                    tipping.data.metadata.contribution_type_tags[0]
+                    tipping.data.metadata.contribution_type_tags[0],
                   )} whitespace-nowrap border-gray-300 dark:border-gray-700`}
                 >
                   {tipping.data.metadata.contribution_type_tags[0]}
@@ -605,7 +606,8 @@ export function TippingCard({
           </div>
           <div className="text-right flex flex-col items-end h-full">
             <div className="text-2xl font-bold text-yellow-400 whitespace-nowrap">
-              {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB + {basePointsAmount} Points
+              {formatCkbAmount(tipping.data.rewards.ckb_amount)} CKB +{" "}
+              {basePointsAmount} Points
             </div>
             <div className="mt-1">{getStatusBadge()}</div>
           </div>
@@ -636,7 +638,9 @@ export function TippingCard({
       <CardContent className="space-y-4 bg-[#F2FAF4] dark:bg-[#1b1b1b]">
         {/* Justification */}
         <div className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700">
-          <div className="text-sm font-medium mb-2 text-gray-900 dark:text-white">Justification:</div>
+          <div className="text-sm font-medium mb-2 text-gray-900 dark:text-white">
+            Justification:
+          </div>
           {isResolvingLongDescription ? (
             <div className="text-sm text-muted-foreground italic">
               Loading description from Nostr…
@@ -720,8 +724,8 @@ export function TippingCard({
                       approvalsNeeded !== 1 ? "s" : ""
                     }`
                   : tipping.data.status === "pending"
-                  ? "Ready for execution"
-                  : `${tipping.data.supporter_lock_hashes.length}/${approvalRequirement} approvals`}
+                    ? "Ready for execution"
+                    : `${tipping.data.supporter_lock_hashes.length}/${approvalRequirement} approvals`}
               </span>
               <span className="font-medium text-gray-900 dark:text-white">
                 {tipping.data.supporter_lock_hashes.length}/
@@ -803,17 +807,17 @@ export function TippingCard({
                   "tipAmount" in tip && tip.tipAmount
                     ? tip.tipAmount
                     : "amount" in tip
-                    ? String(tip.amount)
-                    : "0";
+                      ? String(tip.amount)
+                      : "0";
                 const from =
                   "author" in tip
                     ? tip.author
                     : "from" in tip
-                    ? tip.from
-                    : "Unknown";
+                      ? tip.from
+                      : "Unknown";
                 const timestamp =
                   "timestamp" in tip ? tip.timestamp : undefined;
-                const key = "neventId" in tip ? tip.neventId : tip.id ?? from;
+                const key = "neventId" in tip ? tip.neventId : (tip.id ?? from);
                 return (
                   <div
                     key={key}
@@ -936,7 +940,7 @@ export function TippingCard({
               <div className="text-sm text-green-600 dark:text-green-300 mt-1">
                 Granted on{" "}
                 {new Date(
-                  Number(ccc.numFrom(tipping.data.granted_at))
+                  Number(ccc.numFrom(tipping.data.granted_at)),
                 ).toLocaleDateString()}
               </div>
             )}
