@@ -6,6 +6,11 @@ export default {
     type: "page",
     display: "hidden",
   },
+  // Use the /docs route only as a container,
+  // and show its children directly in the sidebar
+  docs: {
+    display: "children",
+  },
   campaigns: {
     type: "page",
     title: (
@@ -55,6 +60,10 @@ export default {
     display: "hidden",
   },
   "platform-admin": {
+    type: "page",
+    display: "hidden",
+  },
+  profile: {
     type: "page",
     display: "hidden",
   },
