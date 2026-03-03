@@ -1076,7 +1076,7 @@ export default function CampaignDetailPage() {
                     </p>
                   ) : resolvedDescription ? (
                     <div
-                      className="prose prose-sm sm:prose dark:prose-invert max-w-none"
+                      className="!max-w-full prose prose-sm sm:prose dark:prose-invert"
                       dangerouslySetInnerHTML={{ __html: resolvedDescription }}
                     />
                   ) : (
