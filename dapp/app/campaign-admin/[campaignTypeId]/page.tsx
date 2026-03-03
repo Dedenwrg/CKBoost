@@ -167,6 +167,7 @@ export default function CampaignAdminPage() {
   const canViewCampaign = isCreateMode
     ? isAdmin
     : isAdmin || hasStaffAccess;
+  const canManageQuests = isCreateMode || !isDetailsReadOnly;
 
   useEffect(() => {
     setIsDetailsReadOnly(!isCreateMode);
@@ -732,10 +733,8 @@ export default function CampaignAdminPage() {
             ) || [];
           setStaffLockHashes(staffHashes);
 
-          // Also populate local quests if they exist
-          if (campaignData.quests && campaignData.quests.length > 0) {
-            setLocalQuests(campaignData.quests);
-          }
+          // Keep editable quest state in sync with loaded campaign data
+          setLocalQuests(campaignData.quests || []);
 
           log.log("Campaign loaded successfully");
         }
@@ -1669,7 +1668,7 @@ export default function CampaignAdminPage() {
             <>
               {/* Campaign Stats */}
               <CampaignStats
-                quests={isCreateMode ? localQuests : campaign?.quests || []}
+                quests={localQuests}
                 participantCount={
                   campaign?.participants_count
                     ? Number(campaign.participants_count)
@@ -1779,10 +1778,18 @@ export default function CampaignAdminPage() {
             <TabsContent value="quests">
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-semibold">Campaign Quests</h2>
+                  <div>
+                    <h2 className="text-2xl font-semibold">Campaign Quests</h2>
+                    {!isCreateMode && !canManageQuests && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Enable editing in the Campaign Details tab to modify
+                        quests.
+                      </p>
+                    )}
+                  </div>
                   <Button
                     onClick={() => setIsAddingQuest(true)}
-                    disabled={!isCreateMode && !campaign}
+                    disabled={!canManageQuests}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Add Quest
@@ -1790,11 +1797,11 @@ export default function CampaignAdminPage() {
                 </div>
 
                 <QuestList
-                  quests={isCreateMode ? localQuests : campaign?.quests || []}
+                  quests={localQuests}
                   onEditQuest={handleEditQuest}
                   onDeleteQuest={handleDeleteQuest}
                   onAddQuest={() => setIsAddingQuest(true)}
-                  isCreateMode={isCreateMode}
+                  canManageQuests={canManageQuests}
                 />
               </div>
             </TabsContent>

@@ -9,7 +9,7 @@ interface QuestListProps {
   onEditQuest: (index: number) => void
   onDeleteQuest: (index: number) => void
   onAddQuest: () => void
-  isCreateMode: boolean
+  canManageQuests: boolean
 }
 
 export function QuestList({ 
@@ -17,9 +17,9 @@ export function QuestList({
   onEditQuest, 
   onDeleteQuest, 
   onAddQuest,
-  isCreateMode 
+  canManageQuests
 }: QuestListProps) {
-  if (isCreateMode && quests.length === 0) {
+  if (canManageQuests && quests.length === 0) {
     return (
       <Card>
         <CardContent className="py-12">
@@ -50,7 +50,7 @@ export function QuestList({
           index={index}
           onEdit={() => onEditQuest(index)}
           onDelete={() => onDeleteQuest(index)}
-          showActions={isCreateMode}
+          showActions={canManageQuests}
         />
       ))}
     </div>
