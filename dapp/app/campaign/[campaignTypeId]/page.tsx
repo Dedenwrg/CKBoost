@@ -1105,11 +1105,14 @@ export default function CampaignDetailPage() {
                     !isCampaignExpired && (
                       <Button
                         size="lg"
-                        onClick={() => setActiveTab("quests")}
+                        onClick={() => {
+                          setActiveTab("quests");
+                          setSelectedQuestIndex(0);
+                        }}
                         aria-label="Open quests tab and start participating"
                         className="w-full max-w-xs bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 border-0 shadow-none transition-colors"
                       >
-                        Get Started!
+                        Get Started with the First Quest!
                       </Button>
                     )}
                 </CardHeader>
@@ -1531,7 +1534,9 @@ export default function CampaignDetailPage() {
                                     {quest.metadata?.time_estimate && (
                                       <Badge variant="outline">
                                         <Clock className="w-4 h-4 mr-1" />
-                                        {Number(quest.metadata.time_estimate)}{" "}
+                                        {Number(
+                                          quest.metadata.time_estimate,
+                                        )}{" "}
                                         mins
                                       </Badge>
                                     )}
