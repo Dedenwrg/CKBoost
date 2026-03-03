@@ -64,30 +64,30 @@ Explicitly excluded for this roadmap cycle.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Which phases cover which requirements.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CAMP-01 | TBD | Pending |
-| CAMP-02 | TBD | Pending |
-| CAMP-03 | TBD | Pending |
-| VERI-01 | TBD | Pending |
-| VERI-02 | TBD | Pending |
-| REWD-01 | TBD | Pending |
-| REWD-02 | TBD | Pending |
-| QUAL-01 | TBD | Pending |
-| QUAL-02 | TBD | Pending |
-| QUAL-03 | TBD | Pending |
-| OPS-01 | TBD | Pending |
-| DOC-01 | TBD | Pending |
-| DOC-02 | TBD | Pending |
-| PLAN-01 | TBD | Pending |
+| QUAL-01 | Phase 1 | Pending |
+| QUAL-03 | Phase 1 | Pending |
+| OPS-01 | Phase 1 | Pending |
+| VERI-01 | Phase 2 | Pending |
+| VERI-02 | Phase 2 | Pending |
+| REWD-02 | Phase 2 | Pending |
+| CAMP-01 | Phase 3 | Pending |
+| CAMP-02 | Phase 3 | Pending |
+| QUAL-02 | Phase 3 | Pending |
+| CAMP-03 | Phase 4 | Pending |
+| REWD-01 | Phase 4 | Pending |
+| DOC-02 | Phase 4 | Pending |
+| DOC-01 | Phase 5 | Pending |
+| PLAN-01 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 14 total
-- Mapped to phases: 0
-- Unmapped: 14 ⚠️
+- Mapped to phases: 14
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after initial definition*
+*Last updated: 2026-03-03 after roadmap creation*
