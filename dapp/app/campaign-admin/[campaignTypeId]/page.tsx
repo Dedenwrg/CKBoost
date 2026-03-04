@@ -96,6 +96,35 @@ interface PendingCampaignSave {
   initialFundingEntries?: Array<{ scriptHash: string; amount: bigint }>;
 }
 
+const HEX_STRING_PATTERN = /^0x[0-9a-fA-F]*$/;
+
+const decodeHexUtf8 = (value: string): string | null => {
+  if (!HEX_STRING_PATTERN.test(value) || value.length <= 2) {
+    return null;
+  }
+
+  try {
+    return new TextDecoder().decode(ccc.bytesFrom(value)).replace(/\u0000+$/g, "");
+  } catch (error) {
+    log.warn("Failed to decode hex string", error);
+    return null;
+  }
+};
+
+const resolveLongDescriptionRef = (
+  rawValue: string
+): { neventId: string | null; inline: string } => {
+  const trimmed = rawValue.trim();
+  const decoded = decodeHexUtf8(trimmed);
+  const normalized = (decoded ?? trimmed).trim();
+
+  if (normalized.startsWith("nevent1")) {
+    return { neventId: normalized, inline: "" };
+  }
+
+  return { neventId: null, inline: normalized };
+};
+
 export default function CampaignAdminPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -686,9 +715,8 @@ export default function CampaignAdminPage() {
         if (campaignData) {
           setCampaign(campaignData);
 
-          const rawLongDescription =
-            campaignData.metadata?.long_description || "";
-          const isLongFromNostr = rawLongDescription.startsWith("nevent1");
+          const rawLongDescription = campaignData.metadata?.long_description || "";
+          const longDescriptionRef = resolveLongDescriptionRef(rawLongDescription);
           const rawImageUrl = campaignData.metadata?.image_url || "";
           const isImageFromNostr = rawImageUrl.startsWith("nevent1");
 
@@ -696,7 +724,7 @@ export default function CampaignAdminPage() {
           setCampaignData({
             title: campaignData.metadata?.title || "",
             shortDescription: campaignData.metadata?.short_description || "",
-            longDescription: isLongFromNostr ? "" : rawLongDescription,
+            longDescription: longDescriptionRef.inline,
             categories: campaignData.metadata?.categories || [],
             startDate: campaignData.starting_time
               ? new Date(Number(campaignData.starting_time) * 1000)
@@ -715,9 +743,7 @@ export default function CampaignAdminPage() {
             rules: campaignData?.rules || [""],
           });
 
-          setLongDescriptionNeventId(
-            isLongFromNostr ? rawLongDescription : null
-          );
+          setLongDescriptionNeventId(longDescriptionRef.neventId);
           setLongDescriptionDirty(false);
 
           setCoverImage({
@@ -1354,16 +1380,15 @@ export default function CampaignAdminPage() {
       if (campaignData) {
         setCampaign(campaignData);
         setLocalQuests(campaignData.quests || []);
-        const rawLongDescription =
-          campaignData.metadata?.long_description || "";
-        const isLongFromNostr = rawLongDescription.startsWith("nevent1");
+        const rawLongDescription = campaignData.metadata?.long_description || "";
+        const longDescriptionRef = resolveLongDescriptionRef(rawLongDescription);
         const rawImageUrl = campaignData.metadata?.image_url || "";
         const isImageFromNostr = rawImageUrl.startsWith("nevent1");
 
         setCampaignData({
           title: campaignData.metadata?.title || "",
           shortDescription: campaignData.metadata?.short_description || "",
-          longDescription: isLongFromNostr ? "" : rawLongDescription,
+          longDescription: longDescriptionRef.inline,
           categories: campaignData.metadata?.categories || [],
           startDate: campaignData.starting_time
             ? new Date(Number(campaignData.starting_time) * 1000)
@@ -1382,7 +1407,7 @@ export default function CampaignAdminPage() {
           rules: campaignData?.rules || [""],
         });
 
-        setLongDescriptionNeventId(isLongFromNostr ? rawLongDescription : null);
+        setLongDescriptionNeventId(longDescriptionRef.neventId);
         setLongDescriptionDirty(false);
 
         setCoverImage({

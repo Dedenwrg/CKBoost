@@ -84,6 +84,22 @@ const extractHtmlFromContent = (raw: string): string => {
   return raw;
 };
 
+const HEX_STRING_PATTERN = /^0x[0-9a-fA-F]*$/;
+
+const decodeHexUtf8 = (value: string): string | null => {
+  if (!HEX_STRING_PATTERN.test(value) || value.length <= 2) {
+    return null;
+  }
+
+  try {
+    // Some chain strings are persisted as hex bytes; normalize to utf-8 text.
+    return new TextDecoder().decode(ccc.bytesFrom(value)).replace(/\u0000+$/g, "");
+  } catch (error) {
+    log.warn("Failed to decode hex utf-8 string", error);
+    return null;
+  }
+};
+
 const formatLongDescriptionHtml = (content: string): string => {
   if (!content) {
     return "";
@@ -369,6 +385,8 @@ export default function CampaignDetailPage() {
   }, [campaign, viewerLockHash]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchCampaign = async () => {
       // Use public client if no signer is available
       if (!client) {
@@ -397,8 +415,10 @@ export default function CampaignDetailPage() {
             ?.ckb_boost_campaign_type_code_hash;
         if (!campaignCodeHash) {
           log.error("Campaign code hash not found in protocol data");
-          setCampaign(null);
-          setIsLoading(false);
+          if (!cancelled) {
+            setCampaign(null);
+            setIsLoading(false);
+          }
           return;
         }
         const { fetchCampaignByTypeId } =
@@ -409,6 +429,9 @@ export default function CampaignDetailPage() {
           client,
           protocolCell,
         );
+        if (cancelled) {
+          return;
+        }
         if (cell) {
           const campaignData = CampaignData.decode(
             cell.outputData,
@@ -418,20 +441,26 @@ export default function CampaignDetailPage() {
             typeHash: cell.cellOutput.type?.hash() || "0x",
             cell,
           });
-          setResolvedDescription(null);
-          setDescriptionError(null);
         } else {
           setCampaign(null);
         }
       } catch (error) {
         log.error("Failed to fetch campaign:", error);
-        setCampaign(null); // Set to null on error
+        if (!cancelled) {
+          setCampaign(null); // Set to null on error
+        }
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchCampaign();
+
+    return () => {
+      cancelled = true;
+    };
   }, [client, campaignTypeId, protocolData, protocolCell]);
 
   useEffect(() => {
@@ -451,31 +480,38 @@ export default function CampaignDetailPage() {
       setDescriptionError(null);
 
       try {
-        let decodedContent = rawDescription;
+        let current = rawDescription.trim();
 
-        if (rawDescription.startsWith("nevent1")) {
-          const submission = await fetchSubmission(rawDescription);
-          if (!submission?.content) {
-            throw new Error("Unable to load description from Nostr.");
+        // Unwrap storage reference formats (hex and nevent) with a small cap
+        // to support legacy data like hex-encoded nevent IDs.
+        for (let i = 0; i < 3; i += 1) {
+          if (!current) {
+            break;
           }
-          decodedContent = submission.content;
-        } else if (rawDescription.startsWith("0x")) {
-          try {
-            decodedContent = new TextDecoder().decode(
-              ccc.bytesFrom(rawDescription),
-            );
-          } catch (error) {
-            log.warn("Failed to decode hex long description", error);
-            decodedContent = "";
+
+          if (current.startsWith("nevent1")) {
+            const submission = await fetchSubmission(current);
+            if (!submission?.content) {
+              throw new Error("Unable to load description from Nostr.");
+            }
+            current = submission.content.trim();
+            continue;
           }
+
+          const decodedHex = decodeHexUtf8(current);
+          if (decodedHex !== null) {
+            current = decodedHex.trim();
+            continue;
+          }
+
+          break;
         }
 
-        const html = formatLongDescriptionHtml(
-          extractHtmlFromContent(decodedContent),
-        );
+        const htmlContent = extractHtmlFromContent(current).trim();
+        const html = formatLongDescriptionHtml(htmlContent);
 
         if (!cancelled) {
-          setResolvedDescription(html);
+          setResolvedDescription(html || null);
           setDescriptionError(null);
         }
       } catch (error) {
