@@ -474,10 +474,6 @@ export class FundingService {
         tx = await udt.completeBy(tx, this.signer);
       }
 
-      // Complete the transaction with CKB capacity
-      await tx.completeInputsByCapacity(this.signer);
-      await tx.completeFeeBy(this.signer);
-
       // Log final transaction
       log.log("Final standalone funding transaction:", {
         inputs: tx.inputs.length,

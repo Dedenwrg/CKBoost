@@ -138,8 +138,6 @@ export class ProtocolService {
     }
 
     // Complete fees and send transaction with automatic retry
-    await tx.completeInputsByCapacity(this.signer);
-    await tx.completeFeeBy(this.signer);
     const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
 
     log.info("Protocol updated, tx:", txHash);

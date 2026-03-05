@@ -442,8 +442,6 @@ export class AchievementService {
     );
 
     const tx = response.res;
-    await tx.completeInputsByCapacity(signer);
-    await tx.completeFeeBy(signer);
     const achievementCellIndex = tx.outputs.findIndex(
       (output) => output.type?.codeHash === this.achievementTypeCodeHash
     );
@@ -565,8 +563,6 @@ export class AchievementService {
       outPoint: protocolLockCodeOutPoint,
       depType: "code",
     });
-    await tx.completeInputsByCapacity(signer);
-    await tx.completeFeeBy(signer);
     const txHash = await sendTransactionWithFeeRetry(signer, tx);
     return txHash;
   }

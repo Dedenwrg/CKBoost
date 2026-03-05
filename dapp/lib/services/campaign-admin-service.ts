@@ -373,10 +373,6 @@ export class CampaignAdminService {
         log.info("CKB funding added to transaction");
       }
 
-      // Complete fees and send transaction
-      await updateTx.completeInputsByCapacity(this.signer);
-      await updateTx.completeFeeBy(this.signer);
-
       // Log the transaction bytes before sending
       const txBytes = updateTx.toBytes();
       const txHex = ccc.hexFrom(txBytes);
@@ -839,8 +835,6 @@ export class CampaignAdminService {
       userTypeIds
     );
 
-    await tx.completeInputsByCapacity(this.signer);
-    await tx.completeFeeBy(this.signer);
     const txHash = await sendTransactionWithFeeRetry(this.signer, tx);
 
     log.info("Quest completions approved with Points minting:", {

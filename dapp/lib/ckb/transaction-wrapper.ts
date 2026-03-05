@@ -28,6 +28,48 @@ function parseRequiredFee(errorMessage: string): bigint | null {
   return null;
 }
 
+function isChangeCellCapacityError(errorMessage: string): boolean {
+  return errorMessage.includes("for the change cell");
+}
+
+function pickFeeSinkOutputIndex(tx: ccc.Transaction): number | null {
+  const typedOutputIndex = tx.outputs.findIndex((output) => !!output.type);
+  if (typedOutputIndex >= 0) {
+    return typedOutputIndex;
+  }
+  if (tx.outputs.length > 0) {
+    return 0;
+  }
+  return null;
+}
+
+async function completeTransactionForSend(
+  signer: ccc.Signer,
+  tx: ccc.Transaction,
+  feeRate?: number
+): Promise<void> {
+  await tx.completeInputsByCapacity(signer);
+  try {
+    await tx.completeFeeBy(signer, feeRate);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
+    if (!isChangeCellCapacityError(errorMessage)) {
+      throw error;
+    }
+
+    const outputIndex = pickFeeSinkOutputIndex(tx);
+    if (outputIndex === null) {
+      throw error;
+    }
+
+    log.warn(
+      `Change cell cannot be created with current capacity, redirecting change to output ${outputIndex}`
+    );
+    await tx.completeFeeChangeToOutput(signer, outputIndex, feeRate);
+  }
+}
+
 /**
  * Get fee rate from the node via CCC client; optionally boost to satisfy a parsed required fee.
  * Returns shannons per kiloweight (KW) as number.
@@ -108,8 +150,7 @@ export async function sendTransactionWithFeeRetry(
         }
       }
 
-      await tx.completeInputsByCapacity(signer);
-      await tx.completeFeeBy(signer);
+      await completeTransactionForSend(signer, tx);
 
       log.info(`Transaction send attempt ${attempts}/${maxAttempts}`);
 
@@ -149,25 +190,29 @@ export async function sendTransactionWithFeeRetry(
         const senderLockScript = senderAddress.script;
 
         // Filter out change outputs (lock-only, back to sender)
-        tx.outputs = tx.outputs.filter((output, index) => {
-          // Keep all outputs except potential change outputs
-          // Change outputs typically go back to the sender and have no type script
+        const nextOutputs: ccc.CellOutput[] = [];
+        const nextOutputsData: ccc.Hex[] = [];
+        for (let i = 0; i < tx.outputs.length; i++) {
+          const output = tx.outputs[i];
           const isChange =
             !output.type &&
             output.lock.codeHash === senderLockScript.codeHash &&
             output.lock.hashType === senderLockScript.hashType &&
-            ccc.hexFrom(output.lock.args) ===
-              ccc.hexFrom(senderLockScript.args);
+            ccc.hexFrom(output.lock.args) === ccc.hexFrom(senderLockScript.args);
 
           if (isChange) {
-            log.info(`Removing change output at index ${index}`);
+            log.info(`Removing change output at index ${i}`);
+            continue;
           }
-          return !isChange;
-        });
+
+          nextOutputs.push(output);
+          nextOutputsData.push(ccc.hexFrom(tx.outputsData[i] ?? "0x"));
+        }
+        tx.outputs = nextOutputs;
+        tx.outputsData = nextOutputsData;
 
         // Ensure inputs satisfy capacity at new fee stage, then recalc fees
-        await tx.completeInputsByCapacity(signer);
-        await tx.completeFeeBy(signer, feeRate);
+        await completeTransactionForSend(signer, tx, feeRate);
 
         log.info(
           "Transaction rebuilt with new fee. Requesting signature again..."

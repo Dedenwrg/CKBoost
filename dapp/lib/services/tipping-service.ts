@@ -218,9 +218,6 @@ export class TippingService {
     });
     await tx.addOutput(output, "0x");
 
-    await tx.completeInputsByCapacity(signer);
-    await tx.completeFeeBy(signer);
-
     const txHash = await sendTransactionWithFeeRetry(signer, tx);
     return txHash;
   }
@@ -265,9 +262,6 @@ export class TippingService {
       tx = transfer.res;
       await udtInstance.completeBy(tx, signer);
     }
-
-    await tx.completeInputsByCapacity(signer);
-    await tx.completeFeeBy(signer);
 
     const txHash = await sendTransactionWithFeeRetry(signer, tx);
     return txHash;

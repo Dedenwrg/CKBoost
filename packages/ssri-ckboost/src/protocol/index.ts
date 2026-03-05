@@ -94,8 +94,12 @@ export class Protocol extends ssri.Trait {
     let resTx;
 
     const txReq = ccc.Transaction.from(tx ?? {});
-    // Ensure at least one input for the transaction
-    if (txReq.inputs.length === 0 && !this.script.args) {
+    // Ensure at least one input for protocol creation transactions.
+    const argsBytes = ccc.bytesFrom(this.script.args);
+    const isNewProtocol =
+      argsBytes.length === 0 ||
+      (argsBytes.length === 32 && argsBytes.every((byte) => byte === 0));
+    if (txReq.inputs.length === 0 && isNewProtocol) {
       await txReq.completeInputsAtLeastOne(signer);
       await txReq.completeInputsByCapacity(signer);
     }

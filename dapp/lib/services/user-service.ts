@@ -741,38 +741,6 @@ export class UserService {
 
     log.log("Transaction before complete fees", updateTx);
 
-    // Complete fees and send transaction (following campaign-service pattern)
-    await updateTx.completeInputsByCapacity(this.signer);
-    try {
-      const sender = await this.signer.getRecommendedAddressObj();
-      const senderHash = sender.script.hash();
-      const payload = {
-        outputs: updateTx.outputs.map((o, i) => ({
-          index: i,
-          capacity: o.capacity?.toString?.() ?? String(o.capacity),
-          hasType: !!o.type,
-          lockHash: o.lock.hash(),
-          isChangeCandidate: !o.type && o.lock.hash() === senderHash,
-        })),
-      };
-      log.log(`after-complete-inputs ${JSON.stringify(payload)}`);
-    } catch {}
-    await updateTx.completeFeeBy(this.signer);
-    try {
-      const sender = await this.signer.getRecommendedAddressObj();
-      const senderHash = sender.script.hash();
-      const payload = {
-        outputs: updateTx.outputs.map((o, i) => ({
-          index: i,
-          capacity: o.capacity?.toString?.() ?? String(o.capacity),
-          hasType: !!o.type,
-          lockHash: o.lock.hash(),
-          isChangeCandidate: !o.type && o.lock.hash() === senderHash,
-        })),
-      };
-      log.log(`after-complete-fee ${JSON.stringify(payload)}`);
-    } catch {}
-
     log.log("Updating user cell with submission", {
       userTypeId: userTypeId.slice(0, 10) + "...",
       totalSubmissions: updatedSubmissions.length,
@@ -982,36 +950,6 @@ export class UserService {
     // Complete fees and send transaction
 
     log.log("createTx before complete fees", createTx);
-    await createTx.completeInputsByCapacity(this.signer);
-    try {
-      const sender = await this.signer.getRecommendedAddressObj();
-      const senderHash = sender.script.hash();
-      const payload = {
-        outputs: createTx.outputs.map((o, i) => ({
-          index: i,
-          capacity: o.capacity?.toString?.() ?? String(o.capacity),
-          hasType: !!o.type,
-          lockHash: o.lock.hash(),
-          isChangeCandidate: !o.type && o.lock.hash() === senderHash,
-        })),
-      };
-      log.log(`after-complete-inputs ${JSON.stringify(payload)}`);
-    } catch {}
-    await createTx.completeFeeBy(this.signer);
-    try {
-      const sender = await this.signer.getRecommendedAddressObj();
-      const senderHash = sender.script.hash();
-      const payload = {
-        outputs: createTx.outputs.map((o, i) => ({
-          index: i,
-          capacity: o.capacity?.toString?.() ?? String(o.capacity),
-          hasType: !!o.type,
-          lockHash: o.lock.hash(),
-          isChangeCandidate: !o.type && o.lock.hash() === senderHash,
-        })),
-      };
-      log.log(`after-complete-fee ${JSON.stringify(payload)}`);
-    } catch {}
 
     log.log("Creating user cell with submission", {
       userTypeHash: this.userTypeCodeHash.slice(0, 10) + "...",
