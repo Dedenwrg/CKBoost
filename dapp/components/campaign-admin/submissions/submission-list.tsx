@@ -170,12 +170,17 @@ export function SubmissionList({
         const questId = Number(quest.quest_id || questIndex + 1)
         const questSubmissions = submissions.get(questId) || []
         const approvedCount = quest.accepted_submission_user_type_ids?.length || 0
+        const showPending = filterStatus !== "approved"
+        const showApproved = filterStatus !== "pending"
         
         // Filter pending submissions
         const pendingSubmissions = questSubmissions.filter(sub => {
           const isApproved = quest.accepted_submission_user_type_ids?.includes(sub.userTypeId)
           return !isApproved
         })
+        const hasVisiblePending = showPending && pendingSubmissions.length > 0
+        const hasVisibleApproved = showApproved && approvedCount > 0
+        const hasVisibleSubmissions = hasVisiblePending || hasVisibleApproved
 
         const isExpanded = expandedQuests.has(questId)
 
@@ -220,13 +225,13 @@ export function SubmissionList({
                         }
                       })
                     }
-                    {approvedCount > 0 && (
+                    {hasVisibleApproved && (
                       <Badge className="bg-green-100 text-green-800">
                         <CheckCircle className="w-3 h-3 mr-1" />
                         {approvedCount} approved
                       </Badge>
                     )}
-                    {pendingSubmissions.length > 0 && (
+                    {hasVisiblePending && (
                       <Badge className="bg-yellow-100 text-yellow-800">
                         <Clock className="w-3 h-3 mr-1" />
                         {pendingSubmissions.length} pending
@@ -238,7 +243,7 @@ export function SubmissionList({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {pendingSubmissions.length > 0 && (
+                  {hasVisiblePending && (
                     <>
                       <Button
                         variant="outline"
@@ -278,10 +283,10 @@ export function SubmissionList({
 
             {isExpanded && (
               <CardContent>
-                {questSubmissions.length > 0 ? (
+                {hasVisibleSubmissions ? (
                   <div className="space-y-3">
                     {/* Pending Submissions */}
-                    {pendingSubmissions.length > 0 && (
+                    {hasVisiblePending && (
                       <div>
                         <h4 className="text-sm font-medium mb-3 text-muted-foreground">
                           Pending Submissions ({pendingSubmissions.length})
@@ -315,7 +320,7 @@ export function SubmissionList({
                     )}
 
                     {/* Approved Submissions */}
-                    {quest.accepted_submission_user_type_ids && quest.accepted_submission_user_type_ids.length > 0 && (
+                    {hasVisibleApproved && quest.accepted_submission_user_type_ids && quest.accepted_submission_user_type_ids.length > 0 && (
                       <div>
                         <h4 className="text-sm font-medium mb-3 text-muted-foreground">
                           Approved Submissions ({quest.accepted_submission_user_type_ids.length})
@@ -362,17 +367,16 @@ export function SubmissionList({
                       </div>
                     )}
 
-                    {questSubmissions.length === 0 && !quest.accepted_submission_user_type_ids?.length && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No submissions yet for this quest
-                      </p>
-                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <Clock className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground">
-                      No submissions received yet
+                      {filterStatus === "pending"
+                        ? "No pending submissions yet"
+                        : filterStatus === "approved"
+                          ? "No approved submissions yet"
+                          : "No submissions received yet"}
                     </p>
                   </div>
                 )}

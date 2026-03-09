@@ -1,21 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Clock,
   CheckCircle,
   Trophy,
-  Users,
   RefreshCw,
   AlertCircle,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { useCampaignAdmin } from "@/lib/providers/campaign-admin-provider";
 import {
@@ -27,6 +32,9 @@ import { SubmissionList } from "../submissions/submission-list";
 import { SubmissionStatsCards } from "../submissions/submission-stats-cards";
 import { createScopedLogger } from "ssri-ckboost";
 import { ccc } from "@ckb-ccc/connector-react";
+import { useToast } from "@/components/ui/use-toast";
+import { useNostrFetch } from "@/hooks/use-nostr-fetch";
+import { buildQuestSubmissionExportData } from "@/lib/utils/submission-export";
 
 const log = createScopedLogger("SubmissionsTab");
 
@@ -64,6 +72,10 @@ export function SubmissionsTab({
   const [filterStatus, setFilterStatus] = useState<
     "all" | "pending" | "approved"
   >("all");
+  const [selectedQuestFilter, setSelectedQuestFilter] = useState("all");
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
+  const { fetchSubmission } = useNostrFetch();
 
   const loadSubmissions = useCallback(async () => {
     if (!campaignAdminService) {
@@ -104,14 +116,30 @@ export function SubmissionsTab({
     }
   }, [campaignTypeId, isServiceLoading, campaignAdminService, loadSubmissions]);
 
+  useEffect(() => {
+    const hasSelectedQuest = campaignData?.quests?.some(
+      (quest) => String(Number(quest.quest_id)) === selectedQuestFilter
+    );
+
+    if (selectedQuestFilter !== "all" && !hasSelectedQuest) {
+      setSelectedQuestFilter("all");
+    }
+  }, [campaignData, selectedQuestFilter]);
+
   async function handleRefresh() {
     setIsRefreshing(true);
     await loadSubmissions();
   }
 
-  function getFilteredSubmissions() {
+  const filteredSubmissions = useMemo(() => {
     if (!submissions || filterStatus === "all") {
-      return submissions || new Map();
+      if (selectedQuestFilter === "all") {
+        return submissions || new Map();
+      }
+
+      const questId = Number(selectedQuestFilter);
+      const questSubmissions = submissions?.get(questId) || [];
+      return new Map([[questId, questSubmissions]]);
     }
 
     const filtered = new Map<
@@ -120,6 +148,13 @@ export function SubmissionsTab({
     >();
 
     for (const [questId, questSubmissions] of submissions) {
+      if (
+        selectedQuestFilter !== "all" &&
+        questId !== Number(selectedQuestFilter)
+      ) {
+        continue;
+      }
+
       const quest = campaignData?.quests?.find(
         (q) => Number(q.quest_id) === questId
       );
@@ -141,6 +176,100 @@ export function SubmissionsTab({
     }
 
     return filtered;
+  }, [campaignData, filterStatus, selectedQuestFilter, submissions]);
+
+  const visibleQuests = useMemo(() => {
+    if (!campaignData?.quests) {
+      return [];
+    }
+
+    if (selectedQuestFilter === "all") {
+      return campaignData.quests;
+    }
+
+    return campaignData.quests.filter(
+      (quest) => Number(quest.quest_id) === Number(selectedQuestFilter)
+    );
+  }, [campaignData, selectedQuestFilter]);
+
+  async function handleExportSelectedQuest() {
+    if (!campaignData?.quests || selectedQuestFilter === "all") {
+      return;
+    }
+
+    const selectedQuest = campaignData.quests.find(
+      (quest) => Number(quest.quest_id) === Number(selectedQuestFilter)
+    );
+
+    if (!selectedQuest) {
+      toast({
+        title: "Quest not found",
+        description: "Select a valid quest before exporting submissions.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const { utils, writeFile } = await import("xlsx");
+      const exportData = await buildQuestSubmissionExportData({
+        campaignTitle: campaignData.metadata?.title || "Campaign",
+        campaignTypeId,
+        quest: selectedQuest,
+        submissions: submissions?.get(Number(selectedQuest.quest_id)) || [],
+        userDetails: userDetails || new Map(),
+        fetchSubmission,
+      });
+
+      if (exportData.rows.length === 0) {
+        toast({
+          title: "No submissions to export",
+          description: "The selected quest does not have any submissions yet.",
+        });
+        return;
+      }
+
+      const workbook = utils.book_new();
+      const worksheet = utils.json_to_sheet(exportData.rows, {
+        header: exportData.headers,
+      });
+      worksheet["!cols"] = exportData.headers.map((header) => {
+        const maxValueLength = exportData.rows.reduce((max, row) => {
+          const value = row[header];
+          return Math.max(max, String(value ?? "").length);
+        }, header.length);
+
+        return {
+          wch: Math.min(Math.max(maxValueLength + 2, 14), 60),
+        };
+      });
+
+      utils.book_append_sheet(workbook, worksheet, exportData.sheetName);
+      writeFile(workbook, exportData.filename, {
+        compression: true,
+      });
+
+      toast({
+        title: "Export ready",
+        description: `Saved ${exportData.rows.length} submission${
+          exportData.rows.length === 1 ? "" : "s"
+        } for ${selectedQuest.metadata?.title || `Quest ${selectedQuest.quest_id}`}.`,
+      });
+    } catch (exportError) {
+      log.error("Failed to export quest submissions", exportError);
+      toast({
+        title: "Export failed",
+        description:
+          exportError instanceof Error
+            ? exportError.message
+            : "Unable to export the selected quest submissions.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   async function handleBatchApprove(
@@ -253,31 +382,71 @@ export function SubmissionsTab({
       {/* Filter Controls */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium mr-2">Filter:</span>
-            <Button
-              variant={filterStatus === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterStatus("all")}
-            >
-              All
-            </Button>
-            <Button
-              variant={filterStatus === "pending" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterStatus("pending")}
-            >
-              <Clock className="w-3 h-3 mr-1" />
-              Pending ({stats?.pendingReview || 0})
-            </Button>
-            <Button
-              variant={filterStatus === "approved" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterStatus("approved")}
-            >
-              <CheckCircle className="w-3 h-3 mr-1" />
-              Approved ({stats?.approved || 0})
-            </Button>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium mr-2">Status:</span>
+              <Button
+                variant={filterStatus === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterStatus("all")}
+              >
+                All
+              </Button>
+              <Button
+                variant={filterStatus === "pending" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterStatus("pending")}
+              >
+                <Clock className="w-3 h-3 mr-1" />
+                Pending ({stats?.pendingReview || 0})
+              </Button>
+              <Button
+                variant={filterStatus === "approved" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilterStatus("approved")}
+              >
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Approved ({stats?.approved || 0})
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium shrink-0">Quest:</span>
+                <Select
+                  value={selectedQuestFilter}
+                  onValueChange={setSelectedQuestFilter}
+                >
+                  <SelectTrigger className="w-full min-w-[240px]">
+                    <SelectValue placeholder="Filter by quest" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All quests</SelectItem>
+                    {(campaignData?.quests || []).map((quest) => (
+                      <SelectItem
+                        key={String(quest.quest_id)}
+                        value={String(Number(quest.quest_id))}
+                      >
+                        {quest.metadata?.title || `Quest ${quest.quest_id}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                onClick={handleExportSelectedQuest}
+                disabled={isExporting || selectedQuestFilter === "all"}
+                className="sm:self-stretch"
+              >
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Export XLSX
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -285,8 +454,8 @@ export function SubmissionsTab({
       {/* Submissions by Quest */}
       {campaignData?.quests && campaignData.quests.length > 0 ? (
         <SubmissionList
-          quests={campaignData.quests}
-          submissions={getFilteredSubmissions()}
+          quests={visibleQuests}
+          submissions={filteredSubmissions}
           userDetails={userDetails || new Map()}
           onBatchApprove={handleBatchApprove}
           filterStatus={filterStatus}

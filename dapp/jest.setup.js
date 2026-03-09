@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom'
+import { TextDecoder, TextEncoder } from 'util'
+
+global.TextDecoder = TextDecoder
+global.TextEncoder = TextEncoder
 
 // Mock CKB CCC library for testing
 jest.mock('@ckb-ccc/connector-react', () => ({
