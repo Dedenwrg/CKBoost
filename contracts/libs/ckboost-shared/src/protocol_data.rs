@@ -14,7 +14,6 @@ use ckb_std::{
         load_script,
     },
 };
-use molecule::prelude::*;
 
 /// Extension trait for ProtocolData with helper methods for cell classification
 pub trait ProtocolDataExt {
@@ -582,6 +581,7 @@ pub fn check_admin(protocol_data: &ProtocolData) -> Result<bool, Error> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
     use ckb_std::ckb_types::core::ScriptHashType;
 
     use super::*;
@@ -596,6 +596,8 @@ mod tests {
             .ckb_boost_campaign_type_code_hash(Byte32::from([2u8; 32]))
             .ckb_boost_funding_lock_code_hash(Byte32::from([12u8; 32]))
             .ckb_boost_user_type_code_hash(Byte32::from([3u8; 32]))
+            .ckb_boost_points_udt_type_code_hash(Byte32::from([14u8; 32]))
+            .ckb_boost_tipping_type_code_hash(Byte32::from([15u8; 32]))
             .ckb_boost_achievement_type_code_hash(Byte32::from([4u8; 32]))
             .accepted_udt_type_scripts(ScriptVec::new_builder().build())
             .accepted_dob_type_scripts(ScriptVec::new_builder().build())
@@ -627,6 +629,14 @@ mod tests {
         assert_eq!(
             original_data.user_type_code_hash(),
             deserialized_data.user_type_code_hash()
+        );
+        assert_eq!(
+            original_data.points_udt_type_code_hash(),
+            deserialized_data.points_udt_type_code_hash()
+        );
+        assert_eq!(
+            original_data.tipping_type_code_hash(),
+            deserialized_data.tipping_type_code_hash()
         );
     }
 
@@ -661,6 +671,9 @@ mod tests {
             .ckb_boost_campaign_type_code_hash(Byte32::from([2u8; 32]))
             .ckb_boost_funding_lock_code_hash(Byte32::from([12u8; 32]))
             .ckb_boost_user_type_code_hash(Byte32::from([3u8; 32]))
+            .ckb_boost_points_udt_type_code_hash(Byte32::from([14u8; 32]))
+            .ckb_boost_tipping_type_code_hash(Byte32::from([15u8; 32]))
+            .ckb_boost_achievement_type_code_hash(Byte32::from([4u8; 32]))
             .accepted_udt_type_scripts(accepted_udts)
             .accepted_dob_type_scripts(accepted_dobs)
             .build();
@@ -685,7 +698,7 @@ mod tests {
         expected_hash.copy_from_slice(&[10u8; 32]);
         assert_eq!(udt1.code_hash().as_slice(), &expected_hash);
         assert_eq!(udt1.hash_type().as_slice(), &[0u8]);
-        assert_eq!(udt1.args().raw_data(), vec![1u8, 2u8, 3u8]);
+        assert_eq!(udt1.args().raw_data().as_ref(), &[1u8, 2u8, 3u8]);
 
         // Check second UDT script
         let udt2 = &udts[1];
@@ -693,7 +706,7 @@ mod tests {
         expected_hash2.copy_from_slice(&[20u8; 32]);
         assert_eq!(udt2.code_hash().as_slice(), &expected_hash2);
         assert_eq!(udt2.hash_type().as_slice(), &[0u8]);
-        assert_eq!(udt2.args().raw_data(), vec![4u8, 5u8, 6u8]);
+        assert_eq!(udt2.args().raw_data().as_ref(), &[4u8, 5u8, 6u8]);
 
         // Test accepted DOBs
         let dobs = data.accepted_dob_type_scripts();
@@ -702,7 +715,7 @@ mod tests {
         let mut expected_hash3 = [0u8; 32];
         expected_hash3.copy_from_slice(&[30u8; 32]);
         assert_eq!(dob1.code_hash().as_slice(), &expected_hash3);
-        assert_eq!(dob1.hash_type().as_slice(), &[1u8]);
-        assert_eq!(dob1.args().raw_data(), vec![7u8, 8u8, 9u8]);
+        assert_eq!(dob1.hash_type().as_slice(), &[0u8]);
+        assert_eq!(dob1.args().raw_data().as_ref(), &[7u8, 8u8, 9u8]);
     }
 }
