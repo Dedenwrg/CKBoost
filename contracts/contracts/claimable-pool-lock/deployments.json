@@ -2,12 +2,12 @@
   "current": {
     "testnet": {
       "claimablePoolLock": {
-        "transactionHash": "0xa59a41917648e2f88fbb43d0f39e1447330be44eef7cd4fba2a9f2abe5dae2bc",
+        "transactionHash": "0x9947acb53e40c74e17acaf53fbd6a590589742831f69327d690b4d97b698df70",
         "index": 0,
-        "deployedAt": "2026-04-24T17:42:13.432Z",
+        "deployedAt": "2026-04-24T18:03:11.809Z",
         "contractName": "claimable-pool-lock",
-        "tag": "v0.0.3-260424-03",
-        "dataHash": "0xeeaaf580274eb0a029096f168009f9278defb1b934353e81a2e2673177087f08",
+        "tag": "v0.0.4-260424-04",
+        "dataHash": "0x08dc765b830231e37e57e488a312dfbebfdbe14d995bb84ef7a601348f184180",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -78,6 +78,30 @@
           "index": 0,
           "deployedAt": "2026-04-24T16:47:13.940Z",
           "tag": "v0.0.2-260424-02"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0x6953e9905a3c922da6974aafdbaf3b22965982894c558a0a125e8dc796a5b8a2"
+        },
+        "isTypeId": true,
+        "typeHash": "0x458cacb13a3c40e6d046468e7fe3f5c2c93f0581062e269dc9ffec4858346cb6"
+      },
+      {
+        "contractName": "claimable-pool-lock",
+        "transactionHash": "0x9947acb53e40c74e17acaf53fbd6a590589742831f69327d690b4d97b698df70",
+        "index": 0,
+        "deployedAt": "2026-04-24T18:03:11.809Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0x08dc765b830231e37e57e488a312dfbebfdbe14d995bb84ef7a601348f184180",
+        "contractSize": 54248,
+        "tag": "v0.0.4-260424-04",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0xa59a41917648e2f88fbb43d0f39e1447330be44eef7cd4fba2a9f2abe5dae2bc",
+          "index": 0,
+          "deployedAt": "2026-04-24T17:42:13.432Z",
+          "tag": "v0.0.3-260424-03"
         },
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",

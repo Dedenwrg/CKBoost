@@ -1,8 +1,9 @@
 # We cannot use $(shell pwd), which will return unix path format on Windows,
 # making it hard to use.
 cur_dir = $(dir $(abspath $(firstword $(MAKEFILE_LIST))))
+contract_dir = $(patsubst %/,%,$(cur_dir))
 
-TOP := $(cur_dir)
+TOP ?= $(abspath $(contract_dir)/../..)
 CUSTOM_RUSTFLAGS := -C debug-assertions
 FULL_RUSTFLAGS := -C target-feature=+zba,+zbb,+zbc,+zbs,-a $(CUSTOM_RUSTFLAGS)
 CARGO_ARGS :=
@@ -11,7 +12,7 @@ CLANG := $(shell $(TOP)/scripts/find_clang)
 AR := $(subst clang,llvm-ar,$(CLANG))
 OBJCOPY := $(subst clang,llvm-objcopy,$(CLANG))
 BUILD_DIR :=
-BINARIES := $(notdir $(shell pwd))
+BINARIES := $(notdir $(contract_dir))
 
 ifeq (release,$(MODE))
 	MODE_ARGS := --release
