@@ -4,12 +4,11 @@ import {
   type ClaimablePoolEntryLike,
 } from "./generated/claimable-pool.js";
 
-const U128_BYTES = 16;
-const BYTE32_BYTES = 32;
+const UDT_AMOUNT_BYTES = 16;
 
 export interface ClaimablePoolEntry {
-  claimantLockHash: ccc.Hex;
-  amount: bigint;
+  claimantLockHash: ccc.HexLike;
+  amount: ccc.NumLike;
 }
 
 export interface ClaimablePoolData {
@@ -19,66 +18,46 @@ export interface ClaimablePoolData {
 
 export type { ClaimablePoolEntryLike };
 
-function normalizeByte32(value: ccc.HexLike): ccc.Hex {
-  const bytes = ccc.bytesFrom(value);
-  if (bytes.length !== BYTE32_BYTES) {
-    throw new Error(`Expected 32 bytes, received ${bytes.length}`);
-  }
-  return ccc.hexFrom(bytes);
-}
+export function encodeClaimablePoolData(
+  data: ClaimablePoolEntry[] | { entries: ClaimablePoolEntry[] },
+): ccc.Hex {
+  const entries = (Array.isArray(data) ? data : data.entries).map(
+    (entry): ClaimablePoolEntryLike => {
+      const claimantLockHash = ccc.bytesFrom(entry.claimantLockHash);
+      if (claimantLockHash.length !== 32) {
+        throw new Error(`Expected 32 bytes, received ${claimantLockHash.length}`);
+      }
 
-export function encodeClaimablePoolLockArgs(params: {
-  recyclerLockHash: ccc.HexLike;
-}): ccc.Hex {
-  return normalizeByte32(params.recyclerLockHash);
-}
+      const amount = ccc.numFrom(entry.amount);
+      if (amount <= 0n) {
+        throw new Error("Claimable pool entry amount must be greater than zero");
+      }
 
-export function decodeClaimablePoolLockArgs(args: ccc.HexLike): {
-  recyclerLockHash: ccc.Hex;
-} {
-  return { recyclerLockHash: normalizeByte32(args) };
-}
-
-export function chunkClaimablePoolEntries(
-  entries: ClaimablePoolEntry[],
-  chunkSize = 100,
-): ClaimablePoolEntry[][] {
-  if (chunkSize <= 0) {
-    throw new Error("chunkSize must be greater than zero");
-  }
-
-  const chunks: ClaimablePoolEntry[][] = [];
-  for (let index = 0; index < entries.length; index += chunkSize) {
-    chunks.push(entries.slice(index, index + chunkSize));
-  }
-
-  return chunks;
-}
-
-export function encodeClaimablePoolData(data: ClaimablePoolData): ccc.Hex {
-  const blob = ClaimablePoolEntryVec.encode(
-    data.entries.map(
-      (entry): ClaimablePoolEntryLike => ({
-        claimant_lock_hash: normalizeByte32(entry.claimantLockHash),
-        amount: entry.amount,
-      }),
-    ),
+      return {
+        claimant_lock_hash: ccc.hexFrom(claimantLockHash),
+        amount,
+      };
+    },
+  );
+  const remainingAmount = entries.reduce(
+    (total, entry) => total + ccc.numFrom(entry.amount),
+    0n,
   );
 
   return ccc.hexFrom([
-    ...ccc.numToBytes(data.remainingAmount, U128_BYTES),
-    ...ccc.bytesFrom(blob),
+    ...ccc.numToBytes(remainingAmount, UDT_AMOUNT_BYTES),
+    ...ccc.bytesFrom(ClaimablePoolEntryVec.encode(entries)),
   ]);
 }
 
 export function decodeClaimablePoolData(data: ccc.HexLike): ClaimablePoolData {
   const bytes = ccc.bytesFrom(data);
-  if (bytes.length < U128_BYTES) {
+  if (bytes.length < UDT_AMOUNT_BYTES) {
     throw new Error("Claimable pool data is too short");
   }
 
-  const remainingAmount = ccc.numFromBytes(bytes.slice(0, U128_BYTES));
-  const entries = ClaimablePoolEntryVec.decode(bytes.slice(U128_BYTES));
+  const remainingAmount = ccc.numFromBytes(bytes.slice(0, UDT_AMOUNT_BYTES));
+  const entries = ClaimablePoolEntryVec.decode(bytes.slice(UDT_AMOUNT_BYTES));
 
   return {
     remainingAmount,
@@ -89,42 +68,26 @@ export function decodeClaimablePoolData(data: ccc.HexLike): ClaimablePoolData {
   };
 }
 
-export function createClaimablePoolData(params: {
-  entries: Array<{
-    claimantLockHash: ccc.HexLike;
-    amount: bigint;
-  }>;
-}): ccc.Hex {
-  const entries = params.entries.map((entry) => ({
-    claimantLockHash: normalizeByte32(entry.claimantLockHash),
-    amount: entry.amount,
-  }));
-
-  for (const entry of entries) {
-    if (entry.amount <= 0n) {
-      throw new Error("Claimable pool entry amount must be greater than zero");
-    }
-  }
-
-  return encodeClaimablePoolData({
-    remainingAmount: entries.reduce((total, entry) => total + entry.amount, 0n),
-    entries,
-  });
-}
-
 export function removeClaimablePoolEntriesForClaimant(
   data: ClaimablePoolData,
   claimantLockHash: ccc.HexLike,
 ): { data: ClaimablePoolData; claimedAmount: bigint } {
-  const normalizedLockHash = normalizeByte32(claimantLockHash).toLowerCase();
+  const claimantLockHashBytes = ccc.bytesFrom(claimantLockHash);
+  if (claimantLockHashBytes.length !== 32) {
+    throw new Error(`Expected 32 bytes, received ${claimantLockHashBytes.length}`);
+  }
+
+  const normalizedLockHash = ccc.hexFrom(claimantLockHashBytes).toLowerCase();
   let claimedAmount = 0n;
   const entries: ClaimablePoolEntry[] = [];
 
   for (const entry of data.entries) {
-    if (entry.claimantLockHash.toLowerCase() === normalizedLockHash) {
-      claimedAmount += entry.amount;
+    const entryLockHash = ccc.hexFrom(ccc.bytesFrom(entry.claimantLockHash));
+    const amount = ccc.numFrom(entry.amount);
+    if (entryLockHash.toLowerCase() === normalizedLockHash) {
+      claimedAmount += amount;
     } else {
-      entries.push(entry);
+      entries.push({ claimantLockHash: entryLockHash, amount });
     }
   }
 

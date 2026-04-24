@@ -1078,6 +1078,7 @@ name = "claimable-pool-lock"
 version = "0.1.0"
 dependencies = [
  "ckb-std",
+ "ckb-testtool",
  "molecule 0.8.0",
 ]
 

@@ -19,7 +19,7 @@
   },
   "scripts": {
     "generate": "node ../scripts/generate-ts.js",
-    "build": "pnpm run generate && rimraf ./dist && tsc",
+    "build": "pnpm run generate && rimraf ./dist && tsc -p tsconfig.build.json",
     "test": "node --loader ts-node/esm --test src/claimable-pool.test.ts"
   },
   "dependencies": {

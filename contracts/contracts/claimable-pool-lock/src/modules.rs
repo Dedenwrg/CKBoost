@@ -267,9 +267,31 @@ fn count_group_cells(source: Source) -> Result<usize, Error> {
     }
 }
 
-fn validate_claim_pool_pair(index: usize) -> Result<Vec<ClaimDelta>, Error> {
-    let input_capacity = load_cell_capacity(index, Source::GroupInput)? as u128;
-    let output_capacity = load_cell_capacity(index, Source::GroupOutput)? as u128;
+fn current_lock_output_indices() -> Result<Vec<usize>, Error> {
+    let current_lock_hash = current_lock_hash()?;
+    let mut indices = Vec::new();
+    let mut index = 0usize;
+
+    loop {
+        match load_cell_lock_hash(index, Source::Output) {
+            Ok(lock_hash) => {
+                if lock_hash.as_slice() == current_lock_hash {
+                    indices.push(index);
+                }
+            }
+            Err(ckb_std::error::SysError::IndexOutOfBound) => return Ok(indices),
+            Err(err) => return Err(err.into()),
+        }
+        index += 1;
+    }
+}
+
+fn validate_claim_pool_pair(
+    input_group_index: usize,
+    output_index: usize,
+) -> Result<Vec<ClaimDelta>, Error> {
+    let input_capacity = load_cell_capacity(input_group_index, Source::GroupInput)? as u128;
+    let output_capacity = load_cell_capacity(output_index, Source::Output)? as u128;
     if output_capacity < input_capacity {
         debug!(
             "Claimable pool capacity decreased from {} to {}",
@@ -278,11 +300,12 @@ fn validate_claim_pool_pair(index: usize) -> Result<Vec<ClaimDelta>, Error> {
         return Err(Error::InvalidPoolData);
     }
 
-    let input_type_script = load_cell_type(index, Source::GroupInput)?.ok_or_else(|| {
-        debug!("Claimable pool input is missing a type script");
-        Error::InvalidPoolData
-    })?;
-    let output_type_script = load_cell_type(index, Source::GroupOutput)?.ok_or_else(|| {
+    let input_type_script =
+        load_cell_type(input_group_index, Source::GroupInput)?.ok_or_else(|| {
+            debug!("Claimable pool input is missing a type script");
+            Error::InvalidPoolData
+        })?;
+    let output_type_script = load_cell_type(output_index, Source::Output)?.ok_or_else(|| {
         debug!("Claimable pool output is missing a type script");
         Error::InvalidPoolData
     })?;
@@ -291,8 +314,9 @@ fn validate_claim_pool_pair(index: usize) -> Result<Vec<ClaimDelta>, Error> {
         return Err(Error::InvalidPoolData);
     }
 
-    let input_data = parse_claimable_pool_data(&load_cell_data(index, Source::GroupInput)?)?;
-    let output_data = parse_claimable_pool_data(&load_cell_data(index, Source::GroupOutput)?)?;
+    let input_data =
+        parse_claimable_pool_data(&load_cell_data(input_group_index, Source::GroupInput)?)?;
+    let output_data = parse_claimable_pool_data(&load_cell_data(output_index, Source::Output)?)?;
     let claims = find_claims(&input_data, &output_data)?;
 
     let mut total_claimed_amount = 0u128;
@@ -318,21 +342,21 @@ fn validate_claim_pool_pair(index: usize) -> Result<Vec<ClaimDelta>, Error> {
         .collect())
 }
 
-fn validate_claim_transition() -> Result<(), Error> {
+fn validate_claim_transition(output_indices: &[usize]) -> Result<(), Error> {
     let input_count = count_group_cells(Source::GroupInput)?;
-    let output_count = count_group_cells(Source::GroupOutput)?;
-    if input_count == 0 || output_count == 0 || input_count != output_count {
+    if input_count == 0 || output_indices.is_empty() || input_count != output_indices.len() {
         debug!(
             "Invalid claimable pool group cell counts: inputs {}, outputs {}",
-            input_count, output_count
+            input_count,
+            output_indices.len()
         );
         return Err(Error::InvalidPoolData);
     }
 
     let unlocked_lock_hashes = authorized_input_lock_hashes()?;
     let mut claim_deltas = Vec::new();
-    for index in 0..input_count {
-        for delta in validate_claim_pool_pair(index)? {
+    for (input_group_index, output_index) in output_indices.iter().enumerate() {
+        for delta in validate_claim_pool_pair(input_group_index, *output_index)? {
             if !unlocked_lock_hashes.contains(&delta.claimant_lock_hash) {
                 debug!("Claimant lock hash is not present in inputs");
                 return Err(Error::UnauthorizedOperation);
@@ -388,12 +412,11 @@ pub fn validate_claimable_pool_lock() -> Result<(), Error> {
         return Err(Error::InvalidArgument);
     }
 
-    match load_cell_data(0, Source::GroupOutput) {
-        Ok(_) => validate_claim_transition(),
-        Err(ckb_std::error::SysError::IndexOutOfBound) => {
-            validate_recycle_transition(args.as_ref())
-        }
-        Err(err) => Err(err.into()),
+    let output_indices = current_lock_output_indices()?;
+    if output_indices.is_empty() {
+        validate_recycle_transition(args.as_ref())
+    } else {
+        validate_claim_transition(&output_indices)
     }
 }
 
@@ -439,6 +462,33 @@ mod tests {
     }
 
     #[test]
+    fn parse_allows_empty_pool_with_zero_remaining_amount() {
+        let data = ClaimablePoolData {
+            remaining_amount: 0,
+            entries: vec![],
+        };
+
+        let encoded = encode_pool(&data);
+        let decoded = parse_claimable_pool_data(&encoded).expect("empty pool should decode");
+        assert_eq!(decoded, data);
+    }
+
+    #[test]
+    fn parse_rejects_short_or_malformed_pool_data() {
+        assert_eq!(
+            parse_claimable_pool_data(&[0u8; 15]).expect_err("short prefix should fail"),
+            Error::InvalidPoolData
+        );
+
+        let mut malformed = 0u128.to_le_bytes().to_vec();
+        malformed.extend_from_slice(&1u32.to_le_bytes());
+        assert_eq!(
+            parse_claimable_pool_data(&malformed).expect_err("broken vector should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
     fn rejects_remaining_amount_that_does_not_match_entries_sum() {
         let data = ClaimablePoolData {
             remaining_amount: 50,
@@ -451,6 +501,46 @@ mod tests {
         let encoded = encode_pool(&data);
         assert_eq!(
             parse_claimable_pool_data(&encoded).expect_err("amount mismatch should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
+    fn rejects_zero_amount_entry() {
+        let data = ClaimablePoolData {
+            remaining_amount: 0,
+            entries: vec![ClaimableEntry {
+                claimant_lock_hash: [7u8; 32],
+                amount: 0,
+            }],
+        };
+
+        let encoded = encode_pool(&data);
+        assert_eq!(
+            parse_claimable_pool_data(&encoded).expect_err("zero entry amount should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
+    fn rejects_entries_sum_overflow() {
+        let data = ClaimablePoolData {
+            remaining_amount: u128::MAX,
+            entries: vec![
+                ClaimableEntry {
+                    claimant_lock_hash: [7u8; 32],
+                    amount: u128::MAX,
+                },
+                ClaimableEntry {
+                    claimant_lock_hash: [8u8; 32],
+                    amount: 1,
+                },
+            ],
+        };
+
+        let encoded = encode_pool(&data);
+        assert_eq!(
+            parse_claimable_pool_data(&encoded).expect_err("entries sum overflow should fail"),
             Error::InvalidPoolData
         );
     }
@@ -599,6 +689,119 @@ mod tests {
 
         assert_eq!(
             find_claims(&input, &output).expect_err("amount mutation should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
+    fn rejects_noop_claim_transition() {
+        let claimant_a = [1u8; 32];
+        let input = ClaimablePoolData {
+            remaining_amount: 50,
+            entries: vec![ClaimableEntry {
+                claimant_lock_hash: claimant_a,
+                amount: 50,
+            }],
+        };
+        let output = input.clone();
+
+        assert_eq!(
+            find_claims(&input, &output).expect_err("no removed entries should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
+    fn rejects_reordered_unclaimed_entries() {
+        let claimant_a = [1u8; 32];
+        let claimant_b = [2u8; 32];
+        let input = ClaimablePoolData {
+            remaining_amount: 75,
+            entries: vec![
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_a,
+                    amount: 50,
+                },
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_b,
+                    amount: 25,
+                },
+            ],
+        };
+        let output = ClaimablePoolData {
+            remaining_amount: 75,
+            entries: vec![
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_b,
+                    amount: 25,
+                },
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_a,
+                    amount: 50,
+                },
+            ],
+        };
+
+        assert_eq!(
+            find_claims(&input, &output).expect_err("reordered survivor should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
+    fn rejects_added_output_entry() {
+        let claimant_a = [1u8; 32];
+        let claimant_b = [2u8; 32];
+        let input = ClaimablePoolData {
+            remaining_amount: 50,
+            entries: vec![ClaimableEntry {
+                claimant_lock_hash: claimant_a,
+                amount: 50,
+            }],
+        };
+        let output = ClaimablePoolData {
+            remaining_amount: 75,
+            entries: vec![
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_a,
+                    amount: 50,
+                },
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_b,
+                    amount: 25,
+                },
+            ],
+        };
+
+        assert_eq!(
+            find_claims(&input, &output).expect_err("extra output entry should fail"),
+            Error::InvalidPoolData
+        );
+    }
+
+    #[test]
+    fn rejects_claim_amount_overflow_for_same_claimant() {
+        let claimant_a = [1u8; 32];
+        let input = ClaimablePoolData {
+            remaining_amount: 0,
+            entries: vec![
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_a,
+                    amount: u128::MAX,
+                },
+                ClaimableEntry {
+                    claimant_lock_hash: claimant_a,
+                    amount: 1,
+                },
+            ],
+        };
+        let output = ClaimablePoolData {
+            remaining_amount: 0,
+            entries: vec![],
+        };
+
+        assert_eq!(
+            find_claims(&input, &output).expect_err("claim sum overflow should fail"),
             Error::InvalidPoolData
         );
     }
