@@ -1,5 +1,5 @@
 {
-  "name": "@ckboost/claimable-pool-lock",
+  "name": "ckb-claimable-pool-lock",
   "version": "0.1.0",
   "description": "TypeScript codecs and helpers for claimable-pool-lock",
   "license": "MIT",

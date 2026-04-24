@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "paths": {
+      "@ckb-ccc/core": ["../ts/node_modules/@ckb-ccc/core/dist/index.d.ts"]
+    },
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2022"
+  },
+  "include": ["*.ts", "globals.d.ts"]
+}

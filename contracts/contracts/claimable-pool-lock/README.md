@@ -96,7 +96,48 @@ This generates:
 - `ts/src/generated/claimable-pool.ts`
 - `ts/src/generated/index.ts`
 
-Other packages may consume the built `@ckboost/claimable-pool-lock` package, but this contract owns the generation step.
+Other packages may consume the built `ckb-claimable-pool-lock` package, but this contract owns the generation step.
+
+## Deployment
+
+This contract owns its deployment tooling and records under:
+
+```text
+deploy.sh
+deployments.json
+```
+
+Deploy and record locally:
+
+```bash
+./deploy.sh --network testnet --tag v0.1.0
+```
+
+Inspect recorded deployments:
+
+```text
+deployments.json
+```
+
+The latest testnet deployment is under `current.testnet.claimablePoolLock`.
+History stays in the same file under `history.testnet`.
+
+## Examples
+
+The Playground-oriented CCC examples live at:
+
+```text
+examples/create.ts
+examples/query.ts
+examples/claim.ts
+examples/recycle.ts
+```
+
+After pushing to GitHub, each one can be loaded with:
+
+```text
+https://live.ckbccc.com/?src=https://raw.githubusercontent.com/<owner>/<repo>/<branch>/contracts/contracts/claimable-pool-lock/examples/create.ts
+```
 
 ## Recycle Transition
 
