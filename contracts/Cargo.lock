@@ -1074,6 +1074,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "claimable-pool-lock"
+version = "0.1.0"
+dependencies = [
+ "ckb-std",
+ "molecule 0.8.0",
+]
+
+[[package]]
 name = "clap"
 version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"

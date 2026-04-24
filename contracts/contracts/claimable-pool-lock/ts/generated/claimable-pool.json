@@ -1,0 +1,40 @@
+{
+  "syntax_version": {
+    "version": 1
+  },
+  "namespace": "claimable-pool-lock",
+  "imports": [],
+  "declarations": [
+    {
+      "type": "array",
+      "name": "Uint128",
+      "item": "byte",
+      "item_count": 16
+    },
+    {
+      "type": "array",
+      "name": "Byte32",
+      "item": "byte",
+      "item_count": 32
+    },
+    {
+      "type": "struct",
+      "name": "ClaimablePoolEntry",
+      "fields": [
+        {
+          "name": "claimant_lock_hash",
+          "type": "Byte32"
+        },
+        {
+          "name": "amount",
+          "type": "Uint128"
+        }
+      ]
+    },
+    {
+      "type": "fixvec",
+      "name": "ClaimablePoolEntryVec",
+      "item": "ClaimablePoolEntry"
+    }
+  ]
+}

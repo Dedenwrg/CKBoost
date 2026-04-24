@@ -1,0 +1,12 @@
+[package]
+name = "claimable-pool-lock"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ckb-std = { version = "0.16.4", default-features = false, features = ["allocator", "ckb-types", "dummy-atomic"] }
+molecule = { version = "0.8.0", default-features = false }
+
+[features]
+library = []
+native-simulator = ["library", "ckb-std/native-simulator"]

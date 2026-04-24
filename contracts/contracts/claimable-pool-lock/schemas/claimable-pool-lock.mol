@@ -1,0 +1,9 @@
+array Uint128 [byte; 16];
+array Byte32 [byte; 32];
+
+struct ClaimablePoolEntry {
+    claimant_lock_hash: Byte32,
+    amount: Uint128,
+}
+
+vector ClaimablePoolEntryVec <ClaimablePoolEntry>;
