@@ -120,6 +120,7 @@ async function calculateFeeRate(
  */
 export type SendTransactionOptions = {
   pendingMetadata?: PendingTransactionMetadata;
+  preserveOutputCapacityIndices?: ReadonlySet<number>;
 };
 
 export async function sendTransactionWithFeeRetry(
@@ -143,8 +144,11 @@ export async function sendTransactionWithFeeRetry(
       for (let i = 0; i < tx.outputs.length; i++) {
         const out = tx.outputs[i];
         if (out.type) {
+          const cellOutputLike = options?.preserveOutputCapacityIndices?.has(i)
+            ? { capacity: out.capacity, lock: out.lock, type: out.type }
+            : { lock: out.lock, type: out.type };
           tx.outputs[i] = ccc.CellOutput.from(
-            { lock: out.lock, type: out.type },
+            cellOutputLike,
             tx.outputsData[i] as ccc.HexLike
           );
         }

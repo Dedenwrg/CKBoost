@@ -14,9 +14,15 @@ import { cn } from "@/lib/utils";
 import { StreakBonusService } from "@/lib/services/streak-bonus-service";
 import { buildStreakBonusTransaction } from "@/lib/ckb/streak-bonus";
 import type { BonusStreakCalculation } from "@/netlify/lib/streak-bonus";
+import { UserService } from "@/lib/services/user-service";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import {
+  emptyClaimablePointsSummary,
+  queryClaimablePointsPools,
+  type ClaimablePointsSummary,
+} from "@/lib/ckb/claimable-pool";
 import {
   buildPointsBalanceCacheKey,
   withPointsBalanceCache,
@@ -34,6 +40,9 @@ export function PointsBalance() {
   const [isLoading, setIsLoading] = useState(false);
   const [bonus, setBonus] = useState<BonusStreakCalculation | null>(null);
   const [bonusLoading, setBonusLoading] = useState(false);
+  const [claimablePool, setClaimablePool] =
+    useState<ClaimablePointsSummary | null>(null);
+  const [claimablePoolLoading, setClaimablePoolLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [minting, setMinting] = useState(false);
   const [userAddress, setUserAddress] = useState<string | null>(null);
@@ -55,15 +64,18 @@ export function PointsBalance() {
       if (!signer || !client || !protocolCell) {
         setBalance(null);
         setBonus(null);
+        setClaimablePool(null);
         setUserAddress(null);
         setIsLoading(false);
         setBonusLoading(false);
+        setClaimablePoolLoading(false);
         return;
       }
 
       try {
         setIsLoading(true);
         setBonusLoading(true);
+        setClaimablePoolLoading(true);
 
         const recommended = await signer.getRecommendedAddressObj();
         const userAddressString = await signer.getRecommendedAddress();
@@ -75,6 +87,7 @@ export function PointsBalance() {
           log.warn("Protocol type hash not found");
           setBalance(BigInt(0));
           setBonus(null);
+          setClaimablePool(null);
           return;
         }
 
@@ -97,30 +110,42 @@ export function PointsBalance() {
         );
 
         const streakBonusService = new StreakBonusService();
-        let bonusResponse: BonusStreakCalculation | null = null;
-        try {
-          bonusResponse = await streakBonusService.query({
+        const streakPromise = streakBonusService
+          .query({
             userAddress: userAddressString,
             refresh: forceRefresh,
+          })
+          .catch((bonusError) => {
+            log.warn("Failed to load streak bonus information:", bonusError);
+            return null;
           });
-        } catch (bonusError) {
-          log.warn("Failed to load streak bonus information:", bonusError);
-        }
+        const claimablePoolPromise = queryClaimablePointsPools({
+          client,
+          claimantLock: recommended.script,
+          protocolTypeHash,
+        }).catch((poolError) => {
+          log.warn("Failed to load claimable pool information:", poolError);
+          return emptyClaimablePointsSummary(recommended.script.hash());
+        });
 
-        const pointsResult = await pointsPromise;
+        const [pointsResult, bonusResponse, claimablePoolResponse] =
+          await Promise.all([pointsPromise, streakPromise, claimablePoolPromise]);
         if (!mountedRef.current) return;
 
         setBalance(pointsResult.value);
         setBonus(bonusResponse);
+        setClaimablePool(claimablePoolResponse);
       } catch (error) {
         log.error("Failed to load Points balance:", error);
         if (!mountedRef.current) return;
         setBalance(BigInt(0));
         setBonus(null);
+        setClaimablePool(null);
       } finally {
         if (!mountedRef.current) return;
         setIsLoading(false);
         setBonusLoading(false);
+        setClaimablePoolLoading(false);
       }
     },
     [signer, client, protocolCell],
@@ -135,36 +160,156 @@ export function PointsBalance() {
     return () => clearInterval(interval);
   }, [loadBalances]);
 
-  const handleClaimBonus = useCallback(async () => {
-    if (!signer || !bonus || !bonus.eligible || !userAddress || !protocolCell) {
+  const claimStreakBonus = useCallback(
+    async (currentBonus: BonusStreakCalculation) => {
+      if (!signer || !userAddress || !protocolCell) {
+        throw new Error("Wallet connection required to claim streak bonus.");
+      }
+
+      const bonusService = new StreakBonusService(signer);
+      const draftTx = await buildStreakBonusTransaction({
+        signer,
+        calculation: currentBonus,
+        protocolCell,
+      });
+
+      return bonusService.claim({
+        userAddress,
+        tx: draftTx,
+      });
+    },
+    [protocolCell, signer, userAddress],
+  );
+
+  const claimClaimablePool = useCallback(
+    async (params: {
+      claimableCells: ClaimablePointsSummary["cells"];
+      protocolTypeHash: ccc.HexLike;
+      pointsInputCell?: ccc.Cell;
+    }) => {
+      if (!signer) {
+        throw new Error("Wallet connection required to claim Points.");
+      }
+
+      const network = deploymentManager.getCurrentNetwork();
+      const userTypeCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostUserType",
+      );
+      if (!userTypeCodeHash) {
+        throw new Error("User type contract not configured.");
+      }
+
+      const userService = new UserService(
+        signer,
+        userTypeCodeHash,
+        ccc.hexFrom(params.protocolTypeHash),
+      );
+
+      return userService.claimPointsBatch(
+        params.claimableCells.map((item) => item.cell),
+        { pointsInputCell: params.pointsInputCell },
+      );
+    },
+    [signer],
+  );
+
+  const handleClaim = useCallback(async () => {
+    const bonusAmount = parseBonusAmount(bonus);
+    const hasStreakClaim = Boolean(bonus?.eligible) && bonusAmount > 0n;
+    const claimablePoolCells = claimablePool?.cells ?? [];
+    const hasPoolClaim = claimablePoolCells.length > 0;
+
+    if (
+      !signer ||
+      !userAddress ||
+      !protocolCell ||
+      (!hasStreakClaim && !hasPoolClaim)
+    ) {
+      return;
+    }
+
+    const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+    if (!protocolTypeHash) {
+      toast({
+        title: "Claim unavailable",
+        description: "Protocol cell is missing a type script.",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
       setClaiming(true);
-      const bonusService = new StreakBonusService(signer);
-      const draftTx = await buildStreakBonusTransaction({
-        signer,
-        calculation: bonus,
-        protocolCell,
-      });
+      let streakTxHash: ccc.Hex | null = null;
+      let poolTxHash: ccc.Hex | null = null;
+      let chainedPointsInput: ccc.Cell | undefined;
 
-      const { txHash } = await bonusService.claim({
-        userAddress,
-        tx: draftTx,
-      });
+      if (hasStreakClaim && bonus) {
+        const streakResult = await claimStreakBonus(bonus);
+        streakTxHash = streakResult.txHash;
+        chainedPointsInput = streakResult.pointsOutputCell ?? undefined;
+      }
+
+      if (hasPoolClaim) {
+        try {
+          if (streakTxHash && !chainedPointsInput) {
+            throw new Error(
+              "Streak transaction did not expose a Points output for the chained pool claim.",
+            );
+          }
+          poolTxHash = await claimClaimablePool({
+            claimableCells: claimablePoolCells,
+            protocolTypeHash,
+            pointsInputCell: chainedPointsInput,
+          });
+        } catch (poolError) {
+          if (streakTxHash) {
+            toast({
+              title: "Streak bonus submitted",
+              description:
+                "The streak bonus transaction was sent, but the claimable pool transaction failed. Refresh after confirmation and claim the remaining Points again.",
+              variant: "destructive",
+            });
+            await loadBalances(true);
+            if (mountedRef.current) {
+              setBonus(null);
+            }
+            return;
+          }
+          throw poolError;
+        }
+      }
 
       toast({
-        title: "Streak bonus claimed",
-        description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
-          -6,
-        )} submitted.`,
+        title:
+          streakTxHash && poolTxHash
+            ? "Points claims submitted"
+            : streakTxHash
+              ? "Streak bonus submitted"
+              : "Claimable Points submitted",
+        description: formatClaimSubmissionDescription({
+          streakTxHash,
+          poolTxHash,
+        }),
       });
       await loadBalances(true);
+      if (mountedRef.current) {
+        if (streakTxHash) {
+          setBonus(null);
+        }
+        if (poolTxHash) {
+          setClaimablePool(
+            emptyClaimablePointsSummary(
+              claimablePool?.claimantLockHash ?? undefined,
+            ),
+          );
+        }
+      }
     } catch (error) {
-      log.error("Failed to claim streak bonus:", error);
+      log.error("Failed to claim Points:", error);
       toast({
-        title: "Unable to claim streak bonus",
+        title: "Unable to claim Points",
         description:
           error instanceof Error ? error.message : "Unexpected claim error.",
         variant: "destructive",
@@ -174,7 +319,17 @@ export function PointsBalance() {
         setClaiming(false);
       }
     }
-  }, [bonus, loadBalances, signer, toast, userAddress]);
+  }, [
+    bonus,
+    claimablePool,
+    claimClaimablePool,
+    claimStreakBonus,
+    loadBalances,
+    protocolCell,
+    signer,
+    toast,
+    userAddress,
+  ]);
 
   const handleTestMint = useCallback(async () => {
     if (!isAdmin) {
@@ -312,7 +467,7 @@ export function PointsBalance() {
   }
 
   // Show loading state
-  if ((isLoading || bonusLoading) && balance === null) {
+  if ((isLoading || bonusLoading || claimablePoolLoading) && balance === null) {
     return (
       <div
         className={cn(
@@ -328,21 +483,20 @@ export function PointsBalance() {
     );
   }
 
-  const bonusAmount = (() => {
-    try {
-      return bonus?.bonusAmount ? BigInt(bonus.bonusAmount) : 0n;
-    } catch {
-      return 0n;
-    }
-  })();
+  const bonusAmount = parseBonusAmount(bonus);
+  const poolAmount = claimablePool?.totalAmount ?? 0n;
+  const totalClaimableAmount = bonusAmount + poolAmount;
 
   const isBonusAvailable = Boolean(bonus?.eligible) && bonusAmount > 0n;
+  const isPoolClaimAvailable = poolAmount > 0n;
+  const isClaimAvailable = isBonusAvailable || isPoolClaimAvailable;
 
   const isDisabled =
-    !isBonusAvailable ||
+    !isClaimAvailable ||
     claiming ||
     isLoading ||
     bonusLoading ||
+    claimablePoolLoading ||
     minting ||
     !userAddress ||
     !protocolCell;
@@ -353,7 +507,7 @@ export function PointsBalance() {
     <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={handleClaimBonus}
+        onClick={handleClaim}
         disabled={isDisabled}
         className={cn(
           "flex items-center gap-2 rounded-full px-3 py-1.5 h-10",
@@ -404,7 +558,7 @@ export function PointsBalance() {
             Claiming...
           </span>
         ) : (
-          isBonusAvailable && (
+          totalClaimableAmount > 0n && (
             <span
               className="text-xs font-semibold"
               style={{
@@ -413,7 +567,7 @@ export function PointsBalance() {
                   "0 0 6px rgba(0,255,0,0.8), 0 0 10px rgba(0,255,0,0.4)",
               }}
             >
-              +{formatPointsBalance(bonusAmount)} bonus
+              +{formatPointsBalance(totalClaimableAmount)} claimable
             </span>
           )
         )}
@@ -424,13 +578,17 @@ export function PointsBalance() {
         variant="outline"
         size="icon"
         onClick={handleRefresh}
-        disabled={isLoading || bonusLoading || claiming || minting}
+        disabled={
+          isLoading || bonusLoading || claimablePoolLoading || claiming || minting
+        }
         className={cn(
           "h-10 w-10 rounded-full",
           "border-0",
           "transition-all duration-200",
           "shadow-sm",
-          isLoading || bonusLoading ? "" : "hover:shadow-md",
+          isLoading || bonusLoading || claimablePoolLoading
+            ? ""
+            : "hover:shadow-md",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         style={{
@@ -442,7 +600,9 @@ export function PointsBalance() {
         <RefreshCw
           className={cn(
             "h-4 w-4",
-            isLoading || bonusLoading ? "animate-spin" : "",
+            isLoading || bonusLoading || claimablePoolLoading
+              ? "animate-spin"
+              : "",
           )}
           style={{
             color: "#c0c0c0",
@@ -451,8 +611,34 @@ export function PointsBalance() {
           }}
           strokeWidth={2}
         />
-        <span className="sr-only">Refresh points and streak bonus</span>
+        <span className="sr-only">Refresh points and claims</span>
       </Button>
     </div>
   );
+}
+
+function parseBonusAmount(bonus: BonusStreakCalculation | null): bigint {
+  try {
+    return bonus?.bonusAmount ? BigInt(bonus.bonusAmount) : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+function formatTxHash(hash: ccc.Hex): string {
+  return `${hash.slice(0, 10)}...${hash.slice(-6)}`;
+}
+
+function formatClaimSubmissionDescription(params: {
+  streakTxHash: ccc.Hex | null;
+  poolTxHash: ccc.Hex | null;
+}): string {
+  const parts: string[] = [];
+  if (params.streakTxHash) {
+    parts.push(`Streak ${formatTxHash(params.streakTxHash)}`);
+  }
+  if (params.poolTxHash) {
+    parts.push(`Pool ${formatTxHash(params.poolTxHash)}`);
+  }
+  return `${parts.join(" and ")} submitted.`;
 }

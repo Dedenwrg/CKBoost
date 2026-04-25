@@ -8,6 +8,7 @@ import {
 } from "ssri-ckboost/types";
 import {
   fetchAllUserCells,
+  fetchUserByTypeId,
   parseUserData,
   extractTypeIdFromUserCell,
 } from "@/lib/ckb/user-cells";
@@ -20,6 +21,10 @@ import { createScopedLogger } from "ssri-ckboost";
 import { injectProxyAuthenticationCell } from "../utils/api";
 import type { StaffApprovalResponse } from "@/netlify/lib/staff-approval";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
+import {
+  addClaimablePoolLockCellDep,
+  getClaimablePoolLockCodeHash,
+} from "../ckb/claimable-pool";
 
 const log = createScopedLogger("CampaignAdminService");
 
@@ -93,6 +98,49 @@ export class CampaignAdminService {
    */
   public getCampaign(): Campaign | null {
     return this.campaign;
+  }
+
+  private addPointsUdtCellDep(tx: ccc.Transaction): void {
+    const network = deploymentManager.getCurrentNetwork();
+    const pointsUdtOutPoint = deploymentManager.getContractOutPoint(
+      network,
+      "ckboostPointsUdt"
+    );
+
+    if (!pointsUdtOutPoint) {
+      throw new Error("Points UDT contract not found in deployments.json");
+    }
+
+    tx.addCellDeps({
+      outPoint: pointsUdtOutPoint,
+      depType: "code",
+    });
+  }
+
+  private async resolveClaimantLockHashes(
+    userTypeIds: ccc.Hex[]
+  ): Promise<ccc.Hex[]> {
+    if (!this.protocolCell?.cellOutput.type) {
+      throw new Error("Protocol cell type is required to resolve claimant locks");
+    }
+
+    const protocolTypeHash = ccc.hexFrom(this.protocolCell.cellOutput.type.hash());
+    return Promise.all(
+      userTypeIds.map(async (userTypeId) => {
+        const userCell = await fetchUserByTypeId(
+          userTypeId,
+          this.userTypeCodeHash,
+          this.signer,
+          protocolTypeHash
+        );
+        if (!userCell) {
+          throw new Error(
+            `User cell not found for approved user ${ccc.hexFrom(userTypeId)}`
+          );
+        }
+        return ccc.hexFrom(userCell.cellOutput.lock.hash());
+      })
+    );
   }
 
   // ============ Helper Methods ============
@@ -717,34 +765,27 @@ export class CampaignAdminService {
     }
 
     try {
-      // Stage 1: Approve completions with Points minting
-      // The smart contract will handle Points minting through the Points UDT
+      // Stage 1: Approve completions and create claimable Points pool outputs.
       log.info("Trying approveCompletion");
+      const claimablePoolLockCodeHash = getClaimablePoolLockCodeHash();
+      if (!claimablePoolLockCodeHash) {
+        throw new Error(
+          "Claimable Pool Lock contract not found in claimable-pool-lock/deployments.json"
+        );
+      }
+      const claimantLockHashes =
+        await this.resolveClaimantLockHashes(userTypeIds);
       const { res: tx } = await this.campaign.approveCompletion(
         this.signer,
         campaignData,
         questId,
-        userTypeIds
+        userTypeIds,
+        claimantLockHashes,
+        claimablePoolLockCodeHash
       );
 
-      const pointsUdtOutPoint = deploymentManager.getContractOutPoint(
-        deploymentManager.getCurrentNetwork(),
-        "ckboostPointsUdt"
-      );
-
-      if (!pointsUdtOutPoint) {
-        throw new Error("Points UDT contract not found in deployments.json");
-      } else {
-        log.info("Points UDT outpoint", pointsUdtOutPoint);
-      }
-
-      tx.addCellDeps({
-        outPoint: {
-          txHash: pointsUdtOutPoint.txHash,
-          index: pointsUdtOutPoint.index,
-        },
-        depType: "code",
-      });
+      this.addPointsUdtCellDep(tx);
+      addClaimablePoolLockCellDep(tx);
 
       const fundingLockOutPoint = deploymentManager.getContractOutPoint(
         deploymentManager.getCurrentNetwork(),

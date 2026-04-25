@@ -5,9 +5,18 @@ import {
   ConnectedTypeID,
   type CampaignDataLike,
 } from "../generated";
+import { encodeClaimablePoolData } from "ckb-claimable-pool-lock";
 import { createScopedLogger } from "../logging/index.js";
 
 const log = createScopedLogger("Campaign");
+
+function normalizeByte32Hex(value: ccc.HexLike, label: string): ccc.Hex {
+  const bytes = ccc.bytesFrom(value);
+  if (bytes.length !== 32) {
+    throw new Error(`${label} must be 32 bytes, received ${bytes.length}`);
+  }
+  return ccc.hexFrom(bytes);
+}
 
 /**
  * Represents a CKBoost Campaign contract for managing campaign operations.
@@ -391,6 +400,25 @@ export class Campaign extends ssri.Trait {
     return totalBalance;
   }
 
+  private getQuestPointsAmount(
+    campaignData: CampaignDataLike,
+    questId: number
+  ): bigint {
+    const quest = campaignData.quests?.find(
+      (q) => Number(q.quest_id) === questId
+    );
+    if (!quest) {
+      throw new Error(`Quest ${questId} not found in campaign data`);
+    }
+
+    const pointsAmount = ccc.numFrom(quest.points);
+    if (pointsAmount === 0n) {
+      throw new Error(`Quest ${questId} has no points reward`);
+    }
+
+    return pointsAmount;
+  }
+
   /**
    * Approve quest completions and mint Points
    *
@@ -398,6 +426,8 @@ export class Campaign extends ssri.Trait {
    * @param campaignData - The current campaign data
    * @param questId - The quest ID to approve completions for
    * @param userTypeIds - Array of user type IDs to approve (as Byte32)
+   * @param claimantLockHashes - Array of claimant lock hashes aligned with userTypeIds
+   * @param claimablePoolLockCodeHash - Claimable Pool Lock type script hash
    * @param tx - Optional existing transaction to build upon
    * @returns The updated transaction
    */
@@ -406,6 +436,8 @@ export class Campaign extends ssri.Trait {
     campaignData: CampaignDataLike,
     questId: number,
     userTypeIds: ccc.HexLike[],
+    claimantLockHashes: ccc.HexLike[],
+    claimablePoolLockCodeHash: ccc.HexLike,
     tx?: ccc.Transaction
   ): Promise<ssri.ExecutorResponse<ccc.Transaction>> {
     if (!this.executor) {
@@ -554,6 +586,17 @@ export class Campaign extends ssri.Trait {
           }
         }
 
+        const campaignCellOutputIndex = resTx.res.outputs.findIndex(
+          (output) => output.type?.codeHash === this.script.codeHash
+        );
+        if (campaignCellOutputIndex === -1) {
+          throw new Error("Campaign cell output not found in transaction");
+        }
+
+        if (claimantLockHashes.length !== userTypeIds.length) {
+          throw new Error("claimantLockHashes must be aligned with userTypeIds");
+        }
+
         // Parse protocol data to get Points UDT code hash
         const { ProtocolData } = await import("../generated");
         const protocolData = ProtocolData.decode(
@@ -570,23 +613,18 @@ export class Campaign extends ssri.Trait {
           throw new Error("Protocol cell missing type script");
         }
 
-        // Get the quest to find points amount
         const quest = campaignData.quests?.find(
           (q) => Number(q.quest_id) === questId
         );
         if (!quest) {
           throw new Error(`Quest ${questId} not found in campaign data`);
         }
+        const pointsAmount = this.getQuestPointsAmount(campaignData, questId);
 
-        const pointsAmount = Number(quest.points) || 0;
-        if (pointsAmount === 0) {
-          throw new Error(`Quest ${questId} has no points reward`);
-        }
-
-        log.info("Creating Points UDT cells:", {
+        log.info("Creating claimable Points pool cells:", {
           pointsUdtCodeHash,
           protocolTypeHash,
-          pointsAmount,
+          pointsAmount: pointsAmount.toString(),
           userCount: userTypeIds.length,
         });
 
@@ -596,189 +634,58 @@ export class Campaign extends ssri.Trait {
             .ckb_boost_user_type_code_hash
         );
 
-        // First, let's see what user cells exist
-        log.info(
-          `\n🔍 Searching for ALL user cells with type code hash: ${userTypeCodeHash}`
+        const normalizedClaimablePoolLockCodeHash = normalizeByte32Hex(
+          claimablePoolLockCodeHash,
+          "claimablePoolLockCodeHash"
         );
-        const allUserCells = signer.client.findCells({
-          script: {
-            codeHash: userTypeCodeHash,
-            hashType: "type",
-            args: "", // Empty args to find all cells with this type
-          },
-          scriptType: "type",
-          scriptSearchMode: "prefix",
-        });
 
-        let debugCellCount = 0;
-        for await (const cell of allUserCells) {
-          debugCellCount++;
-          log.info(`Found user cell #${debugCellCount}:`, {
-            outPoint: cell.outPoint,
-            typeArgs: cell.cellOutput.type?.args?.slice(0, 80) + "...",
-            typeArgsLength: cell.cellOutput.type?.args?.length,
-            lockCodeHash: cell.cellOutput.lock.codeHash.slice(0, 10) + "...",
-          });
-          if (debugCellCount >= 5) break; // Only show first 5 for debugging
-        }
-        log.info(`Total user cells found for debugging: ${debugCellCount}`);
-
-        // Create Points UDT cells for each approved user
-        for (const userTypeId of userTypeIds) {
-          const userTypeIdHex = ccc.hexFrom(userTypeId);
-
-          log.info(`\n🎯 Processing user ${userTypeIdHex.slice(0, 10)}...`);
-          log.info(
-            `Looking for user cell with type code hash: ${userTypeCodeHash}`
+        const entriesByClaimant = new Map<string, bigint>();
+        for (const claimantLockHash of claimantLockHashes) {
+          const normalizedClaimantLockHash = normalizeByte32Hex(
+            claimantLockHash,
+            "claimantLockHash"
+          ).toLowerCase();
+          entriesByClaimant.set(
+            normalizedClaimantLockHash,
+            (entriesByClaimant.get(normalizedClaimantLockHash) ?? 0n) +
+              pointsAmount
           );
-          log.info(`User type ID to match: ${userTypeIdHex}`);
+        }
 
-          const userConnectedTypeId = {
-            type_id: userTypeIdHex,
-            connected_key: protocolTypeHash,
-          };
-          log.info("userConnectedTypeId", userConnectedTypeId);
+        const entries = Array.from(entriesByClaimant.entries()).map(
+          ([claimantLockHash, amount]) => ({
+            claimantLockHash,
+            amount,
+          })
+        );
+        const recyclerLockHash = ccc.hexFrom(
+          resTx.res.outputs[campaignCellOutputIndex].lock.hash()
+        );
+        const poolLock = {
+          codeHash: normalizedClaimablePoolLockCodeHash,
+          hashType: "type" as const,
+          args: recyclerLockHash,
+        };
+        const pointsType = {
+          codeHash: pointsUdtCodeHash,
+          hashType: "type" as const,
+          args: protocolTypeHash,
+        };
+        const chunkSize = 100;
 
-          // Encode the ConnectedTypeID for the search
-          const encodedConnectedTypeId =
-            ConnectedTypeID.encode(userConnectedTypeId);
-          const encodedConnectedTypeIdHex = ccc.hexFrom(encodedConnectedTypeId);
-
-          log.info(`📝 Encoded ConnectedTypeID for search:`, {
-            encoded: encodedConnectedTypeIdHex,
-            length: encodedConnectedTypeIdHex.length,
-            typeId: userTypeIdHex,
-            connectedKey: protocolTypeHash,
-          });
-
-          // Find the user cell by their type_id
-          // The user cell's type script args should match this exact ConnectedTypeID
-          const userCells = signer.client.findCells({
-            script: {
-              codeHash: userTypeCodeHash,
-              hashType: "type",
-              args: encodedConnectedTypeIdHex,
-            },
-            scriptType: "type",
-            scriptSearchMode: "exact", // Use exact match since we have the full ConnectedTypeID
-          });
-
-          const userCellResult = await userCells.next();
-          log.info(`📊 User cell iterator result:`, {
-            done: userCellResult?.done,
-            hasValue: !!userCellResult?.value,
-            valueType: userCellResult?.value
-              ? typeof userCellResult.value
-              : "undefined",
-            cellOutPoint: userCellResult?.value?.outPoint
-              ? userCellResult.value.outPoint
-              : "no outPoint",
-          });
-
-          // The iterator returns {done: boolean, value: Cell}
-          if (!userCellResult || userCellResult.done || !userCellResult.value) {
-            log.warn(
-              `❌ User cell not found for type ID: ${userTypeIdHex}, skipping Points minting`
-            );
-            log.warn(`Search criteria used:`, {
-              codeHash: userTypeCodeHash,
-              hashType: "type",
-              args: encodedConnectedTypeIdHex,
-              argsLength: encodedConnectedTypeIdHex.length,
-            });
-            log.warn(`Expected ConnectedTypeID structure:`, {
-              typeId: userTypeIdHex,
-              connectedKey: protocolTypeHash,
-            });
-            continue;
-          }
-
-          const userCell = userCellResult.value;
-
-          log.info(`Found user cell:`, {
-            outPoint: userCell.outPoint,
-            lockCodeHash: userCell.cellOutput.lock.codeHash,
-            lockArgs: userCell.cellOutput.lock.args,
-            typeCodeHash: userCell.cellOutput.type?.codeHash,
-            typeArgs: userCell.cellOutput.type?.args,
-          });
-
-          // Get the user's lock script from their cell
-          const userLock = userCell.cellOutput.lock;
-
-          const pointsCell = {
-            capacity: 0, // Will be set by CCC.
-            lock: userLock,
-            type: {
-              codeHash: pointsUdtCodeHash,
-              hashType: "type" as const,
-              args: protocolTypeHash, // Protocol type hash as args for Points UDT
-            },
-          };
-
-          // Add User Cell to CellDeps
-          resTx.res.addCellDeps({
-            outPoint: userCell.outPoint,
-            depType: "code",
-          });
-
-          log.info("Added CellDep with outpoint:", userCell.outPoint);
-
-          log.info(`Creating Points UDT cell:`, {
-            capacity: pointsCell.capacity.toString(),
-            lockCodeHash: userLock.codeHash,
-            lockArgs: userLock.args,
-            typeCodeHash: pointsUdtCodeHash,
-            typeArgs: protocolTypeHash,
-            pointsAmount: pointsAmount,
-          });
-
-          try {
-            // Log transaction state before adding Points cell
-            log.info(`📝 Transaction state before adding Points cell:`, {
-              outputCount: resTx.res.outputs.length,
-              outputsDataCount: resTx.res.outputsData.length,
-            });
-
-            resTx.res.addOutput(pointsCell, ccc.numToBytes(pointsAmount, 16));
-            log.info(
-              `✅ Successfully added Points UDT cell for user ${userTypeIdHex.slice(0, 10)}... with ${pointsAmount} points`
-            );
-
-            // Log current transaction state after adding
-            log.info(`📈 Transaction after adding Points cell:`, {
-              outputCount: resTx.res.outputs.length,
-              outputsDataCount: resTx.res.outputsData.length,
-              lastOutputIndex: resTx.res.outputs.length - 1,
-            });
-
-            const lastOutput = resTx.res.outputs[resTx.res.outputs.length - 1];
-            log.info(
-              `🎯 Output ${resTx.res.outputs.length - 1} (Points UDT):`,
+        for (let start = 0; start < entries.length; start += chunkSize) {
+          const chunk = entries.slice(start, start + chunkSize);
+          const poolData = encodeClaimablePoolData(chunk);
+          resTx.res.addOutput(
+            ccc.CellOutput.from(
               {
-                capacity: lastOutput.capacity.toString(),
-                lockCodeHash: lastOutput.lock.codeHash.slice(0, 10) + "...",
-                lockArgs: lastOutput.lock.args.slice(0, 10) + "...",
-                typeCodeHash:
-                  lastOutput.type?.codeHash?.slice(0, 10) + "..." || "None",
-                typeArgs: lastOutput.type?.args?.slice(0, 10) + "..." || "None",
-              }
-            );
-
-            // Verify the output data was added correctly
-            const lastOutputData =
-              resTx.res.outputsData[resTx.res.outputsData.length - 1];
-            log.info(`💾 Output data for Points UDT:`, {
-              dataLength: lastOutputData.length,
-              dataHex: ccc.hexFrom(lastOutputData).slice(0, 40) + "...",
-            });
-          } catch (error) {
-            log.error(
-              `❌ Failed to add Points UDT cell for user ${userTypeIdHex}:`,
-              error
-            );
-            throw error;
-          }
+                lock: poolLock,
+                type: pointsType,
+              },
+              poolData
+            ),
+            poolData
+          );
         }
 
         // Handle UDT reward distribution

@@ -76,7 +76,6 @@
         "isTypeId": true,
         "typeHash": "0x4098902247983e930aca2dc7425600e356ea9a06e25a39d74d4bd796fe395268"
       },
-      "claimablePoolLock": null,
       "ckboostProtocolLock": {
         "transactionHash": "0x612e7cf307f0b8905261274ec044a72f12485fc0fee4c6c704f60b9cf2da8210",
         "index": 0,
@@ -124,8 +123,7 @@
       }
     },
     "mainnet": {
-      "protocolType": null,
-      "claimablePoolLock": null
+      "protocolType": null
     }
   },
   "history": {
