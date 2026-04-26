@@ -13,8 +13,9 @@
     }
   },
   "scripts": {
+    "build:claimable-pool-lock-dep": "pnpm --dir node_modules/ckb-claimable-pool-lock exec tsc -p tsconfig.build.json",
     "generate": "mkdir -p src/generated && moleculec --language - --schema-file ../../schemas/ckboost.mol --format json > src/generated/ckboost.json && npx ts-node scripts/generate-types.ts",
-    "prebuild": "npm run generate",
+    "prebuild": "pnpm run build:claimable-pool-lock-dep && npm run generate",
     "build": "rimraf ./dist && tsc",
     "lint": "eslint ./src",
     "format": "prettier --write . && eslint --fix ./src",

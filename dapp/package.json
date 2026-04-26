@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "bash ./pre-build.sh && cd ../packages/ssri-ckboost && pnpm install && pnpm build",
+    "build:claimable-pool-lock-dep": "pnpm --dir node_modules/ckb-claimable-pool-lock exec tsc -p tsconfig.build.json",
+    "prebuild": "bash ./pre-build.sh && pnpm run build:claimable-pool-lock-dep && cd ../packages/ssri-ckboost && pnpm install && pnpm build",
     "build": "pnpm run prebuild && next build --webpack",
     "dev": "netlify dev",
     "lint": "next lint",
