@@ -1,3 +1,4 @@
 # Local Netlify folder
 .netlify
 tsconfig.tsbuildinfo
+public/_pagefind/
