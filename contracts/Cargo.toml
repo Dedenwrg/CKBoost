@@ -10,6 +10,8 @@ members = [
   "contracts/ckboost-protocol-lock",
   "contracts/ckboost-protocol-type",
   "contracts/ckboost-funding-lock",
+  "contracts/claimable-pool-lock",
+  "contracts/claimable-pool-lock/contract-tests",
   "contracts/ckboost-campaign-type",
   "contracts/ckboost-points-udt",
   "contracts/ckboost-tipping-type",

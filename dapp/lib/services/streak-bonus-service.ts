@@ -12,6 +12,12 @@ import {
 } from "@/lib/cache/query-cache";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
 
+export type StreakBonusClaimResult = {
+  txHash: ccc.Hex;
+  bonusStreak: BonusStreakCalculation;
+  pointsOutputCell: ccc.Cell | null;
+};
+
 export class StreakBonusService {
   private readonly signer?: ccc.Signer;
 
@@ -65,7 +71,7 @@ export class StreakBonusService {
     userAddress: string;
     tx: ccc.Transaction;
     limit?: number;
-  }): Promise<{ txHash: ccc.Hex; bonusStreak: BonusStreakCalculation }> {
+  }): Promise<StreakBonusClaimResult> {
     const signer = this.requireSigner();
 
     const body: Record<string, unknown> = {
@@ -119,6 +125,10 @@ export class StreakBonusService {
       label: "Streak bonus claim",
       context: "StreakBonusService",
     });
+    const submittedPointsOutput = await this.findSubmittedPointsOutputCell(
+      validatedTx,
+      txHash
+    );
 
     const network = deploymentManager.getCurrentNetwork();
     const cacheKey = buildStreakBonusQueryCacheKey({
@@ -131,6 +141,7 @@ export class StreakBonusService {
     return {
       txHash,
       bonusStreak: payload.bonusStreak,
+      pointsOutputCell: submittedPointsOutput,
     };
   }
 
@@ -139,5 +150,48 @@ export class StreakBonusService {
       throw new Error("Wallet connection required to submit streak bonus.");
     }
     return this.signer;
+  }
+
+  private async findSubmittedPointsOutputCell(
+    tx: ccc.Transaction,
+    txHash: ccc.Hex
+  ): Promise<ccc.Cell | null> {
+    const signer = this.requireSigner();
+    const network = deploymentManager.getCurrentNetwork();
+    const pointsCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostPointsUdt"
+    );
+    if (!pointsCodeHash) {
+      return null;
+    }
+
+    const claimantLock = (await signer.getRecommendedAddressObj()).script;
+    const claimantLockHash = claimantLock.hash().toLowerCase();
+    const normalizedPointsCodeHash = pointsCodeHash.toLowerCase();
+
+    for (let index = 0; index < tx.outputs.length; index += 1) {
+      const output = tx.outputs[index];
+      if (!output.type) {
+        continue;
+      }
+      if (output.type.codeHash.toLowerCase() !== normalizedPointsCodeHash) {
+        continue;
+      }
+      if (output.lock.hash().toLowerCase() !== claimantLockHash) {
+        continue;
+      }
+
+      return ccc.Cell.from({
+        previousOutput: {
+          txHash,
+          index,
+        },
+        cellOutput: output,
+        outputData: tx.outputsData[index] as ccc.HexLike,
+      });
+    }
+
+    return null;
   }
 }

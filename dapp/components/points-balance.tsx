@@ -14,9 +14,18 @@ import { cn } from "@/lib/utils";
 import { StreakBonusService } from "@/lib/services/streak-bonus-service";
 import { buildStreakBonusTransaction } from "@/lib/ckb/streak-bonus";
 import type { BonusStreakCalculation } from "@/netlify/lib/streak-bonus";
+import { UserService } from "@/lib/services/user-service";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import {
+  addClaimablePoolAssetCellDep,
+  emptyClaimablePointsSummary,
+  queryClaimablePointsPools,
+  queryClaimableUdtPoolGroups,
+  type ClaimablePointsSummary,
+  type ClaimableUdtPoolGroup,
+} from "@/lib/ckb/claimable-pool";
 import {
   buildPointsBalanceCacheKey,
   withPointsBalanceCache,
@@ -34,6 +43,12 @@ export function PointsBalance() {
   const [isLoading, setIsLoading] = useState(false);
   const [bonus, setBonus] = useState<BonusStreakCalculation | null>(null);
   const [bonusLoading, setBonusLoading] = useState(false);
+  const [claimablePool, setClaimablePool] =
+    useState<ClaimablePointsSummary | null>(null);
+  const [claimableUdtGroups, setClaimableUdtGroups] = useState<
+    ClaimableUdtPoolGroup[]
+  >([]);
+  const [claimablePoolLoading, setClaimablePoolLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [minting, setMinting] = useState(false);
   const [userAddress, setUserAddress] = useState<string | null>(null);
@@ -55,15 +70,19 @@ export function PointsBalance() {
       if (!signer || !client || !protocolCell) {
         setBalance(null);
         setBonus(null);
+        setClaimablePool(null);
+        setClaimableUdtGroups([]);
         setUserAddress(null);
         setIsLoading(false);
         setBonusLoading(false);
+        setClaimablePoolLoading(false);
         return;
       }
 
       try {
         setIsLoading(true);
         setBonusLoading(true);
+        setClaimablePoolLoading(true);
 
         const recommended = await signer.getRecommendedAddressObj();
         const userAddressString = await signer.getRecommendedAddress();
@@ -75,10 +94,25 @@ export function PointsBalance() {
           log.warn("Protocol type hash not found");
           setBalance(BigInt(0));
           setBonus(null);
+          setClaimablePool(null);
+          setClaimableUdtGroups([]);
           return;
         }
 
         const network = deploymentManager.getCurrentNetwork();
+        const pointsUdtCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostPointsUdt",
+        );
+        const pointsTypeHash = pointsUdtCodeHash
+          ? ccc.hexFrom(
+              ccc.Script.from({
+                codeHash: pointsUdtCodeHash,
+                hashType: "type" as ccc.HashType,
+                args: protocolTypeHash,
+              }).hash(),
+            )
+          : null;
         const pointsCacheKey = buildPointsBalanceCacheKey({
           network,
           protocolTypeHash,
@@ -97,30 +131,61 @@ export function PointsBalance() {
         );
 
         const streakBonusService = new StreakBonusService();
-        let bonusResponse: BonusStreakCalculation | null = null;
-        try {
-          bonusResponse = await streakBonusService.query({
+        const streakPromise = streakBonusService
+          .query({
             userAddress: userAddressString,
             refresh: forceRefresh,
+          })
+          .catch((bonusError) => {
+            log.warn("Failed to load streak bonus information:", bonusError);
+            return null;
           });
-        } catch (bonusError) {
-          log.warn("Failed to load streak bonus information:", bonusError);
-        }
+        const claimablePoolPromise = queryClaimablePointsPools({
+          client,
+          claimantLock: recommended.script,
+          protocolTypeHash,
+        }).catch((poolError) => {
+          log.warn("Failed to load claimable pool information:", poolError);
+          return emptyClaimablePointsSummary(recommended.script.hash());
+        });
+        const claimableUdtPromise = queryClaimableUdtPoolGroups({
+          client,
+          claimantLock: recommended.script,
+          excludeTypeHashes: pointsTypeHash ? [pointsTypeHash] : [],
+        }).catch((poolError) => {
+          log.warn("Failed to load claimable UDT pool information:", poolError);
+          return [] as ClaimableUdtPoolGroup[];
+        });
 
-        const pointsResult = await pointsPromise;
+        const [
+          pointsResult,
+          bonusResponse,
+          claimablePoolResponse,
+          claimableUdtResponse,
+        ] = await Promise.all([
+          pointsPromise,
+          streakPromise,
+          claimablePoolPromise,
+          claimableUdtPromise,
+        ]);
         if (!mountedRef.current) return;
 
         setBalance(pointsResult.value);
         setBonus(bonusResponse);
+        setClaimablePool(claimablePoolResponse);
+        setClaimableUdtGroups(claimableUdtResponse);
       } catch (error) {
         log.error("Failed to load Points balance:", error);
         if (!mountedRef.current) return;
         setBalance(BigInt(0));
         setBonus(null);
+        setClaimablePool(null);
+        setClaimableUdtGroups([]);
       } finally {
         if (!mountedRef.current) return;
         setIsLoading(false);
         setBonusLoading(false);
+        setClaimablePoolLoading(false);
       }
     },
     [signer, client, protocolCell],
@@ -135,36 +200,224 @@ export function PointsBalance() {
     return () => clearInterval(interval);
   }, [loadBalances]);
 
-  const handleClaimBonus = useCallback(async () => {
-    if (!signer || !bonus || !bonus.eligible || !userAddress || !protocolCell) {
+  const claimStreakBonus = useCallback(
+    async (currentBonus: BonusStreakCalculation) => {
+      if (!signer || !userAddress || !protocolCell) {
+        throw new Error("Wallet connection required to claim streak bonus.");
+      }
+
+      const bonusService = new StreakBonusService(signer);
+      const draftTx = await buildStreakBonusTransaction({
+        signer,
+        calculation: currentBonus,
+        protocolCell,
+      });
+
+      return bonusService.claim({
+        userAddress,
+        tx: draftTx,
+      });
+    },
+    [protocolCell, signer, userAddress],
+  );
+
+  const claimClaimablePool = useCallback(
+    async (params: {
+      claimableCells: ClaimablePointsSummary["cells"];
+      protocolTypeHash: ccc.HexLike;
+      pointsInputCell?: ccc.Cell;
+    }) => {
+      if (!signer) {
+        throw new Error("Wallet connection required to claim Points.");
+      }
+
+      const network = deploymentManager.getCurrentNetwork();
+      const userTypeCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostUserType",
+      );
+      if (!userTypeCodeHash) {
+        throw new Error("User type contract not configured.");
+      }
+
+      const userService = new UserService(
+        signer,
+        userTypeCodeHash,
+        ccc.hexFrom(params.protocolTypeHash),
+      );
+
+      return userService.claimPointsBatch(
+        params.claimableCells.map((item) => item.cell),
+        { pointsInputCell: params.pointsInputCell },
+      );
+    },
+    [signer],
+  );
+
+  const claimClaimableUdtPool = useCallback(
+    async (group: ClaimableUdtPoolGroup) => {
+      if (!signer || !protocolCell?.cellOutput.type) {
+        throw new Error("Wallet connection required to claim UDT.");
+      }
+
+      const network = deploymentManager.getCurrentNetwork();
+      const userTypeCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostUserType",
+      );
+      if (!userTypeCodeHash) {
+        throw new Error("User type contract not configured.");
+      }
+
+      const userService = new UserService(
+        signer,
+        userTypeCodeHash,
+        ccc.hexFrom(protocolCell.cellOutput.type.hash()),
+      );
+
+      return userService.claimClaimablePoolBatch(
+        group.cells.map((item) => item.cell),
+        {
+          addUdtCellDeps: async (tx, typeScript) => {
+            await addClaimablePoolAssetCellDep(
+              signer.client,
+              tx,
+              typeScript,
+            );
+          },
+        },
+      );
+    },
+    [protocolCell, signer],
+  );
+
+  const handleClaim = useCallback(async () => {
+    const bonusAmount = parseBonusAmount(bonus);
+    const hasStreakClaim = Boolean(bonus?.eligible) && bonusAmount > 0n;
+    const claimablePoolCells = claimablePool?.cells ?? [];
+    const hasPoolClaim = claimablePoolCells.length > 0;
+    const claimableUdtGroupsSnapshot = claimableUdtGroups.filter(
+      (group) => group.cells.length > 0,
+    );
+    const hasUdtClaim = claimableUdtGroupsSnapshot.length > 0;
+
+    if (
+      !signer ||
+      !userAddress ||
+      !protocolCell ||
+      (!hasStreakClaim && !hasPoolClaim && !hasUdtClaim)
+    ) {
+      return;
+    }
+
+    const protocolTypeHash = protocolCell.cellOutput.type?.hash();
+    if (!protocolTypeHash) {
+      toast({
+        title: "Claim unavailable",
+        description: "Protocol cell is missing a type script.",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
       setClaiming(true);
-      const bonusService = new StreakBonusService(signer);
-      const draftTx = await buildStreakBonusTransaction({
-        signer,
-        calculation: bonus,
-        protocolCell,
-      });
+      let streakTxHash: ccc.Hex | null = null;
+      let poolTxHash: ccc.Hex | null = null;
+      const udtTxHashes: ccc.Hex[] = [];
+      let chainedPointsInput: ccc.Cell | undefined;
 
-      const { txHash } = await bonusService.claim({
-        userAddress,
-        tx: draftTx,
-      });
+      if (hasStreakClaim && bonus) {
+        const streakResult = await claimStreakBonus(bonus);
+        streakTxHash = streakResult.txHash;
+        chainedPointsInput = streakResult.pointsOutputCell ?? undefined;
+      }
+
+      if (hasPoolClaim) {
+        try {
+          if (streakTxHash && !chainedPointsInput) {
+            throw new Error(
+              "Streak transaction did not expose a Points output for the chained pool claim.",
+            );
+          }
+          poolTxHash = await claimClaimablePool({
+            claimableCells: claimablePoolCells,
+            protocolTypeHash,
+            pointsInputCell: chainedPointsInput,
+          });
+        } catch (poolError) {
+          if (streakTxHash) {
+            toast({
+              title: "Streak bonus submitted",
+              description:
+                "The streak bonus transaction was sent, but the claimable pool transaction failed. Refresh after confirmation and claim the remaining Points again.",
+              variant: "destructive",
+            });
+            await loadBalances(true);
+            if (mountedRef.current) {
+              setBonus(null);
+            }
+            return;
+          }
+          throw poolError;
+        }
+      }
+
+      if (hasUdtClaim) {
+        try {
+          for (const group of claimableUdtGroupsSnapshot) {
+            udtTxHashes.push(await claimClaimableUdtPool(group));
+          }
+        } catch (udtError) {
+          if (streakTxHash || poolTxHash || udtTxHashes.length > 0) {
+            toast({
+              title: "Some claims submitted",
+              description:
+                "One or more transactions were sent, but a UDT claim failed. Refresh after confirmation and retry the remaining UDT claim.",
+              variant: "destructive",
+            });
+            await loadBalances(true);
+            return;
+          }
+          throw udtError;
+        }
+      }
 
       toast({
-        title: "Streak bonus claimed",
-        description: `Transaction ${txHash.slice(0, 10)}...${txHash.slice(
-          -6,
-        )} submitted.`,
+        title:
+          udtTxHashes.length > 0
+            ? "Claims submitted"
+            : streakTxHash && poolTxHash
+            ? "Points claims submitted"
+            : streakTxHash
+              ? "Streak bonus submitted"
+              : "Claimable Points submitted",
+        description: formatClaimSubmissionDescription({
+          streakTxHash,
+          poolTxHash,
+          udtTxHashes,
+        }),
       });
       await loadBalances(true);
+      if (mountedRef.current) {
+        if (streakTxHash) {
+          setBonus(null);
+        }
+        if (poolTxHash) {
+          setClaimablePool(
+            emptyClaimablePointsSummary(
+              claimablePool?.claimantLockHash ?? undefined,
+            ),
+          );
+        }
+        if (udtTxHashes.length > 0) {
+          setClaimableUdtGroups([]);
+        }
+      }
     } catch (error) {
-      log.error("Failed to claim streak bonus:", error);
+      log.error("Failed to claim Points:", error);
       toast({
-        title: "Unable to claim streak bonus",
+        title: "Unable to claim Points",
         description:
           error instanceof Error ? error.message : "Unexpected claim error.",
         variant: "destructive",
@@ -174,7 +427,19 @@ export function PointsBalance() {
         setClaiming(false);
       }
     }
-  }, [bonus, loadBalances, signer, toast, userAddress]);
+  }, [
+    bonus,
+    claimablePool,
+    claimableUdtGroups,
+    claimClaimablePool,
+    claimClaimableUdtPool,
+    claimStreakBonus,
+    loadBalances,
+    protocolCell,
+    signer,
+    toast,
+    userAddress,
+  ]);
 
   const handleTestMint = useCallback(async () => {
     if (!isAdmin) {
@@ -312,7 +577,7 @@ export function PointsBalance() {
   }
 
   // Show loading state
-  if ((isLoading || bonusLoading) && balance === null) {
+  if ((isLoading || bonusLoading || claimablePoolLoading) && balance === null) {
     return (
       <div
         className={cn(
@@ -328,21 +593,28 @@ export function PointsBalance() {
     );
   }
 
-  const bonusAmount = (() => {
-    try {
-      return bonus?.bonusAmount ? BigInt(bonus.bonusAmount) : 0n;
-    } catch {
-      return 0n;
-    }
-  })();
+  const bonusAmount = parseBonusAmount(bonus);
+  const poolAmount = claimablePool?.totalAmount ?? 0n;
+  const totalClaimableAmount = bonusAmount + poolAmount;
+  const hasClaimableUdt = claimableUdtGroups.some(
+    (group) => group.cells.length > 0,
+  );
+  const claimableLabel = formatClaimableLabel(
+    totalClaimableAmount,
+    hasClaimableUdt,
+  );
 
   const isBonusAvailable = Boolean(bonus?.eligible) && bonusAmount > 0n;
+  const isPoolClaimAvailable = poolAmount > 0n;
+  const isClaimAvailable =
+    isBonusAvailable || isPoolClaimAvailable || hasClaimableUdt;
 
   const isDisabled =
-    !isBonusAvailable ||
+    !isClaimAvailable ||
     claiming ||
     isLoading ||
     bonusLoading ||
+    claimablePoolLoading ||
     minting ||
     !userAddress ||
     !protocolCell;
@@ -353,7 +625,7 @@ export function PointsBalance() {
     <div className="flex items-center gap-2">
       <button
         type="button"
-        onClick={handleClaimBonus}
+        onClick={handleClaim}
         disabled={isDisabled}
         className={cn(
           "flex items-center gap-2 rounded-full px-3 py-1.5 h-10",
@@ -404,7 +676,7 @@ export function PointsBalance() {
             Claiming...
           </span>
         ) : (
-          isBonusAvailable && (
+          claimableLabel && (
             <span
               className="text-xs font-semibold"
               style={{
@@ -413,7 +685,7 @@ export function PointsBalance() {
                   "0 0 6px rgba(0,255,0,0.8), 0 0 10px rgba(0,255,0,0.4)",
               }}
             >
-              +{formatPointsBalance(bonusAmount)} bonus
+              {claimableLabel}
             </span>
           )
         )}
@@ -424,13 +696,17 @@ export function PointsBalance() {
         variant="outline"
         size="icon"
         onClick={handleRefresh}
-        disabled={isLoading || bonusLoading || claiming || minting}
+        disabled={
+          isLoading || bonusLoading || claimablePoolLoading || claiming || minting
+        }
         className={cn(
           "h-10 w-10 rounded-full",
           "border-0",
           "transition-all duration-200",
           "shadow-sm",
-          isLoading || bonusLoading ? "" : "hover:shadow-md",
+          isLoading || bonusLoading || claimablePoolLoading
+            ? ""
+            : "hover:shadow-md",
           "disabled:opacity-50 disabled:cursor-not-allowed",
         )}
         style={{
@@ -442,7 +718,9 @@ export function PointsBalance() {
         <RefreshCw
           className={cn(
             "h-4 w-4",
-            isLoading || bonusLoading ? "animate-spin" : "",
+            isLoading || bonusLoading || claimablePoolLoading
+              ? "animate-spin"
+              : "",
           )}
           style={{
             color: "#c0c0c0",
@@ -451,8 +729,54 @@ export function PointsBalance() {
           }}
           strokeWidth={2}
         />
-        <span className="sr-only">Refresh points and streak bonus</span>
+        <span className="sr-only">Refresh points and claims</span>
       </Button>
     </div>
   );
+}
+
+function parseBonusAmount(bonus: BonusStreakCalculation | null): bigint {
+  try {
+    return bonus?.bonusAmount ? BigInt(bonus.bonusAmount) : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+function formatTxHash(hash: ccc.Hex): string {
+  return `${hash.slice(0, 10)}...${hash.slice(-6)}`;
+}
+
+function formatClaimSubmissionDescription(params: {
+  streakTxHash: ccc.Hex | null;
+  poolTxHash: ccc.Hex | null;
+  udtTxHashes: ccc.Hex[];
+}): string {
+  const parts: string[] = [];
+  if (params.streakTxHash) {
+    parts.push(`Streak ${formatTxHash(params.streakTxHash)}`);
+  }
+  if (params.poolTxHash) {
+    parts.push(`Pool ${formatTxHash(params.poolTxHash)}`);
+  }
+  for (const txHash of params.udtTxHashes) {
+    parts.push(`UDT ${formatTxHash(txHash)}`);
+  }
+  return `${parts.join(" and ")} submitted.`;
+}
+
+function formatClaimableLabel(
+  pointsAmount: bigint,
+  hasClaimableUdt: boolean,
+): string | null {
+  if (pointsAmount > 0n && hasClaimableUdt) {
+    return `+${formatPointsBalance(pointsAmount)} claimable · UDT`;
+  }
+  if (pointsAmount > 0n) {
+    return `+${formatPointsBalance(pointsAmount)} claimable`;
+  }
+  if (hasClaimableUdt) {
+    return "UDT claimable";
+  }
+  return null;
 }

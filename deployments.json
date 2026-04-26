@@ -17,12 +17,12 @@
         "typeHash": "0x53769be2ed1d09a9da7c1d71488347449bb76f1212068f7e366939d0d5fd59fa"
       },
       "ckboostCampaignType": {
-        "transactionHash": "0x8e7615ad79d53cdc1e750b7705d6b1c5e25dcd0ffdfddfdfb6e69262498c9176",
+        "transactionHash": "0x1e2f4219427b5ace9008b3ae97e342a0114290ce558d403ad3a12c0a67e7c087",
         "index": 0,
-        "deployedAt": "2025-11-22T19:17:08.099Z",
+        "deployedAt": "2026-04-26T12:06:03.540Z",
         "contractName": "ckboost-campaign-type",
-        "tag": "v20251122-1917",
-        "dataHash": "0x4daa452fa0c3eb6d712a1fa587100dbe90bf05cef725baee09cc715b3bdb94c4",
+        "tag": "v20260426-1305",
+        "dataHash": "0x5053719a231892fc7314a6b9489d8718128181f94cafb696aa027ba733d543cc",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -47,12 +47,12 @@
         "typeHash": "0xe78893f4703d27e6dc9a8a6495ab86f2e14d51f83c0eb21de0ae5e4437027fe6"
       },
       "ckboostPointsUdt": {
-        "transactionHash": "0x43c9aa59b0ecd20dd8b1463bef17e04bdf1da5ace3e86edf5f6e9a29d0e255f0",
+        "transactionHash": "0xd006b31cfd6a5360f607ac067590a88b10847ecea84ccde11788493b7eeb3e3f",
         "index": 0,
-        "deployedAt": "2025-11-13T19:47:14.313Z",
+        "deployedAt": "2026-04-25T13:35:40.900Z",
         "contractName": "ckboost-points-udt",
-        "tag": "v20251113-1947",
-        "dataHash": "0x96bc3795ffc10ef42771d40d80456b1e2e630bc281ae64d1c7cea5239a7ad4a9",
+        "tag": "v20260425-1435",
+        "dataHash": "0xb61c56ff5d0b9d036f0db63d67ec9cf9d8cb62a20d9de1830659b92261bb150b",
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
           "hashType": "type",
@@ -6490,6 +6490,54 @@
           "index": 0,
           "deployedAt": "2025-10-15T15:32:16.790Z",
           "tag": "v20251015-1632"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0xa9f561bf7f0e26f5caed5b7562a0eae213125ceba7f5dd3f84b940e197510ed0"
+        },
+        "isTypeId": true,
+        "typeHash": "0x0bf18a83f13ec240d84b322ee8b1827b811137024749c7d5fbf4d6bdeed81778"
+      },
+      {
+        "contractName": "ckboost-points-udt",
+        "transactionHash": "0xd006b31cfd6a5360f607ac067590a88b10847ecea84ccde11788493b7eeb3e3f",
+        "index": 0,
+        "deployedAt": "2026-04-25T13:35:40.900Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0xb61c56ff5d0b9d036f0db63d67ec9cf9d8cb62a20d9de1830659b92261bb150b",
+        "contractSize": 138784,
+        "tag": "v20260425-1435",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0x43c9aa59b0ecd20dd8b1463bef17e04bdf1da5ace3e86edf5f6e9a29d0e255f0",
+          "index": 0,
+          "deployedAt": "2025-11-13T19:47:14.313Z",
+          "tag": "v20251113-1947"
+        },
+        "typeScript": {
+          "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",
+          "hashType": "type",
+          "args": "0xc9abd34829d90d4eb1dc28b70e7378df447d26b41d17656362b8fabef226caff"
+        },
+        "isTypeId": true,
+        "typeHash": "0xfcb4b762e3222b603771811b8abe6b054a480a0f5d8011fd9fff266d72189a5e"
+      },
+      {
+        "contractName": "ckboost-campaign-type",
+        "transactionHash": "0x1e2f4219427b5ace9008b3ae97e342a0114290ce558d403ad3a12c0a67e7c087",
+        "index": 0,
+        "deployedAt": "2026-04-26T12:06:03.540Z",
+        "deployerAddress": "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsq2jk6pyw9vlnfakx7vp4t5lxg0lzvvsp3c5adflu",
+        "dataHash": "0x5053719a231892fc7314a6b9489d8718128181f94cafb696aa027ba733d543cc",
+        "contractSize": 509872,
+        "tag": "v20260426-1305",
+        "isUpgrade": true,
+        "previousDeployment": {
+          "transactionHash": "0x8e7615ad79d53cdc1e750b7705d6b1c5e25dcd0ffdfddfdfb6e69262498c9176",
+          "index": 0,
+          "deployedAt": "2025-11-22T19:17:08.099Z",
+          "tag": "v20251122-1917"
         },
         "typeScript": {
           "codeHash": "0x00000000000000000000000000000000000000000000000000545950455f4944",

@@ -490,13 +490,267 @@ pub mod approve_completion {
         use alloc::string::String;
         use alloc::vec::Vec;
         use ckb_deterministic::assertions::expect;
-        use ckb_deterministic::cell_classifier::RuleBasedClassifier;
+        use ckb_deterministic::cell_classifier::{CellInfo, RuleBasedClassifier};
+        use ckb_deterministic::debug_trace;
         use ckb_deterministic::errors::Error as DeterministicError;
-        use ckb_deterministic::{debug_info, debug_trace};
-        use ckb_std::ckb_types::packed::Byte32Vec;
-        use ckboost_shared::generated::ckboost::CampaignData;
+        use ckb_std::ckb_constants::Source;
+        use ckb_std::ckb_types::{
+            bytes::Bytes as RawBytes,
+            core::ScriptHashType,
+            packed::{Byte32, Byte32Vec, Script},
+            prelude::*,
+        };
+        use ckb_std::error::SysError;
+        use ckb_std::high_level::{load_cell_capacity, load_cell_lock_hash};
+        use ckboost_shared::generated::ckboost::{Byte32Vec as SharedByte32Vec, CampaignData};
         use ckboost_shared::transaction_context::TransactionContext;
-        use molecule::prelude::*;
+
+        fn read_u128(bytes: &[u8]) -> Result<u128, DeterministicError> {
+            if bytes.len() != 16 {
+                debug_trace!("Invalid u128 byte length: {}", bytes.len());
+                return Err(DeterministicError::Encoding);
+            }
+            let mut array = [0u8; 16];
+            array.copy_from_slice(bytes);
+            Ok(u128::from_le_bytes(array))
+        }
+
+        fn read_udt_amount(data: &[u8]) -> Result<u128, DeterministicError> {
+            if data.len() < 16 {
+                debug_trace!("UDT data is shorter than 16 bytes");
+                return Err(DeterministicError::Encoding);
+            }
+            read_u128(&data[0..16])
+        }
+
+        struct ExpectedRewards {
+            points: u128,
+            ckb: u128,
+            udts: Vec<(String, u128)>,
+        }
+
+        fn contains_packed_byte32(vec: &Byte32Vec, target: &[u8]) -> bool {
+            for i in 0..vec.len() {
+                let item = vec.get(i).unwrap();
+                if item.as_slice() == target {
+                    return true;
+                }
+            }
+            false
+        }
+
+        fn contains_shared_byte32(vec: &SharedByte32Vec, target: &[u8]) -> bool {
+            for i in 0..vec.len() {
+                let item = vec.get(i).unwrap();
+                if item.as_slice() == target {
+                    return true;
+                }
+            }
+            false
+        }
+
+        fn count_new_approvals(
+            input_accepted: &SharedByte32Vec,
+            output_accepted: &SharedByte32Vec,
+            approved_user_type_ids: &Byte32Vec,
+        ) -> Result<u128, DeterministicError> {
+            for i in 0..input_accepted.len() {
+                let input_id = input_accepted.get(i).unwrap();
+                if !contains_shared_byte32(output_accepted, input_id.as_slice()) {
+                    debug_trace!("Previously accepted user was removed during approval");
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+            }
+
+            let mut new_count = 0u128;
+            for i in 0..output_accepted.len() {
+                let output_id = output_accepted.get(i).unwrap();
+                for j in 0..i {
+                    let previous_output_id = output_accepted.get(j).unwrap();
+                    if previous_output_id.as_slice() == output_id.as_slice() {
+                        debug_trace!("Output accepted list contains duplicate users");
+                        return Err(DeterministicError::BusinessRuleViolation);
+                    }
+                }
+                if contains_shared_byte32(input_accepted, output_id.as_slice()) {
+                    continue;
+                }
+                if !contains_packed_byte32(approved_user_type_ids, output_id.as_slice()) {
+                    debug_trace!("Output accepted list contains an unapproved new user");
+                    return Err(DeterministicError::BusinessRuleViolation);
+                }
+                new_count = new_count
+                    .checked_add(1)
+                    .ok_or(DeterministicError::BusinessRuleViolation)?;
+            }
+
+            if output_accepted.len() != input_accepted.len() + new_count as usize {
+                debug_trace!("Output accepted user count does not match newly approved count");
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
+
+            Ok(new_count)
+        }
+
+        fn add_expected_udt(
+            expected_udts: &mut Vec<(String, u128)>,
+            udt_identifier: String,
+            amount: u128,
+        ) -> Result<(), DeterministicError> {
+            if amount == 0 {
+                return Ok(());
+            }
+            match expected_udts
+                .iter_mut()
+                .find(|(identifier, _)| identifier == &udt_identifier)
+            {
+                Some((_, existing_amount)) => {
+                    *existing_amount = existing_amount
+                        .checked_add(amount)
+                        .ok_or(DeterministicError::BusinessRuleViolation)?;
+                }
+                None => expected_udts.push((udt_identifier, amount)),
+            }
+            Ok(())
+        }
+
+        fn expected_rewards(
+            quest: &ckboost_shared::generated::ckboost::QuestData,
+            approval_count: u128,
+        ) -> Result<ExpectedRewards, DeterministicError> {
+            let points = read_u128(quest.points().as_slice())?
+                .checked_mul(approval_count)
+                .ok_or(DeterministicError::BusinessRuleViolation)?;
+            let mut ckb = 0u128;
+            let mut udts = Vec::new();
+
+            let rewards_on_completion = quest.rewards_on_completion();
+            for i in 0..rewards_on_completion.len() {
+                let asset_list = rewards_on_completion.get(i).unwrap();
+                ckb = ckb
+                    .checked_add(
+                        read_u128(asset_list.ckb_amount().as_slice())?
+                            .checked_mul(approval_count)
+                            .ok_or(DeterministicError::BusinessRuleViolation)?,
+                    )
+                    .ok_or(DeterministicError::BusinessRuleViolation)?;
+
+                let udt_assets = asset_list.udt_assets();
+                for j in 0..udt_assets.len() {
+                    let udt_asset = udt_assets.get(j).unwrap();
+                    let amount = read_u128(udt_asset.amount().as_slice())?
+                        .checked_mul(approval_count)
+                        .ok_or(DeterministicError::BusinessRuleViolation)?;
+                    let udt_identifier =
+                        ckboost_shared::cell_collector::get_udt_identifier(&udt_asset.udt_script());
+                    add_expected_udt(&mut udts, udt_identifier, amount)?;
+                }
+            }
+
+            Ok(ExpectedRewards { points, ckb, udts })
+        }
+
+        fn sum_udt_amount(cells: Option<&Vec<CellInfo>>) -> Result<u128, DeterministicError> {
+            let mut total = 0u128;
+            if let Some(cells) = cells {
+                for cell in cells {
+                    total = total
+                        .checked_add(read_udt_amount(&cell.data)?)
+                        .ok_or(DeterministicError::BusinessRuleViolation)?;
+                }
+            }
+            Ok(total)
+        }
+
+        fn sum_udt_amount_for_lock(
+            cells: Option<&Vec<CellInfo>>,
+            lock_hash: &[u8; 32],
+        ) -> Result<u128, DeterministicError> {
+            let mut total = 0u128;
+            if let Some(cells) = cells {
+                for cell in cells {
+                    if cell.lock_hash.as_slice() == lock_hash {
+                        total = total
+                            .checked_add(read_udt_amount(&cell.data)?)
+                            .ok_or(DeterministicError::BusinessRuleViolation)?;
+                    }
+                }
+            }
+            Ok(total)
+        }
+
+        fn sum_capacity_for_lock(
+            source: Source,
+            lock_hash: &[u8; 32],
+        ) -> Result<u128, DeterministicError> {
+            let mut total = 0u128;
+            let mut index = 0usize;
+            loop {
+                match load_cell_lock_hash(index, source) {
+                    Ok(cell_lock_hash) => {
+                        if cell_lock_hash.as_slice() == lock_hash {
+                            let capacity = load_cell_capacity(index, source).map_err(|err| {
+                                debug_trace!("Failed to load cell capacity: {:?}", err);
+                                DeterministicError::CellRelationshipRuleViolation
+                            })?;
+                            total = total
+                                .checked_add(capacity as u128)
+                                .ok_or(DeterministicError::BusinessRuleViolation)?;
+                        }
+                    }
+                    Err(SysError::IndexOutOfBound) => break,
+                    Err(err) => {
+                        debug_trace!("Failed to load cell lock hash: {:?}", err);
+                        return Err(DeterministicError::CellRelationshipRuleViolation);
+                    }
+                }
+                index += 1;
+            }
+            Ok(total)
+        }
+
+        fn expected_udt_amount(expected: &ExpectedRewards, udt_identifier: &str) -> u128 {
+            expected
+                .udts
+                .iter()
+                .find(|(identifier, _)| identifier == udt_identifier)
+                .map(|(_, amount)| *amount)
+                .unwrap_or(0)
+        }
+
+        fn funding_lock_hash(
+            input_campaign_cell: &CellInfo,
+        ) -> Result<[u8; 32], DeterministicError> {
+            let campaign_type_hash = input_campaign_cell.type_hash.ok_or_else(|| {
+                debug_trace!("Campaign cell is missing type hash");
+                DeterministicError::CellRelationshipRuleViolation
+            })?;
+            let protocol_data =
+                ckboost_shared::protocol_data::get_protocol_data().map_err(|e| {
+                    debug_trace!("Failed to load protocol data: {:?}", e);
+                    DeterministicError::CellRelationshipRuleViolation
+                })?;
+            let funding_lock_code_hash = protocol_data
+                .protocol_config()
+                .script_code_hashes()
+                .ckb_boost_funding_lock_code_hash();
+            debug_trace!(
+                "Building funding lock hash with code hash len {} and campaign type hash len {}",
+                funding_lock_code_hash.as_slice().len(),
+                campaign_type_hash.len()
+            );
+            let script = Script::new_builder()
+                .code_hash(
+                    Byte32::from_slice(funding_lock_code_hash.as_slice()).map_err(|e| {
+                        debug_trace!("Failed to convert funding lock code hash: {:?}", e);
+                        DeterministicError::Encoding
+                    })?,
+                )
+                .hash_type(ScriptHashType::Type.into())
+                .args(RawBytes::from(campaign_type_hash.to_vec()).pack())
+                .build();
+            Ok(script.calc_script_hash().unpack())
+        }
 
         // **Approval validation**: Ensure valid quest approval by admin
         pub fn approval_validation(
@@ -665,251 +919,118 @@ pub mod approve_completion {
                 return Err(DeterministicError::BusinessRuleViolation);
             }
 
-            // Verify that points and udt rewards are properly distributed
-
-            // Get quest data for reward validation
-            // Note: quest_id is in the arguments but we need to parse it properly
-            // For now, we'll validate that rewards go to approved users
-
-            // 1. Get user cells from CellDeps to validate approved users
-            let dep_user_cells = context.cell_deps.get_custom("user");
-
-            // 2. Check for Points UDT cells in outputs (minting new points)
-            let output_points_cells = context.output_cells.get_custom("points");
-
-            // 3. Check for UDT reward cells in outputs
-            let udt_identifiers = ckboost_shared::cell_collector::get_all_udt_identifiers()
-                .map_err(|e| {
-                    debug_trace!("Failed to get UDT identifiers: {:?}", e);
+            let input_quest = input_campaign_data
+                .quests()
+                .into_iter()
+                .find(|q| q.quest_id().raw_data().to_vec() == quest_id.to_le_bytes())
+                .ok_or_else(|| {
+                    debug_trace!("Input quest not found in campaign data");
+                    DeterministicError::BusinessRuleViolation
+                })?;
+            let output_quest = output_campaign_data
+                .quests()
+                .into_iter()
+                .find(|q| q.quest_id().raw_data().to_vec() == quest_id.to_le_bytes())
+                .ok_or_else(|| {
+                    debug_trace!("Output quest not found in campaign data");
                     DeterministicError::BusinessRuleViolation
                 })?;
 
-            // Collect all reward cells (both points and UDT)
-            let mut reward_cells = Vec::new();
-
-            // Add points cells to rewards
-            if let Some(points_cells) = output_points_cells {
-                for cell in points_cells {
-                    reward_cells.push((cell, "points"));
-                }
+            let input_accepted = input_quest.accepted_submission_user_type_ids();
+            let output_accepted = output_quest.accepted_submission_user_type_ids();
+            let newly_approved_count =
+                count_new_approvals(&input_accepted, &output_accepted, &approved_user_type_ids)?;
+            if newly_approved_count == 0 {
+                debug_trace!("No newly approved users");
+                return Err(DeterministicError::BusinessRuleViolation);
             }
 
-            // Add UDT cells to rewards
-            for udt_id in &udt_identifiers {
-                if let Some(udt_cells) = context.output_cells.get_custom(udt_id) {
-                    for cell in udt_cells {
-                        reward_cells.push((cell, udt_id.as_str()));
-                    }
-                }
+            let completion_delta = output_completions
+                .checked_sub(input_completions)
+                .ok_or(DeterministicError::BusinessRuleViolation)?;
+            if completion_delta as u128 != newly_approved_count {
+                debug_trace!(
+                    "Total completions delta mismatch: {} -> {}, newly approved {}",
+                    input_completions,
+                    output_completions,
+                    newly_approved_count
+                );
+                return Err(DeterministicError::BusinessRuleViolation);
             }
 
-            // If rewards are distributed, validate they go to approved users
-            if !reward_cells.is_empty() {
-                debug_trace!("Validating {} reward cells", reward_cells.len());
+            let expected = expected_rewards(&input_quest, newly_approved_count)?;
 
-                // User cells must be in deps for validation
-                let user_cells_in_deps = dep_user_cells.ok_or_else(|| {
-                    debug_trace!("No user cells in deps for reward validation");
+            let input_points_total = sum_udt_amount(context.input_cells.get_custom("points"))?;
+            let output_points_total = sum_udt_amount(context.output_cells.get_custom("points"))?;
+            let actual_points_delta = output_points_total
+                .checked_sub(input_points_total)
+                .ok_or(DeterministicError::BusinessRuleViolation)?;
+            if actual_points_delta != expected.points {
+                debug_trace!(
+                    "Points total delta mismatch: actual {}, expected {}",
+                    actual_points_delta,
+                    expected.points
+                );
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
+
+            let funding_hash = funding_lock_hash(input_campaign_cell)?;
+            let accepted_udt_identifiers =
+                ckboost_shared::cell_collector::get_all_udt_identifiers().map_err(|e| {
+                    debug_trace!("Failed to get accepted UDT identifiers: {:?}", e);
                     DeterministicError::CellRelationshipRuleViolation
                 })?;
 
-                // Get input UDT cells to validate change cell locks match input locks
-                let input_udt_cells_for_type: Vec<_> = udt_identifiers
-                    .iter()
-                    .filter_map(|udt_id| context.input_cells.get_custom(udt_id))
-                    .flatten()
-                    .collect();
-
-                // For each reward cell, validate:
-                // 1. If it's a change cell, validate it maintains the same lock as input UDT cells
-                // 2. If it's a reward cell, validate user and approval
-                for (reward_cell, reward_type) in &reward_cells {
-                    let reward_lock_hash = &reward_cell.lock_hash;
-
-                    // Check if this is a change cell by finding matching input UDT cell lock
-                    let is_change_cell = input_udt_cells_for_type
-                        .iter()
-                        .any(|input_cell| &input_cell.lock_hash == reward_lock_hash);
-
-                    if is_change_cell {
-                        debug_trace!(
-                            "Found change cell for {} - validating lock script consistency",
-                            reward_type
-                        );
-
-                        // Validate that change cell uses the same lock as the input UDT cell
-                        // This ensures change goes back with the correct lock (likely funding lock)
-                        debug_info!(
-                            "Change cell lock hash: {:?} matches input UDT cell lock",
-                            reward_lock_hash
-                        );
-
-                        // Change cell validation passed - it maintains input UDT lock
-                        continue;
-                    }
-
-                    // This is a user reward cell - validate it
-                    debug_info!(
-                        "Validating user reward cell for {} with lock: {:?}",
-                        reward_type,
-                        reward_lock_hash
+            for udt_identifier in accepted_udt_identifiers {
+                let expected_amount = expected_udt_amount(&expected, udt_identifier.as_str());
+                let input_total = sum_udt_amount_for_lock(
+                    context.input_cells.get_custom(udt_identifier.as_str()),
+                    &funding_hash,
+                )?;
+                let output_total = sum_udt_amount_for_lock(
+                    context.output_cells.get_custom(udt_identifier.as_str()),
+                    &funding_hash,
+                )?;
+                let actual_delta = input_total
+                    .checked_sub(output_total)
+                    .ok_or(DeterministicError::BusinessRuleViolation)?;
+                if actual_delta != expected_amount {
+                    debug_trace!(
+                        "Funding UDT delta mismatch for {}: actual {}, expected {}",
+                        udt_identifier,
+                        actual_delta,
+                        expected_amount
                     );
-
-                    // Find matching user cell in deps
-                    let matching_user = user_cells_in_deps.iter().find(|user_cell| {
-                        debug_info!(
-                            "Comparing reward lock hash: {:?} with user cell lock hash: {:?}",
-                            reward_lock_hash,
-                            user_cell.lock_hash
-                        );
-                        debug_info!("User Cell Lock Hash: {:?}", user_cell.lock_hash);
-                        &user_cell.lock_hash == reward_lock_hash
-                    });
-
-                    if matching_user.is_none() {
-                        debug_trace!(
-                            "User reward ({}) has no matching user cell in deps. Lock: {:?}",
-                            reward_type,
-                            reward_lock_hash
-                        );
-                        debug_info!("User Cell In Deps {:?}", user_cells_in_deps);
-                        return Err(DeterministicError::CellRelationshipRuleViolation);
-                    }
-
-                    let user_cell = matching_user.unwrap();
-
-                    // Extract type_id from user cell's type args (ConnectedTypeID structure)
-                    // The type_id is the first 32 bytes of the ConnectedTypeID
-                    if let Some(type_script) = &user_cell.type_script {
-                        let type_args = type_script.args().raw_data();
-
-                        if type_args.len() != 76 {
-                            debug_trace!("User cell type args not ConnectedTypeID format");
-                            return Err(DeterministicError::CellRelationshipRuleViolation);
-                        }
-
-                        // Parse ConnectedTypeID to get the type_id
-                        use ckboost_shared::types::ConnectedTypeID;
-                        let connected_type_id = ConnectedTypeID::from_slice(&type_args)
-                            .map_err(|e| {
-                                debug_trace!("Failed to parse ConnectedTypeID from user cell type args: {:?}", e);
-                                debug_trace!("Type args length: {}, first 16 bytes: {:?}", type_args.len(), &type_args[..16.min(type_args.len())]);
-                                DeterministicError::Encoding
-                            })?;
-
-                        let user_type_id = connected_type_id.type_id();
-
-                        // Verify this type_id is in the approved list
-                        let is_approved = approved_user_type_ids
-                            .clone()
-                            .into_iter()
-                            .any(|approved_id| approved_id.as_slice() == user_type_id.as_slice());
-
-                        if !is_approved {
-                            debug_trace!("User type_id not in approved list: {:?}", user_type_id);
-                            return Err(DeterministicError::BusinessRuleViolation);
-                        }
-
-                        debug_trace!("User type_id approved for reward: {:?}", user_type_id);
-                    } else {
-                        debug_trace!("User cell has no type script");
-                        return Err(DeterministicError::CellRelationshipRuleViolation);
-                    }
+                    return Err(DeterministicError::BusinessRuleViolation);
                 }
-
-                // Validate reward amounts match quest data
-                // Get the quest from campaign data
-                let quests = output_campaign_data.quests();
-
-                // Turn quests into iter and search for matching quest
-                let quest = quests
-                    .into_iter()
-                    .find(|q| q.quest_id().raw_data().to_vec() == quest_id.to_le_bytes())
-                    .ok_or_else(|| {
-                        debug_trace!("Quest not found in campaign data");
-                        DeterministicError::BusinessRuleViolation
-                    })?;
-                // Get rewards from the quest's reward structure
-                let quest_points = quest.points();
-                let quest_rewards_on_completion = quest.rewards_on_completion();
-
-                // For each reward type, validate amounts
-                // Points rewards - check if non-zero
-                let zero_points_u32 = [0u8; 4];
-                if quest_points.as_slice() != &zero_points_u32 {
-                    // Verify points cells exist and have correct amounts
-                    let points_rewards: Vec<_> = reward_cells
-                        .iter()
-                        .filter(|(_, reward_type)| *reward_type == "points")
-                        .collect();
-
-                    if points_rewards.is_empty() {
-                        debug_trace!("Quest expects points but no points rewards found");
-                        return Err(DeterministicError::BusinessRuleViolation);
-                    } else {
-                        // Validate each points reward has the correct amount
-                        // Note: Points validation would be done by the Points UDT type script
-                        debug_trace!("Found {} points rewards", points_rewards.len());
-                    }
-                }
-
-                // Asset rewards on completion (AssetListVec)
-                // rewards_on_completion is an AssetListVec, which contains AssetList items
-                for i in 0..quest_rewards_on_completion.len() {
-                    let asset_list = quest_rewards_on_completion.get(i).unwrap();
-
-                    // Check UDT assets in the AssetList
-                    let udt_assets = asset_list.udt_assets();
-                    for j in 0..udt_assets.len() {
-                        let udt_asset = udt_assets.get(j).unwrap();
-                        let udt_type_script = udt_asset.udt_script();
-                        let udt_amount = udt_asset.amount();
-
-                        // Check if UDT amount is non-zero (compare as slices)
-                        let zero_amount = [0u8; 16];
-                        if udt_amount.as_slice() != &zero_amount {
-                            // Find the UDT identifier for this type script
-                            let udt_identifier = ckboost_shared::cell_collector::get_udt_identifier(
-                                &udt_type_script,
-                            );
-
-                            // Check if rewards of this type exist
-                            let udt_specific_rewards: Vec<_> = reward_cells
-                                .iter()
-                                .filter(|(_, reward_type)| *reward_type == udt_identifier.as_str())
-                                .collect();
-
-                            if udt_specific_rewards.is_empty() {
-                                debug_trace!(
-                                    "Quest expects UDT {} but no such rewards found",
-                                    udt_identifier
-                                );
-                                // This is OK - rewards might be distributed later
-                            } else {
-                                // Validate amounts - actual validation done by UDT type script
-                                debug_trace!(
-                                    "Found {} rewards of UDT {}",
-                                    udt_specific_rewards.len(),
-                                    udt_identifier
-                                );
-                            }
-                        }
-                    }
-
-                    // Also check points amount in the AssetList if needed
-                    let asset_points = asset_list.points_amount();
-                    // Check if points amount is non-zero
-                    let zero_points = [0u8; 8];
-                    if asset_points.as_slice() != &zero_points {
-                        debug_trace!("AssetList also contains points");
-                    }
-                }
-                debug_trace!("All rewards validated successfully");
-            } else {
-                debug_trace!("No rewards distributed - deferred distribution");
-                // This is acceptable - admin might approve without immediate reward distribution
             }
-            // Distribution amount validation is done in funding-lock
+
+            let input_funding_points =
+                sum_udt_amount_for_lock(context.input_cells.get_custom("points"), &funding_hash)?;
+            let output_funding_points =
+                sum_udt_amount_for_lock(context.output_cells.get_custom("points"), &funding_hash)?;
+            if input_funding_points != output_funding_points {
+                debug_trace!(
+                    "Funding Points balance changed during approval: input {}, output {}",
+                    input_funding_points,
+                    output_funding_points
+                );
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
+
+            let input_funding_capacity = sum_capacity_for_lock(Source::Input, &funding_hash)?;
+            let output_funding_capacity = sum_capacity_for_lock(Source::Output, &funding_hash)?;
+            let actual_ckb_delta = input_funding_capacity
+                .checked_sub(output_funding_capacity)
+                .ok_or(DeterministicError::BusinessRuleViolation)?;
+            if actual_ckb_delta != expected.ckb {
+                debug_trace!(
+                    "Funding CKB delta mismatch: actual {}, expected {}",
+                    actual_ckb_delta,
+                    expected.ckb
+                );
+                return Err(DeterministicError::BusinessRuleViolation);
+            }
 
             Ok(())
         }

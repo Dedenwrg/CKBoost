@@ -60,6 +60,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PageLoading } from "@/components/ui/page-loading";
+import { ClaimablePoolsTab } from "@/components/campaign-admin/tabs/claimable-pools-tab";
 
 // Campaign admin configuration
 const CURRENT_USER = {
@@ -835,13 +836,14 @@ export default function CampaignAdminDashboard() {
             onValueChange={setActiveTab}
             className="space-y-6"
           >
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="campaigns">My Campaigns</TabsTrigger>
               <TabsTrigger disabled value="staff">
                 Staff Management
               </TabsTrigger>
               <TabsTrigger value="reviews">Pending Reviews</TabsTrigger>
+              <TabsTrigger value="pools">Claimable Pools</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -1456,6 +1458,10 @@ export default function CampaignAdminDashboard() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="pools" className="space-y-6">
+              <ClaimablePoolsTab />
             </TabsContent>
           </Tabs>
         </div>

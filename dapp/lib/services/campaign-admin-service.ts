@@ -20,6 +20,10 @@ import { createScopedLogger } from "ssri-ckboost";
 import { injectProxyAuthenticationCell } from "../utils/api";
 import type { StaffApprovalResponse } from "@/netlify/lib/staff-approval";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
+import {
+  addClaimablePoolLockCellDep,
+  getClaimablePoolLockCodeHash,
+} from "../ckb/claimable-pool";
 
 const log = createScopedLogger("CampaignAdminService");
 
@@ -81,6 +85,37 @@ export class CampaignAdminService {
     return this.userTypeCodeHash;
   }
 
+  private shouldPreserveApprovalOutputCapacity(output: ccc.CellOutput): boolean {
+    const lockCodeHash = output.lock.codeHash.toLowerCase();
+    const network = deploymentManager.getCurrentNetwork();
+    const fundingLockCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostFundingLock"
+    );
+    const claimablePoolLockCodeHash = getClaimablePoolLockCodeHash(network);
+
+    return (
+      (!!fundingLockCodeHash &&
+        lockCodeHash === fundingLockCodeHash.toLowerCase()) ||
+      (!!claimablePoolLockCodeHash &&
+        lockCodeHash === claimablePoolLockCodeHash.toLowerCase())
+    );
+  }
+
+  private rebuildApprovalTypedOutput(
+    output: ccc.CellOutput,
+    outputData: ccc.HexLike
+  ): ccc.CellOutput {
+    const rebuilt = ccc.CellOutput.from(
+      { lock: output.lock, type: output.type },
+      outputData
+    );
+    if (this.shouldPreserveApprovalOutputCapacity(output)) {
+      rebuilt.capacity = output.capacity;
+    }
+    return rebuilt;
+  }
+
   /**
    * Set the campaign instance
    */
@@ -93,6 +128,62 @@ export class CampaignAdminService {
    */
   public getCampaign(): Campaign | null {
     return this.campaign;
+  }
+
+  private addPointsUdtCellDep(tx: ccc.Transaction): void {
+    const network = deploymentManager.getCurrentNetwork();
+    const pointsUdtOutPoint = deploymentManager.getContractOutPoint(
+      network,
+      "ckboostPointsUdt"
+    );
+
+    if (!pointsUdtOutPoint) {
+      throw new Error("Points UDT contract not found in deployments.json");
+    }
+
+    tx.addCellDeps({
+      outPoint: pointsUdtOutPoint,
+      depType: "code",
+    });
+  }
+
+  private async resolveClaimantLockHashes(
+    userTypeIds: ccc.Hex[]
+  ): Promise<ccc.Hex[]> {
+    if (!this.protocolCell?.cellOutput.type) {
+      throw new Error("Protocol cell type is required to resolve claimant locks");
+    }
+
+    const protocolTypeHash = ccc.hexFrom(this.protocolCell.cellOutput.type.hash());
+    return Promise.all(
+      userTypeIds.map(async (userTypeId) => {
+        const normalizedUserTypeId = ccc.hexFrom(userTypeId);
+        const connectedTypeIdArgs = ccc.hexFrom(
+          ConnectedTypeID.encode({
+            type_id: normalizedUserTypeId,
+            connected_key: protocolTypeHash,
+          })
+        );
+        const userCells = this.signer.client.findCells({
+          script: {
+            codeHash: this.userTypeCodeHash,
+            hashType: "type",
+            args: connectedTypeIdArgs,
+          },
+          scriptType: "type",
+          scriptSearchMode: "exact",
+          withData: true,
+        });
+        const userCellResult = await userCells.next();
+        const userCell = userCellResult.done ? undefined : userCellResult.value;
+        if (!userCell) {
+          throw new Error(
+            `User cell not found for approved user ${ccc.hexFrom(userTypeId)}`
+          );
+        }
+        return ccc.hexFrom(userCell.cellOutput.lock.hash());
+      })
+    );
   }
 
   // ============ Helper Methods ============
@@ -717,34 +808,27 @@ export class CampaignAdminService {
     }
 
     try {
-      // Stage 1: Approve completions with Points minting
-      // The smart contract will handle Points minting through the Points UDT
+      // Stage 1: Approve completions and create claimable Points pool outputs.
       log.info("Trying approveCompletion");
+      const claimablePoolLockCodeHash = getClaimablePoolLockCodeHash();
+      if (!claimablePoolLockCodeHash) {
+        throw new Error(
+          "Claimable Pool Lock contract not found in claimable-pool-lock/deployments.json"
+        );
+      }
+      const claimantLockHashes =
+        await this.resolveClaimantLockHashes(userTypeIds);
       const { res: tx } = await this.campaign.approveCompletion(
         this.signer,
         campaignData,
         questId,
-        userTypeIds
+        userTypeIds,
+        claimantLockHashes,
+        claimablePoolLockCodeHash
       );
 
-      const pointsUdtOutPoint = deploymentManager.getContractOutPoint(
-        deploymentManager.getCurrentNetwork(),
-        "ckboostPointsUdt"
-      );
-
-      if (!pointsUdtOutPoint) {
-        throw new Error("Points UDT contract not found in deployments.json");
-      } else {
-        log.info("Points UDT outpoint", pointsUdtOutPoint);
-      }
-
-      tx.addCellDeps({
-        outPoint: {
-          txHash: pointsUdtOutPoint.txHash,
-          index: pointsUdtOutPoint.index,
-        },
-        depType: "code",
-      });
+      this.addPointsUdtCellDep(tx);
+      addClaimablePoolLockCellDep(tx);
 
       const fundingLockOutPoint = deploymentManager.getContractOutPoint(
         deploymentManager.getCurrentNetwork(),
@@ -884,8 +968,8 @@ export class CampaignAdminService {
     for (let i = 0; i < tx.outputs.length; i += 1) {
       const out = tx.outputs[i];
       if (out.type) {
-        tx.outputs[i] = ccc.CellOutput.from(
-          { lock: out.lock, type: out.type },
+        tx.outputs[i] = this.rebuildApprovalTypedOutput(
+          out,
           tx.outputsData[i] as ccc.HexLike
         );
       }
@@ -939,8 +1023,8 @@ export class CampaignAdminService {
     for (let i = 0; i < validatedTx.outputs.length; i += 1) {
       const out = validatedTx.outputs[i];
       if (out.type) {
-        validatedTx.outputs[i] = ccc.CellOutput.from(
-          { lock: out.lock, type: out.type },
+        validatedTx.outputs[i] = this.rebuildApprovalTypedOutput(
+          out,
           validatedTx.outputsData[i] as ccc.HexLike
         );
       }

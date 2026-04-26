@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use ckb_std::{
     ckb_constants::Source,
     ckb_types::{bytes::Bytes, prelude::*},
@@ -9,10 +10,12 @@ use ckb_std::{
 };
 use ckboost_shared::{
     protocol_data::check_admin,
-    types::{CampaignData, ConnectedTypeID, ProtocolData},
+    types::{Byte32Vec, CampaignData, ConnectedTypeID, ProtocolData},
     Error,
 };
 use core::result::Result;
+
+const UDT_AMOUNT_SIZE: usize = 16;
 
 /// Check if this is a minting operation by comparing input and output amounts
 pub fn is_minting_operation() -> Result<bool, Error> {
@@ -38,11 +41,9 @@ pub fn is_minting_operation() -> Result<bool, Error> {
         });
 
     for data in input_udt_cells {
-        if data.len() >= 16 {
-            let mut amount_bytes = [0u8; 16];
-            amount_bytes.copy_from_slice(&data[0..16]);
-            input_amount = input_amount.saturating_add(u128::from_le_bytes(amount_bytes));
-        }
+        input_amount = input_amount
+            .checked_add(read_udt_amount(&data)?)
+            .ok_or(Error::InvalidUDTAmount)?;
     }
 
     // Calculate total output UDT amount
@@ -60,11 +61,9 @@ pub fn is_minting_operation() -> Result<bool, Error> {
         });
 
     for data in output_udt_cells {
-        if data.len() >= 16 {
-            let mut amount_bytes = [0u8; 16];
-            amount_bytes.copy_from_slice(&data[0..16]);
-            output_amount = output_amount.saturating_add(u128::from_le_bytes(amount_bytes));
-        }
+        output_amount = output_amount
+            .checked_add(read_udt_amount(&data)?)
+            .ok_or(Error::InvalidUDTAmount)?;
     }
 
     debug!(
@@ -200,11 +199,20 @@ fn validate_points_amount_in_quest_completion(index: usize, source: Source) -> R
         Error::CampaignCellNotFound
     })?;
 
-    // 2. Compare the length of accepted_submission_user_type_ids of each quest to see what quest is being completed
+    // 2. Compare the accepted_submission_user_type_ids of each quest to find the
+    // quest receiving newly approved users and collect the exact newly-approved ids.
     let input_quests = input_campaign_data.quests();
     let output_quests = output_campaign_data.quests();
+    if input_quests.len() != output_quests.len() {
+        debug!(
+            "Quest count changed during approve completion: {} -> {}",
+            input_quests.len(),
+            output_quests.len()
+        );
+        return Err(Error::InvalidQuestStatus);
+    }
 
-    let mut completed_quest: Option<(usize, u128)> = None; // (quest_index, points_amount)
+    let mut completed_quest: Option<(usize, u128, Vec<[u8; 32]>)> = None;
 
     for i in 0..input_quests.len() {
         let input_quest = input_quests.get(i).ok_or_else(|| {
@@ -216,176 +224,185 @@ fn validate_points_amount_in_quest_completion(index: usize, source: Source) -> R
             Error::InvalidQuestData
         })?;
 
-        let input_accepted_len = input_quest.accepted_submission_user_type_ids().len();
-        let output_accepted_len = output_quest.accepted_submission_user_type_ids().len();
+        if input_quest.quest_id().as_slice() != output_quest.quest_id().as_slice() {
+            debug!("Quest ID changed at index {}", i);
+            return Err(Error::InvalidQuestStatus);
+        }
 
-        if output_accepted_len > input_accepted_len {
-            // This quest has new accepted submissions
-            // Convert Uint128 to u128
+        let output_accepted = output_quest.accepted_submission_user_type_ids();
+        let input_accepted = input_quest.accepted_submission_user_type_ids();
+
+        if byte32_vec_has_duplicates(&input_accepted)?
+            || byte32_vec_has_duplicates(&output_accepted)?
+        {
+            debug!("Accepted submission user list contains duplicate entries");
+            return Err(Error::InvalidQuestStatus);
+        }
+
+        for j in 0..input_accepted.len() {
+            let input_user = input_accepted.get(j).ok_or_else(|| {
+                debug!("Failed to get input accepted user type ID at index {}", j);
+                Error::InvalidUserData
+            })?;
+            if !byte32_vec_contains(&output_accepted, input_user.as_slice())? {
+                debug!("Previously accepted user was removed during approve completion");
+                return Err(Error::InvalidQuestStatus);
+            }
+        }
+
+        let mut newly_approved = Vec::new();
+        for j in 0..output_accepted.len() {
+            let output_user = output_accepted.get(j).ok_or_else(|| {
+                debug!("Failed to get output accepted user type ID at index {}", j);
+                Error::InvalidUserData
+            })?;
+            let mut found_in_input = false;
+            for k in 0..input_accepted.len() {
+                let input_user = input_accepted.get(k).ok_or_else(|| {
+                    debug!("Failed to get input accepted user type ID at index {}", k);
+                    Error::InvalidUserData
+                })?;
+                if input_user.as_slice() == output_user.as_slice() {
+                    found_in_input = true;
+                    break;
+                }
+            }
+            if !found_in_input {
+                let mut user_type_id = [0u8; 32];
+                user_type_id.copy_from_slice(output_user.as_slice());
+                newly_approved.push(user_type_id);
+            }
+        }
+
+        if !newly_approved.is_empty() {
+            if input_quest.points().as_slice() != output_quest.points().as_slice() {
+                debug!("Quest points changed while approving completion");
+                return Err(Error::InvalidQuestStatus);
+            }
             let points_bytes: [u8; 16] = output_quest
                 .points()
                 .as_slice()
                 .try_into()
                 .map_err(|_| Error::InvalidQuestData)?;
             let points = u128::from_le_bytes(points_bytes);
-            completed_quest = Some((i, points));
+            if completed_quest.is_some() {
+                debug!("More than one quest changed during approve completion");
+                return Err(Error::InvalidQuestStatus);
+            }
+            completed_quest = Some((i, points, newly_approved));
             debug!(
                 "Found completed quest at index {} with {} points",
                 i, points
             );
-            break;
         }
     }
 
-    let (quest_index, quest_points) = completed_quest.ok_or_else(|| {
-        debug!("No quest completion detected");
-        Error::InvalidQuestStatus
+    let (_quest_index, quest_points, newly_approved_user_ids) =
+        completed_quest.ok_or_else(|| {
+            debug!("No quest completion detected");
+            Error::InvalidQuestStatus
+        })?;
+    let expected_mint = quest_points
+        .checked_mul(newly_approved_user_ids.len() as u128)
+        .ok_or(Error::InvalidUDTAmount)?;
+
+    let udt_script = load_script().map_err(|_| {
+        debug!("Failed to load UDT script for validate_points_amount_in_quest_completion");
+        Error::ItemMissing
     })?;
+    let script_hash = udt_script.calc_script_hash();
 
-    // 3. Get the points amount of the quest being completed (already extracted above)
+    let mut input_total = 0u128;
+    let input_udt_cells = QueryIter::new(load_cell_type_hash, Source::Input)
+        .enumerate()
+        .filter_map(|(cell_index, type_hash)| {
+            type_hash.and_then(|hash| {
+                if hash.as_slice() == script_hash.as_slice() {
+                    load_cell_data(cell_index, Source::Input).ok()
+                } else {
+                    None
+                }
+            })
+        });
+    for data in input_udt_cells {
+        input_total = input_total
+            .checked_add(read_udt_amount(&data)?)
+            .ok_or(Error::InvalidUDTAmount)?;
+    }
 
-    // 4. Find the matching user cell in the cell deps by lock script hash, and get its type ID
-    let output_quest = output_quests.get(quest_index).ok_or_else(|| {
-        debug!("Failed to get output quest at index {}", quest_index);
-        Error::InvalidQuestData
-    })?;
-    let input_quest = input_quests.get(quest_index).ok_or_else(|| {
-        debug!("Failed to get input quest at index {}", quest_index);
-        Error::InvalidQuestData
-    })?;
+    let mut output_total = 0u128;
+    let output_udt_cells = QueryIter::new(load_cell_type_hash, Source::Output)
+        .enumerate()
+        .filter_map(|(cell_index, type_hash)| {
+            type_hash.and_then(|hash| {
+                if hash.as_slice() == script_hash.as_slice() {
+                    load_cell_data(cell_index, Source::Output).ok()
+                } else {
+                    None
+                }
+            })
+        });
+    for data in output_udt_cells {
+        output_total = output_total
+            .checked_add(read_udt_amount(&data)?)
+            .ok_or(Error::InvalidUDTAmount)?;
+    }
 
-    // Find the newly added user type ID by comparing input and output accepted lists
-    let mut new_user_type_id: Option<ckboost_shared::types::Byte32> = None;
+    let minted_amount = output_total
+        .checked_sub(input_total)
+        .ok_or(Error::InvalidUDTAmount)?;
+    if minted_amount != expected_mint {
+        debug!(
+            "Points mint delta mismatch: minted {}, expected {}",
+            minted_amount, expected_mint
+        );
+        return Err(Error::InvalidUDTAmount);
+    }
 
-    let output_accepted = output_quest.accepted_submission_user_type_ids();
-    let input_accepted = input_quest.accepted_submission_user_type_ids();
+    debug!("Quest completion mint validation successful");
+    Ok(())
+}
 
-    // Find the user type ID that's in output but not in input
-    for i in 0..output_accepted.len() {
-        let user_type_id = output_accepted.get(i).ok_or_else(|| {
-            debug!("Failed to get output accepted user type ID at index {}", i);
+fn byte32_vec_contains(items: &Byte32Vec, needle: &[u8]) -> Result<bool, Error> {
+    for i in 0..items.len() {
+        let item = items.get(i).ok_or_else(|| {
+            debug!("Failed to get Byte32 item at index {}", i);
             Error::InvalidUserData
         })?;
-        let mut found_in_input = false;
+        if item.as_slice() == needle {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
 
-        for j in 0..input_accepted.len() {
-            let input_user_type_id = input_accepted.get(j).ok_or_else(|| {
-                debug!("Failed to get input accepted user type ID at index {}", j);
+fn byte32_vec_has_duplicates(items: &Byte32Vec) -> Result<bool, Error> {
+    for i in 0..items.len() {
+        let item = items.get(i).ok_or_else(|| {
+            debug!("Failed to get Byte32 item at index {}", i);
+            Error::InvalidUserData
+        })?;
+        for j in (i + 1)..items.len() {
+            let other = items.get(j).ok_or_else(|| {
+                debug!("Failed to get Byte32 item at index {}", j);
                 Error::InvalidUserData
             })?;
-            if input_user_type_id.as_slice() == user_type_id.as_slice() {
-                found_in_input = true;
-                break;
+            if item.as_slice() == other.as_slice() {
+                return Ok(true);
             }
         }
-
-        if !found_in_input {
-            new_user_type_id = Some(user_type_id);
-            debug!("Found newly added user type ID");
-            break;
-        }
     }
+    Ok(false)
+}
 
-    let new_user_type_id = new_user_type_id.ok_or_else(|| {
-        debug!("Could not find newly added user type ID");
-        Error::InvalidUserData
-    })?;
-
-    // Now find the user cell in cell deps that matches this type ID
-    let mut user_cell_lock_hash: Option<[u8; 32]> = None;
-    let mut dep_index = 0;
-    loop {
-        match load_cell_type(dep_index, Source::CellDep) {
-            Ok(Some(type_script)) => {
-                let args: Bytes = type_script.args().unpack();
-                if args.len() == 76 {
-                    // Check if this is a user cell with matching type ID
-                    match ConnectedTypeID::from_slice(&args) {
-                        Ok(connected_type_id) => {
-                            if connected_type_id.type_id().as_slice() == new_user_type_id.as_slice()
-                            {
-                                // Found the user cell, get its lock hash
-                                let lock_hash = load_cell_lock_hash(dep_index, Source::CellDep)?;
-                                user_cell_lock_hash = Some(lock_hash);
-                                debug!("Found user cell in cell deps at index {}", dep_index);
-                                break;
-                            }
-                        }
-                        Err(_) => {}
-                    }
-                }
-            }
-            Err(ckb_std::error::SysError::IndexOutOfBound) => break,
-            _ => {}
-        }
-        dep_index += 1;
-    }
-
-    let user_cell_lock_hash = user_cell_lock_hash.ok_or_else(|| {
-        debug!("User cell not found in cell deps");
-        Error::UserCellNotFound
-    })?;
-
-    // 5. Confirm if the user cell's type ID is newly added (already verified above)
-
-    // 6. Check if the points amount of the quest being completed is equal to the sum of all points UDT cells
-    // minted to the user's lock script in outputs using GroupOutput
-    // GroupOutput automatically groups outputs by lock script, so we just need to iterate and sum
-    let udt_script = load_script().map_err(|_| Error::ItemMissing)?;
-    let udt_script_hash = udt_script.calc_script_hash();
-
-    // Verify that GroupOutput contains cells with the user's lock hash
-    let group_lock_hash = load_cell_lock_hash(0, Source::GroupOutput).map_err(|_| {
-        debug!("Failed to load lock hash from GroupOutput");
-        Error::InvalidUDTAmount
-    })?;
-
-    if group_lock_hash.as_slice() != user_cell_lock_hash.as_slice() {
-        debug!(
-            "GroupOutput lock hash doesn't match user lock hash: {:?} != {:?}",
-            group_lock_hash, user_cell_lock_hash
-        );
+fn read_udt_amount(data: &[u8]) -> Result<u128, Error> {
+    if data.len() < UDT_AMOUNT_SIZE {
+        debug!("UDT data is shorter than 16-byte amount");
         return Err(Error::InvalidUDTAmount);
     }
-
-    // Iterate through all cells in GroupOutput and sum points amounts
-    let mut total_points_amount: u128 = 0;
-    let mut cell_index = 0;
-    loop {
-        match load_cell_type_hash(cell_index, Source::GroupOutput) {
-            Ok(Some(type_hash)) if type_hash.as_slice() == udt_script_hash.as_slice() => {
-                // Found a points UDT cell in this group, add its amount
-                let points_data = load_cell_data(cell_index, Source::GroupOutput)?;
-                if points_data.len() >= 16 {
-                    let mut amount_bytes = [0u8; 16];
-                    amount_bytes.copy_from_slice(&points_data[0..16]);
-                    let points_amount = u128::from_le_bytes(amount_bytes);
-                    total_points_amount = total_points_amount.saturating_add(points_amount);
-                    debug!(
-                        "Found points cell in group: amount {}, total so far: {}",
-                        points_amount, total_points_amount
-                    );
-                }
-            }
-            Err(ckb_std::error::SysError::IndexOutOfBound) => break,
-            _ => {}
-        }
-        cell_index += 1;
-    }
-
-    if total_points_amount != quest_points {
-        debug!(
-            "Points amount mismatch: total minted {} != quest reward {}",
-            total_points_amount, quest_points
-        );
-        return Err(Error::InvalidUDTAmount);
-    }
-
-    debug!(
-        "Points amount validation successful: {} points minted matches quest reward {}",
-        total_points_amount, quest_points
-    );
-    Ok(())
+    let mut amount_bytes = [0u8; UDT_AMOUNT_SIZE];
+    amount_bytes.copy_from_slice(&data[..UDT_AMOUNT_SIZE]);
+    Ok(u128::from_le_bytes(amount_bytes))
 }
 
 /// Find protocol cell in CellDeps
@@ -440,12 +457,9 @@ pub fn validate_udt_rules() -> Result<(), Error> {
                         debug!("Failed to load cell data for validate_udt_rules");
                         Error::ItemMissing
                     })?;
-                    if data.len() >= 16 {
-                        let mut amount_bytes = [0u8; 16];
-                        amount_bytes.copy_from_slice(&data[0..16]);
-                        input_amount =
-                            input_amount.saturating_add(u128::from_le_bytes(amount_bytes));
-                    }
+                    input_amount = input_amount
+                        .checked_add(read_udt_amount(&data)?)
+                        .ok_or(Error::InvalidUDTAmount)?;
                 }
             }
             Err(ckb_std::error::SysError::IndexOutOfBound) => break,
@@ -465,12 +479,9 @@ pub fn validate_udt_rules() -> Result<(), Error> {
                         debug!("Failed to load cell data for validate_udt_rules");
                         Error::ItemMissing
                     })?;
-                    if data.len() >= 16 {
-                        let mut amount_bytes = [0u8; 16];
-                        amount_bytes.copy_from_slice(&data[0..16]);
-                        output_amount =
-                            output_amount.saturating_add(u128::from_le_bytes(amount_bytes));
-                    }
+                    output_amount = output_amount
+                        .checked_add(read_udt_amount(&data)?)
+                        .ok_or(Error::InvalidUDTAmount)?;
                 }
             }
             Err(ckb_std::error::SysError::IndexOutOfBound) => break,

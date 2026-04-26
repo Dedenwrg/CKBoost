@@ -4,6 +4,11 @@
 import { ccc, ssri } from "@ckb-ccc/connector-react";
 import { ckboost } from "ssri-ckboost";
 import {
+  decodeClaimablePoolData,
+  encodeClaimablePoolData,
+  removeClaimablePoolEntriesForClaimant,
+} from "ckb-claimable-pool-lock";
+import {
   fetchUserByTypeId,
   fetchUserByLockHash,
   parseUserData,
@@ -19,8 +24,34 @@ import { injectProxyAuthenticationCell } from "../utils/api";
 import { createScopedLogger } from "ssri-ckboost";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
 import { createDisplayNameRecord } from "../profile/profile-data";
+import { addClaimablePoolLockCellDep } from "../ckb/claimable-pool";
 
 const log = createScopedLogger("UserService");
+
+export type ClaimPointsOptions = {
+  pointsInputCell?: ccc.Cell;
+};
+
+export type ClaimablePoolClaimOptions = {
+  udtInputCell?: ccc.Cell;
+  addUdtCellDeps?: (
+    tx: ccc.Transaction,
+    typeScript: ccc.Script
+  ) => void | Promise<void>;
+};
+
+function readUdtAmount(data: ccc.HexLike | undefined | null): bigint {
+  if (!data) return 0n;
+  const bytes = ccc.bytesFrom(data);
+  if (bytes.length < 16) {
+    return 0n;
+  }
+  return ccc.numFromBytes(bytes.slice(0, 16));
+}
+
+function scriptHash(script: ccc.ScriptLike): ccc.Hex {
+  return ccc.hexFrom(ccc.Script.from(script).hash());
+}
 
 /**
  * User service that provides high-level user operations
@@ -67,6 +98,42 @@ export class UserService {
       entries.push(createDisplayNameRecord(trimmedName));
     }
     return entries;
+  }
+
+  private addPointsUdtCellDep(tx: ccc.Transaction): void {
+    const network = deploymentManager.getCurrentNetwork();
+    const pointsUdtOutPoint = deploymentManager.getContractOutPoint(
+      network,
+      "ckboostPointsUdt"
+    );
+
+    if (!pointsUdtOutPoint) {
+      throw new Error("Points UDT contract not found in deployments.json");
+    }
+
+    tx.addCellDeps({
+      outPoint: pointsUdtOutPoint,
+      depType: "code",
+    });
+  }
+
+  private async findPointsCellByLock(
+    lock: ccc.ScriptLike,
+    pointsType: ccc.ScriptLike
+  ): Promise<ccc.Cell | null> {
+    const targetLockHash = ccc.Script.from(lock).hash();
+
+    for await (const cell of this.signer.client.findCells({
+      script: pointsType,
+      scriptType: "type",
+      scriptSearchMode: "exact",
+    })) {
+      if (cell.cellOutput.lock.hash() === targetLockHash) {
+        return cell;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -1241,6 +1308,225 @@ export class UserService {
     const lockHash = lockScript.hash();
     const userData = await this.getUserByLockHash(lockHash);
     return userData?.typeId || null;
+  }
+
+  async buildClaimPointsBatchTransaction(
+    poolCells: ccc.Cell[],
+    options: ClaimPointsOptions = {}
+  ): Promise<ccc.Transaction> {
+    if (poolCells.length === 0) {
+      throw new Error("At least one claimable pool cell is required");
+    }
+
+    const claimantLock = (await this.signer.getRecommendedAddressObj()).script;
+    const claimantLockHash = ccc.hexFrom(claimantLock.hash());
+    const tx = ccc.Transaction.from({});
+    let claimedAmount = 0n;
+    let pointsType: ccc.Script | null = null;
+
+    for (const poolCell of poolCells) {
+      if (!poolCell.cellOutput.type) {
+        throw new Error("Claimable pool cell must carry the Points type script");
+      }
+
+      const poolPointsType = ccc.Script.from(poolCell.cellOutput.type);
+      if (!pointsType) {
+        pointsType = poolPointsType;
+      } else if (scriptHash(pointsType) !== scriptHash(poolPointsType)) {
+        throw new Error("All claimable pool cells must use the same UDT type");
+      }
+
+      const decodedPool = decodeClaimablePoolData(poolCell.outputData);
+      const claimResult = removeClaimablePoolEntriesForClaimant(
+        decodedPool,
+        claimantLockHash
+      );
+
+      claimedAmount += claimResult.claimedAmount;
+      tx.addInput(poolCell);
+      tx.addOutput(
+        poolCell.cellOutput,
+        encodeClaimablePoolData(claimResult.data)
+      );
+    }
+
+    if (!pointsType) {
+      throw new Error("Claimable pool cell must carry the Points type script");
+    }
+
+    this.addPointsUdtCellDep(tx);
+    addClaimablePoolLockCellDep(tx);
+
+    const claimedAmountHex = ccc.numToBytes(claimedAmount, 16);
+    const existingPointsCell =
+      options.pointsInputCell ??
+      (await this.findPointsCellByLock(claimantLock, pointsType));
+
+    if (existingPointsCell?.cellOutput.type) {
+      if (scriptHash(existingPointsCell.cellOutput.type) !== scriptHash(pointsType)) {
+        throw new Error("Provided Points input does not match the pool UDT type");
+      }
+      tx.addInput(existingPointsCell);
+      const existingAmount = readUdtAmount(existingPointsCell.outputData);
+      tx.addOutput(
+        existingPointsCell.cellOutput,
+        ccc.numToBytes(existingAmount + claimedAmount, 16)
+      );
+    } else {
+      tx.addOutput(
+        ccc.CellOutput.from(
+          {
+            lock: claimantLock,
+            type: pointsType,
+          },
+          claimedAmountHex
+        ),
+        claimedAmountHex
+      );
+    }
+
+    return tx;
+  }
+
+  async buildClaimablePoolBatchTransaction(
+    poolCells: ccc.Cell[],
+    options: ClaimablePoolClaimOptions = {}
+  ): Promise<ccc.Transaction> {
+    if (poolCells.length === 0) {
+      throw new Error("At least one claimable pool cell is required");
+    }
+
+    const claimantLock = (await this.signer.getRecommendedAddressObj()).script;
+    const claimantLockHash = ccc.hexFrom(claimantLock.hash());
+    const tx = ccc.Transaction.from({});
+    let claimedAmount = 0n;
+    let poolType: ccc.Script | null | undefined;
+
+    for (const poolCell of poolCells) {
+      const currentType = poolCell.cellOutput.type
+        ? ccc.Script.from(poolCell.cellOutput.type)
+        : null;
+      if (poolType === undefined) {
+        poolType = currentType;
+      } else if (
+        (poolType === null) !== (currentType === null) ||
+        (poolType &&
+          currentType &&
+          scriptHash(poolType) !== scriptHash(currentType))
+      ) {
+        throw new Error("All claimable pool cells must use the same asset type");
+      }
+
+      const decodedPool = decodeClaimablePoolData(poolCell.outputData);
+      const claimResult = removeClaimablePoolEntriesForClaimant(
+        decodedPool,
+        claimantLockHash
+      );
+
+      claimedAmount += claimResult.claimedAmount;
+      tx.addInput(poolCell);
+
+      const poolData = encodeClaimablePoolData(claimResult.data);
+      if (currentType) {
+        tx.addOutput(poolCell.cellOutput, poolData);
+      } else {
+        const inputCapacity = ccc.numFrom(poolCell.cellOutput.capacity);
+        if (inputCapacity < claimResult.claimedAmount) {
+          throw new Error("CKB pool capacity is smaller than claimable amount");
+        }
+        tx.addOutput(
+          ccc.CellOutput.from({
+            capacity: inputCapacity - claimResult.claimedAmount,
+            lock: poolCell.cellOutput.lock,
+          }),
+          poolData
+        );
+      }
+    }
+
+    if (claimedAmount <= 0n) {
+      throw new Error("No claimable entries found for the current signer");
+    }
+
+    addClaimablePoolLockCellDep(tx);
+
+    if (poolType) {
+      await options.addUdtCellDeps?.(tx, poolType);
+      const existingUdtCell =
+        options.udtInputCell ??
+        (await this.findPointsCellByLock(claimantLock, poolType));
+
+      if (existingUdtCell?.cellOutput.type) {
+        if (scriptHash(existingUdtCell.cellOutput.type) !== scriptHash(poolType)) {
+          throw new Error("Provided UDT input does not match the pool UDT type");
+        }
+        tx.addInput(existingUdtCell);
+        const existingAmount = readUdtAmount(existingUdtCell.outputData);
+        tx.addOutput(
+          existingUdtCell.cellOutput,
+          ccc.numToBytes(existingAmount + claimedAmount, 16)
+        );
+      } else {
+        const claimedAmountHex = ccc.numToBytes(claimedAmount, 16);
+        tx.addOutput(
+          ccc.CellOutput.from(
+            {
+              lock: claimantLock,
+              type: poolType,
+            },
+            claimedAmountHex
+          ),
+          claimedAmountHex
+        );
+      }
+    } else {
+      const claimOutput = ccc.CellOutput.from({ lock: claimantLock }, "0x");
+      const minClaimCapacity = ccc.numFrom(claimOutput.capacity);
+      claimOutput.capacity =
+        claimedAmount > minClaimCapacity ? claimedAmount : minClaimCapacity;
+      tx.addOutput(claimOutput, "0x");
+    }
+
+    return tx;
+  }
+
+  async claimClaimablePoolBatch(
+    poolCells: ccc.Cell[],
+    options: ClaimablePoolClaimOptions = {}
+  ): Promise<ccc.Hex> {
+    const tx = await this.buildClaimablePoolBatchTransaction(poolCells, options);
+    await tx.completeInputsByCapacity(this.signer);
+    await tx.completeFeeBy(this.signer);
+    const preserveOutputCapacityIndices = new Set<number>(
+      poolCells.map((_, index) => index)
+    );
+    const firstClaimOutputIndex = poolCells.length;
+    if (!poolCells[0].cellOutput.type) {
+      preserveOutputCapacityIndices.add(firstClaimOutputIndex);
+    }
+    return sendTransactionWithFeeRetry(this.signer, tx, {
+      preserveOutputCapacityIndices,
+      pendingMetadata: {
+        label: "Claimable Pool",
+        context: "UserService",
+      },
+    });
+  }
+
+  async claimPointsBatch(
+    poolCells: ccc.Cell[],
+    options: ClaimPointsOptions = {}
+  ): Promise<ccc.Hex> {
+    const tx = await this.buildClaimPointsBatchTransaction(poolCells, options);
+    await tx.completeInputsByCapacity(this.signer);
+    await tx.completeFeeBy(this.signer);
+    return sendTransactionWithFeeRetry(this.signer, tx, {
+      preserveOutputCapacityIndices: new Set(poolCells.map((_, index) => index)),
+      pendingMetadata: {
+        label: "Claimable Points",
+        context: "UserService",
+      },
+    });
   }
 
   /**

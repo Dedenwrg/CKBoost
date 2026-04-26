@@ -18,9 +18,8 @@ use ckb_testtool::{
 };
 use ckboost_shared::{
     generated::ckboost::{
-        Byte32, Byte32Vec, CampaignDataVec, EndorserInfoVec, ProtocolConfigBuilder,
-        ProtocolDataBuilder, ScriptCodeHashesBuilder, TippingConfigBuilder, TippingDataVec,
-        Uint128Vec, Uint64,
+        Byte32, Byte32Vec, EndorserInfoVec, ProtocolConfigBuilder, ProtocolDataBuilder,
+        ScriptCodeHashesBuilder, TippingConfigBuilder, Uint128Vec, Uint64,
     },
     types::ScriptVec,
 };
@@ -38,6 +37,9 @@ fn create_protocol_data(admin_lock_hash: [u8; 32], _tipping: Option<Vec<u8>>) ->
         .ckb_boost_campaign_type_code_hash(Byte32::from([0u8; 32]))
         .ckb_boost_funding_lock_code_hash(Byte32::from([0u8; 32]))
         .ckb_boost_user_type_code_hash(Byte32::from([0u8; 32]))
+        .ckb_boost_points_udt_type_code_hash(Byte32::from([0u8; 32]))
+        .ckb_boost_tipping_type_code_hash(Byte32::from([0u8; 32]))
+        .ckb_boost_achievement_type_code_hash(Byte32::from([0u8; 32]))
         .accepted_udt_type_scripts(ScriptVec::default())
         .accepted_dob_type_scripts(ScriptVec::default())
         .build();
