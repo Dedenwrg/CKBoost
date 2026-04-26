@@ -350,8 +350,8 @@ export class Campaign extends ssri.Trait {
       // Filter only cells that have the specific UDT type script
       if (
         cell.cellOutput.type &&
-        cell.cellOutput.type.codeHash === targetUdtScript.codeHash &&
-        cell.cellOutput.type.args === targetUdtScript.args
+        ccc.hexFrom(ccc.Script.from(cell.cellOutput.type).hash()) ===
+          ccc.hexFrom(targetUdtScript.hash())
       ) {
         campaignUdtCells.push(cell);
         log.info(`✅ Found campaign UDT cell:`, {
@@ -400,6 +400,47 @@ export class Campaign extends ssri.Trait {
     return totalBalance;
   }
 
+  private async findCampaignCkbCells(
+    signer: ccc.Signer,
+    campaignTypeScript: ccc.Script
+  ): Promise<ccc.Cell[]> {
+    const { ProtocolData } = await import("../generated");
+    const protocolData = ProtocolData.decode(
+      this.connectedProtocolCell.outputData
+    );
+    const fundingLockCodeHash = ccc.hexFrom(
+      protocolData.protocol_config.script_code_hashes
+        .ckb_boost_funding_lock_code_hash
+    );
+    const fundingLockScript = {
+      codeHash: fundingLockCodeHash,
+      hashType: "type" as const,
+      args: campaignTypeScript.hash(),
+    };
+
+    const fundingLockedCells = signer.client.findCells({
+      script: fundingLockScript,
+      scriptType: "lock",
+      scriptSearchMode: "exact",
+    });
+
+    const campaignCkbCells: ccc.Cell[] = [];
+    for await (const cell of fundingLockedCells) {
+      if (!cell.cellOutput.type) {
+        campaignCkbCells.push(cell);
+      }
+    }
+
+    return campaignCkbCells;
+  }
+
+  private calculateTotalCapacity(cells: ccc.Cell[]): bigint {
+    return cells.reduce(
+      (total, cell) => total + ccc.numFrom(cell.cellOutput.capacity),
+      0n
+    );
+  }
+
   private getQuestPointsAmount(
     campaignData: CampaignDataLike,
     questId: number
@@ -412,10 +453,6 @@ export class Campaign extends ssri.Trait {
     }
 
     const pointsAmount = ccc.numFrom(quest.points);
-    if (pointsAmount === 0n) {
-      throw new Error(`Quest ${questId} has no points reward`);
-    }
-
     return pointsAmount;
   }
 
@@ -621,251 +658,210 @@ export class Campaign extends ssri.Trait {
         }
         const pointsAmount = this.getQuestPointsAmount(campaignData, questId);
 
-        log.info("Creating claimable Points pool cells:", {
-          pointsUdtCodeHash,
-          protocolTypeHash,
-          pointsAmount: pointsAmount.toString(),
-          userCount: userTypeIds.length,
-        });
-
-        // Get user type code hash from protocol data to find user cells
-        const userTypeCodeHash = ccc.hexFrom(
-          protocolData.protocol_config.script_code_hashes
-            .ckb_boost_user_type_code_hash
-        );
-
         const normalizedClaimablePoolLockCodeHash = normalizeByte32Hex(
           claimablePoolLockCodeHash,
           "claimablePoolLockCodeHash"
         );
-
-        const entriesByClaimant = new Map<string, bigint>();
-        for (const claimantLockHash of claimantLockHashes) {
-          const normalizedClaimantLockHash = normalizeByte32Hex(
-            claimantLockHash,
-            "claimantLockHash"
-          ).toLowerCase();
-          entriesByClaimant.set(
-            normalizedClaimantLockHash,
-            (entriesByClaimant.get(normalizedClaimantLockHash) ?? 0n) +
-              pointsAmount
-          );
-        }
-
-        const entries = Array.from(entriesByClaimant.entries()).map(
-          ([claimantLockHash, amount]) => ({
-            claimantLockHash,
-            amount,
-          })
-        );
+        // Recycle is authorized by an input whose lock hash matches pool lock args.
+        // Use the signer lock so normal admin wallet inputs can recycle these pools.
         const recyclerLockHash = ccc.hexFrom(
-          resTx.res.outputs[campaignCellOutputIndex].lock.hash()
+          (await signer.getRecommendedAddressObj()).script.hash()
         );
         const poolLock = {
           codeHash: normalizedClaimablePoolLockCodeHash,
           hashType: "type" as const,
           args: recyclerLockHash,
         };
-        const pointsType = {
-          codeHash: pointsUdtCodeHash,
-          hashType: "type" as const,
-          args: protocolTypeHash,
-        };
         const chunkSize = 100;
 
-        for (let start = 0; start < entries.length; start += chunkSize) {
-          const chunk = entries.slice(start, start + chunkSize);
-          const poolData = encodeClaimablePoolData(chunk);
-          resTx.res.addOutput(
-            ccc.CellOutput.from(
+        const buildEntries = (amountPerClaimant: bigint) => {
+          const entriesByClaimant = new Map<string, bigint>();
+          for (const claimantLockHash of claimantLockHashes) {
+            const normalizedClaimantLockHash = normalizeByte32Hex(
+              claimantLockHash,
+              "claimantLockHash"
+            ).toLowerCase();
+            entriesByClaimant.set(
+              normalizedClaimantLockHash,
+              (entriesByClaimant.get(normalizedClaimantLockHash) ?? 0n) +
+                amountPerClaimant
+            );
+          }
+
+          return Array.from(entriesByClaimant.entries()).map(
+            ([claimantLockHash, amount]) => ({
+              claimantLockHash,
+              amount,
+            })
+          );
+        };
+
+        const addPoolOutputs = (
+          entries: ReturnType<typeof buildEntries>,
+          assetLabel: string,
+          typeScript?: ccc.ScriptLike
+        ) => {
+          for (let start = 0; start < entries.length; start += chunkSize) {
+            const chunk = entries.slice(start, start + chunkSize);
+            const poolData = encodeClaimablePoolData(chunk);
+            const poolOutput = ccc.CellOutput.from(
               {
                 lock: poolLock,
-                type: pointsType,
+                ...(typeScript ? { type: ccc.Script.from(typeScript) } : {}),
               },
               poolData
-            ),
-            poolData
-          );
+            );
+            if (!typeScript) {
+              const chunkAmount = chunk.reduce(
+                (total, entry) => total + ccc.numFrom(entry.amount),
+                0n
+              );
+              poolOutput.capacity =
+                ccc.numFrom(poolOutput.capacity) + chunkAmount;
+            }
+            resTx.res.addOutput(poolOutput, poolData);
+            log.info(`Created claimable ${assetLabel} pool output`, {
+              claimantCount: chunk.length,
+              amount: chunk
+                .reduce((total, entry) => total + ccc.numFrom(entry.amount), 0n)
+                .toString(),
+            });
+          }
+        };
+
+        if (pointsAmount > 0n) {
+          const pointsType = {
+            codeHash: pointsUdtCodeHash,
+            hashType: "type" as const,
+            args: protocolTypeHash,
+          };
+          addPoolOutputs(buildEntries(pointsAmount), "Points", pointsType);
         }
 
-        // Handle UDT reward distribution
-        log.info(`\n💰 Processing UDT rewards distribution...`);
-
-        // Get UDT rewards from quest
-        const udtRewards = quest?.rewards_on_completion?.[0]?.udt_assets || [];
-        log.info(
-          `Found ${udtRewards.length} UDT reward types for quest ${questId}`
-        );
-
-        for (const udtAsset of udtRewards) {
-          const udtScript = udtAsset.udt_script;
-          const amountPerUser = Number(udtAsset.amount) || 0;
-
-          if (amountPerUser > 0) {
-            log.info(`\n🎯 Processing UDT reward:`, {
-              udtCodeHash: ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
-              amountPerUser,
-              userCount: userTypeIds.length,
-              totalRequired: amountPerUser * userTypeIds.length,
-            });
-
-            // Find campaign-funded UDT cells
-            const campaignUdtCells = await this.findCampaignUdtCells(
-              signer,
-              this.script,
-              udtScript
-            );
-
-            if (campaignUdtCells.length === 0) {
-              log.warn(
-                `⚠️ No campaign UDT cells found for reward distribution, skipping UDT ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
-              );
+        const udtRewardsByType = new Map<
+          string,
+          { script: ccc.Script; amountPerClaimant: bigint }
+        >();
+        let ckbAmountPerClaimant = 0n;
+        for (const assetList of quest.rewards_on_completion || []) {
+          ckbAmountPerClaimant += ccc.numFrom(assetList.ckb_amount || 0);
+          for (const udtAsset of assetList.udt_assets || []) {
+            const amount = ccc.numFrom(udtAsset.amount || 0);
+            if (amount <= 0n) {
               continue;
             }
+            const script = ccc.Script.from(udtAsset.udt_script);
+            const key = ccc.hexFrom(script.hash()).toLowerCase();
+            const existing = udtRewardsByType.get(key);
+            if (existing) {
+              existing.amountPerClaimant += amount;
+            } else {
+              udtRewardsByType.set(key, {
+                script,
+                amountPerClaimant: amount,
+              });
+            }
+          }
+        }
 
-            // Calculate total available balance
-            const totalAvailable =
-              this.calculateTotalUdtBalance(campaignUdtCells);
-            const totalRequired = BigInt(amountPerUser * userTypeIds.length);
+        for (const { script, amountPerClaimant } of udtRewardsByType.values()) {
+          const totalRequired = amountPerClaimant * BigInt(userTypeIds.length);
+          const campaignUdtCells = await this.findCampaignUdtCells(
+            signer,
+            this.script,
+            script
+          );
+          const totalAvailable = this.calculateTotalUdtBalance(campaignUdtCells);
+          if (totalAvailable < totalRequired) {
+            throw new Error(
+              `Insufficient UDT balance for ${ccc.hexFrom(script.hash())} rewards`
+            );
+          }
 
-            log.info(`💰 UDT balance check:`, {
-              totalAvailable: totalAvailable.toString(),
-              totalRequired: totalRequired.toString(),
-              sufficient: totalAvailable >= totalRequired,
+          let remainingToClaim = totalRequired;
+          let selectedTotal = 0n;
+          let selectedCapacity = 0n;
+          const inputCells: ccc.Cell[] = [];
+          for (const campaignUdtCell of campaignUdtCells) {
+            if (remainingToClaim <= 0n) break;
+            const cellBalance = this.calculateTotalUdtBalance([campaignUdtCell]);
+            if (cellBalance <= 0n) continue;
+            resTx.res.addInput({
+              previousOutput: campaignUdtCell.outPoint,
+              since: "0x0",
             });
+            inputCells.push(campaignUdtCell);
+            selectedTotal += cellBalance;
+            selectedCapacity += ccc.numFrom(campaignUdtCell.cellOutput.capacity);
+            remainingToClaim -= cellBalance;
+          }
 
-            if (totalAvailable < totalRequired) {
-              log.error(
-                `❌ Insufficient UDT balance for rewards. Required: ${totalRequired}, Available: ${totalAvailable}`
-              );
-              throw new Error(
-                `Insufficient UDT balance for ${ccc.hexFrom(udtScript.codeHash)} rewards`
-              );
-            }
+          addPoolOutputs(
+            buildEntries(amountPerClaimant),
+            `UDT ${ccc.hexFrom(script.hash()).slice(0, 10)}...`,
+            script
+          );
 
-            // Add campaign UDT cells as inputs
-            let remainingToDistribute = totalRequired;
-            const inputCells: ccc.Cell[] = [];
-
-            for (const campaignUdtCell of campaignUdtCells) {
-              if (remainingToDistribute <= 0) break;
-
-              const cellBalance = this.calculateTotalUdtBalance([
-                campaignUdtCell,
-              ]);
-              if (cellBalance > 0) {
-                // Add as input
-                resTx.res.addInput({
-                  previousOutput: campaignUdtCell.outPoint,
-                  since: "0x0",
-                });
-
-                inputCells.push(campaignUdtCell);
-                remainingToDistribute -= cellBalance;
-
-                log.info(`📥 Added UDT input cell:`, {
-                  outPoint: campaignUdtCell.outPoint,
-                  balance: cellBalance.toString(),
-                  remainingToDistribute: remainingToDistribute.toString(),
-                });
-              }
-            }
-
-            // Create UDT reward outputs for each approved user
-            let rewardIndex = 0;
-            for (const userTypeId of userTypeIds) {
-              const userTypeIdHex = ccc.hexFrom(userTypeId);
-
-              log.info(
-                `\n🎁 Creating UDT reward for user ${userTypeIdHex.slice(0, 10)}... (${rewardIndex + 1}/${userTypeIds.length})`
-              );
-
-              // Find user cell to get lock script (similar to Points logic)
-              const userConnectedTypeId = {
-                type_id: userTypeIdHex,
-                connected_key: protocolTypeHash,
-              };
-
-              const encodedConnectedTypeId =
-                ConnectedTypeID.encode(userConnectedTypeId);
-              const encodedConnectedTypeIdHex = ccc.hexFrom(
-                encodedConnectedTypeId
-              );
-
-              const userCells = signer.client.findCells({
-                script: {
-                  codeHash: userTypeCodeHash,
-                  hashType: "type",
-                  args: encodedConnectedTypeIdHex,
-                },
-                scriptType: "type",
-                scriptSearchMode: "exact",
-              });
-
-              const userCellResult = await userCells.next();
-              if (
-                !userCellResult ||
-                userCellResult.done ||
-                !userCellResult.value
-              ) {
-                log.warn(
-                  `❌ User cell not found for UDT reward: ${userTypeIdHex}, skipping`
-                );
-                continue;
-              }
-
-              const userCell = userCellResult.value;
-              const userLock = userCell.cellOutput.lock;
-
-              // Create UDT reward cell for user
-              const udtRewardCell = {
-                capacity: 0, // Will be set by the SDK
-                lock: userLock,
-                type: ccc.Script.from(udtScript),
-              };
-
-              // Add user cell as dependency
-              resTx.res.addCellDeps({
-                outPoint: userCell.outPoint,
-                depType: "code",
-              });
-
-              // Add UDT reward output
-              resTx.res.addOutput(
-                udtRewardCell,
-                ccc.numToBytes(amountPerUser, 16)
-              );
-
-              log.info(`✅ Created UDT reward cell:`, {
-                userTypeId: userTypeIdHex.slice(0, 10) + "...",
-                udtCodeHash:
-                  ccc.hexFrom(udtScript.codeHash).slice(0, 10) + "...",
-                amount: amountPerUser,
-                lockCodeHash: userLock.codeHash.slice(0, 10) + "...",
-              });
-
-              rewardIndex++;
-            }
-            const changeAmount = totalAvailable - totalRequired;
-
-            if (changeAmount > 0) {
-              // Use first campaign udt cell's lock for change
-              const changeLock = inputCells[0].cellOutput.lock;
-              const changeCell = {
-                capacity: 0, // Will be set by CCC
-                lock: changeLock,
-                type: ccc.Script.from(udtScript),
-              };
-
-              resTx.res.addOutput(changeCell, ccc.numToBytes(changeAmount, 16));
-            }
-
-            log.info(
-              `✅ Completed UDT reward distribution for ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
+          const changeAmount = selectedTotal - totalRequired;
+          if (changeAmount > 0n) {
+            resTx.res.addOutput(
+              {
+                capacity: selectedCapacity,
+                lock: inputCells[0].cellOutput.lock,
+                type: script,
+              },
+              ccc.numToBytes(changeAmount, 16)
             );
           } else {
-            log.info(
-              `⏭️ Skipping UDT reward with zero amount: ${ccc.hexFrom(udtScript.codeHash).slice(0, 10)}...`
+            resTx.res.addOutput(
+              {
+                capacity: selectedCapacity,
+                lock: inputCells[0].cellOutput.lock,
+              },
+              "0x"
+            );
+          }
+        }
+
+        if (ckbAmountPerClaimant > 0n) {
+          const totalRequired = ckbAmountPerClaimant * BigInt(userTypeIds.length);
+          const campaignCkbCells = await this.findCampaignCkbCells(
+            signer,
+            this.script
+          );
+          const totalAvailable = this.calculateTotalCapacity(campaignCkbCells);
+          if (totalAvailable < totalRequired) {
+            throw new Error(
+              `Insufficient CKB balance for rewards. Required: ${totalRequired}, available: ${totalAvailable}`
+            );
+          }
+
+          let remainingToClaim = totalRequired;
+          let selectedTotal = 0n;
+          const inputCells: ccc.Cell[] = [];
+          for (const campaignCkbCell of campaignCkbCells) {
+            if (remainingToClaim <= 0n) break;
+            const cellCapacity = ccc.numFrom(campaignCkbCell.cellOutput.capacity);
+            if (cellCapacity <= 0n) continue;
+            resTx.res.addInput({
+              previousOutput: campaignCkbCell.outPoint,
+              since: "0x0",
+            });
+            inputCells.push(campaignCkbCell);
+            selectedTotal += cellCapacity;
+            remainingToClaim -= cellCapacity;
+          }
+
+          addPoolOutputs(buildEntries(ckbAmountPerClaimant), "CKB");
+
+          const changeCapacity = selectedTotal - totalRequired;
+          if (changeCapacity > 0n) {
+            resTx.res.addOutput(
+              {
+                capacity: changeCapacity,
+                lock: inputCells[0].cellOutput.lock,
+              },
+              "0x"
             );
           }
         }

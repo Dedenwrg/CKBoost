@@ -19,9 +19,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
 import {
+  addClaimablePoolAssetCellDep,
   emptyClaimablePointsSummary,
   queryClaimablePointsPools,
+  queryClaimableUdtPoolGroups,
   type ClaimablePointsSummary,
+  type ClaimableUdtPoolGroup,
 } from "@/lib/ckb/claimable-pool";
 import {
   buildPointsBalanceCacheKey,
@@ -42,6 +45,9 @@ export function PointsBalance() {
   const [bonusLoading, setBonusLoading] = useState(false);
   const [claimablePool, setClaimablePool] =
     useState<ClaimablePointsSummary | null>(null);
+  const [claimableUdtGroups, setClaimableUdtGroups] = useState<
+    ClaimableUdtPoolGroup[]
+  >([]);
   const [claimablePoolLoading, setClaimablePoolLoading] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [minting, setMinting] = useState(false);
@@ -65,6 +71,7 @@ export function PointsBalance() {
         setBalance(null);
         setBonus(null);
         setClaimablePool(null);
+        setClaimableUdtGroups([]);
         setUserAddress(null);
         setIsLoading(false);
         setBonusLoading(false);
@@ -88,10 +95,24 @@ export function PointsBalance() {
           setBalance(BigInt(0));
           setBonus(null);
           setClaimablePool(null);
+          setClaimableUdtGroups([]);
           return;
         }
 
         const network = deploymentManager.getCurrentNetwork();
+        const pointsUdtCodeHash = deploymentManager.getContractCodeHash(
+          network,
+          "ckboostPointsUdt",
+        );
+        const pointsTypeHash = pointsUdtCodeHash
+          ? ccc.hexFrom(
+              ccc.Script.from({
+                codeHash: pointsUdtCodeHash,
+                hashType: "type" as ccc.HashType,
+                args: protocolTypeHash,
+              }).hash(),
+            )
+          : null;
         const pointsCacheKey = buildPointsBalanceCacheKey({
           network,
           protocolTypeHash,
@@ -127,20 +148,39 @@ export function PointsBalance() {
           log.warn("Failed to load claimable pool information:", poolError);
           return emptyClaimablePointsSummary(recommended.script.hash());
         });
+        const claimableUdtPromise = queryClaimableUdtPoolGroups({
+          client,
+          claimantLock: recommended.script,
+          excludeTypeHashes: pointsTypeHash ? [pointsTypeHash] : [],
+        }).catch((poolError) => {
+          log.warn("Failed to load claimable UDT pool information:", poolError);
+          return [] as ClaimableUdtPoolGroup[];
+        });
 
-        const [pointsResult, bonusResponse, claimablePoolResponse] =
-          await Promise.all([pointsPromise, streakPromise, claimablePoolPromise]);
+        const [
+          pointsResult,
+          bonusResponse,
+          claimablePoolResponse,
+          claimableUdtResponse,
+        ] = await Promise.all([
+          pointsPromise,
+          streakPromise,
+          claimablePoolPromise,
+          claimableUdtPromise,
+        ]);
         if (!mountedRef.current) return;
 
         setBalance(pointsResult.value);
         setBonus(bonusResponse);
         setClaimablePool(claimablePoolResponse);
+        setClaimableUdtGroups(claimableUdtResponse);
       } catch (error) {
         log.error("Failed to load Points balance:", error);
         if (!mountedRef.current) return;
         setBalance(BigInt(0));
         setBonus(null);
         setClaimablePool(null);
+        setClaimableUdtGroups([]);
       } finally {
         if (!mountedRef.current) return;
         setIsLoading(false);
@@ -214,17 +254,58 @@ export function PointsBalance() {
     [signer],
   );
 
+  const claimClaimableUdtPool = useCallback(
+    async (group: ClaimableUdtPoolGroup) => {
+      if (!signer || !protocolCell?.cellOutput.type) {
+        throw new Error("Wallet connection required to claim UDT.");
+      }
+
+      const network = deploymentManager.getCurrentNetwork();
+      const userTypeCodeHash = deploymentManager.getContractCodeHash(
+        network,
+        "ckboostUserType",
+      );
+      if (!userTypeCodeHash) {
+        throw new Error("User type contract not configured.");
+      }
+
+      const userService = new UserService(
+        signer,
+        userTypeCodeHash,
+        ccc.hexFrom(protocolCell.cellOutput.type.hash()),
+      );
+
+      return userService.claimClaimablePoolBatch(
+        group.cells.map((item) => item.cell),
+        {
+          addUdtCellDeps: async (tx, typeScript) => {
+            await addClaimablePoolAssetCellDep(
+              signer.client,
+              tx,
+              typeScript,
+            );
+          },
+        },
+      );
+    },
+    [protocolCell, signer],
+  );
+
   const handleClaim = useCallback(async () => {
     const bonusAmount = parseBonusAmount(bonus);
     const hasStreakClaim = Boolean(bonus?.eligible) && bonusAmount > 0n;
     const claimablePoolCells = claimablePool?.cells ?? [];
     const hasPoolClaim = claimablePoolCells.length > 0;
+    const claimableUdtGroupsSnapshot = claimableUdtGroups.filter(
+      (group) => group.cells.length > 0,
+    );
+    const hasUdtClaim = claimableUdtGroupsSnapshot.length > 0;
 
     if (
       !signer ||
       !userAddress ||
       !protocolCell ||
-      (!hasStreakClaim && !hasPoolClaim)
+      (!hasStreakClaim && !hasPoolClaim && !hasUdtClaim)
     ) {
       return;
     }
@@ -243,6 +324,7 @@ export function PointsBalance() {
       setClaiming(true);
       let streakTxHash: ccc.Hex | null = null;
       let poolTxHash: ccc.Hex | null = null;
+      const udtTxHashes: ccc.Hex[] = [];
       let chainedPointsInput: ccc.Cell | undefined;
 
       if (hasStreakClaim && bonus) {
@@ -281,9 +363,31 @@ export function PointsBalance() {
         }
       }
 
+      if (hasUdtClaim) {
+        try {
+          for (const group of claimableUdtGroupsSnapshot) {
+            udtTxHashes.push(await claimClaimableUdtPool(group));
+          }
+        } catch (udtError) {
+          if (streakTxHash || poolTxHash || udtTxHashes.length > 0) {
+            toast({
+              title: "Some claims submitted",
+              description:
+                "One or more transactions were sent, but a UDT claim failed. Refresh after confirmation and retry the remaining UDT claim.",
+              variant: "destructive",
+            });
+            await loadBalances(true);
+            return;
+          }
+          throw udtError;
+        }
+      }
+
       toast({
         title:
-          streakTxHash && poolTxHash
+          udtTxHashes.length > 0
+            ? "Claims submitted"
+            : streakTxHash && poolTxHash
             ? "Points claims submitted"
             : streakTxHash
               ? "Streak bonus submitted"
@@ -291,6 +395,7 @@ export function PointsBalance() {
         description: formatClaimSubmissionDescription({
           streakTxHash,
           poolTxHash,
+          udtTxHashes,
         }),
       });
       await loadBalances(true);
@@ -304,6 +409,9 @@ export function PointsBalance() {
               claimablePool?.claimantLockHash ?? undefined,
             ),
           );
+        }
+        if (udtTxHashes.length > 0) {
+          setClaimableUdtGroups([]);
         }
       }
     } catch (error) {
@@ -322,7 +430,9 @@ export function PointsBalance() {
   }, [
     bonus,
     claimablePool,
+    claimableUdtGroups,
     claimClaimablePool,
+    claimClaimableUdtPool,
     claimStreakBonus,
     loadBalances,
     protocolCell,
@@ -486,10 +596,18 @@ export function PointsBalance() {
   const bonusAmount = parseBonusAmount(bonus);
   const poolAmount = claimablePool?.totalAmount ?? 0n;
   const totalClaimableAmount = bonusAmount + poolAmount;
+  const hasClaimableUdt = claimableUdtGroups.some(
+    (group) => group.cells.length > 0,
+  );
+  const claimableLabel = formatClaimableLabel(
+    totalClaimableAmount,
+    hasClaimableUdt,
+  );
 
   const isBonusAvailable = Boolean(bonus?.eligible) && bonusAmount > 0n;
   const isPoolClaimAvailable = poolAmount > 0n;
-  const isClaimAvailable = isBonusAvailable || isPoolClaimAvailable;
+  const isClaimAvailable =
+    isBonusAvailable || isPoolClaimAvailable || hasClaimableUdt;
 
   const isDisabled =
     !isClaimAvailable ||
@@ -558,7 +676,7 @@ export function PointsBalance() {
             Claiming...
           </span>
         ) : (
-          totalClaimableAmount > 0n && (
+          claimableLabel && (
             <span
               className="text-xs font-semibold"
               style={{
@@ -567,7 +685,7 @@ export function PointsBalance() {
                   "0 0 6px rgba(0,255,0,0.8), 0 0 10px rgba(0,255,0,0.4)",
               }}
             >
-              +{formatPointsBalance(totalClaimableAmount)} claimable
+              {claimableLabel}
             </span>
           )
         )}
@@ -632,6 +750,7 @@ function formatTxHash(hash: ccc.Hex): string {
 function formatClaimSubmissionDescription(params: {
   streakTxHash: ccc.Hex | null;
   poolTxHash: ccc.Hex | null;
+  udtTxHashes: ccc.Hex[];
 }): string {
   const parts: string[] = [];
   if (params.streakTxHash) {
@@ -640,5 +759,24 @@ function formatClaimSubmissionDescription(params: {
   if (params.poolTxHash) {
     parts.push(`Pool ${formatTxHash(params.poolTxHash)}`);
   }
+  for (const txHash of params.udtTxHashes) {
+    parts.push(`UDT ${formatTxHash(txHash)}`);
+  }
   return `${parts.join(" and ")} submitted.`;
+}
+
+function formatClaimableLabel(
+  pointsAmount: bigint,
+  hasClaimableUdt: boolean,
+): string | null {
+  if (pointsAmount > 0n && hasClaimableUdt) {
+    return `+${formatPointsBalance(pointsAmount)} claimable · UDT`;
+  }
+  if (pointsAmount > 0n) {
+    return `+${formatPointsBalance(pointsAmount)} claimable`;
+  }
+  if (hasClaimableUdt) {
+    return "UDT claimable";
+  }
+  return null;
 }

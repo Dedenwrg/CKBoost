@@ -32,6 +32,14 @@ export type ClaimPointsOptions = {
   pointsInputCell?: ccc.Cell;
 };
 
+export type ClaimablePoolClaimOptions = {
+  udtInputCell?: ccc.Cell;
+  addUdtCellDeps?: (
+    tx: ccc.Transaction,
+    typeScript: ccc.Script
+  ) => void | Promise<void>;
+};
+
 function readUdtAmount(data: ccc.HexLike | undefined | null): bigint {
   if (!data) return 0n;
   const bytes = ccc.bytesFrom(data);
@@ -1378,6 +1386,131 @@ export class UserService {
     }
 
     return tx;
+  }
+
+  async buildClaimablePoolBatchTransaction(
+    poolCells: ccc.Cell[],
+    options: ClaimablePoolClaimOptions = {}
+  ): Promise<ccc.Transaction> {
+    if (poolCells.length === 0) {
+      throw new Error("At least one claimable pool cell is required");
+    }
+
+    const claimantLock = (await this.signer.getRecommendedAddressObj()).script;
+    const claimantLockHash = ccc.hexFrom(claimantLock.hash());
+    const tx = ccc.Transaction.from({});
+    let claimedAmount = 0n;
+    let poolType: ccc.Script | null | undefined;
+
+    for (const poolCell of poolCells) {
+      const currentType = poolCell.cellOutput.type
+        ? ccc.Script.from(poolCell.cellOutput.type)
+        : null;
+      if (poolType === undefined) {
+        poolType = currentType;
+      } else if (
+        (poolType === null) !== (currentType === null) ||
+        (poolType &&
+          currentType &&
+          scriptHash(poolType) !== scriptHash(currentType))
+      ) {
+        throw new Error("All claimable pool cells must use the same asset type");
+      }
+
+      const decodedPool = decodeClaimablePoolData(poolCell.outputData);
+      const claimResult = removeClaimablePoolEntriesForClaimant(
+        decodedPool,
+        claimantLockHash
+      );
+
+      claimedAmount += claimResult.claimedAmount;
+      tx.addInput(poolCell);
+
+      const poolData = encodeClaimablePoolData(claimResult.data);
+      if (currentType) {
+        tx.addOutput(poolCell.cellOutput, poolData);
+      } else {
+        const inputCapacity = ccc.numFrom(poolCell.cellOutput.capacity);
+        if (inputCapacity < claimResult.claimedAmount) {
+          throw new Error("CKB pool capacity is smaller than claimable amount");
+        }
+        tx.addOutput(
+          ccc.CellOutput.from({
+            capacity: inputCapacity - claimResult.claimedAmount,
+            lock: poolCell.cellOutput.lock,
+          }),
+          poolData
+        );
+      }
+    }
+
+    if (claimedAmount <= 0n) {
+      throw new Error("No claimable entries found for the current signer");
+    }
+
+    addClaimablePoolLockCellDep(tx);
+
+    if (poolType) {
+      await options.addUdtCellDeps?.(tx, poolType);
+      const existingUdtCell =
+        options.udtInputCell ??
+        (await this.findPointsCellByLock(claimantLock, poolType));
+
+      if (existingUdtCell?.cellOutput.type) {
+        if (scriptHash(existingUdtCell.cellOutput.type) !== scriptHash(poolType)) {
+          throw new Error("Provided UDT input does not match the pool UDT type");
+        }
+        tx.addInput(existingUdtCell);
+        const existingAmount = readUdtAmount(existingUdtCell.outputData);
+        tx.addOutput(
+          existingUdtCell.cellOutput,
+          ccc.numToBytes(existingAmount + claimedAmount, 16)
+        );
+      } else {
+        const claimedAmountHex = ccc.numToBytes(claimedAmount, 16);
+        tx.addOutput(
+          ccc.CellOutput.from(
+            {
+              lock: claimantLock,
+              type: poolType,
+            },
+            claimedAmountHex
+          ),
+          claimedAmountHex
+        );
+      }
+    } else {
+      const claimOutput = ccc.CellOutput.from({ lock: claimantLock }, "0x");
+      const minClaimCapacity = ccc.numFrom(claimOutput.capacity);
+      claimOutput.capacity =
+        claimedAmount > minClaimCapacity ? claimedAmount : minClaimCapacity;
+      tx.addOutput(claimOutput, "0x");
+    }
+
+    return tx;
+  }
+
+  async claimClaimablePoolBatch(
+    poolCells: ccc.Cell[],
+    options: ClaimablePoolClaimOptions = {}
+  ): Promise<ccc.Hex> {
+    const tx = await this.buildClaimablePoolBatchTransaction(poolCells, options);
+    await tx.completeInputsByCapacity(this.signer);
+    await tx.completeFeeBy(this.signer);
+    const preserveOutputCapacityIndices = new Set<number>(
+      poolCells.map((_, index) => index)
+    );
+    const firstClaimOutputIndex = poolCells.length;
+    if (!poolCells[0].cellOutput.type) {
+      preserveOutputCapacityIndices.add(firstClaimOutputIndex);
+    }
+    return sendTransactionWithFeeRetry(this.signer, tx, {
+      preserveOutputCapacityIndices,
+      pendingMetadata: {
+        label: "Claimable Pool",
+        context: "UserService",
+      },
+    });
   }
 
   async claimPointsBatch(

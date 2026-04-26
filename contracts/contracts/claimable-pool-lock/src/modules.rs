@@ -45,8 +45,14 @@ struct Claim {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ClaimDelta {
     claimant_lock_hash: [u8; 32],
-    pool_type_script: Script,
+    asset: PoolAsset,
     amount: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum PoolAsset {
+    Ckb,
+    Udt(Script),
 }
 
 fn read_u128(bytes: &[u8]) -> Result<u128, Error> {
@@ -177,9 +183,7 @@ fn find_claims(input: &ClaimablePoolData, output: &ClaimablePoolData) -> Result<
 
 fn add_claim_delta(deltas: &mut Vec<ClaimDelta>, delta: ClaimDelta) -> Result<(), Error> {
     for existing in deltas.iter_mut() {
-        if existing.claimant_lock_hash == delta.claimant_lock_hash
-            && existing.pool_type_script.as_slice() == delta.pool_type_script.as_slice()
-        {
+        if existing.claimant_lock_hash == delta.claimant_lock_hash && existing.asset == delta.asset {
             existing.amount = existing
                 .amount
                 .checked_add(delta.amount)
@@ -225,29 +229,88 @@ fn has_authorized_input_lock_hash(target_lock_hash: &[u8]) -> Result<bool, Error
 
 fn sum_amounts_for_lock(
     source: Source,
-    pool_type_script: &Script,
+    asset: &PoolAsset,
     claimant_lock_hash: &[u8],
 ) -> Result<u128, Error> {
     let mut index = 0;
     let mut total = 0u128;
     loop {
         match load_cell_type(index, source) {
-            Ok(Some(type_script)) => {
-                if type_script.as_slice() == pool_type_script.as_slice() {
+            Ok(type_script) => {
+                let matches_asset = match (asset, type_script.as_ref()) {
+                    (PoolAsset::Ckb, None) => true,
+                    (PoolAsset::Udt(expected), Some(actual)) => {
+                        actual.as_slice() == expected.as_slice()
+                    }
+                    _ => false,
+                };
+
+                if matches_asset {
                     let lock_hash = load_cell_lock_hash(index, source)?;
                     if lock_hash.as_slice() == claimant_lock_hash {
-                        let data = load_cell_data(index, source)?;
-                        if data.len() < 16 {
-                            debug!("Amount-carrying cell data is too short");
-                            return Err(Error::InvalidPoolData);
+                        match asset {
+                            PoolAsset::Ckb => {
+                                total = total
+                                    .checked_add(load_cell_capacity(index, source)? as u128)
+                                    .ok_or(Error::InvalidPoolData)?;
+                            }
+                            PoolAsset::Udt(_) => {
+                                let data = load_cell_data(index, source)?;
+                                if data.len() < 16 {
+                                    debug!("Amount-carrying cell data is too short");
+                                    return Err(Error::InvalidPoolData);
+                                }
+                                total = total
+                                    .checked_add(read_u128(&data[0..16])?)
+                                    .ok_or(Error::InvalidPoolData)?;
+                            }
                         }
-                        total = total
-                            .checked_add(read_u128(&data[0..16])?)
-                            .ok_or(Error::InvalidPoolData)?;
                     }
                 }
             }
-            Ok(None) => {}
+            Err(ckb_std::error::SysError::IndexOutOfBound) => break,
+            Err(err) => return Err(err.into()),
+        }
+        index += 1;
+    }
+    Ok(total)
+}
+
+fn sum_ckb_for_lock_hashes(source: Source, lock_hashes: &Vec<[u8; 32]>) -> Result<u128, Error> {
+    let mut index = 0;
+    let mut total = 0u128;
+    loop {
+        match load_cell_type(index, source) {
+            Ok(None) => {
+                let lock_hash = load_cell_lock_hash(index, source)?;
+                if lock_hashes
+                    .iter()
+                    .any(|expected| expected.as_slice() == lock_hash.as_slice())
+                {
+                    total = total
+                        .checked_add(load_cell_capacity(index, source)? as u128)
+                        .ok_or(Error::InvalidPoolData)?;
+                }
+            }
+            Ok(Some(_)) => {}
+            Err(ckb_std::error::SysError::IndexOutOfBound) => break,
+            Err(err) => return Err(err.into()),
+        }
+        index += 1;
+    }
+    Ok(total)
+}
+
+fn sum_cell_capacity(source: Source) -> Result<u128, Error> {
+    let mut index = 0;
+    let mut total = 0u128;
+    loop {
+        match load_cell_capacity(index, source) {
+            Ok(capacity) => {
+                total = total
+                    .checked_add(capacity as u128)
+                    .ok_or(Error::InvalidPoolData)?;
+            }
             Err(ckb_std::error::SysError::IndexOutOfBound) => break,
             Err(err) => return Err(err.into()),
         }
@@ -292,27 +355,17 @@ fn validate_claim_pool_pair(
 ) -> Result<Vec<ClaimDelta>, Error> {
     let input_capacity = load_cell_capacity(input_group_index, Source::GroupInput)? as u128;
     let output_capacity = load_cell_capacity(output_index, Source::Output)? as u128;
-    if output_capacity < input_capacity {
-        debug!(
-            "Claimable pool capacity decreased from {} to {}",
-            input_capacity, output_capacity
-        );
-        return Err(Error::InvalidPoolData);
-    }
 
-    let input_type_script =
-        load_cell_type(input_group_index, Source::GroupInput)?.ok_or_else(|| {
-            debug!("Claimable pool input is missing a type script");
-            Error::InvalidPoolData
-        })?;
-    let output_type_script = load_cell_type(output_index, Source::Output)?.ok_or_else(|| {
-        debug!("Claimable pool output is missing a type script");
-        Error::InvalidPoolData
-    })?;
-    if input_type_script.as_slice() != output_type_script.as_slice() {
+    let input_type_script = load_cell_type(input_group_index, Source::GroupInput)?;
+    let output_type_script = load_cell_type(output_index, Source::Output)?;
+    if input_type_script != output_type_script {
         debug!("Claimable pool type script changed");
         return Err(Error::InvalidPoolData);
     }
+    let asset = match input_type_script {
+        Some(type_script) => PoolAsset::Udt(type_script),
+        None => PoolAsset::Ckb,
+    };
 
     let input_data =
         parse_claimable_pool_data(&load_cell_data(input_group_index, Source::GroupInput)?)?;
@@ -332,11 +385,34 @@ fn validate_claim_pool_pair(
         return Err(Error::InvalidPoolData);
     }
 
+    match asset {
+        PoolAsset::Udt(_) => {
+            if output_capacity < input_capacity {
+                debug!(
+                    "UDT claimable pool capacity decreased from {} to {}",
+                    input_capacity, output_capacity
+                );
+                return Err(Error::InvalidPoolData);
+            }
+        }
+        PoolAsset::Ckb => {
+            if input_capacity < output_capacity
+                || input_capacity - output_capacity != total_claimed_amount
+            {
+                debug!(
+                    "CKB claimable pool capacity delta mismatch: input {}, output {}, claimed {}",
+                    input_capacity, output_capacity, total_claimed_amount
+                );
+                return Err(Error::InvalidPoolData);
+            }
+        }
+    }
+
     Ok(claims
         .into_iter()
         .map(|claim| ClaimDelta {
             claimant_lock_hash: claim.claimant_lock_hash,
-            pool_type_script: input_type_script.clone(),
+            asset: asset.clone(),
             amount: claim.amount,
         })
         .collect())
@@ -365,24 +441,63 @@ fn validate_claim_transition(output_indices: &[usize]) -> Result<(), Error> {
         }
     }
 
+    let mut ckb_claimant_lock_hashes = Vec::new();
+    let mut total_ckb_claimed = 0u128;
     for claim in &claim_deltas {
-        let input_amount = sum_amounts_for_lock(
-            Source::Input,
-            &claim.pool_type_script,
-            &claim.claimant_lock_hash,
-        )?;
-        let output_amount = sum_amounts_for_lock(
-            Source::Output,
-            &claim.pool_type_script,
-            &claim.claimant_lock_hash,
-        )?;
-        let expected_output_amount = input_amount
-            .checked_add(claim.amount)
+        match &claim.asset {
+            PoolAsset::Udt(_) => {
+                let input_amount =
+                    sum_amounts_for_lock(Source::Input, &claim.asset, &claim.claimant_lock_hash)?;
+                let output_amount =
+                    sum_amounts_for_lock(Source::Output, &claim.asset, &claim.claimant_lock_hash)?;
+                let expected_output_amount = input_amount
+                    .checked_add(claim.amount)
+                    .ok_or(Error::InvalidPoolData)?;
+                if output_amount != expected_output_amount {
+                    debug!(
+                        "Claimant UDT amount delta mismatch: input {}, output {}, expected delta {}",
+                        input_amount, output_amount, claim.amount
+                    );
+                    return Err(Error::InvalidPoolData);
+                }
+            }
+            PoolAsset::Ckb => {
+                if !ckb_claimant_lock_hashes
+                    .iter()
+                    .any(|lock_hash: &[u8; 32]| lock_hash == &claim.claimant_lock_hash)
+                {
+                    ckb_claimant_lock_hashes.push(claim.claimant_lock_hash);
+                }
+                total_ckb_claimed = total_ckb_claimed
+                    .checked_add(claim.amount)
+                    .ok_or(Error::InvalidPoolData)?;
+            }
+        }
+    }
+
+    if total_ckb_claimed > 0 {
+        let input_claimant_capacity =
+            sum_ckb_for_lock_hashes(Source::Input, &ckb_claimant_lock_hashes)?;
+        let output_claimant_capacity =
+            sum_ckb_for_lock_hashes(Source::Output, &ckb_claimant_lock_hashes)?;
+        let total_input_capacity = sum_cell_capacity(Source::Input)?;
+        let total_output_capacity = sum_cell_capacity(Source::Output)?;
+        if total_input_capacity < total_output_capacity {
+            debug!("Transaction output capacity exceeds input capacity");
+            return Err(Error::InvalidPoolData);
+        }
+        let transaction_fee = total_input_capacity - total_output_capacity;
+        let required_claimant_capacity = input_claimant_capacity
+            .checked_add(total_ckb_claimed)
             .ok_or(Error::InvalidPoolData)?;
-        if output_amount != expected_output_amount {
+        if output_claimant_capacity
+            .checked_add(transaction_fee)
+            .ok_or(Error::InvalidPoolData)?
+            < required_claimant_capacity
+        {
             debug!(
-                "Claimant amount delta mismatch: input {}, output {}, expected delta {}",
-                input_amount, output_amount, claim.amount
+                "Claimant CKB capacity delta mismatch: input {}, output {}, claimed {}, fee {}",
+                input_claimant_capacity, output_claimant_capacity, total_ckb_claimed, transaction_fee
             );
             return Err(Error::InvalidPoolData);
         }

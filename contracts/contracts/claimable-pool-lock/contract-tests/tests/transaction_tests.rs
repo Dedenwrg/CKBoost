@@ -316,6 +316,16 @@ impl ClaimableFixture {
         self.claimant_output_with_type(lock, amount, self.udt_type.clone())
     }
 
+    fn claimant_ckb_output(&self, lock: Script, capacity: u64) -> (CellOutput, Bytes) {
+        (
+            CellOutput::new_builder()
+                .capacity(capacity.pack())
+                .lock(lock)
+                .build(),
+            Bytes::new(),
+        )
+    }
+
     fn claimant_output_with_type(
         &self,
         lock: Script,
@@ -703,6 +713,122 @@ fn claims_single_pool_cell() {
         .context
         .verify_tx(&tx, 10_000_000)
         .expect("authorized claim should pass");
+}
+
+#[test]
+fn claims_ckb_pool_cell() {
+    let mut fixture = ClaimableFixture::new();
+    let claim_amount = 100_000_000u128;
+    let pool_out_point = fixture.create_pool_cell_without_type(&[(
+        fixture.claimant_a_hash,
+        claim_amount,
+    )]);
+    let auth_out_point = fixture.create_auth_cell(fixture.claimant_a_lock.clone());
+    let (pool_output, pool_output_data) =
+        fixture.pool_output_with_optional_type(&[], CAPACITY - claim_amount as u64, None, pool_data(&[]));
+    let (claim_output, claim_output_data) =
+        fixture.claimant_ckb_output(fixture.claimant_a_lock.clone(), claim_amount as u64);
+
+    let tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(pool_out_point)
+                .build(),
+        )
+        .input(
+            CellInput::new_builder()
+                .previous_output(auth_out_point)
+                .build(),
+        )
+        .output(pool_output)
+        .output(claim_output)
+        .output_data(pool_output_data.pack())
+        .output_data(claim_output_data.pack())
+        .build();
+    let tx = fixture.context.complete_tx(tx);
+
+    fixture
+        .context
+        .verify_tx(&tx, 10_000_000)
+        .expect("authorized CKB claim should pass");
+}
+
+#[test]
+fn rejects_ckb_claim_when_pool_capacity_delta_is_wrong() {
+    let mut fixture = ClaimableFixture::new();
+    let claim_amount = 100_000_000u128;
+    let pool_out_point = fixture.create_pool_cell_without_type(&[(
+        fixture.claimant_a_hash,
+        claim_amount,
+    )]);
+    let auth_out_point = fixture.create_auth_cell(fixture.claimant_a_lock.clone());
+    let (pool_output, pool_output_data) = fixture.pool_output_with_optional_type(
+        &[],
+        CAPACITY - claim_amount as u64 + 1,
+        None,
+        pool_data(&[]),
+    );
+    let (claim_output, claim_output_data) =
+        fixture.claimant_ckb_output(fixture.claimant_a_lock.clone(), claim_amount as u64);
+
+    let tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(pool_out_point)
+                .build(),
+        )
+        .input(
+            CellInput::new_builder()
+                .previous_output(auth_out_point)
+                .build(),
+        )
+        .output(pool_output)
+        .output(claim_output)
+        .output_data(pool_output_data.pack())
+        .output_data(claim_output_data.pack())
+        .build();
+    let tx = fixture.context.complete_tx(tx);
+
+    assert!(fixture.context.verify_tx(&tx, 10_000_000).is_err());
+}
+
+#[test]
+fn rejects_ckb_claim_sent_to_wrong_lock() {
+    let mut fixture = ClaimableFixture::new();
+    let claim_amount = 100_000_000u128;
+    let pool_out_point = fixture.create_pool_cell_without_type(&[(
+        fixture.claimant_a_hash,
+        claim_amount,
+    )]);
+    let auth_out_point = fixture.create_auth_cell(fixture.claimant_a_lock.clone());
+    let (pool_output, pool_output_data) =
+        fixture.pool_output_with_optional_type(&[], CAPACITY - claim_amount as u64, None, pool_data(&[]));
+    let (returned_auth_output, returned_auth_data) =
+        fixture.claimant_ckb_output(fixture.claimant_a_lock.clone(), CAPACITY);
+    let (wrong_claim_output, wrong_claim_data) =
+        fixture.claimant_ckb_output(fixture.claimant_b_lock.clone(), claim_amount as u64);
+
+    let tx = TransactionBuilder::default()
+        .input(
+            CellInput::new_builder()
+                .previous_output(pool_out_point)
+                .build(),
+        )
+        .input(
+            CellInput::new_builder()
+                .previous_output(auth_out_point)
+                .build(),
+        )
+        .output(pool_output)
+        .output(returned_auth_output)
+        .output(wrong_claim_output)
+        .output_data(pool_output_data.pack())
+        .output_data(returned_auth_data.pack())
+        .output_data(wrong_claim_data.pack())
+        .build();
+    let tx = fixture.context.complete_tx(tx);
+
+    assert!(fixture.context.verify_tx(&tx, 10_000_000).is_err());
 }
 
 #[test]

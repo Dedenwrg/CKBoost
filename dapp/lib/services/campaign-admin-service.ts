@@ -8,7 +8,6 @@ import {
 } from "ssri-ckboost/types";
 import {
   fetchAllUserCells,
-  fetchUserByTypeId,
   parseUserData,
   extractTypeIdFromUserCell,
 } from "@/lib/ckb/user-cells";
@@ -86,6 +85,37 @@ export class CampaignAdminService {
     return this.userTypeCodeHash;
   }
 
+  private shouldPreserveApprovalOutputCapacity(output: ccc.CellOutput): boolean {
+    const lockCodeHash = output.lock.codeHash.toLowerCase();
+    const network = deploymentManager.getCurrentNetwork();
+    const fundingLockCodeHash = deploymentManager.getContractCodeHash(
+      network,
+      "ckboostFundingLock"
+    );
+    const claimablePoolLockCodeHash = getClaimablePoolLockCodeHash(network);
+
+    return (
+      (!!fundingLockCodeHash &&
+        lockCodeHash === fundingLockCodeHash.toLowerCase()) ||
+      (!!claimablePoolLockCodeHash &&
+        lockCodeHash === claimablePoolLockCodeHash.toLowerCase())
+    );
+  }
+
+  private rebuildApprovalTypedOutput(
+    output: ccc.CellOutput,
+    outputData: ccc.HexLike
+  ): ccc.CellOutput {
+    const rebuilt = ccc.CellOutput.from(
+      { lock: output.lock, type: output.type },
+      outputData
+    );
+    if (this.shouldPreserveApprovalOutputCapacity(output)) {
+      rebuilt.capacity = output.capacity;
+    }
+    return rebuilt;
+  }
+
   /**
    * Set the campaign instance
    */
@@ -127,12 +157,25 @@ export class CampaignAdminService {
     const protocolTypeHash = ccc.hexFrom(this.protocolCell.cellOutput.type.hash());
     return Promise.all(
       userTypeIds.map(async (userTypeId) => {
-        const userCell = await fetchUserByTypeId(
-          userTypeId,
-          this.userTypeCodeHash,
-          this.signer,
-          protocolTypeHash
+        const normalizedUserTypeId = ccc.hexFrom(userTypeId);
+        const connectedTypeIdArgs = ccc.hexFrom(
+          ConnectedTypeID.encode({
+            type_id: normalizedUserTypeId,
+            connected_key: protocolTypeHash,
+          })
         );
+        const userCells = this.signer.client.findCells({
+          script: {
+            codeHash: this.userTypeCodeHash,
+            hashType: "type",
+            args: connectedTypeIdArgs,
+          },
+          scriptType: "type",
+          scriptSearchMode: "exact",
+          withData: true,
+        });
+        const userCellResult = await userCells.next();
+        const userCell = userCellResult.done ? undefined : userCellResult.value;
         if (!userCell) {
           throw new Error(
             `User cell not found for approved user ${ccc.hexFrom(userTypeId)}`
@@ -925,8 +968,8 @@ export class CampaignAdminService {
     for (let i = 0; i < tx.outputs.length; i += 1) {
       const out = tx.outputs[i];
       if (out.type) {
-        tx.outputs[i] = ccc.CellOutput.from(
-          { lock: out.lock, type: out.type },
+        tx.outputs[i] = this.rebuildApprovalTypedOutput(
+          out,
           tx.outputsData[i] as ccc.HexLike
         );
       }
@@ -980,8 +1023,8 @@ export class CampaignAdminService {
     for (let i = 0; i < validatedTx.outputs.length; i += 1) {
       const out = validatedTx.outputs[i];
       if (out.type) {
-        validatedTx.outputs[i] = ccc.CellOutput.from(
-          { lock: out.lock, type: out.type },
+        validatedTx.outputs[i] = this.rebuildApprovalTypedOutput(
+          out,
           validatedTx.outputsData[i] as ccc.HexLike
         );
       }

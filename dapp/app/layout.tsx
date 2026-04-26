@@ -3,6 +3,7 @@ import { Layout, Navbar, Footer } from "nextra-theme-docs";
 import { getPageMap } from "nextra/page-map";
 import Link from "next/link";
 import Script from "next/script";
+import { Fragment } from "react";
 import "./globals.css";
 import "nextra-theme-docs/style.css";
 import { Providers } from "@/components/providers";
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 
 const navbar = (
   <Navbar
+    key="navbar"
     logo={
       <div className="flex items-center gap-2 mr-18">
         <img
@@ -48,7 +50,10 @@ const navbar = (
 );
 
 const footer = (
-  <div style={{ position: "relative", zIndex: 20, backgroundColor: "#000000" }}>
+  <div
+    key="footer"
+    style={{ position: "relative", zIndex: 20, backgroundColor: "#000000" }}
+  >
     <Footer>© {new Date().getFullYear()} CKBoost.</Footer>
   </div>
 );
@@ -83,7 +88,7 @@ export default async function RootLayout({
             pageMap={pageMap}
             docsRepositoryBase="https://github.com/Alive24/CKBoost/tree/main/dapp/content"
           >
-            {children}
+            <Fragment key="page-content">{children}</Fragment>
           </Layout>
           {/* WUUNU SNIPPET - DON'T CHANGE THIS (START) */}
           {/* {process.env.NODE_ENV !== "production" && (
