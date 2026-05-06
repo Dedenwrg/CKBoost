@@ -73,21 +73,33 @@ function isChangeCellCapacityError(errorMessage: string): boolean {
   return errorMessage.includes("for the change cell");
 }
 
-function pickFeeSinkOutputIndex(tx: ccc.Transaction): number | null {
-  const typedOutputIndex = tx.outputs.findIndex((output) => !!output.type);
+function pickFeeSinkOutputIndex(
+  tx: ccc.Transaction,
+  preserveOutputCapacityIndices?: ReadonlySet<number>
+): number | null {
+  const canUseOutput = (_output: ccc.CellOutput, index: number) =>
+    !preserveOutputCapacityIndices?.has(index);
+
+  const typedOutputIndex = tx.outputs.findIndex(
+    (output, index) => !!output.type && canUseOutput(output, index)
+  );
   if (typedOutputIndex >= 0) {
     return typedOutputIndex;
   }
-  if (tx.outputs.length > 0) {
-    return 0;
+
+  const outputIndex = tx.outputs.findIndex(canUseOutput);
+  if (outputIndex >= 0) {
+    return outputIndex;
   }
+
   return null;
 }
 
 async function completeTransactionForSend(
   signer: ccc.Signer,
   tx: ccc.Transaction,
-  feeRate?: number
+  feeRate?: number,
+  preserveOutputCapacityIndices?: ReadonlySet<number>
 ): Promise<void> {
   await tx.completeInputsByCapacity(signer);
   try {
@@ -99,7 +111,10 @@ async function completeTransactionForSend(
       throw error;
     }
 
-    const outputIndex = pickFeeSinkOutputIndex(tx);
+    const outputIndex = pickFeeSinkOutputIndex(
+      tx,
+      preserveOutputCapacityIndices
+    );
     if (outputIndex === null) {
       throw error;
     }
@@ -195,7 +210,12 @@ export async function sendTransactionWithFeeRetry(
         }
       }
 
-      await completeTransactionForSend(signer, tx);
+      await completeTransactionForSend(
+        signer,
+        tx,
+        undefined,
+        options?.preserveOutputCapacityIndices
+      );
 
       log.info(`Transaction send attempt ${attempts}/${maxAttempts}`);
 
@@ -259,7 +279,12 @@ export async function sendTransactionWithFeeRetry(
         tx.outputsData = nextOutputsData;
 
         // Ensure inputs satisfy capacity at new fee stage, then recalc fees
-        await completeTransactionForSend(signer, tx, feeRate);
+        await completeTransactionForSend(
+          signer,
+          tx,
+          feeRate,
+          options?.preserveOutputCapacityIndices
+        );
 
         log.info(
           "Transaction rebuilt with new fee. Requesting signature again..."
