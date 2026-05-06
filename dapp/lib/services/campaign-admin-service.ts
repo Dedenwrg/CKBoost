@@ -186,6 +186,72 @@ export class CampaignAdminService {
     );
   }
 
+  private isSameOutPoint(
+    left: ccc.OutPointLike,
+    right: ccc.OutPointLike
+  ): boolean {
+    return left.txHash === right.txHash && left.index === right.index;
+  }
+
+  private async ensureSignerPlainCkbInput(
+    tx: ccc.Transaction,
+    signerLock: ccc.Script
+  ): Promise<void> {
+    const signerLockHash = ccc.hexFrom(signerLock.hash());
+
+    for (const input of tx.inputs) {
+      const cell = await this.signer.client.getCell(input.previousOutput);
+      if (
+        !cell?.cellOutput.type &&
+        cell?.cellOutput.lock.hash() === signerLockHash
+      ) {
+        log.info("Campaign update already has signer plain CKB input", {
+          outPoint: input.previousOutput,
+        });
+        return;
+      }
+    }
+
+    for await (const cell of this.signer.client.findCells({
+      script: signerLock,
+      scriptType: "lock",
+      scriptSearchMode: "exact",
+      filter: {
+        scriptLenRange: [0, 1],
+        outputDataLenRange: [0, 1],
+      },
+      withData: true,
+    })) {
+      if (cell.cellOutput.type || ccc.hexFrom(cell.outputData) !== "0x") {
+        continue;
+      }
+
+      if (
+        tx.inputs.some((input) =>
+          this.isSameOutPoint(input.previousOutput, cell.outPoint)
+        )
+      ) {
+        continue;
+      }
+
+      tx.addInput({
+        previousOutput: cell.outPoint,
+        since: "0x0",
+        cellOutput: cell.cellOutput,
+        outputData: cell.outputData,
+      });
+      log.info("Added signer plain CKB input for campaign admin auth", {
+        outPoint: cell.outPoint,
+        capacity: cell.cellOutput.capacity.toString(),
+      });
+      return;
+    }
+
+    throw new Error(
+      "No plain CKB cell found for the current signer. Campaign updates require one simple CKB input for admin authorization."
+    );
+  }
+
   // ============ Helper Methods ============
 
   /**
@@ -464,51 +530,6 @@ export class CampaignAdminService {
         log.info("CKB funding added to transaction");
       }
 
-      // Log the transaction bytes before sending
-      const txBytes = updateTx.toBytes();
-      const txHex = ccc.hexFrom(txBytes);
-      log.info("=== TRANSACTION BYTES TO RPC ===");
-      log.info("Transaction Structure:", {
-        version: updateTx.version,
-        cellDeps: updateTx.cellDeps.map((dep: ccc.CellDep) => ({
-          outPoint: {
-            txHash: dep.outPoint.txHash,
-            index: dep.outPoint.index,
-          },
-          depType: dep.depType,
-        })),
-        inputs: updateTx.inputs.map((input: ccc.CellInput) => ({
-          previousOutput: {
-            txHash: input.previousOutput.txHash,
-            index: input.previousOutput.index,
-          },
-          since: input.since,
-        })),
-        outputs: updateTx.outputs.map((output: ccc.CellOutput) => ({
-          capacity: output.capacity.toString(),
-          lock: {
-            codeHash: output.lock.codeHash,
-            hashType: output.lock.hashType,
-            args: output.lock.args,
-          },
-          type: output.type
-            ? {
-                codeHash: output.type.codeHash,
-                hashType: output.type.hashType,
-                args: output.type.args,
-              }
-            : null,
-        })),
-        outputsData: updateTx.outputsData.map((data: ccc.HexLike) =>
-          typeof data === "string" ? data : ccc.hexFrom(data)
-        ),
-        witnesses: updateTx.witnesses.map((witness: ccc.HexLike) =>
-          typeof witness === "string" ? witness : ccc.hexFrom(witness)
-        ),
-      });
-      log.info("Transaction Hex:", txHex);
-      log.info("Transaction Size:", txBytes.length, "bytes");
-      log.info("=== END TRANSACTION BYTES ===");
       const network = deploymentManager.getCurrentNetwork();
       const protocolLockCodeHash = deploymentManager.getContractCodeHash(
         network,
@@ -555,6 +576,54 @@ export class CampaignAdminService {
       } else {
         throw new Error("Campaign cell not found in transaction");
       }
+
+      await this.ensureSignerPlainCkbInput(updateTx, currentUserLock);
+
+      // Log the finalized transaction shape before fee completion and signing.
+      const txBytes = updateTx.toBytes();
+      const txHex = ccc.hexFrom(txBytes);
+      log.info("=== TRANSACTION BYTES TO RPC ===");
+      log.info("Transaction Structure:", {
+        version: updateTx.version,
+        cellDeps: updateTx.cellDeps.map((dep: ccc.CellDep) => ({
+          outPoint: {
+            txHash: dep.outPoint.txHash,
+            index: dep.outPoint.index,
+          },
+          depType: dep.depType,
+        })),
+        inputs: updateTx.inputs.map((input: ccc.CellInput) => ({
+          previousOutput: {
+            txHash: input.previousOutput.txHash,
+            index: input.previousOutput.index,
+          },
+          since: input.since,
+        })),
+        outputs: updateTx.outputs.map((output: ccc.CellOutput) => ({
+          capacity: output.capacity.toString(),
+          lock: {
+            codeHash: output.lock.codeHash,
+            hashType: output.lock.hashType,
+            args: output.lock.args,
+          },
+          type: output.type
+            ? {
+                codeHash: output.type.codeHash,
+                hashType: output.type.hashType,
+                args: output.type.args,
+              }
+            : null,
+        })),
+        outputsData: updateTx.outputsData.map((data: ccc.HexLike) =>
+          typeof data === "string" ? data : ccc.hexFrom(data)
+        ),
+        witnesses: updateTx.witnesses.map((witness: ccc.HexLike) =>
+          typeof witness === "string" ? witness : ccc.hexFrom(witness)
+        ),
+      });
+      log.info("Transaction Hex:", txHex);
+      log.info("Transaction Size:", txBytes.length, "bytes");
+      log.info("=== END TRANSACTION BYTES ===");
 
       const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx);
 
