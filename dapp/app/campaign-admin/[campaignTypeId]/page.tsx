@@ -908,15 +908,23 @@ export default function CampaignAdminPage() {
 
       const longDescriptionContent = campaignData.longDescription || "";
       const hasLongDescription = longDescriptionContent.trim().length > 0;
+      const hasReusableLongDescriptionRef =
+        !!longDescriptionNeventId?.startsWith("nevent1") &&
+        !longDescriptionDirty;
+
+      if (!hasLongDescription && !hasReusableLongDescriptionRef) {
+        alert("Please provide a campaign long description before saving.");
+        setIsSaving(false);
+        return;
+      }
+
       let longDescriptionToStore =
-        longDescriptionNeventId && longDescriptionNeventId.startsWith("nevent1")
+        hasReusableLongDescriptionRef
           ? longDescriptionNeventId
           : longDescriptionContent;
       const shouldStoreLongDescription =
         hasLongDescription &&
-        (longDescriptionDirty ||
-          !longDescriptionNeventId ||
-          !longDescriptionNeventId.startsWith("nevent1"));
+        (longDescriptionDirty || !hasReusableLongDescriptionRef);
 
       if (shouldStoreLongDescription) {
         try {
@@ -949,6 +957,8 @@ export default function CampaignAdminPage() {
           setIsSaving(false);
           return;
         }
+      } else if (!hasLongDescription && hasReusableLongDescriptionRef) {
+        longDescriptionToStore = longDescriptionNeventId as string;
       } else if (!hasLongDescription) {
         longDescriptionToStore = "";
         setLongDescriptionNeventId(null);
