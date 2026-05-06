@@ -55,6 +55,10 @@ import { useUser } from "@/lib/providers/user-provider";
 import { PageLoading } from "@/components/ui/page-loading";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { deploymentManager } from "@/lib/ckb/deployment-manager";
+import {
+  getQuestContentNeventId,
+  mergeQuestContentPayload,
+} from "@/lib/utils/campaign-nostr-content";
 
 const extractHtmlFromContent = (raw: string): string => {
   if (!raw) return "";
@@ -537,6 +541,66 @@ export default function CampaignDetailPage() {
       cancelled = true;
     };
   }, [campaign?.metadata?.long_description, fetchSubmission]);
+
+  useEffect(() => {
+    const quests = campaign?.quests || [];
+    if (quests.length === 0) {
+      return;
+    }
+
+    const questsWithReferences = quests.filter(getQuestContentNeventId);
+    if (questsWithReferences.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const resolveQuestContents = async () => {
+      const resolvedQuests = await Promise.all(
+        quests.map(async (quest) => {
+          const neventId = getQuestContentNeventId(quest);
+          if (!neventId) {
+            return quest;
+          }
+
+          try {
+            const result = await fetchSubmission(neventId);
+            if (!result?.content) {
+              return quest;
+            }
+            return mergeQuestContentPayload(quest, result.content) || quest;
+          } catch (error) {
+            log.error("Failed to resolve quest content from Nostr", error);
+            return quest;
+          }
+        }),
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      const changed = resolvedQuests.some(
+        (quest, index) => quest !== quests[index],
+      );
+      if (changed) {
+        setCampaign((prev) =>
+          prev
+            ? {
+                ...prev,
+                quests: resolvedQuests,
+              }
+            : prev,
+        );
+      }
+    };
+
+    resolveQuestContents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign?.quests, fetchSubmission]);
 
   // Check submission statuses for all quests
   useEffect(() => {

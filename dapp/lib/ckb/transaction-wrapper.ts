@@ -12,6 +12,47 @@ import {
 
 const log = createScopedLogger("TransactionWrapper");
 
+function serializeTransactionError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  try {
+    return JSON.stringify(error, (_key, value) =>
+      typeof value === "bigint" ? value.toString() : value
+    );
+  } catch {
+    return String(error);
+  }
+}
+
+function assertHexArray(values: ccc.Hex[], label: string): void {
+  values.forEach((value, index) => {
+    if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) {
+      throw new Error(`${label}[${index}] must be a hex string`);
+    }
+  });
+}
+
+function normalizeTransactionForWallet(tx: ccc.Transaction): void {
+  if (tx.outputsData.length > tx.outputs.length) {
+    throw new Error(
+      `Transaction has ${tx.outputsData.length} outputsData entries for ${tx.outputs.length} outputs`
+    );
+  }
+
+  while (tx.outputsData.length < tx.outputs.length) {
+    tx.outputsData.push("0x");
+  }
+
+  while (tx.witnesses.length < tx.inputs.length) {
+    tx.witnesses.push("0x");
+  }
+
+  assertHexArray(tx.outputsData, "outputsData");
+  assertHexArray(tx.witnesses, "witnesses");
+}
+
 /**
  * Parse the required fee from a PoolRejectedTransactionByMinFeeRate error message
  * @param errorMessage The error message from the blockchain
@@ -158,15 +199,17 @@ export async function sendTransactionWithFeeRetry(
 
       log.info(`Transaction send attempt ${attempts}/${maxAttempts}`);
 
-      // Try to send the transaction
-      log.log("JSON.stringify(tx)", ccc.stringify(tx));
-      const txHash = await signer.sendTransaction(tx);
+      // Try to send the transaction. Normalize a clone so fee-retry can keep
+      // rebuilding from the same transaction object if RPC submission fails.
+      const txForWallet = tx.clone();
+      normalizeTransactionForWallet(txForWallet);
+      log.log("JSON.stringify(tx)", ccc.stringify(txForWallet));
+      const txHash = await signer.sendTransaction(txForWallet);
       log.info("Transaction sent successfully! TxHash:", txHash);
       registerPendingTransaction(txHash, options?.pendingMetadata);
       return txHash;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = serializeTransactionError(error);
       log.error(`Transaction send attempt ${attempts} failed:`, errorMessage);
 
       // Check if it's a minimum fee error

@@ -58,6 +58,14 @@ import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useNostrStorage } from "@/hooks/use-nostr-storage";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 import { PageLoading } from "@/components/ui/page-loading";
+import {
+  buildQuestChainStub,
+  buildQuestContentPayload,
+  getQuestContentNeventId,
+  mergeQuestContentPayload,
+  QUEST_CONTENT_FORMAT,
+  QUEST_CONTENT_VERSION,
+} from "@/lib/utils/campaign-nostr-content";
 
 const log = createScopedLogger("CampaignAdminPage");
 
@@ -86,6 +94,11 @@ interface NostrQueueItem {
   label?: string;
   contentHint?: "image" | "html" | "text";
 }
+
+type NostrPayloadCache = Record<
+  string,
+  { content: string; metadata: Record<string, string> }
+>;
 
 interface PendingCampaignSave {
   updatedCampaign: CampaignDataLike;
@@ -175,9 +188,8 @@ export default function CampaignAdminPage() {
   const [pendingNostrItems, setPendingNostrItems] = useState<NostrQueueItem[]>(
     []
   );
-  const [pendingNostrPayloads, setPendingNostrPayloads] = useState<
-    Record<string, { content: string; metadata: Record<string, string> }>
-  >({});
+  const [pendingNostrPayloads, setPendingNostrPayloads] =
+    useState<NostrPayloadCache>({});
   const [pendingNostrTotal, setPendingNostrTotal] = useState(0);
   const [pendingNostrIndex, setPendingNostrIndex] = useState(0);
   const [viewerLockHash, setViewerLockHash] = useState<string | null>(null);
@@ -319,6 +331,31 @@ export default function CampaignAdminPage() {
       has("status") &&
       has("sub_tasks") &&
       has("completion_count")
+    );
+  };
+
+  const resolveStoredQuestContents = async (
+    quests: QuestDataLike[]
+  ): Promise<QuestDataLike[]> => {
+    return Promise.all(
+      quests.map(async (quest) => {
+        const neventId = getQuestContentNeventId(quest);
+        if (!neventId) {
+          return quest;
+        }
+
+        try {
+          const result = await fetchSubmission(neventId);
+          if (!result?.content) {
+            return quest;
+          }
+
+          return mergeQuestContentPayload(quest, result.content) || quest;
+        } catch (error) {
+          log.error("Failed to fetch quest content from Nostr:", error);
+          return quest;
+        }
+      })
     );
   };
 
@@ -759,8 +796,11 @@ export default function CampaignAdminPage() {
             ) || [];
           setStaffLockHashes(staffHashes);
 
-          // Keep editable quest state in sync with loaded campaign data
-          setLocalQuests(campaignData.quests || []);
+          // Keep editable quest state in sync with loaded campaign data.
+          // Chain data may only contain Nostr references for rich quest content.
+          setLocalQuests(
+            await resolveStoredQuestContents(campaignData.quests || [])
+          );
 
           log.log("Campaign loaded successfully");
         }
@@ -834,21 +874,29 @@ export default function CampaignAdminPage() {
     try {
       setIsSaving(true);
 
-      const validatedQuests: QuestDataLike[] =
-        localQuests.length > 0
-          ? localQuests.map((quest) => ({
-              quest_id: quest.quest_id,
-              metadata: quest.metadata,
-              points: quest.points,
-              rewards_on_completion: quest.rewards_on_completion || [],
-              accepted_submission_user_type_ids:
-                quest.accepted_submission_user_type_ids || [],
-              completion_deadline: quest.completion_deadline,
-              status: quest.status,
-              sub_tasks: quest.sub_tasks || [],
-              completion_count: quest.completion_count,
-            }))
-          : [];
+      const hasReusableLongDescriptionRef =
+        !!longDescriptionNeventId?.startsWith("nevent1") &&
+        !longDescriptionDirty;
+      const longDescriptionContent = campaignData.longDescription || "";
+      const hasLongDescription = longDescriptionContent.trim().length > 0;
+
+      if (!campaignData.title.trim()) {
+        alert("Please provide a campaign title before saving.");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!campaignData.shortDescription.trim()) {
+        alert("Please provide a campaign short description before saving.");
+        setIsSaving(false);
+        return;
+      }
+
+      if (!hasLongDescription && !hasReusableLongDescriptionRef) {
+        alert("Please provide a campaign long description before saving.");
+        setIsSaving(false);
+        return;
+      }
 
       const campaignReference =
         !isCreateMode && campaignTypeId && campaignTypeId !== "new"
@@ -856,6 +904,65 @@ export default function CampaignAdminPage() {
           : `draft-${Date.now()}`;
 
       const nostrVerificationQueue: NostrQueueItem[] = [];
+      const nostrPayloadsForModal: NostrPayloadCache = {};
+
+      const validatedQuests: QuestDataLike[] = [];
+      for (const quest of localQuests) {
+        const normalizedQuest: QuestDataLike = {
+          quest_id: quest.quest_id,
+          metadata: quest.metadata,
+          points: quest.points,
+          rewards_on_completion: quest.rewards_on_completion || [],
+          accepted_submission_user_type_ids:
+            quest.accepted_submission_user_type_ids || [],
+          completion_deadline: quest.completion_deadline,
+          status: quest.status,
+          sub_tasks: quest.sub_tasks || [],
+          completion_count: quest.completion_count,
+        };
+
+        const questPayload = buildQuestContentPayload(normalizedQuest);
+        const questPayloadContent = JSON.stringify(questPayload);
+        const questPayloadMetadata = {
+          format: "json",
+          type: "quest_content",
+          content_format: QUEST_CONTENT_FORMAT,
+          version: String(QUEST_CONTENT_VERSION),
+          quest_id: String(Number(normalizedQuest.quest_id || 0)),
+        };
+
+        try {
+          const storedQuestId = await storeCampaignContent.mutateAsync({
+            campaignTypeId: campaignReference,
+            contentType: "quest_content",
+            content: questPayloadContent,
+            metadata: questPayloadMetadata,
+          });
+          validatedQuests.push(
+            buildQuestChainStub(normalizedQuest, storedQuestId)
+          );
+          nostrVerificationQueue.push({
+            neventId: storedQuestId,
+            label:
+              normalizedQuest.metadata?.title ||
+              `Quest ${
+                Number(normalizedQuest.quest_id || 0) || validatedQuests.length
+              }`,
+            contentHint: "text",
+          });
+          nostrPayloadsForModal[storedQuestId] = {
+            content: questPayloadContent,
+            metadata: questPayloadMetadata,
+          };
+        } catch (error) {
+          log.error("Failed to store quest content on Nostr:", error);
+          alert(
+            "Failed to store quest content on Nostr. Please try again before saving."
+          );
+          setIsSaving(false);
+          return;
+        }
+      }
 
       let imageUrlToStore =
         coverImage.neventId || campaign?.metadata?.image_url || "";
@@ -874,6 +981,10 @@ export default function CampaignAdminPage() {
               label: "Campaign Cover Image",
               contentHint: "image",
             });
+            nostrPayloadsForModal[storedImageId] = {
+              content: coverImage.dataUrl ?? "",
+              metadata: { encoding: "base64", type: "cover_image" },
+            };
             setPendingNostrPayloads((prev) => ({
               ...prev,
               [storedImageId]: {
@@ -906,18 +1017,6 @@ export default function CampaignAdminPage() {
         }
       }
 
-      const longDescriptionContent = campaignData.longDescription || "";
-      const hasLongDescription = longDescriptionContent.trim().length > 0;
-      const hasReusableLongDescriptionRef =
-        !!longDescriptionNeventId?.startsWith("nevent1") &&
-        !longDescriptionDirty;
-
-      if (!hasLongDescription && !hasReusableLongDescriptionRef) {
-        alert("Please provide a campaign long description before saving.");
-        setIsSaving(false);
-        return;
-      }
-
       let longDescriptionToStore =
         hasReusableLongDescriptionRef
           ? longDescriptionNeventId
@@ -940,6 +1039,10 @@ export default function CampaignAdminPage() {
             label: "Campaign Long Description",
             contentHint: "html",
           });
+          nostrPayloadsForModal[storedLongId] = {
+            content: longDescriptionContent,
+            metadata: { format: "html", type: "long_description" },
+          };
           setPendingNostrPayloads((prev) => ({
             ...prev,
             [storedLongId]: {
@@ -1047,16 +1150,7 @@ export default function CampaignAdminPage() {
         setPendingNostrItems([...nostrVerificationQueue]);
         setPendingNostrPayloads((prev) => ({
           ...prev,
-          ...Object.fromEntries(
-            nostrVerificationQueue
-              .map((item) => {
-                if (!pendingNostrPayloads[item.neventId]) return null;
-                return [item.neventId, pendingNostrPayloads[item.neventId]];
-              })
-              .filter(Boolean) as Array<
-              [string, { content: string; metadata: Record<string, string> }]
-            >
-          ),
+          ...nostrPayloadsForModal,
         }));
         setPendingNostrTotal(nostrVerificationQueue.length);
         setPendingNostrIndex(0);
@@ -1076,7 +1170,7 @@ export default function CampaignAdminPage() {
           queueTotal: nostrVerificationQueue.length,
           queueItems: nostrVerificationQueue,
           queueIndex: 0,
-          cachedPayloads: pendingNostrPayloads,
+          cachedPayloads: nostrPayloadsForModal,
         });
         return;
       }
@@ -1389,7 +1483,9 @@ export default function CampaignAdminPage() {
 
       if (campaignData) {
         setCampaign(campaignData);
-        setLocalQuests(campaignData.quests || []);
+        setLocalQuests(
+          await resolveStoredQuestContents(campaignData.quests || [])
+        );
         const rawLongDescription = campaignData.metadata?.long_description || "";
         const longDescriptionRef = resolveLongDescriptionRef(rawLongDescription);
         const rawImageUrl = campaignData.metadata?.image_url || "";

@@ -14,7 +14,11 @@ type OpenArgs = {
   contentHint?: "image" | "html" | "text"
   queuePosition?: number
   queueTotal?: number
-  queueItems?: Array<{ neventId: string; label?: string }>
+  queueItems?: Array<{
+    neventId: string
+    label?: string
+    contentHint?: "image" | "html" | "text"
+  }>
   queueIndex?: number
   cachedPayloads?: Record<string, { content: string; metadata: Record<string, string> }>
 }
@@ -41,7 +45,13 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
   const [contentHint, setContentHint] = useState<"image" | "html" | "text" | undefined>(undefined)
   const [queuePosition, setQueuePosition] = useState<number | undefined>(undefined)
   const [queueTotal, setQueueTotal] = useState<number | undefined>(undefined)
-  const [queueItems, setQueueItems] = useState<Array<{ neventId: string; label?: string }>>([])
+  const [queueItems, setQueueItems] = useState<
+    Array<{
+      neventId: string
+      label?: string
+      contentHint?: "image" | "html" | "text"
+    }>
+  >([])
   const [queueIndex, setQueueIndex] = useState<number | undefined>(undefined)
   const [cachedPayloads, setCachedPayloads] = useState<Record<string, { content: string; metadata: Record<string, string> }>>({})
   const onConfirmRef = useRef<(() => Promise<string | void>) | null>(null)

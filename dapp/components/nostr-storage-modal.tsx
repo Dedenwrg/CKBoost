@@ -75,6 +75,7 @@ const determineContentHint = (
   const typeTag = metadata?.type;
   if (typeTag === "cover_image") return "image";
   if (typeTag === "long_description") return "html";
+  if (typeTag === "quest_content") return "text";
 
   const metaFormat = metadata?.["meta-format"] ?? metadata?.format;
   if (metaFormat === "html") return "html";
@@ -259,6 +260,7 @@ export function NostrStorageModal({
     const typeTag = verifiedMetadata?.type;
     if (typeTag === "cover_image") return "Campaign Cover Image";
     if (typeTag === "long_description") return "Campaign Long Description";
+    if (typeTag === "quest_content") return "Quest Content";
     return undefined;
   }, [label, queueItems, queueIndex, verifiedMetadata]);
 

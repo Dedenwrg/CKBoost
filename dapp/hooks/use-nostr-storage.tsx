@@ -321,7 +321,7 @@ export function useNostrStorage() {
   const storeCampaignContent = useMutation({
     mutationFn: async (payload: {
       campaignTypeId: string;
-      contentType: "cover_image" | "long_description";
+      contentType: "cover_image" | "long_description" | "quest_content";
       content: string;
       metadata?: Record<string, string>;
     }) => {
