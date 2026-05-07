@@ -1068,11 +1068,15 @@ export default function CampaignAdminPage() {
         setLongDescriptionDirty(false);
       }
 
-      const admin_lock_hash = (
+      const signerLockHash = (
         await signer.getRecommendedAddressObj()
       ).script.hash();
+      const endorserLockHash =
+        !isCreateMode && campaign?.endorser_lock_hash
+          ? campaign.endorser_lock_hash
+          : signerLockHash;
       const updatedCampaign: CampaignDataLike = {
-        endorser_lock_hash: admin_lock_hash,
+        endorser_lock_hash: endorserLockHash,
         staff_lock_hash_vec: (staffLockHashes || []) as ccc.Hex[],
         created_at:
           campaign?.created_at || BigInt(Math.floor(Date.now() / 1000)),
