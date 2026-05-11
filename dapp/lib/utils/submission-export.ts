@@ -344,7 +344,7 @@ export const resolveSubmissionContent = async (
 };
 
 export const buildQuestResponseEntries = (
-  quest: Pick<QuestDataLike, "sub_tasks"> | undefined,
+  quest: { sub_tasks?: QuestSubtaskLike[] } | undefined,
   resolvedContent: string
 ): QuestResponseEntry[] => {
   const questSubtasks = Array.isArray(quest?.sub_tasks)

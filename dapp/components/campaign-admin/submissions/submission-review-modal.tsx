@@ -27,7 +27,11 @@ import {
 import { UserSubmissionRecordLike, UserDataLike } from "ssri-ckboost/types";
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { createScopedLogger, formatDateConsistent } from "ssri-ckboost";
-import { isNostrSubmissionData, QuestSubtask } from "@/types/submission";
+import { QuestSubtask } from "@/types/submission";
+import {
+  buildQuestResponseEntries,
+  resolveSubmissionContent,
+} from "@/lib/utils/submission-export";
 
 const log = createScopedLogger("SubmissionReviewModal");
 
@@ -96,80 +100,14 @@ export function SubmissionReviewModal({
         return;
       }
 
-      // Convert content to string if it's bytes
-      let contentStr: string;
-      if (typeof content === "string") {
-        contentStr = content;
-      } else if (ArrayBuffer.isView(content)) {
-        contentStr = new TextDecoder().decode(content as Uint8Array);
-      } else {
-        contentStr = String(content);
-      }
-
-      // Check if it's a nevent ID
-      const neventMatches = (() => {
-        const matches = contentStr.match(/nevent1[0-9a-z]+/gi) || [];
-        return Array.from(new Set(matches));
-      })();
-
-      let primaryContent: string | null = null;
-
-      if (neventMatches.length > 0) {
-        const fetchedEvents: Array<{
-          neventId: string;
-          eventId?: string;
-          pubkey?: string;
-          createdAt?: number;
-          relays?: string[];
-          error?: string;
-        }> = [];
-
-        for (const nevent of neventMatches) {
-          try {
-            log.log("Fetching Nostr content for", nevent);
-            const nostrData = await fetchSubmission(nevent);
-            if (nostrData) {
-              fetchedEvents.push({
-                neventId: nevent,
-                eventId: nostrData.eventId,
-                pubkey: nostrData.author,
-                createdAt: nostrData.created_at,
-                relays: nostrData.relays,
-              });
-              // Use first event content as primary submission view
-              if (!primaryContent) {
-                primaryContent = nostrData.content;
-              }
-            } else {
-              fetchedEvents.push({
-                neventId: nevent,
-                error: "Failed to fetch content from Nostr",
-              });
-            }
-          } catch (err) {
-            fetchedEvents.push({
-              neventId: nevent,
-              error:
-                err instanceof Error ? err.message : "Failed to fetch from Nostr",
-            });
-          }
-        }
-
-        if (!primaryContent && fetchedEvents.length > 0) {
-          primaryContent = `Nostr Event ID: ${fetchedEvents[0].neventId}`;
-        }
-        if (primaryContent) {
-          setSubmissionContent(primaryContent);
-        }
-        setNostrEvents(fetchedEvents);
-      } else if (contentStr.startsWith("nevent1")) {
-        // Should be covered above, but keep fallback
-        setSubmissionContent(`Nostr Event ID: ${contentStr}`);
-      } else {
-        // Direct content
-        primaryContent = contentStr;
-        setSubmissionContent(primaryContent);
-      }
+      log.log("Resolving submission content", content);
+      const resolved = await resolveSubmissionContent(content, fetchSubmission);
+      setSubmissionContent(
+        resolved.resolvedContent ||
+          resolved.rawContent ||
+          "No submission content available"
+      );
+      setNostrEvents(resolved.events);
     } catch (err) {
       console.error("Failed to load submission content:", err);
       setContentError("Error loading submission content");
@@ -327,85 +265,88 @@ export function SubmissionReviewModal({
             ) : (
               <div className="space-y-3">
                 {(() => {
-                  try {
-                    const parsed = JSON.parse(submissionContent) as unknown;
-                    if (isNostrSubmissionData(parsed)) {
-                      // Use quest data as primary source, map with user responses
-                      return (
-                        quest?.sub_tasks?.map((questSubtask, index) => {
-                          const userSubtask = parsed.subtasks[index];
+                  const entries = buildQuestResponseEntries(
+                    quest,
+                    submissionContent
+                  );
+                  const hasRenderableContent = entries.some(
+                    (entry) => entry.response.trim().length > 0
+                  );
 
-                          return (
-                            <div
-                              key={index}
-                              className="border rounded-lg overflow-hidden"
-                            >
-                              <div className="bg-muted px-4 py-3 border-b space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-semibold">
-                                    {questSubtask.title ||
-                                      `Subtask ${index + 1}`}
-                                  </span>
-                                  {questSubtask.type && (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs"
-                                    >
-                                      {questSubtask.type}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <div className="space-y-1">
-                                  {questSubtask.description && (
-                                    <p className="text-xs text-muted-foreground">
-                                      {questSubtask.description}
-                                    </p>
-                                  )}
-                                  {questSubtask.proof_required && (
-                                    <p className="text-xs text-muted-foreground">
-                                      <span className="font-medium">
-                                        Required proof:
-                                      </span>{" "}
-                                      {questSubtask.proof_required}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="p-4 bg-background">
-                                <div className="text-sm font-medium text-muted-foreground mb-2">
-                                  User Response:
-                                </div>
-                                <SubmissionContentViewer
-                                  content={
-                                    userSubtask?.response || "Not provided"
-                                  }
-                                />
-                              </div>
-                            </div>
-                          );
-                        }) || []
+                  if (entries.length === 0 || !hasRenderableContent) {
+                    const fallbackContent = submissionContent.trim();
+                    if (fallbackContent) {
+                      return (
+                        <div className="border rounded-lg overflow-hidden">
+                          <div className="bg-muted px-4 py-3 border-b">
+                            <span className="text-sm font-semibold">
+                              Response
+                            </span>
+                          </div>
+                          <div className="p-4 bg-background">
+                            <SubmissionContentViewer content={fallbackContent} />
+                          </div>
+                        </div>
                       );
                     }
-                    throw new Error("Invalid JSON format");
-                  } catch {
-                    // Invalid format - prompt to resubmit
+
                     return (
                       <div className="text-center py-8 border rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
                         <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-2" />
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Invalid submission format detected.
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          User needs to resubmit their quest response.
+                          No submission content available.
                         </p>
                       </div>
                     );
                   }
+
+                  return entries.map((entry, index) => (
+                    <div
+                      key={index}
+                      className="border rounded-lg overflow-hidden"
+                    >
+                      <div className="bg-muted px-4 py-3 border-b space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold">
+                            {entry.title || `Subtask ${index + 1}`}
+                          </span>
+                          {entry.type && (
+                            <Badge variant="outline" className="text-xs">
+                              {entry.type}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          {entry.description && (
+                            <p className="text-xs text-muted-foreground">
+                              {entry.description}
+                            </p>
+                          )}
+                          {entry.proofRequired && (
+                            <p className="text-xs text-muted-foreground">
+                              <span className="font-medium">
+                                Required proof:
+                              </span>{" "}
+                              {entry.proofRequired}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-4 bg-background">
+                        <div className="text-sm font-medium text-muted-foreground mb-2">
+                          User Response:
+                        </div>
+                        <SubmissionContentViewer
+                          content={entry.response || "Not provided"}
+                        />
+                      </div>
+                    </div>
+                  ));
                 })()}
               </div>
             )}
 
-            {submission.submission_content?.startsWith("nevent1") && (
+            {nostrEvents.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <AlertCircle className="w-3 h-3" />
                 Content fetched from Nostr event

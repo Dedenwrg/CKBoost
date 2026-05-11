@@ -83,6 +83,36 @@ describe("buildQuestResponseEntries", () => {
       },
     ]);
   });
+
+  it("uses parsed Nostr subtasks when the on-chain quest stub has no subtasks", () => {
+    const responses = buildQuestResponseEntries(
+      createQuest({ sub_tasks: [] }),
+      JSON.stringify({
+        format: "json",
+        version: "1",
+        timestamp: 1_700_000_000_000,
+        subtasks: [
+          {
+            title: "Thread URL",
+            description: "Paste the URL to your thread",
+            type: "url",
+            proof_required: "Public post URL",
+            response: "https://x.com/nostr/post",
+          },
+        ],
+      })
+    );
+
+    expect(responses).toEqual([
+      {
+        title: "Thread URL",
+        description: "Paste the URL to your thread",
+        type: "url",
+        proofRequired: "Public post URL",
+        response: "https://x.com/nostr/post",
+      },
+    ]);
+  });
 });
 
 describe("buildQuestSubmissionExportData", () => {
