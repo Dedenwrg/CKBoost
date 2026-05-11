@@ -1,4 +1,4 @@
-import { Book, Home, MessageSquare, Target, Trophy, User } from "lucide-react";
+import { Home, MessageSquare, Target, Trophy } from "lucide-react";
 import React from "react";
 
 export default {

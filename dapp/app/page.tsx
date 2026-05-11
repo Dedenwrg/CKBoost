@@ -260,6 +260,11 @@ export default function HomePage() {
                       View My Progress
                     </button>
                   </Link>
+                  <Link href="/docs" className="w-full sm:w-auto">
+                    <button className="w-full sm:w-auto bg-white/90 hover:bg-white dark:bg-white/10 dark:hover:bg-white/20 text-[#0000FF] dark:text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border border-[#0000FF] dark:border-white/30 shadow-none cursor-pointer">
+                      Read the Docs
+                    </button>
+                  </Link>
                   <Link href="/leaderboard" className="w-full sm:w-auto">
                     <button className="w-full sm:w-auto bg-[#FF4D00] hover:bg-[#E64500] active:bg-[#CC3D00] dark:bg-[#3300FF] dark:hover:bg-[#2A00CC] dark:active:bg-[#220099] text-white font-medium rounded-full px-6 py-2.5 text-sm transition-colors duration-200 border-0 shadow-none cursor-pointer">
                       View Leaderboard
