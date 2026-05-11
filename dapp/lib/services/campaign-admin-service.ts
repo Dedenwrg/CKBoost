@@ -252,6 +252,37 @@ export class CampaignAdminService {
     );
   }
 
+  private isNewCampaignInstance(): boolean {
+    const args = this.campaign?.script.args;
+    if (!args || args === "0x" || args.length <= 2) {
+      return true;
+    }
+
+    try {
+      const connectedTypeId = ConnectedTypeID.decode(args);
+      return (
+        ccc.hexFrom(connectedTypeId.type_id).toLowerCase() ===
+        `0x${"00".repeat(32)}`
+      );
+    } catch (error) {
+      log.warn("Failed to decode campaign type args; treating as update", error);
+      return false;
+    }
+  }
+
+  private async findInputCampaignCell(
+    tx: ccc.Transaction
+  ): Promise<ccc.Cell | null> {
+    for (const input of tx.inputs) {
+      const cell = await this.signer.client.getCell(input.previousOutput);
+      if (cell?.cellOutput.type?.codeHash === this.campaignTypeCodeHash) {
+        return cell;
+      }
+    }
+
+    return null;
+  }
+
   // ============ Helper Methods ============
 
   /**
@@ -564,17 +595,41 @@ export class CampaignAdminService {
         depType: "code",
       });
 
-      const campaignCell = updateTx.outputs.find(
+      const campaignCellOutputIndex = updateTx.outputs.findIndex(
         (output) => output.type?.codeHash === this.campaignTypeCodeHash
       );
-      if (campaignCell) {
+      const campaignCell = updateTx.outputs[campaignCellOutputIndex];
+      if (!campaignCell) {
+        throw new Error("Campaign cell not found in transaction");
+      }
+
+      if (this.isNewCampaignInstance()) {
         campaignCell.lock = ccc.Script.from({
           codeHash: protocolLockCodeHash,
           hashType: this.protocolCell.cellOutput.lock.hashType,
           args: ccc.hexFrom(connectedIDforProtocolLock),
         });
       } else {
-        throw new Error("Campaign cell not found in transaction");
+        const inputCampaignCell = await this.findInputCampaignCell(updateTx);
+        if (!inputCampaignCell) {
+          throw new Error(
+            "Existing campaign input cell not found while preserving campaign ownership."
+          );
+        }
+        const inputCampaignData = this.parseCampaignData(inputCampaignCell);
+        if (!inputCampaignData) {
+          throw new Error(
+            "Failed to parse existing campaign data while preserving campaign ownership."
+          );
+        }
+
+        campaignCell.lock = inputCampaignCell.cellOutput.lock;
+        updateTx.outputsData[campaignCellOutputIndex] = ccc.hexFrom(
+          CampaignData.encode({
+            ...campaignData,
+            endorser_lock_hash: inputCampaignData.endorser_lock_hash,
+          })
+        );
       }
 
       await this.ensureSignerPlainCkbInput(updateTx, currentUserLock);
