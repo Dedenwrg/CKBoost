@@ -2,7 +2,7 @@ import { createHmac, createHash } from "crypto";
 import { Event, nip19, finalizeEvent } from "nostr-tools";
 
 import { createLogger } from "../lib/log";
-import { DEFAULT_NOSTR_RELAYS } from "../configs/nostr";
+import { getConfiguredNostrRelays } from "../configs/nostr";
 import { publishAndVerifyEvent } from "./nostr";
 import { NPool, NRelay1, NostrFilter } from "@nostrify/nostrify";
 
@@ -24,13 +24,13 @@ export const defaultPool = new NPool({
   },
   reqRouter: async (filters) => {
     return new Map(
-      DEFAULT_NOSTR_RELAYS.map(
+      getConfiguredNostrRelays().map(
         (url) => [url, filters as NostrFilter[]] as [string, NostrFilter[]]
       )
     );
   },
   eventRouter: async (event) => {
-    return [...DEFAULT_NOSTR_RELAYS];
+    return getConfiguredNostrRelays();
   },
 });
 

@@ -3,24 +3,38 @@
 import { useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNostr, DEFAULT_NOSTR_RELAYS } from "@/lib/providers/nostr-provider";
-import { NSecSigner, type NPool } from "@nostrify/nostrify";
+import { NSecSigner } from "@nostrify/nostrify";
 import { NostrEvent } from "@nostrify/types";
 import {
-  nip19,
   generateSecretKey,
   getPublicKey,
   getEventHash,
 } from "nostr-tools";
 import { createScopedLogger } from "ssri-ckboost";
+import {
+  CKBOOST_EVENT_KIND,
+  DEFAULT_RELAY_QUORUM,
+  encodeVerifiedNevent,
+  fetchEventFromRelays,
+  mergeRelayLists,
+  publishEventWithQuorum,
+  type RelayAttemptResult,
+  type StoredSubmissionEvent,
+} from "@/lib/nostr/relay-core";
+import { cacheNostrEvent } from "@/lib/nostr/event-cache";
+import { enqueueUnverifiedRelayRepairs } from "@/lib/nostr/relay-repair-queue";
+import { fetchNeventWithCache } from "@/lib/nostr/browser-fetch";
 
 const log = createScopedLogger("useNostrStorage");
 
 // Custom kind for CKBoost quest submissions
-const CKBOOST_SUBMISSION_KIND = 30078;
-
-const RELAY_TIMEOUT_MS = 5000;
-const VERIFICATION_DELAY_MS = 1000;
-const MAX_VERIFICATION_ROUNDS = 3;
+const CKBOOST_SUBMISSION_KIND = CKBOOST_EVENT_KIND;
+const requiredRelayCopies = (() => {
+  const configured = Number(process.env.NEXT_PUBLIC_NOSTR_MIN_RELAY_COPIES);
+  return Number.isInteger(configured) && configured > 0
+    ? configured
+    : DEFAULT_RELAY_QUORUM;
+})();
 
 type SigningKeys = {
   secretKey: Uint8Array;
@@ -78,174 +92,22 @@ const createSignedEvent = async ({
   return { signedEvent, signingKeys };
 };
 
-type PublishResult = {
-  confirmedRelay: string;
-  attemptedRelays: string[];
-};
+const relayCandidates = (activeRelays: Iterable<string>): string[] =>
+  mergeRelayLists(Array.from(activeRelays), DEFAULT_NOSTR_RELAYS);
 
-const delay = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const uniqueRelays = (relays: string[]): string[] => [...new Set(relays)];
-
-const getRelayPriority = (nostr?: NPool): string[] => {
-  if (!nostr) {
-    return [...DEFAULT_NOSTR_RELAYS];
-  }
-
-  const activeRelays = Array.from(nostr.relays.keys());
-  if (!activeRelays.length) {
-    return [...DEFAULT_NOSTR_RELAYS];
-  }
-
-  return uniqueRelays([...activeRelays, ...DEFAULT_NOSTR_RELAYS]);
-};
-
-const publishEventWithFallback = async (
-  nostr: NPool,
-  event: NostrEvent,
-  relays: string[],
-  timeoutMs: number
-): Promise<PublishResult> => {
-  const attemptedRelays: string[] = [];
-
-  for (const relayUrl of relays) {
-    attemptedRelays.push(relayUrl);
-    log.info(`Attempting to publish via ${relayUrl}`);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      await nostr.event(event, {
-        relays: [relayUrl],
-        signal: controller.signal,
-      });
-      log.info(`Relay ${relayUrl} accepted the event.`);
-      return {
-        confirmedRelay: relayUrl,
-        attemptedRelays: [...attemptedRelays],
-      };
-    } catch (error) {
-      if (controller.signal.aborted) {
-        log.warn(`Publish timeout on ${relayUrl} after ${timeoutMs}ms.`);
-      } else {
-        log.warn(`Publish failed on ${relayUrl}:`, error);
-      }
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  throw new Error(
-    "Failed to publish event to any configured Nostr relay. Please try again later."
-  );
-};
-
-const verifyEventWithFallback = async (
-  nostr: NPool,
-  eventId: string,
-  relays: string[],
-  timeoutMs: number,
-  maxAttempts: number
-): Promise<number> => {
-  const relayOrder = uniqueRelays(relays);
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    for (const relayUrl of relayOrder) {
-      log.info(
-        `Verification attempt ${attempt}/${maxAttempts} via ${relayUrl}`
-      );
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-      try {
-        const events = await nostr.query(
-          [
-            {
-              ids: [eventId],
-              kinds: [CKBOOST_SUBMISSION_KIND],
-            },
-          ],
-          { relays: [relayUrl], signal: controller.signal }
-        );
-
-        if (events.length > 0) {
-          log.info(
-            `✅ Event verified on ${relayUrl}! Found ${events.length} copy/copies`
-          );
-          return events.length;
-        }
-
-        log.info(`Relay ${relayUrl} reported 0 copies for this event.`);
-      } catch (error) {
-        if (controller.signal.aborted) {
-          log.warn(
-            `Verification on ${relayUrl} timed out after ${timeoutMs}ms.`
-          );
-        } else {
-          log.error(`Verification error on ${relayUrl}:`, error);
-        }
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-
-    if (attempt < maxAttempts) {
-      log.info(
-        `Waiting ${VERIFICATION_DELAY_MS}ms before retrying verification...`
-      );
-      await delay(VERIFICATION_DELAY_MS);
-    }
-  }
-
-  return 0;
-};
-
-const publishAndVerifyEvent = async (
-  nostr: NPool,
-  event: NostrEvent,
-  failureMessage: string
-): Promise<string[]> => {
-  const relayPriority = getRelayPriority(nostr);
-  log.info("Relay priority list:", relayPriority.join(", "));
-
-  const publishResult = await publishEventWithFallback(
-    nostr,
-    event,
-    relayPriority,
-    RELAY_TIMEOUT_MS
-  );
-  log.info("Event sent to relays");
-  log.info(`Confirmed relay: ${publishResult.confirmedRelay}`);
-  if (publishResult.attemptedRelays.length > 1) {
-    log.info(`Publish attempts: ${publishResult.attemptedRelays.join(", ")}`);
-  }
-
-  log.info("Verifying event storage...");
-  const verificationRelays = uniqueRelays([
-    publishResult.confirmedRelay,
-    ...relayPriority,
-  ]);
-  log.info("Verification relay order:", verificationRelays.join(", "));
-
-  const copies = await verifyEventWithFallback(
-    nostr,
-    event.id,
-    verificationRelays,
-    RELAY_TIMEOUT_MS,
-    MAX_VERIFICATION_ROUNDS
-  );
-
-  if (copies > 0) {
-    log.info("Event stored successfully with ID:", event.id);
-    log.info(
-      "Nevent ID:",
-      nip19.neventEncode({ id: event.id, relays: verificationRelays })
-    );
-    return verificationRelays;
-  }
-
-  throw new Error(failureMessage);
+const persistLocalRelayState = ({
+  event,
+  verifiedRelays,
+  attempts,
+}: {
+  event: NostrEvent;
+  verifiedRelays: string[];
+  attempts: RelayAttemptResult[];
+}): string => {
+  const neventId = encodeVerifiedNevent(event.id, verifiedRelays);
+  cacheNostrEvent({ event, neventId, verifiedRelays });
+  enqueueUnverifiedRelayRepairs({ event, neventId, attempts });
+  return neventId;
 };
 
 /**
@@ -272,7 +134,7 @@ export function useNostrStorage() {
 
       const submissionTimestamp = submission.timestamp || Date.now();
 
-      const { signedEvent, signingKeys } = await createSignedEvent({
+      const { signedEvent } = await createSignedEvent({
         content: submission.content,
         tags: [
           [
@@ -292,26 +154,30 @@ export function useNostrStorage() {
       log.info("Event ID:", signedEvent.id);
       log.info("Event kind:", signedEvent.kind);
 
-      const verificationRelays = await publishAndVerifyEvent(
+      const { verifiedRelays, attempts } = await publishEventWithQuorum({
         nostr,
-        signedEvent,
-        "Failed to verify event storage on Nostr. The submission was published but could not be retrieved. Please try again."
-      );
-
-      // Return nevent ID for storage on-chain with updated reliable relays
-      const recommendedRelays = verificationRelays.length
-        ? verificationRelays.slice(0, 3)
-        : DEFAULT_NOSTR_RELAYS.slice(0, 3);
-      log.info("Recommended relays for nevent:", recommendedRelays.join(", "));
-
-      const neventId = nip19.neventEncode({
-        id: signedEvent.id,
-        relays: recommendedRelays,
+        event: signedEvent,
+        relays: relayCandidates(nostr.relays.keys()),
+        requiredCopies: requiredRelayCopies,
       });
 
-      log.info(`Published and verified submission on Nostr: ${neventId}`);
+      const neventId = persistLocalRelayState({
+        event: signedEvent,
+        verifiedRelays,
+        attempts,
+      });
 
-      return neventId;
+      log.info("Published and verified submission on Nostr", {
+        eventId: signedEvent.id,
+        verifiedRelayCount: verifiedRelays.length,
+      });
+
+      return {
+        neventId,
+        event: signedEvent,
+        verifiedRelays,
+        attempts,
+      } satisfies StoredSubmissionEvent;
     },
   });
 
@@ -348,7 +214,7 @@ export function useNostrStorage() {
         }
       }
 
-      const { signedEvent, signingKeys } = await createSignedEvent({
+      const { signedEvent } = await createSignedEvent({
         content: payload.content,
         tags,
       });
@@ -357,20 +223,17 @@ export function useNostrStorage() {
       log.info("Event ID:", signedEvent.id);
       log.info("Event kind:", signedEvent.kind);
 
-      const verificationRelays = await publishAndVerifyEvent(
+      const { verifiedRelays, attempts } = await publishEventWithQuorum({
         nostr,
-        signedEvent,
-        "Failed to verify Nostr storage for campaign content. Please try again."
-      );
+        event: signedEvent,
+        relays: relayCandidates(nostr.relays.keys()),
+        requiredCopies: requiredRelayCopies,
+      });
 
-      const recommendedRelays = verificationRelays.length
-        ? verificationRelays.slice(0, 3)
-        : DEFAULT_NOSTR_RELAYS.slice(0, 3);
-      log.info("Recommended relays for nevent:", recommendedRelays.join(", "));
-
-      return nip19.neventEncode({
-        id: signedEvent.id,
-        relays: recommendedRelays,
+      return persistLocalRelayState({
+        event: signedEvent,
+        verifiedRelays,
+        attempts,
       });
     },
   });
@@ -403,24 +266,22 @@ export function useNostrStorage() {
         }
       }
 
-      const { signedEvent, signingKeys } = await createSignedEvent({
+      const { signedEvent } = await createSignedEvent({
         content: payload.content,
         tags,
       });
 
-      const verificationRelays = await publishAndVerifyEvent(
+      const { verifiedRelays, attempts } = await publishEventWithQuorum({
         nostr,
-        signedEvent,
-        "Failed to verify Nostr storage for achievement metadata. Please try again."
-      );
+        event: signedEvent,
+        relays: relayCandidates(nostr.relays.keys()),
+        requiredCopies: requiredRelayCopies,
+      });
 
-      const recommendedRelays = verificationRelays.length
-        ? verificationRelays.slice(0, 3)
-        : DEFAULT_NOSTR_RELAYS.slice(0, 3);
-
-      return nip19.neventEncode({
-        id: signedEvent.id,
-        relays: recommendedRelays,
+      return persistLocalRelayState({
+        event: signedEvent,
+        verifiedRelays,
+        attempts,
       });
     },
   });
@@ -458,23 +319,24 @@ export function useNostrStorage() {
         author: signingKeys.pubkey,
       });
 
-      const verificationRelays = await publishAndVerifyEvent(
+      const { verifiedRelays, attempts } = await publishEventWithQuorum({
         nostr,
-        signedEvent,
-        "Failed to verify Nostr storage for event. Please try again."
-      );
+        event: signedEvent,
+        relays: relayCandidates(nostr.relays.keys()),
+        requiredCopies: requiredRelayCopies,
+      });
 
-      const recommendedRelays = verificationRelays.length
-        ? verificationRelays.slice(0, 3)
-        : DEFAULT_NOSTR_RELAYS.slice(0, 3);
+      const neventId = persistLocalRelayState({
+        event: signedEvent,
+        verifiedRelays,
+        attempts,
+      });
 
       return {
-        neventId: nip19.neventEncode({
-          id: signedEvent.id,
-          relays: recommendedRelays,
-        }),
+        neventId,
         author: signingKeys.pubkey,
-        relays: recommendedRelays,
+        relays: verifiedRelays,
+        attempts,
       };
     },
   });
@@ -484,29 +346,12 @@ export function useNostrStorage() {
    */
   const retrieveSubmission = useCallback(
     async (neventId: string) => {
-      if (!nostr) {
-        throw new Error("Nostr not initialized");
-      }
-
-      // Decode nevent to get event ID
-      const decoded = nip19.decode(neventId);
-      if (decoded.type !== "nevent") {
-        throw new Error("Invalid nevent ID");
-      }
-
-      // Query for the event
-      const events = await nostr.query([
-        {
-          ids: [decoded.data.id],
-          kinds: [CKBOOST_SUBMISSION_KIND],
-        },
-      ]);
-
-      if (events.length === 0) {
-        throw new Error("Submission not found on Nostr");
-      }
-
-      const event = events[0];
+      const result = await fetchNeventWithCache({
+        nostr,
+        neventId,
+        configuredRelays: DEFAULT_NOSTR_RELAYS,
+      });
+      const event = result.event;
 
       // Extract metadata from tags
       const metadata: Record<string, string> = {};
@@ -547,7 +392,7 @@ export function useNostrStorage() {
     return useQuery({
       queryKey: ["nostr-submission", neventId],
       queryFn: () => retrieveSubmission(neventId!),
-      enabled: !!neventId && !!nostr,
+      enabled: !!neventId,
       staleTime: 5 * 60 * 1000, // Consider data stale after 5 minutes
       gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
       retry: 3,
@@ -559,65 +404,34 @@ export function useNostrStorage() {
    */
   const retrieveMultipleSubmissions = useCallback(
     async (neventIds: string[]) => {
-      if (!nostr) {
-        throw new Error("Nostr not initialized");
-      }
+      return Promise.all(
+        neventIds.map(async (neventId) => {
+          try {
+            const result = await fetchNeventWithCache({
+              nostr,
+              neventId,
+              configuredRelays: DEFAULT_NOSTR_RELAYS,
+            });
+            const event = result.event;
 
-      // Decode all nevent IDs to get event IDs
-      const eventIds: string[] = [];
-
-      for (const neventId of neventIds) {
-        try {
-          const decoded = nip19.decode(neventId);
-          if (decoded.type === "nevent") {
-            eventIds.push(decoded.data.id);
-          }
-        } catch (error) {
-          log.warn(`Invalid nevent ID: ${neventId}`, error);
-        }
-      }
-
-      if (eventIds.length === 0) {
-        return [];
-      }
-
-      // Query all events at once
-      const events = await nostr.query([
-        {
-          ids: eventIds,
-          kinds: [CKBOOST_SUBMISSION_KIND],
-        },
-      ]);
-
-      // Map events back to results
-      return neventIds.map((neventId) => {
-        try {
-          const decoded = nip19.decode(neventId);
-          if (decoded.type !== "nevent") return null;
-
-          const event = events.find(
-            (e: NostrEvent) => e.id === decoded.data.id
-          );
-
-          if (!event) return null;
-
-          const metadata: Record<string, string> = {};
-          for (const tag of event.tags) {
-            if (tag.length >= 2) {
-              metadata[tag[0]] = tag[1];
+            const metadata: Record<string, string> = {};
+            for (const tag of event.tags) {
+              if (tag.length >= 2) {
+                metadata[tag[0]] = tag[1];
+              }
             }
-          }
 
-          return {
-            neventId,
-            content: event.content,
-            metadata,
-            event,
-          };
-        } catch {
-          return null;
-        }
-      });
+            return {
+              neventId,
+              content: event.content,
+              metadata,
+              event,
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
     },
     [nostr]
   );
@@ -664,20 +478,13 @@ export function useNostrStorage() {
       }
 
       try {
-        const filter: any = {
-          ids: [eventId],
-        };
-        if (kind !== undefined) {
-          filter.kinds = [kind];
-        }
-
-        const events = await nostr.query([filter]);
-
-        if (events.length === 0) {
-          return null;
-        }
-
-        return events[0];
+        const result = await fetchEventFromRelays({
+          nostr,
+          eventId,
+          relays: DEFAULT_NOSTR_RELAYS,
+          kind: kind ?? CKBOOST_SUBMISSION_KIND,
+        });
+        return result.event;
       } catch (error) {
         log.error("Failed to fetch event by ID", { eventId, kind, error });
         throw error;
@@ -688,6 +495,7 @@ export function useNostrStorage() {
 
   return {
     isConnected: !!nostr,
+    requiredRelayCopies,
     storeSubmission,
     storeCampaignContent,
     storeAchievementMetadata,

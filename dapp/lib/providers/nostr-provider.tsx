@@ -1,15 +1,18 @@
 "use client";
 
-import React, { useRef } from 'react';
-import { NostrContext } from '@nostrify/react';
-import { NPool, NRelay1 } from '@nostrify/nostrify'
+import React, { useEffect, useRef } from "react";
+import { NostrContext } from "@nostrify/react";
+import { NPool, NRelay1 } from "@nostrify/nostrify";
+import {
+  DEFAULT_NOSTR_RELAYS as BUILTIN_NOSTR_RELAYS,
+  parseRelayList,
+} from "@/lib/nostr/relay-core";
+import { flushNostrRelayRepairQueue } from "@/lib/nostr/relay-repair-queue";
 
-export const DEFAULT_NOSTR_RELAYS = [
-  'wss://relay.damus.io',     // Most reliable
-  'wss://nos.lol',             // Good uptime  
-  'wss://relay.nostr.band',    // Comprehensive
-  'wss://relay.primal.net',    // Primal relay
-];
+export const DEFAULT_NOSTR_RELAYS = parseRelayList(
+  process.env.NEXT_PUBLIC_NOSTR_RELAYS,
+  BUILTIN_NOSTR_RELAYS
+);
 
 /**
  * Nostr Provider component for the app
@@ -39,6 +42,16 @@ export function NostrProvider({ children }: NostrProviderProps) {
     });
   }
 
+  useEffect(() => {
+    const pool = poolRef.current;
+    if (!pool) return;
+    void flushNostrRelayRepairQueue(pool);
+    const interval = window.setInterval(() => {
+      void flushNostrRelayRepairQueue(pool);
+    }, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   return (
     <NostrContext.Provider value={{ nostr: poolRef.current }}>
       <>{children}</>
@@ -47,4 +60,4 @@ export function NostrProvider({ children }: NostrProviderProps) {
 }
 
 // Re-export the useNostr hook from @nostrify/react
-export { useNostr } from '@nostrify/react';
+export { useNostr } from "@nostrify/react";

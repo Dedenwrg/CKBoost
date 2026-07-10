@@ -14,7 +14,6 @@ import {
   parseUserData,
   extractTypeIdFromUserCell,
 } from "../ckb/user-cells";
-import { NostrStorageService } from "./nostr-storage-service";
 import { deploymentManager } from "../ckb/deployment-manager";
 import { UserData, UserDataLike } from "ssri-ckboost/types";
 import { fetchProtocolCell } from "../ckb/protocol-cells";
@@ -63,7 +62,6 @@ export class UserService {
   private userTypeCodeHash: ccc.Hex;
   private protocolTypeHash: ccc.Hex;
   private userTypeCodeCell: ccc.OutPoint | null = null;
-  private nostrService: NostrStorageService | null = null;
   private useNostrStorage: boolean;
   private initialized: boolean = false;
 
@@ -262,12 +260,6 @@ export class UserService {
         });
       }
 
-      // Initialize Nostr service lazily
-      if (this.useNostrStorage && !this.nostrService) {
-        this.nostrService = new NostrStorageService();
-        log.log("Nostr storage service initialized");
-      }
-
       this.initialized = true;
     } catch (error) {
       log.error("Failed to initialize deployment info:", error);
@@ -333,48 +325,12 @@ export class UserService {
       contentToStore = submissionContent;
       neventId = submissionContent;
     }
-    // If using Nostr storage and content is not already a nevent ID, store the full content there first
-    else if (this.useNostrStorage && this.nostrService) {
-      const userAddress = await this.signer.getRecommendedAddress();
-
-      log.log("Storing submission on Nostr...", {
-        campaignTypeId: campaignTypeId.slice(0, 10) + "...",
-        questId,
-        contentSize: submissionContent.length,
-      });
-
-      try {
-        neventId = await this.nostrService.storeSubmission({
-          campaignTypeId,
-          questId,
-          userAddress,
-          content: submissionContent,
-          timestamp: Date.now(),
-        });
-        log.log("Stored on Nostr with nevent ID", {
-          neventId: neventId.slice(0, 20) + "...",
-          savedBytes: submissionContent.length - neventId.length,
-        });
-      } catch (nostrError) {
-        log.warn("Failed to store on Nostr, will store on-chain:", nostrError);
-        // Continue without Nostr storage
-      }
-
-      // Store only the nevent ID on-chain (much smaller)
-      if (neventId) {
-        contentToStore = neventId;
-        log.log("Using Nostr reference for on-chain storage", {
-          originalSize: submissionContent.length,
-          storedSize: neventId.length,
-          reduction:
-            Math.round((1 - neventId.length / submissionContent.length) * 100) +
-            "%",
-        });
-      } else {
-        // Fallback to storing full content if Nostr failed
-        contentToStore = submissionContent;
-        log.warn("Nostr storage failed, falling back to on-chain storage");
-      }
+    // Nostr publishing must happen in useNostrStorage, where relay quorum is
+    // verified and the full signed event remains available for durable backup.
+    else if (this.useNostrStorage) {
+      throw new Error(
+        "Submission content must be published and verified on Nostr before updating its on-chain reference"
+      );
     } else {
       // Store the full content on-chain (expensive!)
       contentToStore = submissionContent;
@@ -398,7 +354,6 @@ export class UserService {
         userTypeId: existingUserData.typeId.slice(0, 10) + "...",
         existingSubmissions:
           existingUserData.userData?.submission_records.length || 0,
-        contentToStore: contentToStore.slice(0, 50) + "...",
         isNeventId: contentToStore.startsWith("nevent1"),
       });
 
@@ -415,7 +370,6 @@ export class UserService {
         userName: userVerificationData?.name || "Anonymous",
         hasTwitter: !!userVerificationData?.twitter,
         hasDiscord: !!userVerificationData?.discord,
-        contentToStore: contentToStore.slice(0, 50) + "...",
         isNeventId: contentToStore.startsWith("nevent1"),
       });
 
@@ -448,9 +402,7 @@ export class UserService {
   }> {
     // Check if the content is a nevent ID (Nostr reference)
     if (submissionContent.startsWith("nevent1")) {
-      // Note: NostrStorageService only prepares events, doesn't retrieve them
-      // Retrieval would need to be done through the React hook
-      // For now, return the nevent ID with a flag
+      // Retrieval is handled by the shared React Nostr fetch hook.
       return {
         content: submissionContent,
         metadata: { type: "nevent", stored: "nostr" },
@@ -575,9 +527,8 @@ export class UserService {
         // Check if content is a Nostr reference
         // The submission_content might be hex-encoded
         let decodedContent = record.submission_content;
-        log.log("Raw submission content:", {
-          content: record.submission_content.slice(0, 50) + "...",
-          length: record.submission_content.length,
+        log.log("Reading submission reference", {
+          contentLength: record.submission_content.length,
         });
 
         try {
@@ -586,20 +537,14 @@ export class UserService {
             // Remove 0x prefix and decode
             const hexContent = record.submission_content.slice(2);
             decodedContent = Buffer.from(hexContent, "hex").toString("utf-8");
-            log.log(
-              "Decoded from 0x hex:",
-              decodedContent.slice(0, 50) + "..."
-            );
+            log.log("Decoded submission reference from 0x hex");
           } else if (/^[0-9a-fA-F]+$/.test(record.submission_content)) {
             // Pure hex string without 0x prefix
             decodedContent = Buffer.from(
               record.submission_content,
               "hex"
             ).toString("utf-8");
-            log.log(
-              "Decoded from pure hex:",
-              decodedContent.slice(0, 50) + "..."
-            );
+            log.log("Decoded submission reference from hex");
           }
         } catch (e) {
           // If decoding fails, use original content
@@ -1536,11 +1481,6 @@ export class UserService {
     this.useNostrStorage = useNostr;
     log.log("Nostr storage toggled", { enabled: useNostr });
 
-    // Initialize Nostr service if needed
-    if (useNostr && !this.nostrService) {
-      this.nostrService = new NostrStorageService();
-      log.log("Nostr service initialized on demand");
-    }
   }
 
   /**
@@ -2008,7 +1948,6 @@ export class UserService {
    * Clean up resources
    */
   dispose() {
-    // NostrStorageService doesn't have a close method
-    // Cleanup handled automatically
+    // Nostr pool cleanup is owned by the React provider.
   }
 }

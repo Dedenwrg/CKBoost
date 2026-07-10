@@ -100,7 +100,10 @@ export function SubmissionReviewModal({
         return;
       }
 
-      log.log("Resolving submission content", content);
+      log.log("Resolving submission content reference", {
+        isNevent: content.startsWith("nevent1"),
+        contentLength: content.length,
+      });
       const resolved = await resolveSubmissionContent(content, fetchSubmission);
       setSubmissionContent(
         resolved.resolvedContent ||

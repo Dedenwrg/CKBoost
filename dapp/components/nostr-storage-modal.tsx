@@ -37,6 +37,7 @@ import {
 import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { createScopedLogger } from "ssri-ckboost";
 import { isNostrSubmissionData } from "@/types/submission";
+import type { RelayAttemptResult } from "@/lib/nostr/relay-core";
 
 const log = createScopedLogger("NostrStorageModal");
 
@@ -197,6 +198,9 @@ interface NostrStorageModalProps {
   queueItems?: QueueItem[];
   queueIndex?: number;
   cachedPayloads?: CachedPayloadMap;
+  relayAttempts?: RelayAttemptResult[];
+  verifiedRelays?: string[];
+  requiredRelayCopies?: number;
 }
 
 export function NostrStorageModal({
@@ -212,6 +216,9 @@ export function NostrStorageModal({
   queueItems = [],
   queueIndex = 0,
   cachedPayloads = {},
+  relayAttempts = [],
+  verifiedRelays = [],
+  requiredRelayCopies = 2,
 }: NostrStorageModalProps) {
   const { fetchSubmission } = useNostrFetch();
   const [status, setStatus] = useState<
@@ -232,6 +239,9 @@ export function NostrStorageModal({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [verifiedNeventId, setVerifiedNeventId] = useState<string | null>(null);
+  const [verifiedSource, setVerifiedSource] = useState<
+    "local" | "relay" | null
+  >(null);
   const prevOpenRef = useRef(false);
   const [itemPayloads, setItemPayloads] = useState<
     Record<string, ItemPreviewPayload>
@@ -652,6 +662,7 @@ export function NostrStorageModal({
       setTxError(null);
       setTxHash(null);
       setVerifiedNeventId(null);
+      setVerifiedSource(null);
       setOpenSections([]);
     }
     prevOpenRef.current = isOpen;
@@ -710,12 +721,13 @@ export function NostrStorageModal({
     setVerifiedMetadata({});
     setVerifiedContent("");
     setVerifiedNeventId(null);
+    setVerifiedSource(null);
     setTxStatus("idle");
     setTxError(null);
     setTxHash(null);
 
     try {
-      log.log("Verifying Nostr storage for:", neventId);
+      log.log("Verifying Nostr storage reference");
 
       // Try to fetch the submission from Nostr
       const result = await fetchSubmission(neventId);
@@ -724,6 +736,7 @@ export function NostrStorageModal({
         log.log("✅ Successfully retrieved content from Nostr");
         setVerifiedContent(result.content);
         setVerifiedNeventId(neventId);
+        setVerifiedSource(result.source || null);
         setVerifiedMetadata(result.metadata || {});
         setStatus("success");
       } else {
@@ -913,10 +926,47 @@ export function NostrStorageModal({
                       Retry attempt: {retryCount}
                     </p>
                   )}
+                  {status === "success" && verifiedSource && (
+                    <p className="text-sm text-muted-foreground">
+                      Source: {" "}
+                      {verifiedSource === "local"
+                        ? "local cache"
+                        : "Nostr relay"}
+                    </p>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {relayAttempts.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  Relay quorum: {verifiedRelays.length}/{requiredRelayCopies}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {relayAttempts.map((attempt) => (
+                  <div
+                    key={attempt.relay}
+                    className="flex items-center justify-between gap-3 text-xs"
+                  >
+                    <span className="font-mono break-all">{attempt.relay}</span>
+                    <span
+                      className={
+                        attempt.verification === "verified"
+                          ? "text-green-600"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {`${attempt.publish} / ${attempt.verification} (${attempt.elapsedMs}ms)`}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Queue & storage details */}
           {queueSummary.length > 0 && (

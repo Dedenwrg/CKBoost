@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react"
 import { NostrStorageModal } from "@/components/nostr-storage-modal"
+import type { RelayAttemptResult } from "@/lib/nostr/relay-core"
 
 type Mode = "storing" | "verifying"
 
@@ -21,6 +22,9 @@ type OpenArgs = {
   }>
   queueIndex?: number
   cachedPayloads?: Record<string, { content: string; metadata: Record<string, string> }>
+  relayAttempts?: RelayAttemptResult[]
+  verifiedRelays?: string[]
+  requiredRelayCopies?: number
 }
 
 type StorageModalContextType = {
@@ -54,6 +58,9 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
   >([])
   const [queueIndex, setQueueIndex] = useState<number | undefined>(undefined)
   const [cachedPayloads, setCachedPayloads] = useState<Record<string, { content: string; metadata: Record<string, string> }>>({})
+  const [relayAttempts, setRelayAttempts] = useState<RelayAttemptResult[]>([])
+  const [verifiedRelays, setVerifiedRelays] = useState<string[]>([])
+  const [requiredRelayCopies, setRequiredRelayCopies] = useState<number | undefined>(undefined)
   const onConfirmRef = useRef<(() => Promise<string | void>) | null>(null)
   const onCloseRef = useRef<(() => void) | null>(null)
 
@@ -69,6 +76,9 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
     setQueueItems(args.queueItems || [])
     setQueueIndex(args.queueIndex)
     setCachedPayloads(args.cachedPayloads || {})
+    setRelayAttempts(args.relayAttempts || [])
+    setVerifiedRelays(args.verifiedRelays || [])
+    setRequiredRelayCopies(args.requiredRelayCopies)
     setIsOpen(true)
   }, [])
 
@@ -88,6 +98,9 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
     setQueueItems([])
     setQueueIndex(undefined)
     setCachedPayloads({})
+    setRelayAttempts([])
+    setVerifiedRelays([])
+    setRequiredRelayCopies(undefined)
   }, [])
 
   const handleConfirm = useCallback(async () => {
@@ -113,6 +126,9 @@ export function StorageModalProvider({ children }: { children: React.ReactNode }
         queueItems={queueItems}
         queueIndex={queueIndex}
         cachedPayloads={cachedPayloads}
+        relayAttempts={relayAttempts}
+        verifiedRelays={verifiedRelays}
+        requiredRelayCopies={requiredRelayCopies}
       />
     </StorageModalContext.Provider>
   )

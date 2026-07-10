@@ -36,8 +36,22 @@ import { useNostrFetch } from "@/hooks/use-nostr-fetch";
 import { useStorageModal } from "@/lib/providers/storage-modal-provider";
 import { isNostrSubmissionData, QuestSubtask } from "@/types/submission";
 import { createScopedLogger } from "ssri-ckboost";
+import type { NostrFetchErrorCode } from "@/hooks/use-nostr-fetch";
 
 const log = createScopedLogger("QuestSubmissionForm");
+
+const fetchFailureMessage = (code: NostrFetchErrorCode | null): string => {
+  switch (code) {
+    case "relay_unavailable":
+      return "The configured Nostr relays could not be reached from this browser.";
+    case "event_absent":
+      return "The event is not present on the advertised or configured Nostr relays.";
+    case "invalid_event":
+      return "The retrieved event failed its id, signature, or kind validation.";
+    default:
+      return "The submission could not be retrieved from decentralized storage.";
+  }
+};
 
 interface QuestSubmissionFormProps {
   quest: {
@@ -71,8 +85,12 @@ export function QuestSubmissionForm({
     isLoading: userLoading,
   } = useUser();
   const { userAddress } = useProtocol();
-  const { storeSubmission, isConnected: nostrConnected } = useNostrStorage();
-  const { fetchSubmission } = useNostrFetch();
+  const {
+    storeSubmission,
+    isConnected: nostrConnected,
+    requiredRelayCopies,
+  } = useNostrStorage();
+  const { fetchSubmission, errorCode: nostrFetchErrorCode } = useNostrFetch();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +102,6 @@ export function QuestSubmissionForm({
   } | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [nostrFetchError, setNostrFetchError] = useState(false);
-  const [showStorageModal, setShowStorageModal] = useState(false);
   const [pendingNeventId, setPendingNeventId] = useState<string | null>(null);
   const [pendingSubmissionData, setPendingSubmissionData] = useState<{
     campaignTypeId: ccc.Hex;
@@ -441,8 +458,6 @@ Lines        : 93.84% ( 183/195 )
     setError(null);
 
     // First, store the full content on Nostr using the React hook
-    let nostrNeventId: string | undefined;
-
     // When editing, always create a new Nostr event for the updated content
     // This ensures the latest content is stored on Nostr
     if (nostrConnected && userAddress) {
@@ -460,11 +475,12 @@ Lines        : 93.84% ( 183/195 )
           content: submissionContent,
           timestamp: Date.now(),
         });
-        nostrNeventId = result;
-        log.log("✅ Successfully stored on Nostr!");
-        log.log("Stored nevent ID:", nostrNeventId);
-        log.log("Full nevent ID that will be submitted:", nostrNeventId);
-        log.log("Is this an edit?", isEditMode);
+        const nostrNeventId = result.neventId;
+        log.log("Submission stored on Nostr", {
+          eventId: result.event.id,
+          verifiedRelayCount: result.verifiedRelays.length,
+          isEdit: isEditMode,
+        });
 
         // Store the submission data for later - use the nevent ID directly
         setPendingSubmissionData({
@@ -473,8 +489,6 @@ Lines        : 93.84% ( 183/195 )
           contentToStore: nostrNeventId, // Use the nevent ID directly
         });
         setPendingNeventId(nostrNeventId);
-        log.log("Pending data set with nevent ID:", nostrNeventId);
-
         // Open global modal after successful Nostr storage
         const questIdNum = Number(quest.quest_id || questIndex + 1);
         storageModal.open({
@@ -491,37 +505,29 @@ Lines        : 93.84% ( 183/195 )
               await checkSubmission();
             }
           },
+          relayAttempts: result.attempts,
+          verifiedRelays: result.verifiedRelays,
+          requiredRelayCopies,
         });
         setIsSubmitting(false);
 
         // Don't proceed with transaction yet - wait for verification
         return;
       } catch (nostrError) {
-        log.warn("Failed to store on Nostr, will store on-chain:", nostrError);
+        log.warn("Failed to reach the required Nostr relay quorum", nostrError);
+        setError(
+          nostrError instanceof Error
+            ? nostrError.message
+            : "Failed to verify two independent Nostr relay copies"
+        );
         setIsSubmitting(false);
-        // Continue without Nostr storage
+        return;
       }
     }
 
-    // If no Nostr storage, prepare data and show modal for direct submission
-    setPendingSubmissionData({
-      campaignTypeId,
-      questId: Number(quest.quest_id || questIndex + 1),
-      contentToStore: submissionContent,
-    });
-    if (pendingNeventId) {
-      storageModal.open({
-        neventId: pendingNeventId,
-        mode: "verifying",
-        onConfirm: async () => finalizeSubmission(),
-        onClose: async () => {
-          setPendingNeventId(null);
-          setPendingSubmissionData(null);
-          setIsSubmitting(false);
-          if (hasSubmitted) await checkSubmission();
-        },
-      });
-    }
+    setError(
+      "Nostr storage is unavailable. The existing on-chain submission was not changed."
+    );
   };
 
   // Separate function to finalize submission after verification
@@ -536,16 +542,6 @@ Lines        : 93.84% ( 183/195 )
         campaignTypeId || pendingSubmissionData?.campaignTypeId;
       const finalQuestId = questIdParam || pendingSubmissionData?.questId;
       const finalContent = content || pendingSubmissionData?.contentToStore;
-
-      log.log("📍 finalizeSubmission called with:", {
-        providedCampaignTypeId: campaignTypeId,
-        providedQuestId: questIdParam,
-        providedContent: content?.slice(0, 50),
-        pendingData: pendingSubmissionData,
-        pendingNeventId,
-        finalContent: finalContent?.slice(0, 50),
-        isNeventId: finalContent?.startsWith("nevent1"),
-      });
 
       if (!finalCampaignTypeId || !finalQuestId || !finalContent) {
         throw new Error("Missing submission data");
@@ -711,8 +707,7 @@ Lines        : 93.84% ( 183/195 )
                     storage
                   </AlertDescription>
                   <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
-                    Your submission is recorded on-chain, but the content needs
-                    to be resubmitted to restore access.
+                    {fetchFailureMessage(nostrFetchErrorCode)}
                   </p>
                 </div>
                 {!isAccepted && (

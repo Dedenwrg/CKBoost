@@ -2,6 +2,7 @@ import type { Handler } from "@netlify/functions";
 import { createLogger } from "../lib/log";
 import { SimplePool, Filter, Event, nip19 } from "nostr-tools";
 import { WebSocket } from "ws";
+import { getConfiguredNostrRelays } from "../configs/nostr";
 
 if (!global.WebSocket) {
   // @ts-expect-error WebSocket polyfill
@@ -51,12 +52,7 @@ const parseTargetEventId = (raw?: string | null): string | null => {
 
 // Use the same relay priority as the dapp client to ensure event links resolve
 // correctly when opened on njump.me or other viewers.
-const RELAYS = [
-  "wss://relay.damus.io",
-  "wss://nos.lol",
-  "wss://relay.nostr.band",
-  "wss://relay.primal.net",
-];
+const RELAYS = getConfiguredNostrRelays();
 
 // --- Types ---
 

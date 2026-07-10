@@ -1,201 +1,88 @@
-import { NSecSigner, type NPool } from "@nostrify/nostrify";
-import { NostrEvent } from "@nostrify/types";
-import {
-  nip19,
-  generateSecretKey,
-  getPublicKey,
-  getEventHash,
-} from "nostr-tools";
+import type { NPool } from "@nostrify/nostrify";
+import type { NostrEvent } from "@nostrify/types";
 import { createLogger } from "./log";
 import {
-  CKBOOST_SUBMISSION_KIND,
-  DEFAULT_NOSTR_RELAYS,
+  getConfiguredNostrRelays,
   MAX_VERIFICATION_ROUNDS,
   RELAY_TIMEOUT_MS,
   VERIFICATION_DELAY_MS,
 } from "../configs/nostr";
+import {
+  DEFAULT_RELAY_QUORUM,
+  isValidCkboostEvent,
+  publishEventWithQuorum,
+} from "../../lib/nostr/relay-core";
 
 const log = createLogger("NetlifyNostr");
-
-type PublishResult = {
-  confirmedRelay: string;
-  attemptedRelays: string[];
-};
-
-const uniqueRelays = (relays: string[]): string[] => [...new Set(relays)];
-
+const unique = (values: string[]) => [...new Set(values)];
 const delay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-const getRelayPriority = (nostr?: NPool): string[] => {
-  if (!nostr) {
-    return [...DEFAULT_NOSTR_RELAYS];
-  }
-
-  const activeRelays = Array.from(nostr.relays.keys());
-  if (!activeRelays.length) {
-    return [...DEFAULT_NOSTR_RELAYS];
-  }
-
-  return uniqueRelays([...activeRelays, ...DEFAULT_NOSTR_RELAYS]);
-};
-
-const publishEventWithFallback = async (
-  nostr: NPool,
-  event: NostrEvent,
-  relays: string[],
-  timeoutMs: number
-): Promise<PublishResult> => {
-  const attemptedRelays: string[] = [];
-  const neventId = nip19.neventEncode({ id: event.id, relays: relays });
-  log.info("Publishing neventId:", neventId);
-
-  for (const relayUrl of relays) {
-    attemptedRelays.push(relayUrl);
-    log.info(`Attempting to publish via ${relayUrl}`);
-    log.info("Event tags:", event.tags);
-    log.info("Event content:", event.content);
-    log.info("Event id:", event.id);
-    log.info("Event pubkey:", event.pubkey);
-    log.info("Event sig:", event.sig);
-    log.info("Event created_at:", event.created_at);
-    log.info("Event kind:", event.kind);
-    log.info("Event content:", event.content);
-    log.info("Event id:", event.id);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      await nostr.event(event, {
-        relays: [relayUrl],
-        signal: controller.signal,
-      });
-      log.info(`Relay ${relayUrl} accepted the event.`);
-      return {
-        confirmedRelay: relayUrl,
-        attemptedRelays: [...attemptedRelays],
-      };
-    } catch (error) {
-      if (controller.signal.aborted) {
-        log.warn(`Publish timeout on ${relayUrl} after ${timeoutMs}ms.`);
-      } else {
-        log.warn(`Publish failed on ${relayUrl}:`, error);
-      }
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  throw new Error(
-    "Failed to publish event to any configured Nostr relay. Please try again later."
-  );
-};
-
-const verifyEventWithFallback = async (
-  nostr: NPool,
-  eventId: string,
-  relays: string[],
-  timeoutMs: number,
-  maxAttempts: number
-): Promise<number> => {
-  const relayOrder = uniqueRelays(relays);
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    for (const relayUrl of relayOrder) {
-      log.info(
-        `Verification attempt ${attempt}/${maxAttempts} via ${relayUrl}`
-      );
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-      try {
-        const events = await nostr.query(
-          [
-            {
-              ids: [eventId],
-              kinds: [CKBOOST_SUBMISSION_KIND],
-            },
-          ],
-          { relays: [relayUrl], signal: controller.signal }
-        );
-
-        if (events.length > 0) {
-          log.info(
-            `✅ Event verified on ${relayUrl}! Found ${events.length} copy/copies`
-          );
-          return events.length;
-        }
-
-        log.info(`Relay ${relayUrl} reported 0 copies for this event.`);
-      } catch (error) {
-        if (controller.signal.aborted) {
-          log.warn(
-            `Verification on ${relayUrl} timed out after ${timeoutMs}ms.`
-          );
-        } else {
-          log.error(`Verification error on ${relayUrl}:`, error);
-        }
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-
-    if (attempt < maxAttempts) {
-      log.info(
-        `Waiting ${VERIFICATION_DELAY_MS}ms before retrying verification...`
-      );
-      await delay(VERIFICATION_DELAY_MS);
-    }
-  }
-
-  return 0;
-};
 
 export const publishAndVerifyEvent = async (
   nostr: NPool,
   event: NostrEvent,
   failureMessage: string
 ): Promise<string[]> => {
-  const relayPriority = getRelayPriority(nostr);
-  log.info("Relay priority list:", relayPriority.join(", "));
-
-  const publishResult = await publishEventWithFallback(
-    nostr,
-    event,
-    relayPriority,
-    RELAY_TIMEOUT_MS
-  );
-  log.info("Event sent to relays");
-  log.info(`Confirmed relay: ${publishResult.confirmedRelay}`);
-  if (publishResult.attemptedRelays.length > 1) {
-    log.info(`Publish attempts: ${publishResult.attemptedRelays.join(", ")}`);
+  try {
+    const result = await publishEventWithQuorum({
+      nostr,
+      event,
+      relays: unique(getConfiguredNostrRelays()),
+      requiredCopies: DEFAULT_RELAY_QUORUM,
+      timeoutMs: Math.min(RELAY_TIMEOUT_MS, 5_000),
+      verificationRounds: 2,
+    });
+    log.info("Published and verified Nostr event", {
+      eventId: event.id,
+      verifiedRelayCount: result.verifiedRelays.length,
+      attempts: result.attempts.map((attempt) => ({
+        relay: attempt.relay,
+        publish: attempt.publish,
+        verification: attempt.verification,
+        elapsedMs: attempt.elapsedMs,
+      })),
+    });
+    return result.verifiedRelays;
+  } catch (error) {
+    log.error("Nostr relay quorum failed", {
+      eventId: event.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new Error(failureMessage, { cause: error });
   }
+};
 
-  log.info("Verifying event storage...");
-  const verificationRelays = uniqueRelays([
-    publishResult.confirmedRelay,
-    ...relayPriority,
-  ]);
-  log.info("Verification relay order:", verificationRelays.join(", "));
-
-  const copies = await verifyEventWithFallback(
-    nostr,
-    event.id,
-    verificationRelays,
-    RELAY_TIMEOUT_MS,
-    MAX_VERIFICATION_ROUNDS
+const fetchReplaceableFromRelay = async (
+  nostr: NPool,
+  relay: string,
+  author: string,
+  dTag: string
+): Promise<NostrEvent | null> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    Math.min(RELAY_TIMEOUT_MS, 5_000)
   );
-
-  if (copies > 0) {
-    log.info("Event stored successfully with ID:", event.id);
-    log.info(
-      "Nevent ID:",
-      nip19.neventEncode({ id: event.id, relays: verificationRelays })
+  try {
+    const events = await nostr.query(
+      [{ authors: [author], "#d": [dTag], kinds: [30078] }],
+      { relays: [relay], signal: controller.signal }
     );
-    return verificationRelays;
+    return (
+      events
+        .filter(
+          (event) =>
+            event.pubkey === author &&
+            event.tags.some((tag) => tag[0] === "d" && tag[1] === dTag) &&
+            isValidCkboostEvent(event, event.id, 30078)
+        )
+        .sort((a, b) => b.created_at - a.created_at)[0] || null
+    );
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  throw new Error(failureMessage);
 };
 
 export async function fetchReplaceableEvent(
@@ -203,66 +90,24 @@ export async function fetchReplaceableEvent(
   author: string,
   dTag: string
 ): Promise<NostrEvent | null> {
-  const relayOrder = uniqueRelays(DEFAULT_NOSTR_RELAYS);
-
-  for (let attempt = 1; attempt <= MAX_VERIFICATION_ROUNDS; attempt++) {
-    log.info(
-      `Fetching event attempt ${attempt}/${MAX_VERIFICATION_ROUNDS} via ${relayOrder.length} relay(s)`
-    );
-
-    const result = await Promise.race(
-      relayOrder.map(async (relayUrl) => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), RELAY_TIMEOUT_MS);
-
-        try {
-          log.info(`Querying relay ${relayUrl}`);
-          const events = await nostr.query(
-            [
-              {
-                authors: [author],
-                "#d": [dTag],
-                kinds: [CKBOOST_SUBMISSION_KIND],
-              },
-            ],
-            { relays: [relayUrl], signal: controller.signal }
-          );
-
-          if (events.length > 0) {
-            log.info(
-              `✅ Event found on ${relayUrl}! Found ${events.length} copy/copies`
-            );
-            return { success: true, event: events[0], relayUrl };
-          }
-
-          log.info(`Relay ${relayUrl} reported 0 copies for this event.`);
-          return { success: false, event: null, relayUrl };
-        } catch (error) {
-          if (controller.signal.aborted) {
-            log.warn(
-              `Fetching event on ${relayUrl} timed out after ${RELAY_TIMEOUT_MS}ms.`
-            );
-          } else {
-            log.error(`Fetching event error on ${relayUrl}:`, error);
-          }
-          return { success: false, event: null, relayUrl };
-        } finally {
-          clearTimeout(timeout);
-        }
+  const relays = unique(getConfiguredNostrRelays());
+  for (let round = 1; round <= MAX_VERIFICATION_ROUNDS; round++) {
+    const winner = await Promise.any(
+      relays.map(async (relay) => {
+        const event = await fetchReplaceableFromRelay(
+          nostr,
+          relay,
+          author,
+          dTag
+        );
+        if (!event) throw new Error("Event not found on relay");
+        return event;
       })
-    );
-
-    if (result?.success && result?.event) {
-      return result.event;
-    }
-
-    if (attempt < MAX_VERIFICATION_ROUNDS) {
-      log.info(
-        `Waiting ${VERIFICATION_DELAY_MS}ms before retrying fetching event...`
-      );
-      await delay(VERIFICATION_DELAY_MS);
+    ).catch(() => null);
+    if (winner) return winner;
+    if (round < MAX_VERIFICATION_ROUNDS) {
+      await delay(Math.min(VERIFICATION_DELAY_MS, 1_000));
     }
   }
-
   return null;
 }

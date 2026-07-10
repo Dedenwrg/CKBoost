@@ -3,17 +3,25 @@
 import { useState, useCallback } from "react";
 import { DEFAULT_NOSTR_RELAYS, useNostr } from "@/lib/providers/nostr-provider";
 import { NostrEvent, NostrFilter } from "@nostrify/types";
-import { nip19 } from "nostr-tools";
 import { createScopedLogger } from "ssri-ckboost";
 import { Comment } from "@/components/social-interactions";
 import { NPool } from "@nostrify/nostrify";
+import {
+  DEFAULT_FETCH_ROUNDS,
+  DEFAULT_RELAY_TIMEOUT_MS,
+  isValidCkboostEvent,
+  mergeRelayLists,
+} from "@/lib/nostr/relay-core";
+import {
+  fetchNeventWithCache,
+  NostrEventFetchError,
+  type NostrFetchErrorCode,
+} from "@/lib/nostr/browser-fetch";
+export type { NostrFetchErrorCode } from "@/lib/nostr/browser-fetch";
 const log = createScopedLogger("useNostrFetch");
 
 // Custom kind for CKBoost quest submissions
 const CKBOOST_SUBMISSION_KIND = 30078;
-const MAX_FETCH_ROUNDS = 3;
-const FETCH_DELAY_MS = 10000;
-const RELAY_TIMEOUT_MS = 50000;
 
 export interface ParsedSubmission {
   campaignTypeId: string;
@@ -27,6 +35,8 @@ export interface ParsedSubmission {
   created_at: number;
   metadata: Record<string, string>;
   event?: NostrEvent;
+  source?: "local" | "relay";
+  sourceRelay?: string;
 }
 
 interface FetchFilterOptions {
@@ -44,24 +54,7 @@ export function useNostrFetch() {
   const { nostr } = useNostr();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const parseNeventId = (
-    neventId: string
-  ): { id: string; relays?: string[] } | null => {
-    try {
-      const decoded = nip19.decode(neventId);
-      if (decoded.type === "nevent") {
-        return {
-          id: decoded.data.id,
-          relays: decoded.data.relays,
-        };
-      }
-      return null;
-    } catch (error) {
-      log.error("Failed to decode nevent:", error);
-      return null;
-    }
-  };
+  const [errorCode, setErrorCode] = useState<NostrFetchErrorCode | null>(null);
 
   const extractMetadata = (event: NostrEvent): Record<string, string> => {
     const metadata: Record<string, string> = {};
@@ -187,79 +180,18 @@ export function useNostrFetch() {
 
   const fetchSubmission = useCallback(
     async (neventId: string): Promise<ParsedSubmission | null> => {
-      if (!nostr) {
-        setError("Nostr pool not initialized");
-        return null;
-      }
-
       setIsLoading(true);
       setError(null);
+      setErrorCode(null);
 
       try {
-        // Parse the nevent ID
-        const parsed = parseNeventId(neventId);
-        if (!parsed) {
-          throw new Error("Invalid nevent ID format");
-        }
+        const fetched = await fetchNeventWithCache({
+          nostr,
+          neventId,
+          configuredRelays: DEFAULT_NOSTR_RELAYS,
+        });
+        const event = fetched.event;
 
-        // Create filter for the specific event
-        const filter: NostrFilter = {
-          ids: [parsed.id],
-          kinds: [CKBOOST_SUBMISSION_KIND],
-        };
-
-        // Query the pool for the event
-        const events: NostrEvent[] = [];
-
-        // Use the pool to query for events with timeout
-        const timeoutPromise = new Promise<void>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Request timeout after 10 seconds")),
-            10000
-          )
-        );
-
-        const fetchPromise = (async () => {
-          try {
-            for await (const msg of nostr.req([filter])) {
-              if (msg[0] === "EVENT") {
-                const event = msg[2];
-                events.push(event);
-                break; // We only need one event
-              }
-              if (msg[0] === "EOSE") {
-                break; // End of stored events
-              }
-            }
-          } catch (err) {
-            log.error("Error in Nostr query:", err);
-            throw err;
-          }
-        })();
-
-        // Wait for either fetch to complete or timeout
-        try {
-          await Promise.race([fetchPromise, timeoutPromise]);
-        } catch (err) {
-          log.error("Failed to fetch from relays:", err);
-          // Try without timeout as fallback
-          if (err instanceof Error && err.message.includes("timeout")) {
-            log.info("Retrying without timeout...");
-            // Give it one more try with longer timeout
-            await Promise.race([
-              fetchPromise,
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Final timeout")), 5000)
-              ),
-            ]).catch(() => {});
-          }
-        }
-
-        if (events.length === 0) {
-          throw new Error("Event not found on any relay");
-        }
-
-        const event = events[0];
         const metadata = extractMetadata(event);
 
         // Parse the submission data
@@ -288,14 +220,21 @@ export function useNostrFetch() {
             submissionContent.timestamp || parseInt(metadata.timestamp || "0"),
           eventId: event.id,
           author: event.pubkey,
-          relays: parsed.relays || [],
+          relays: fetched.advertisedRelays,
           created_at: event.created_at,
           metadata,
           event,
+          source: fetched.source,
+          sourceRelay: fetched.relay,
         };
 
         return submission;
       } catch (err) {
+        setErrorCode(
+          err instanceof NostrEventFetchError
+            ? err.code
+            : "relay_unavailable"
+        );
         const errorMessage =
           err instanceof Error ? err.message : "Failed to fetch submission";
         setError(errorMessage);
@@ -310,81 +249,16 @@ export function useNostrFetch() {
 
   const fetchEventWithNeventId = useCallback(
     async (neventId: string): Promise<NostrEvent | null> => {
-      if (!nostr) {
-        setError("Nostr pool not initialized");
-        return null;
-      }
-
       setIsLoading(true);
       setError(null);
 
       try {
-        // Parse the nevent ID
-        const parsed = parseNeventId(neventId);
-        if (!parsed) {
-          throw new Error("Invalid nevent ID format");
-        }
-
-        // Create filter for the specific event
-        const filter: NostrFilter = {
-          ids: [parsed.id],
-          kinds: [CKBOOST_SUBMISSION_KIND],
-        };
-
-        // Query the pool for the event
-        const events: NostrEvent[] = [];
-
-        // Use the pool to query for events with timeout
-        const timeoutPromise = new Promise<void>((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Request timeout after 10 seconds")),
-            10000
-          )
-        );
-
-        const fetchPromise = (async () => {
-          try {
-            for await (const msg of nostr.req([filter])) {
-              if (msg[0] === "EVENT") {
-                const event = msg[2];
-                events.push(event);
-                break; // We only need one event
-              }
-              if (msg[0] === "EOSE") {
-                break; // End of stored events
-              }
-            }
-          } catch (err) {
-            log.error("Error in Nostr query:", err);
-            throw err;
-          }
-        })();
-
-        // Wait for either fetch to complete or timeout
-        try {
-          await Promise.race([fetchPromise, timeoutPromise]);
-        } catch (err) {
-          log.error("Failed to fetch from relays:", err);
-          // Try without timeout as fallback
-          if (err instanceof Error && err.message.includes("timeout")) {
-            log.info("Retrying without timeout...");
-            // Give it one more try with longer timeout
-            await Promise.race([
-              fetchPromise,
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Final timeout")), 5000)
-              ),
-            ]).catch(() => {});
-          }
-        }
-
-        if (events.length === 0) {
-          throw new Error("Event not found on any relay");
-        }
-
-        const event = events[0];
-
-        return event;
+        const result = await fetchNeventWithCache({
+          nostr,
+          neventId,
+          configuredRelays: DEFAULT_NOSTR_RELAYS,
+        });
+        return result.event;
       } catch (err) {
         const errorMessage =
           err instanceof Error
@@ -451,7 +325,6 @@ export function useNostrFetch() {
     [nostr]
   );
 
-  const uniqueRelays = (relays: string[]): string[] => [...new Set(relays)];
   const delay = (ms: number) =>
     new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -459,67 +332,72 @@ export function useNostrFetch() {
     author: string,
     dTag: string
   ): Promise<NostrEvent | null> {
-    const relayOrder = uniqueRelays(DEFAULT_NOSTR_RELAYS);
+    if (!nostr) return null;
+    const relayOrder = mergeRelayLists(DEFAULT_NOSTR_RELAYS);
 
-    for (let attempt = 1; attempt <= MAX_FETCH_ROUNDS; attempt++) {
+    for (let attempt = 1; attempt <= DEFAULT_FETCH_ROUNDS; attempt++) {
       log.info(
-        `Fetching event attempt ${attempt}/${MAX_FETCH_ROUNDS} via ${relayOrder.length} relay(s)`
+        `Fetching event attempt ${attempt}/${DEFAULT_FETCH_ROUNDS} via ${relayOrder.length} relay(s)`
       );
 
-      const result = await Promise.race(
-        relayOrder.map(async (relayUrl) => {
-          const controller = new AbortController();
-          const timeout = setTimeout(
-            () => controller.abort(),
-            RELAY_TIMEOUT_MS
+      const requests = relayOrder.map(async (relayUrl) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(
+          () => controller.abort(),
+          DEFAULT_RELAY_TIMEOUT_MS
+        );
+
+        try {
+          const events = await nostr.query(
+            [
+              {
+                authors: [author],
+                "#d": [dTag],
+                kinds: [CKBOOST_SUBMISSION_KIND],
+              },
+            ],
+            { relays: [relayUrl], signal: controller.signal }
           );
 
-          try {
-            log.info(`Querying relay ${relayUrl}`);
-            const events = await nostr.query(
-              [
-                {
-                  authors: [author],
-                  "#d": [dTag],
-                  kinds: [CKBOOST_SUBMISSION_KIND],
-                },
-              ],
-              { relays: [relayUrl], signal: controller.signal }
-            );
+          const event = events
+            .filter(
+              (candidate) =>
+                candidate.pubkey === author &&
+                candidate.tags.some(
+                  (tag) => tag[0] === "d" && tag[1] === dTag
+                ) &&
+                isValidCkboostEvent(
+                  candidate,
+                  candidate.id,
+                  CKBOOST_SUBMISSION_KIND
+                )
+            )
+            .sort((a, b) => b.created_at - a.created_at)[0];
+          return event || null;
+        } catch {
+          log.warn("Replaceable event relay query failed", {
+            relay: relayUrl,
+            status: controller.signal.aborted ? "timeout" : "failed",
+          });
+          return null;
+        } finally {
+          clearTimeout(timeout);
+        }
+      });
 
-            if (events.length > 0) {
-              log.info(
-                `✅ Event found on ${relayUrl}! Found ${events.length} copy/copies`
-              );
-              return { success: true, event: events[0], relayUrl };
-            }
-
-            log.info(`Relay ${relayUrl} reported 0 copies for this event.`);
-            return { success: false, event: null, relayUrl };
-          } catch (error) {
-            if (controller.signal.aborted) {
-              log.warn(
-                `Fetching event on ${relayUrl} timed out after ${RELAY_TIMEOUT_MS}ms.`
-              );
-            } else {
-              log.error(`Fetching event error on ${relayUrl}:`, error);
-            }
-            return { success: false, event: null, relayUrl };
-          } finally {
-            clearTimeout(timeout);
-          }
+      const result = await Promise.any(
+        requests.map(async (request) => {
+          const event = await request;
+          if (!event) throw new Error("Event not found on relay");
+          return event;
         })
-      );
+      ).catch(() => null);
 
-      if (result?.success && result?.event) {
-        return result.event;
-      }
+      if (result) return result;
+      await Promise.all(requests);
 
-      if (attempt < MAX_FETCH_ROUNDS) {
-        log.info(
-          `Waiting ${FETCH_DELAY_MS}ms before retrying fetching event...`
-        );
-        await delay(FETCH_DELAY_MS);
+      if (attempt < DEFAULT_FETCH_ROUNDS) {
+        await delay(250);
       }
     }
 
@@ -534,5 +412,6 @@ export function useNostrFetch() {
     fetchReplaceableEvent,
     isLoading,
     error,
+    errorCode,
   };
 }
