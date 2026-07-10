@@ -2,7 +2,20 @@
 
 import { finalizeEvent, nip19 } from "nostr-tools";
 
-const { runBackfill } = require("./backfill-nostr-relays-lib.cjs") as {
+const { publishAndVerifyRelay, runBackfill } = require(
+  "./backfill-nostr-relays-lib.cjs",
+) as {
+  publishAndVerifyRelay: (options: {
+    relay: string;
+    event: ReturnType<typeof finalizeEvent>;
+    publishEvent: () => Promise<void>;
+    readEvent: () => Promise<ReturnType<typeof finalizeEvent>>;
+  }) => Promise<{
+    publish: string;
+    verification: string;
+    elapsedMs: number;
+    error?: string;
+  }>;
   runBackfill: (options: {
     neventId: string;
     configuredRelays: string[];
@@ -31,6 +44,37 @@ const { runBackfill } = require("./backfill-nostr-relays-lib.cjs") as {
 };
 
 describe("generic Nostr relay backfill", () => {
+  it("verifies an existing event after a duplicate publish rejection", async () => {
+    const secretKey = new Uint8Array(32);
+    secretKey[31] = 12;
+    const event = finalizeEvent(
+      {
+        kind: 30078,
+        created_at: 1_700_000_003,
+        tags: [["client", "ckboost-dapp"]],
+        content: "already stored",
+      },
+      secretKey,
+    );
+    const readEvent = jest.fn(async () => event);
+
+    const result = await publishAndVerifyRelay({
+      relay: "wss://duplicate.example",
+      event,
+      publishEvent: async () => {
+        throw new Error("duplicate: already exists");
+      },
+      readEvent,
+    });
+
+    expect(result).toMatchObject({
+      publish: "failed",
+      verification: "verified",
+      error: "duplicate: already exists",
+    });
+    expect(readEvent).toHaveBeenCalledTimes(1);
+  });
+
   it("republishes the exact signed event without depending on content structure", async () => {
     const secretKey = new Uint8Array(32);
     secretKey[31] = 8;

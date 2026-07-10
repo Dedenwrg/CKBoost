@@ -31,6 +31,10 @@ interface UserContextType {
       discord?: string;
     }
   ) => Promise<ccc.Hex>;
+  deleteQuestSubmission: (
+    campaignTypeId: ccc.Hex,
+    questId: number
+  ) => Promise<ccc.Hex>;
   getUserSubmissions: (
     userTypeId: ccc.Hex
   ) => Promise<ReturnType<typeof ckboost.types.UserSubmissionRecord.decode>[]>;
@@ -57,6 +61,9 @@ const UserContext = createContext<UserContextType>({
   currentUserTypeId: null,
   currentUserSubmissions: new Map(),
   submitQuest: async () => {
+    throw new Error("UserProvider not initialized");
+  },
+  deleteQuestSubmission: async () => {
     throw new Error("UserProvider not initialized");
   },
   getUserSubmissions: async () => [],
@@ -296,6 +303,61 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteQuestSubmission = async (
+    campaignTypeId: ccc.Hex,
+    questId: number
+  ): Promise<ccc.Hex> => {
+    if (!userService) {
+      throw new Error("User service not initialized");
+    }
+    if (!protocolCell) {
+      throw new Error("Protocol cell not loaded");
+    }
+    if (!currentUserTypeId) {
+      throw new Error("Current user not loaded");
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const txHash = await userService.deleteQuestSubmission(
+        campaignTypeId,
+        questId,
+        currentUserTypeId,
+        protocolCell
+      );
+
+      // Keep the old submission visible until the removal is committed. This
+      // prevents a replacement transaction from racing the same user cell.
+      if (signer) {
+        void signer.client
+          .waitTransaction(txHash, 0, 5 * 60 * 1000, 2000)
+          .then(async () => {
+            await loadCurrentUserData(userService);
+          })
+          .catch((waitError) => {
+            log.warn("Timed out waiting for submission deletion confirmation", {
+              txHash: txHash.slice(0, 10) + "...",
+              error:
+                waitError instanceof Error
+                  ? waitError.message
+                  : String(waitError),
+            });
+          });
+      }
+
+      return txHash;
+    } catch (err) {
+      const errorMsg =
+        err instanceof Error ? err.message : "Failed to delete submission";
+      setError(errorMsg);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getUserSubmissions = async (userTypeId: ccc.Hex) => {
     if (!userService) {
       return [];
@@ -422,6 +484,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         currentUserTypeId,
         currentUserSubmissions,
         submitQuest,
+        deleteQuestSubmission,
         getUserSubmissions,
         getUserData,
         hasUserSubmittedQuest,

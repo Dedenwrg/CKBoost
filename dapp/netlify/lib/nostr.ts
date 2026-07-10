@@ -8,7 +8,7 @@ import {
   VERIFICATION_DELAY_MS,
 } from "../configs/nostr";
 import {
-  DEFAULT_RELAY_QUORUM,
+  DEFAULT_SOCIAL_RELAY_QUORUM,
   isValidCkboostEvent,
   publishEventWithQuorum,
 } from "../../lib/nostr/relay-core";
@@ -21,14 +21,15 @@ const delay = (ms: number) =>
 export const publishAndVerifyEvent = async (
   nostr: NPool,
   event: NostrEvent,
-  failureMessage: string
+  failureMessage: string,
+  requiredCopies: number = DEFAULT_SOCIAL_RELAY_QUORUM,
 ): Promise<string[]> => {
   try {
     const result = await publishEventWithQuorum({
       nostr,
       event,
       relays: unique(getConfiguredNostrRelays()),
-      requiredCopies: DEFAULT_RELAY_QUORUM,
+      requiredCopies,
       timeoutMs: Math.min(RELAY_TIMEOUT_MS, 5_000),
       verificationRounds: 2,
     });

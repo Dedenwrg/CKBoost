@@ -14,13 +14,13 @@ import { createScopedLogger } from "ssri-ckboost";
 import {
   CKBOOST_EVENT_KIND,
   DEFAULT_RELAY_QUORUM,
+  DEFAULT_SOCIAL_RELAY_QUORUM,
   encodeVerifiedNevent,
   fetchEventFromRelays,
-  mergeRelayLists,
-  publishEventWithQuorum,
   type RelayAttemptResult,
   type StoredSubmissionEvent,
 } from "@/lib/nostr/relay-core";
+import { publishEventToConfiguredRelays } from "@/lib/nostr/browser-publish";
 import { cacheNostrEvent } from "@/lib/nostr/event-cache";
 import { enqueueUnverifiedRelayRepairs } from "@/lib/nostr/relay-repair-queue";
 import { fetchNeventWithCache } from "@/lib/nostr/browser-fetch";
@@ -34,6 +34,14 @@ const requiredRelayCopies = (() => {
   return Number.isInteger(configured) && configured > 0
     ? configured
     : DEFAULT_RELAY_QUORUM;
+})();
+const requiredSocialRelayCopies = (() => {
+  const configured = Number(
+    process.env.NEXT_PUBLIC_NOSTR_SOCIAL_MIN_RELAY_COPIES,
+  );
+  return Number.isInteger(configured) && configured > 0
+    ? configured
+    : DEFAULT_SOCIAL_RELAY_QUORUM;
 })();
 
 type SigningKeys = {
@@ -91,9 +99,6 @@ const createSignedEvent = async ({
 
   return { signedEvent, signingKeys };
 };
-
-const relayCandidates = (activeRelays: Iterable<string>): string[] =>
-  mergeRelayLists(Array.from(activeRelays), DEFAULT_NOSTR_RELAYS);
 
 const persistLocalRelayState = ({
   event,
@@ -154,12 +159,13 @@ export function useNostrStorage() {
       log.info("Event ID:", signedEvent.id);
       log.info("Event kind:", signedEvent.kind);
 
-      const { verifiedRelays, attempts } = await publishEventWithQuorum({
-        nostr,
-        event: signedEvent,
-        relays: relayCandidates(nostr.relays.keys()),
-        requiredCopies: requiredRelayCopies,
-      });
+      const { verifiedRelays, attempts } =
+        await publishEventToConfiguredRelays({
+          nostr,
+          event: signedEvent,
+          configuredRelays: DEFAULT_NOSTR_RELAYS,
+          requiredCopies: requiredRelayCopies,
+        });
 
       const neventId = persistLocalRelayState({
         event: signedEvent,
@@ -223,12 +229,13 @@ export function useNostrStorage() {
       log.info("Event ID:", signedEvent.id);
       log.info("Event kind:", signedEvent.kind);
 
-      const { verifiedRelays, attempts } = await publishEventWithQuorum({
-        nostr,
-        event: signedEvent,
-        relays: relayCandidates(nostr.relays.keys()),
-        requiredCopies: requiredRelayCopies,
-      });
+      const { verifiedRelays, attempts } =
+        await publishEventToConfiguredRelays({
+          nostr,
+          event: signedEvent,
+          configuredRelays: DEFAULT_NOSTR_RELAYS,
+          requiredCopies: requiredRelayCopies,
+        });
 
       return persistLocalRelayState({
         event: signedEvent,
@@ -271,12 +278,13 @@ export function useNostrStorage() {
         tags,
       });
 
-      const { verifiedRelays, attempts } = await publishEventWithQuorum({
-        nostr,
-        event: signedEvent,
-        relays: relayCandidates(nostr.relays.keys()),
-        requiredCopies: requiredRelayCopies,
-      });
+      const { verifiedRelays, attempts } =
+        await publishEventToConfiguredRelays({
+          nostr,
+          event: signedEvent,
+          configuredRelays: DEFAULT_NOSTR_RELAYS,
+          requiredCopies: requiredRelayCopies,
+        });
 
       return persistLocalRelayState({
         event: signedEvent,
@@ -319,12 +327,13 @@ export function useNostrStorage() {
         author: signingKeys.pubkey,
       });
 
-      const { verifiedRelays, attempts } = await publishEventWithQuorum({
-        nostr,
-        event: signedEvent,
-        relays: relayCandidates(nostr.relays.keys()),
-        requiredCopies: requiredRelayCopies,
-      });
+      const { verifiedRelays, attempts } =
+        await publishEventToConfiguredRelays({
+          nostr,
+          event: signedEvent,
+          configuredRelays: DEFAULT_NOSTR_RELAYS,
+          requiredCopies: requiredSocialRelayCopies,
+        });
 
       const neventId = persistLocalRelayState({
         event: signedEvent,

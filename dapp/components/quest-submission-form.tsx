@@ -16,6 +16,16 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   CheckCircle,
   Send,
   AlertCircle,
@@ -25,6 +35,7 @@ import {
   ExternalLink,
   Cloud,
   Coins,
+  Trash2,
 } from "lucide-react";
 import { MarkdownEditor } from "@/components/markdown-editor";
 import { useUser } from "@/lib/providers/user-provider";
@@ -80,8 +91,10 @@ export function QuestSubmissionForm({
   const {
     currentUserTypeId,
     submitQuest,
+    deleteQuestSubmission,
     hasUserSubmittedQuest,
     getUserSubmissions,
+    refreshUserData,
     isLoading: userLoading,
   } = useUser();
   const { userAddress } = useProtocol();
@@ -103,6 +116,9 @@ export function QuestSubmissionForm({
   const [isEditMode, setIsEditMode] = useState(false);
   const [nostrFetchError, setNostrFetchError] = useState(false);
   const [pendingNeventId, setPendingNeventId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingSubmission, setIsDeletingSubmission] = useState(false);
+  const [deletionTxHash, setDeletionTxHash] = useState<ccc.Hex | null>(null);
   const [pendingSubmissionData, setPendingSubmissionData] = useState<{
     campaignTypeId: ccc.Hex;
     questId: number;
@@ -187,6 +203,17 @@ export function QuestSubmissionForm({
               setSubtaskResponses(responses);
             }
           }
+        } else {
+          setExistingSubmission(null);
+          setIsEditMode(false);
+          setNostrFetchError(false);
+          setDeletionTxHash(null);
+
+          const responses: Record<number, string> = {};
+          quest.sub_tasks?.forEach((_, index) => {
+            responses[index] = "";
+          });
+          setSubtaskResponses(responses);
         }
       } catch (err) {
         log.error("Failed to check/load submission:", err);
@@ -596,6 +623,36 @@ Lines        : 93.84% ( 183/195 )
     }
   };
 
+  const handleDeleteSubmission = async () => {
+    if (!currentUserTypeId || isAcceptedProp) {
+      return;
+    }
+
+    try {
+      setIsDeletingSubmission(true);
+      setError(null);
+
+      const txHash = await deleteQuestSubmission(
+        campaignTypeId,
+        Number(quest.quest_id || questIndex + 1)
+      );
+
+      setDeletionTxHash(txHash);
+      setIsDeleteDialogOpen(false);
+      log.info("Quest submission deletion submitted", {
+        txHash: txHash.slice(0, 10) + "...",
+        questId: Number(quest.quest_id || questIndex + 1),
+      });
+    } catch (err) {
+      setIsDeleteDialogOpen(false);
+      setError(
+        err instanceof Error ? err.message : "Failed to delete submission"
+      );
+    } finally {
+      setIsDeletingSubmission(false);
+    }
+  };
+
   if (!userAddress) {
     return (
       <Alert>
@@ -696,6 +753,25 @@ Lines        : 93.84% ( 183/195 )
       {/* Show submission status if already submitted */}
       {hasSubmitted && existingSubmission && (
         <>
+          {deletionTxHash && (
+            <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-900/20">
+              <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+              <div className="flex w-full items-center justify-between gap-4">
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  The deletion transaction has been submitted. This form will
+                  reset for a new submission after it is confirmed.
+                </AlertDescription>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void refreshUserData()}
+                >
+                  Refresh Status
+                </Button>
+              </div>
+            </Alert>
+          )}
+
           {/* Show Nostr fetch error if content couldn't be loaded */}
           {nostrFetchError && (
             <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-900/20 mb-4">
@@ -710,18 +786,29 @@ Lines        : 93.84% ( 183/195 )
                     {fetchFailureMessage(nostrFetchErrorCode)}
                   </p>
                 </div>
-                {!isAccepted && (
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="bg-orange-600 hover:bg-orange-700"
-                    onClick={() => {
-                      setIsEditMode(true);
-                      setNostrFetchError(false);
-                    }}
-                  >
-                    Resubmit Content
-                  </Button>
+                {!isAccepted && !deletionTxHash && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-destructive text-destructive hover:bg-destructive/10"
+                      onClick={() => setIsDeleteDialogOpen(true)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Submission
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-orange-600 hover:bg-orange-700"
+                      onClick={() => {
+                        setIsEditMode(true);
+                        setNostrFetchError(false);
+                      }}
+                    >
+                      Resubmit Content
+                    </Button>
+                  </div>
                 )}
               </div>
             </Alert>
@@ -759,14 +846,25 @@ Lines        : 93.84% ( 183/195 )
                   <Badge variant={isAccepted ? "default" : "secondary"}>
                     {isAccepted ? "Accepted" : "Pending"}
                   </Badge>
-                  {!isAccepted && !isEditMode && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setIsEditMode(true)}
-                    >
-                      Edit Submission
-                    </Button>
+                  {!isAccepted && !isEditMode && !deletionTxHash && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-destructive text-destructive hover:bg-destructive/10"
+                        onClick={() => setIsDeleteDialogOpen(true)}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Submission
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsEditMode(true)}
+                      >
+                        Edit Submission
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1147,6 +1245,47 @@ Lines        : 93.84% ( 183/195 )
           </div>
         </CardContent>
       </CardWithIndents>
+
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!isDeletingSubmission) {
+            setIsDeleteDialogOpen(open);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this submission?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This sends a CKB transaction that removes the current quest
+              submission reference from your user cell. The public signed
+              Nostr event is not deleted. After confirmation, you can submit
+              this quest again from scratch.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingSubmission}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeletingSubmission || userLoading || isAccepted}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDeleteSubmission();
+              }}
+            >
+              {isDeletingSubmission ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              Delete Submission
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Nostr Storage Verification Modal */}
       {/* Modal moved to global provider */}

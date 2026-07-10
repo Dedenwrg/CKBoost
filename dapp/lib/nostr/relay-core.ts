@@ -10,6 +10,7 @@ export const DEFAULT_NOSTR_RELAYS = [
 ] as const;
 export const DEFAULT_RELAY_TIMEOUT_MS = 5_000;
 export const DEFAULT_RELAY_QUORUM = 2;
+export const DEFAULT_SOCIAL_RELAY_QUORUM = 1;
 export const DEFAULT_FETCH_ROUNDS = 2;
 
 export type RelayPublishStatus = "accepted" | "failed" | "timeout";
@@ -394,16 +395,9 @@ export const publishEventToRelays = async ({
     relayList.map(async (relay): Promise<RelayAttemptResult> => {
       const startedAt = Date.now();
       const publish = await publishToRelay(nostr, event, relay, timeoutMs);
-      if (publish.publish !== "accepted") {
-        return {
-          relay,
-          publish: publish.publish,
-          verification: "skipped",
-          elapsedMs: Date.now() - startedAt,
-          error: publish.error,
-        };
-      }
-
+      // A relay may reject an exact retry as a duplicate, or the publish ACK
+      // may time out after the event was stored. Read back after every publish
+      // outcome and use the validated copy as the source of truth.
       const verification = await fetchEventFromRelays({
         nostr,
         eventId: event.id,
@@ -421,10 +415,10 @@ export const publishEventToRelays = async ({
           : lastAttempt?.status || "missing";
       return {
         relay,
-        publish: "accepted",
+        publish: publish.publish,
         verification: verificationStatus,
         elapsedMs: Date.now() - startedAt,
-        error: lastAttempt?.error,
+        error: lastAttempt?.error || publish.error,
       };
     }),
   );

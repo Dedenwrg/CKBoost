@@ -81,6 +81,22 @@ describe("Nostr relay repair queue", () => {
     expect(readNostrRelayRepairQueue()).toEqual([]);
   });
 
+  it("removes a relay when duplicate publish is followed by a valid read-back", async () => {
+    const task = makeTask();
+    enqueueNostrRelayRepair(task);
+    const nostr: NostrRelayClient = {
+      event: jest.fn(async () => {
+        throw new Error("duplicate: already exists");
+      }),
+      query: jest.fn(async () => [task.event]),
+    };
+
+    await flushNostrRelayRepairQueue(nostr);
+
+    expect(nostr.query).toHaveBeenCalledTimes(1);
+    expect(readNostrRelayRepairQueue()).toEqual([]);
+  });
+
   it("retains a failed repair and increments attempts", async () => {
     const task = makeTask();
     enqueueNostrRelayRepair(task);

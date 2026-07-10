@@ -58,6 +58,51 @@ const isValidCkboostEvent = (event, eventId, kind = 30078) => {
   }
 };
 
+const publishAndVerifyRelay = async ({
+  relay,
+  event,
+  publishEvent,
+  readEvent,
+  now = Date.now,
+}) => {
+  const startedAt = now();
+  let publish = "failed";
+  let publishError;
+
+  try {
+    await publishEvent({ relay, event });
+    publish = "accepted";
+  } catch (error) {
+    publishError = error instanceof Error ? error.message : String(error);
+    publish = publishError === "timeout" ? "timeout" : "failed";
+  }
+
+  try {
+    await readEvent({ relay, eventId: event.id, kind: event.kind });
+    return {
+      publish,
+      verification: "verified",
+      elapsedMs: now() - startedAt,
+      ...(publishError ? { error: publishError } : {}),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      publish,
+      verification:
+        message === "timeout"
+          ? "timeout"
+          : message === "event absent"
+            ? "missing"
+            : message === "invalid event"
+              ? "invalid"
+              : "failed",
+      elapsedMs: now() - startedAt,
+      error: message || publishError,
+    };
+  }
+};
+
 const runBackfill = async ({
   neventId,
   configuredRelays = DEFAULT_RELAYS,
@@ -143,5 +188,6 @@ module.exports = {
   decodeNevent,
   isValidCkboostEvent,
   mergeRelays,
+  publishAndVerifyRelay,
   runBackfill,
 };

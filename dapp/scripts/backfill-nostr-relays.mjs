@@ -6,6 +6,7 @@ const {
   DEFAULT_RELAYS,
   isValidCkboostEvent,
   mergeRelays,
+  publishAndVerifyRelay,
   runBackfill,
 } = backfill;
 const neventId = process.env.NEVENT_ID;
@@ -95,57 +96,23 @@ const readFromRelay = ({ relay, eventId, kind }) => {
 const fetchEvent = ({ eventId, kind, relays }) =>
   Promise.any(relays.map((relay) => readFromRelay({ relay, eventId, kind })));
 
-const publishAndVerify = async ({ relay, event }) => {
-  const startedAt = Date.now();
-  let publish = "failed";
-  try {
-    await withSocket(
-      relay,
-      (socket) => socket.send(JSON.stringify(["EVENT", event])),
-      (message, resolve) => {
-        if (message[0] === "OK" && message[1] === event.id) {
-          if (message[2]) return resolve(true);
-          throw new Error(String(message[3] || "rejected"));
-        }
-      },
-    );
-    publish = "accepted";
-  } catch (error) {
-    return {
-      publish:
-        error instanceof Error && error.message === "timeout"
-          ? "timeout"
-          : "failed",
-      verification: "skipped",
-      elapsedMs: Date.now() - startedAt,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-
-  try {
-    await readFromRelay({ relay, eventId: event.id, kind: event.kind });
-    return {
-      publish,
-      verification: "verified",
-      elapsedMs: Date.now() - startedAt,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      publish,
-      verification:
-        message === "timeout"
-          ? "timeout"
-          : message === "event absent"
-            ? "missing"
-            : message === "invalid event"
-              ? "invalid"
-              : "failed",
-      elapsedMs: Date.now() - startedAt,
-      error: message,
-    };
-  }
-};
+const publishAndVerify = ({ relay, event }) =>
+  publishAndVerifyRelay({
+    relay,
+    event,
+    publishEvent: () =>
+      withSocket(
+        relay,
+        (socket) => socket.send(JSON.stringify(["EVENT", event])),
+        (message, resolve) => {
+          if (message[0] === "OK" && message[1] === event.id) {
+            if (message[2]) return resolve(true);
+            throw new Error(String(message[3] || "rejected"));
+          }
+        },
+      ),
+    readEvent: readFromRelay,
+  });
 
 try {
   const result = await runBackfill({

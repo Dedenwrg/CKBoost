@@ -109,6 +109,33 @@ describe("Nostr relay core", () => {
     ).rejects.toBeInstanceOf(NostrRelayQuorumError);
   });
 
+  it("counts a valid read-back after a duplicate publish rejection", async () => {
+    const event = makeEvent();
+    const client: NostrRelayClient = {
+      event: jest.fn(async () => {
+        throw new Error("duplicate: already exists");
+      }),
+      query: jest.fn(async () => [event]),
+    };
+
+    const result = await publishEventWithQuorum({
+      nostr: client,
+      event,
+      relays: ["wss://duplicate.example"],
+      requiredCopies: 1,
+      timeoutMs: 100,
+      verificationRounds: 1,
+    });
+
+    expect(result.verifiedRelays).toEqual(["wss://duplicate.example"]);
+    expect(result.attempts[0]).toMatchObject({
+      publish: "failed",
+      verification: "verified",
+      error: "duplicate: already exists",
+    });
+    expect(client.query).toHaveBeenCalledTimes(1);
+  });
+
   it("does not let a fast empty relay beat a slower valid relay", async () => {
     const event = makeEvent();
     const client: NostrRelayClient = {

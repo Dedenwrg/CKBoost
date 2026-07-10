@@ -24,6 +24,10 @@ import { createScopedLogger } from "ssri-ckboost";
 import { registerPendingTransaction } from "@/lib/pending-transactions";
 import { createDisplayNameRecord } from "../profile/profile-data";
 import { addClaimablePoolLockCellDep } from "../ckb/claimable-pool";
+import {
+  removeQuestSubmissionRecords,
+  submissionRecordMatchesQuest,
+} from "../user-submission-records";
 
 const log = createScopedLogger("UserService");
 
@@ -392,6 +396,67 @@ export class UserService {
   }
 
   /**
+   * Remove the current user's on-chain reference for one quest submission.
+   * The signed Nostr event remains public on its relays.
+   */
+  async deleteQuestSubmission(
+    campaignTypeId: ccc.Hex,
+    questId: number,
+    userTypeId: ccc.Hex,
+    protocolCell: ccc.Cell
+  ): Promise<ccc.Hex> {
+    await this.ensureDeploymentInfo();
+
+    const userCell = await fetchUserByTypeId(
+      userTypeId,
+      this.userTypeCodeHash,
+      this.signer,
+      this.protocolTypeHash
+    );
+    if (!userCell) {
+      throw new Error("User cell not found");
+    }
+
+    const currentUserData = parseUserData(userCell);
+    if (!currentUserData) {
+      throw new Error("Failed to parse user data");
+    }
+
+    const removal = removeQuestSubmissionRecords(
+      currentUserData.submission_records,
+      campaignTypeId,
+      questId
+    );
+    if (removal.removedCount === 0) {
+      throw new Error("Quest submission not found");
+    }
+
+    const updatedUserData = {
+      verification_data: currentUserData.verification_data,
+      total_points_earned: currentUserData.total_points_earned,
+      last_activity_timestamp: BigInt(Date.now()),
+      submission_records: removal.records,
+      profile_data: currentUserData.profile_data,
+      last_bonus_streak_at: currentUserData.last_bonus_streak_at,
+    } as UserDataLike;
+
+    log.info("Removing quest submission reference", {
+      userTypeId: userTypeId.slice(0, 10) + "...",
+      campaignTypeId: campaignTypeId.slice(0, 10) + "...",
+      questId,
+      removedRecords: removal.removedCount,
+    });
+
+    return this.sendUserDataUpdate(
+      userCell,
+      userTypeId,
+      updatedUserData,
+      protocolCell,
+      "delete_submission"
+    );
+  }
+
+  /**
    * Retrieve quest submission content
    * If using Nostr, fetches from Nostr; otherwise returns the on-chain content
    */
@@ -599,32 +664,10 @@ export class UserService {
     }
 
     // Check if this quest was already submitted and needs updating
-    const existingSubmissionIndex =
-      currentUserData.submission_records.findIndex((record) => {
-        // Convert campaign_type_id for comparison
-        let recordCampaignId: string;
-        if (typeof record.campaign_type_id === "string") {
-          recordCampaignId = record.campaign_type_id;
-        } else if (
-          record.campaign_type_id &&
-          typeof record.campaign_type_id === "object" &&
-          ArrayBuffer.isView(record.campaign_type_id)
-        ) {
-          recordCampaignId = ccc.hexFrom(record.campaign_type_id);
-        } else {
-          try {
-            recordCampaignId = ccc.hexFrom(
-              ccc.bytesFrom(record.campaign_type_id)
-            );
-          } catch {
-            recordCampaignId = "0x";
-          }
-        }
-        return (
-          recordCampaignId === campaignTypeId &&
-          Number(record.quest_id) === questId
-        );
-      });
+    const existingSubmissionIndex = currentUserData.submission_records.findIndex(
+      (record) =>
+        submissionRecordMatchesQuest(record, campaignTypeId, questId)
+    );
 
     // Create new submission record
     log.log("Creating submission record with:", {
@@ -666,14 +709,35 @@ export class UserService {
       last_bonus_streak_at: currentUserData.last_bonus_streak_at,
     } as UserDataLike;
 
-    // Create executor for SSRI operations
+    return this.sendUserDataUpdate(
+      userCell,
+      userTypeId,
+      updatedUserData,
+      protocolCell,
+      "submit_quest"
+    );
+  }
+
+  private async sendUserDataUpdate(
+    userCell: ccc.Cell,
+    userTypeId: ccc.Hex,
+    updatedUserData: UserDataLike,
+    protocolCell: ccc.Cell,
+    operation: "submit_quest" | "delete_submission"
+  ): Promise<ccc.Hex> {
+    if (!this.userTypeCodeCell) {
+      throw new Error("User type contract not found");
+    }
+
+    // The deployed contract exposes submission-record updates through the
+    // submit_quest recipe, including removal of an existing record.
     const executorUrl =
       process.env.NEXT_PUBLIC_SSRI_EXECUTOR_URL || "http://localhost:9090";
     const executor = new ssri.ExecutorJsonRpc(executorUrl);
 
     // Create User instance with correct script args and executor
     const userInstanceWithScript = new ckboost.User(
-      this.userTypeCodeCell!,
+      this.userTypeCodeCell,
       ccc.Script.from({
         codeHash: this.userTypeCodeHash,
         hashType: "type",
@@ -753,9 +817,10 @@ export class UserService {
 
     log.log("Transaction before complete fees", updateTx);
 
-    log.log("Updating user cell with submission", {
+    log.log("Updating user submission records", {
+      operation,
       userTypeId: userTypeId.slice(0, 10) + "...",
-      totalSubmissions: updatedSubmissions.length,
+      totalSubmissions: updatedUserData.submission_records.length,
       lastActivity: new Date(
         Number(updatedUserData.last_activity_timestamp)
       ).toISOString(),
@@ -763,7 +828,15 @@ export class UserService {
 
     log.log("updateTx before sending", updateTx);
 
-    const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx);
+    const txHash = await sendTransactionWithFeeRetry(this.signer, updateTx, {
+      pendingMetadata: {
+        label:
+          operation === "delete_submission"
+            ? "Delete quest submission"
+            : "Submit quest",
+        context: "UserService",
+      },
+    });
 
     log.log("User cell updated", {
       txHash: txHash.slice(0, 10) + "...",
