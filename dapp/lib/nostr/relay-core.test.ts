@@ -140,10 +140,14 @@ describe("Nostr relay core", () => {
     const event = makeEvent();
     const client: NostrRelayClient = {
       event: jest.fn(async () => undefined),
-      query: jest.fn(async (_filters, options) => {
-        if (options?.relays?.[0] === "wss://empty.example") return [];
+      query: jest.fn(),
+      req: jest.fn(async function* (_filters, options) {
+        if (options?.relays?.[0] === "wss://empty.example") {
+          yield ["EOSE", "subscription"];
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 20));
-        return [event];
+        yield ["EVENT", "subscription", event];
       }),
     };
 
@@ -164,9 +168,14 @@ describe("Nostr relay core", () => {
     let calls = 0;
     const client: NostrRelayClient = {
       event: jest.fn(async () => undefined),
-      query: jest.fn(async () => {
+      query: jest.fn(),
+      req: jest.fn(async function* () {
         calls += 1;
-        return calls === 1 ? [] : [event];
+        if (calls === 1) {
+          yield ["EOSE", "subscription"];
+          return;
+        }
+        yield ["EVENT", "subscription", event];
       }),
     };
 
@@ -181,6 +190,60 @@ describe("Nostr relay core", () => {
 
     expect(calls).toBe(2);
     expect(result.event?.id).toBe(event.id);
+  });
+
+  it("uses explicit EOSE to classify an event as missing", async () => {
+    const event = makeEvent();
+    const client: NostrRelayClient = {
+      event: jest.fn(async () => undefined),
+      query: jest.fn(),
+      req: jest.fn(async function* () {
+        yield ["EOSE", "subscription"];
+      }),
+    };
+
+    const result = await fetchEventFromRelays({
+      nostr: client,
+      eventId: event.id,
+      relays: ["wss://empty.example"],
+      timeoutMs: 100,
+      rounds: 1,
+    });
+
+    expect(result.event).toBeNull();
+    expect(result.attempts).toEqual([
+      expect.objectContaining({
+        relay: "wss://empty.example",
+        status: "missing",
+      }),
+    ]);
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it("does not classify an aborted relay request as missing", async () => {
+    const event = makeEvent();
+    const client: NostrRelayClient = {
+      event: jest.fn(async () => undefined),
+      query: jest.fn(),
+      req: jest.fn(async function* (_filters, options) {
+        await new Promise<void>((resolve) => {
+          options?.signal?.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        });
+      }),
+    };
+
+    const result = await fetchEventFromRelays({
+      nostr: client,
+      eventId: event.id,
+      relays: ["wss://unavailable.example"],
+      timeoutMs: 5,
+      rounds: 1,
+    });
+
+    expect(result.event).toBeNull();
+    expect(result.attempts[0]).toMatchObject({ status: "timeout" });
   });
 
   it("rejects an event whose id or signature is invalid", async () => {

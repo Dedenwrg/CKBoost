@@ -2,7 +2,11 @@
 
 import { finalizeEvent, nip19 } from "nostr-tools";
 import type { NostrEvent } from "@nostrify/types";
-import { fetchNeventWithCache } from "./browser-fetch";
+import {
+  fetchNeventWithCache,
+  NostrEventFetchError,
+  toSafeNostrFetchDiagnostic,
+} from "./browser-fetch";
 import {
   NOSTR_EVENT_CACHE_KEY,
   cacheNostrEvent,
@@ -140,5 +144,83 @@ describe("browser Nostr fetch", () => {
         configuredRelays: defaultRelays,
       }),
     ).resolves.toMatchObject({ event: { id: event.id }, source: "relay" });
+  });
+
+  it("reports event_absent only when every relay confirms it is missing", async () => {
+    const event = makeEvent();
+    const neventId = nip19.neventEncode({ id: event.id });
+    const nostr: NostrRelayClient = {
+      event: jest.fn(),
+      query: jest.fn(async () => []),
+    };
+
+    await expect(
+      fetchNeventWithCache({
+        nostr,
+        neventId,
+        configuredRelays: ["wss://one.example", "wss://two.example"],
+      }),
+    ).rejects.toMatchObject({
+      code: "event_absent",
+      eventId: event.id,
+      relayAttempts: expect.arrayContaining([
+        expect.objectContaining({
+          relay: "wss://one.example",
+          status: "missing",
+        }),
+        expect.objectContaining({
+          relay: "wss://two.example",
+          status: "missing",
+        }),
+      ]),
+    });
+  });
+
+  it("reports relay_unavailable when absence cannot be confirmed everywhere", async () => {
+    const event = makeEvent();
+    const neventId = nip19.neventEncode({ id: event.id });
+    const nostr: NostrRelayClient = {
+      event: jest.fn(),
+      query: jest.fn(async (_filters, options) => {
+        if (options?.relays?.[0] === "wss://missing.example") return [];
+        throw new Error("transport failed with sensitive implementation detail");
+      }),
+    };
+
+    let caught: unknown;
+    try {
+      await fetchNeventWithCache({
+        nostr,
+        neventId,
+        configuredRelays: [
+          "wss://missing.example",
+          "wss://unavailable.example",
+        ],
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(NostrEventFetchError);
+    const fetchError = caught as NostrEventFetchError;
+    expect(fetchError.code).toBe("relay_unavailable");
+    const diagnostic = toSafeNostrFetchDiagnostic(fetchError);
+    expect(diagnostic).toEqual({
+      code: "relay_unavailable",
+      eventId: event.id,
+      attempts: expect.arrayContaining([
+        expect.objectContaining({
+          relay: "wss://missing.example",
+          status: "missing",
+        }),
+        expect.objectContaining({
+          relay: "wss://unavailable.example",
+          status: "failed",
+        }),
+      ]),
+    });
+    expect(JSON.stringify(diagnostic)).not.toContain("sensitive");
+    expect(JSON.stringify(diagnostic)).not.toContain(event.content);
+    expect(JSON.stringify(diagnostic)).not.toContain(event.sig);
   });
 });

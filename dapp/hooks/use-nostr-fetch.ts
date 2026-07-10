@@ -15,6 +15,7 @@ import {
 import {
   fetchNeventWithCache,
   NostrEventFetchError,
+  toSafeNostrFetchDiagnostic,
   type NostrFetchErrorCode,
 } from "@/lib/nostr/browser-fetch";
 export type { NostrFetchErrorCode } from "@/lib/nostr/browser-fetch";
@@ -238,7 +239,14 @@ export function useNostrFetch() {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to fetch submission";
         setError(errorMessage);
-        log.error("Error fetching submission:", err);
+        if (err instanceof NostrEventFetchError) {
+          log.warn(
+            "Unable to fetch Nostr submission",
+            toSafeNostrFetchDiagnostic(err),
+          );
+        } else {
+          log.error("Unexpected error fetching submission:", err);
+        }
         return null;
       } finally {
         setIsLoading(false);

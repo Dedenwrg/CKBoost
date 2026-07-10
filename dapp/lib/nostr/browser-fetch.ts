@@ -18,11 +18,36 @@ export class NostrEventFetchError extends Error {
   constructor(
     public readonly code: NostrFetchErrorCode,
     message: string,
+    public readonly eventId?: string,
+    public readonly relayAttempts: RelayFetchAttempt[] = [],
   ) {
     super(message);
     this.name = "NostrEventFetchError";
   }
 }
+
+export interface SafeNostrFetchDiagnostic {
+  code: NostrFetchErrorCode;
+  eventId?: string;
+  attempts: Array<
+    Pick<RelayFetchAttempt, "relay" | "round" | "status" | "elapsedMs">
+  >;
+}
+
+export const toSafeNostrFetchDiagnostic = (
+  error: NostrEventFetchError,
+): SafeNostrFetchDiagnostic => ({
+  code: error.code,
+  ...(error.eventId ? { eventId: error.eventId } : {}),
+  attempts: error.relayAttempts.map(
+    ({ relay, round, status, elapsedMs }) => ({
+      relay,
+      round,
+      status,
+      elapsedMs,
+    }),
+  ),
+});
 
 export interface BrowserNostrFetchResult {
   event: NostrEvent;
@@ -61,13 +86,15 @@ export const fetchNeventWithCache = async ({
     throw new NostrEventFetchError(
       "relay_unavailable",
       "Nostr relay pool is unavailable",
+      parsed.id,
     );
   }
 
+  const relays = mergeRelayLists(parsed.relays, configuredRelays);
   const relayResult = await fetchEventFromRelays({
     nostr,
     eventId: parsed.id,
-    relays: mergeRelayLists(parsed.relays, configuredRelays),
+    relays,
     kind,
   });
   if (relayResult.event) {
@@ -92,16 +119,29 @@ export const fetchNeventWithCache = async ({
     throw new NostrEventFetchError(
       "invalid_event",
       "A relay returned an invalid Nostr event",
+      parsed.id,
+      relayResult.attempts,
     );
   }
-  if (relayResult.attempts.some((attempt) => attempt.status === "missing")) {
+  const confirmedAbsent =
+    relays.length > 0 &&
+    relays.every((relay) =>
+      relayResult.attempts.some(
+        (attempt) => attempt.relay === relay && attempt.status === "missing",
+      ),
+    );
+  if (confirmedAbsent) {
     throw new NostrEventFetchError(
       "event_absent",
-      "Event is absent from the configured Nostr relays",
+      "Event is absent from all queried Nostr relays",
+      parsed.id,
+      relayResult.attempts,
     );
   }
   throw new NostrEventFetchError(
     "relay_unavailable",
-    "The configured Nostr relays are unavailable",
+    "The Nostr event could not be confirmed because one or more relays are unavailable",
+    parsed.id,
+    relayResult.attempts,
   );
 };

@@ -60,6 +60,10 @@ export interface NostrRelayClient {
     filters: NostrFilter[],
     opts?: { signal?: AbortSignal; relays?: string[] },
   ): Promise<NostrEvent[]>;
+  req?(
+    filters: NostrFilter[],
+    opts?: { signal?: AbortSignal; relays?: string[] },
+  ): AsyncIterable<readonly unknown[]>;
 }
 
 export class NostrRelayQuorumError extends Error {
@@ -213,35 +217,27 @@ const queryRelayOnce = async (
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const events = await nostr.query(
-      [{ ids: [eventId], kinds: [kind], limit: 1 }],
-      { relays: [relay], signal: controller.signal },
-    );
-    const event = events.find((candidate) => candidate.id === eventId) || null;
-    if (!event) {
-      return {
-        event: null,
-        attempt: {
-          relay,
-          round,
-          status: "missing",
-          elapsedMs: Date.now() - startedAt,
-        },
-      };
-    }
+  const attempt = (
+    status: RelayFetchAttempt["status"],
+    error?: string,
+  ): { event: null; attempt: RelayFetchAttempt } => ({
+    event: null,
+    attempt: {
+      relay,
+      round,
+      status,
+      elapsedMs: Date.now() - startedAt,
+      ...(error ? { error } : {}),
+    },
+  });
+  const validateCandidate = (
+    event: NostrEvent,
+  ): { event: NostrEvent | null; attempt: RelayFetchAttempt } => {
     if (!isValidCkboostEvent(event, eventId, kind)) {
-      return {
-        event: null,
-        attempt: {
-          relay,
-          round,
-          status: "invalid",
-          elapsedMs: Date.now() - startedAt,
-          error:
-            "Relay returned an event with an invalid id, signature, or kind",
-        },
-      };
+      return attempt(
+        "invalid",
+        "Relay returned an event with an invalid id, signature, kind, or CKBoost client tag",
+      );
     }
     return {
       event,
@@ -252,17 +248,53 @@ const queryRelayOnce = async (
         elapsedMs: Date.now() - startedAt,
       },
     };
+  };
+  try {
+    // NPool.query intentionally converts transport failures into partial (often
+    // empty) results. Reading the request stream lets us reserve "missing" for
+    // an explicit EOSE and report connection failures as unavailable instead.
+    if (nostr.req) {
+      for await (const message of nostr.req(
+        [{ ids: [eventId], kinds: [kind], limit: 1 }],
+        { relays: [relay], signal: controller.signal },
+      )) {
+        if (!Array.isArray(message)) continue;
+        if (message[0] === "EVENT") {
+          const event = message[2] as NostrEvent | undefined;
+          if (event?.id === eventId) return validateCandidate(event);
+        }
+        if (message[0] === "EOSE") return attempt("missing");
+        if (message[0] === "CLOSED") {
+          return attempt(
+            "failed",
+            typeof message[2] === "string"
+              ? message[2]
+              : "Relay closed the request before EOSE",
+          );
+        }
+      }
+      return controller.signal.aborted
+        ? attempt("timeout", "Relay request timed out")
+        : attempt("failed", "Relay request ended before EOSE");
+    }
+
+    const events = await nostr.query(
+      [{ ids: [eventId], kinds: [kind], limit: 1 }],
+      { relays: [relay], signal: controller.signal },
+    );
+    const event = events.find((candidate) => candidate.id === eventId) || null;
+    if (controller.signal.aborted) {
+      return attempt("timeout", "Relay query timed out");
+    }
+    if (!event) {
+      return attempt("missing");
+    }
+    return validateCandidate(event);
   } catch (error) {
-    return {
-      event: null,
-      attempt: {
-        relay,
-        round,
-        status: isAbortError(error, controller.signal) ? "timeout" : "failed",
-        elapsedMs: Date.now() - startedAt,
-        error: errorMessage(error),
-      },
-    };
+    return attempt(
+      isAbortError(error, controller.signal) ? "timeout" : "failed",
+      errorMessage(error),
+    );
   } finally {
     clearTimeout(timeout);
   }
