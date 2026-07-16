@@ -253,9 +253,15 @@ export function SubmissionsTab({
 
       toast({
         title: "Export ready",
-        description: `Saved ${exportData.rows.length} submission${
-          exportData.rows.length === 1 ? "" : "s"
-        } for ${selectedQuest.metadata?.title || `Quest ${selectedQuest.quest_id}`}.`,
+        description: `Saved ${exportData.submissionCount} submission${
+          exportData.submissionCount === 1 ? "" : "s"
+        } for ${selectedQuest.metadata?.title || `Quest ${selectedQuest.quest_id}`}.${
+          exportData.continuationRowCount > 0
+            ? ` Added ${exportData.continuationRowCount} continuation row${
+                exportData.continuationRowCount === 1 ? "" : "s"
+              } to preserve text over Excel's 32,767-character cell limit.`
+            : ""
+        }`,
       });
     } catch (exportError) {
       log.error("Failed to export quest submissions", exportError);

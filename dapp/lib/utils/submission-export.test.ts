@@ -1,12 +1,14 @@
 import {
   buildQuestSubmissionExportData,
   buildQuestResponseEntries,
+  EXCEL_MAX_CELL_TEXT_LENGTH,
 } from "@/lib/utils/submission-export";
 import type {
   QuestDataLike,
   UserDataLike,
   UserSubmissionRecordLike,
 } from "ssri-ckboost/types";
+import { utils, write } from "xlsx";
 
 const createQuest = (
   overrides: Partial<QuestDataLike> = {}
@@ -244,5 +246,70 @@ describe("buildQuestSubmissionExportData", () => {
       "Content Source": "nostr",
       "Subtask 1 Response": "https://x.com/nostr/post",
     });
+  });
+
+  it("splits overlong text into clearly marked continuation rows without data loss", async () => {
+    const overlongContent =
+      "a".repeat(EXCEL_MAX_CELL_TEXT_LENGTH - 1) + "😀";
+    const exportData = await buildQuestSubmissionExportData({
+      campaignTitle: "Spring Campaign",
+      campaignTypeId: "0xcampaign",
+      quest: createQuest(),
+      submissions: [
+        createSubmission("0xaaa1", {
+          submission_content: overlongContent,
+        }),
+      ],
+      userDetails: new Map<string, UserDataLike>(),
+    });
+
+    expect(exportData.submissionCount).toBe(1);
+    expect(exportData.continuationRowCount).toBe(1);
+    expect(exportData.rows).toHaveLength(2);
+    expect(exportData.headers).toEqual(
+      expect.arrayContaining(["Export Row Type", "Continuation Part"])
+    );
+    expect(exportData.rows.map((row) => row["Export Row Type"])).toEqual([
+      "Submission",
+      "Submission continuation",
+    ]);
+    expect(exportData.rows.map((row) => row["Continuation Part"])).toEqual([
+      "1 of 2",
+      "2 of 2",
+    ]);
+    expect(
+      exportData.rows
+        .map((row) => row["Raw Submission Reference"])
+        .join("")
+    ).toBe(overlongContent);
+    expect(
+      exportData.rows
+        .map((row) => row["Resolved Submission Content"])
+        .join("")
+    ).toBe(overlongContent);
+    expect(
+      exportData.rows.map((row) => row["Subtask 1 Response"]).join("")
+    ).toBe(overlongContent);
+
+    for (const row of exportData.rows) {
+      expect(row["User Type ID"]).toBe("0xaaa1");
+      expect(row["Status"]).toBe("Pending");
+
+      for (const value of Object.values(row)) {
+        if (typeof value === "string") {
+          expect(value.length).toBeLessThanOrEqual(
+            EXCEL_MAX_CELL_TEXT_LENGTH
+          );
+        }
+      }
+    }
+
+    const workbook = utils.book_new();
+    const worksheet = utils.json_to_sheet(exportData.rows, {
+      header: exportData.headers,
+    });
+    utils.book_append_sheet(workbook, worksheet, exportData.sheetName);
+
+    expect(() => write(workbook, { bookType: "xlsx", type: "array" })).not.toThrow();
   });
 });

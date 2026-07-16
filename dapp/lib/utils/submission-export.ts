@@ -9,6 +9,10 @@ import { isNostrSubmissionData } from "@/types/submission";
 
 type ExportCellValue = string | number | null;
 
+export const EXCEL_MAX_CELL_TEXT_LENGTH = 32_767;
+const EXPORT_ROW_TYPE_HEADER = "Export Row Type";
+const CONTINUATION_PART_HEADER = "Continuation Part";
+
 type SubmissionRecordWithUser = UserSubmissionRecordLike & {
   userTypeId: string;
 };
@@ -68,6 +72,8 @@ export interface QuestSubmissionExportData {
   sheetName: string;
   headers: string[];
   rows: Array<Record<string, ExportCellValue>>;
+  submissionCount: number;
+  continuationRowCount: number;
 }
 
 interface BuildQuestSubmissionExportDataArgs {
@@ -89,6 +95,32 @@ const DEFAULT_USER_INFO: SubmissionUserInfo = {
 };
 
 const textDecoder = new TextDecoder();
+
+export const splitExcelCellText = (value: string): string[] => {
+  if (value.length <= EXCEL_MAX_CELL_TEXT_LENGTH) {
+    return [value];
+  }
+
+  const parts: string[] = [];
+  let start = 0;
+
+  while (value.length - start > EXCEL_MAX_CELL_TEXT_LENGTH) {
+    let end = start + EXCEL_MAX_CELL_TEXT_LENGTH;
+    const lastCodeUnit = value.charCodeAt(end - 1);
+
+    // Keep characters outside the Basic Multilingual Plane (such as emoji)
+    // together when a continuation boundary falls between their surrogate pair.
+    if (lastCodeUnit >= 0xd800 && lastCodeUnit <= 0xdbff) {
+      end -= 1;
+    }
+
+    parts.push(value.slice(start, end));
+    start = end;
+  }
+
+  parts.push(value.slice(start));
+  return parts;
+};
 
 const isHexString = (value: string) =>
   HEX_PATTERN.test(value) && (value.length - 2) % 2 === 0;
@@ -547,6 +579,8 @@ export const buildQuestSubmissionExportData = async ({
     "Quest ID",
     "Quest Title",
     "Status",
+    EXPORT_ROW_TYPE_HEADER,
+    CONTINUATION_PART_HEADER,
     "Quest Points",
     "Submitted At",
     "User Name",
@@ -573,7 +607,8 @@ export const buildQuestSubmissionExportData = async ({
     );
   }
 
-  const rows = preparedRows.map(({ baseRow, responses }) => {
+  let continuationRowCount = 0;
+  const rows = preparedRows.flatMap(({ baseRow, responses }) => {
     const row: Record<string, ExportCellValue> = { ...baseRow };
 
     for (let index = 0; index < maxResponses; index += 1) {
@@ -587,7 +622,35 @@ export const buildQuestSubmissionExportData = async ({
       row[`${label} Response`] = response?.response || "";
     }
 
-    return row;
+    const cellParts = new Map(
+      Object.entries(row).map(([header, value]) => [
+        header,
+        typeof value === "string" ? splitExcelCellText(value) : [value],
+      ])
+    );
+    const partCount = Math.max(
+      1,
+      ...Array.from(cellParts.values(), (parts) => parts.length)
+    );
+
+    continuationRowCount += partCount - 1;
+
+    return Array.from({ length: partCount }, (_, partIndex) => {
+      const exportRow: Record<string, ExportCellValue> = {};
+
+      for (const [header, parts] of cellParts) {
+        const [firstPart] = parts;
+        exportRow[header] =
+          parts[partIndex] ?? (parts.length === 1 ? firstPart : "");
+      }
+
+      exportRow[EXPORT_ROW_TYPE_HEADER] =
+        partIndex === 0 ? "Submission" : "Submission continuation";
+      exportRow[CONTINUATION_PART_HEADER] =
+        partCount > 1 ? `${partIndex + 1} of ${partCount}` : "";
+
+      return exportRow;
+    });
   });
 
   return {
@@ -598,5 +661,7 @@ export const buildQuestSubmissionExportData = async ({
     sheetName: sanitizeSheetName(questTitle),
     headers,
     rows,
+    submissionCount: preparedRows.length,
+    continuationRowCount,
   };
 };
