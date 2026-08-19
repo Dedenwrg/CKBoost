@@ -102,6 +102,16 @@ async function completeTransactionForSend(
   preserveOutputCapacityIndices?: ReadonlySet<number>
 ): Promise<void> {
   await tx.completeInputsByCapacity(signer);
+
+  // Wallet signers can add required cell deps and placeholder witnesses while
+  // preparing a transaction. CCC core versions before 1.18.2 ignored a newly
+  // returned prepared transaction during fee completion. Copy it back here so
+  // fees include wallet preparation even across different core instances.
+  const preparedTx = await signer.prepareTransaction(tx);
+  if (preparedTx !== tx) {
+    tx.copy(preparedTx);
+  }
+
   try {
     await tx.completeFeeBy(signer, feeRate);
   } catch (error) {
@@ -140,18 +150,24 @@ async function calculateFeeRate(
   try {
     const nodeRate = await signer.client.getFeeRate();
     // getFeeRate may return bigint or number depending on client version
-    recommended =
-      typeof nodeRate === "bigint" ? Number(nodeRate) : Number(nodeRate);
+    const parsedRate = Number(nodeRate);
+    if (Number.isFinite(parsedRate) && parsedRate > 0) {
+      recommended = parsedRate;
+    }
   } catch (_) {
     // ignore and use fallback
   }
 
   // 2) If we know the required total fee from the error and have tx size, compute a minimum
   if (requiredFee && tx) {
-    const txSizeBytes = tx.toBytes().length;
-    // ceil division using BigInt to avoid precision issues
-    const kiloWeightBig = (BigInt(txSizeBytes) + 999n) / 1000n;
-    const minRateBig = (requiredFee + kiloWeightBig - 1n) / kiloWeightBig; // ceil(requiredFee / KW)
+    // CCC charges ceil(size * feeRate / 1000), including a 4-byte
+    // serialization offset. Keep the byte size exact here: rounding it to a
+    // whole kilobyte first can underestimate the rate (for example, a
+    // 2049-byte transaction would incorrectly be treated as three full KW).
+    const txSizeBytes = BigInt(tx.toBytes().length + 4);
+    // ceil(requiredFee * 1000 / txSizeBytes)
+    const minRateBig =
+      (requiredFee * 1000n + txSizeBytes - 1n) / txSizeBytes;
     // add ~10% buffer safely with BigInt: ceil(minRate * 1.1)
     const bufferedBig = (minRateBig * 11n + 9n) / 10n;
     const buffered = Number(bufferedBig);
@@ -186,6 +202,7 @@ export async function sendTransactionWithFeeRetry(
 ): Promise<ccc.Hex> {
   let attempts = 0;
   const maxAttempts = 3;
+  let feeRate = await calculateFeeRate(signer);
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -213,7 +230,7 @@ export async function sendTransactionWithFeeRetry(
       await completeTransactionForSend(
         signer,
         tx,
-        undefined,
+        feeRate,
         options?.preserveOutputCapacityIndices
       );
 
@@ -247,8 +264,15 @@ export async function sendTransactionWithFeeRetry(
 
         log.info(`Required fee: ${requiredFee} shannons`);
 
+        if (attempts >= maxAttempts) {
+          throw new Error(
+            `Transaction fee adjustment failed after ${maxAttempts} attempts. ` +
+              `The node required a fee of at least ${requiredFee} shannons.`
+          );
+        }
+
         // Query fee rate from node and ensure it covers requiredFee
-        const feeRate = await calculateFeeRate(signer, tx, requiredFee);
+        feeRate = await calculateFeeRate(signer, tx, requiredFee);
         log.info(`Calculated fee rate: ${feeRate} shannons/KW`);
 
         // Clear existing fee outputs and rebuild with new fee rate

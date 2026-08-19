@@ -26,6 +26,7 @@ export interface DraftHistoryProps<T> {
   data: T
   isEmpty: (data: T) => boolean
   onRestore: (data: T) => void
+  onClear?: () => void
   getVersionLabel?: (data: T, savedAt: number, index: number) => string
   pollMs?: number
   className?: string
@@ -38,6 +39,7 @@ export function DraftHistory<T>(props: DraftHistoryProps<T>) {
     data,
     isEmpty,
     onRestore,
+    onClear,
     getVersionLabel,
     pollMs = 3000,
     className,
@@ -103,6 +105,7 @@ export function DraftHistory<T>(props: DraftHistoryProps<T>) {
     const ok = window.confirm("Clear all saved draft versions?")
     if (!ok) return
     storage.clear()
+    onClear?.()
     refresh()
   }
 

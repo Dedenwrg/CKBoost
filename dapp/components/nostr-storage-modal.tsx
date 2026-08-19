@@ -237,6 +237,7 @@ export function NostrStorageModal({
   >("idle");
   const [txError, setTxError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const transactionPendingRef = useRef(false);
   const [openSections, setOpenSections] = useState<string[]>([]);
   const [verifiedNeventId, setVerifiedNeventId] = useState<string | null>(null);
   const [verifiedSource, setVerifiedSource] = useState<
@@ -830,6 +831,7 @@ export function NostrStorageModal({
     setManualPreview(null);
     setManualPreviewError(null);
     setManualPreviewLoading(false);
+    transactionPendingRef.current = true;
     setIsConfirming(true);
     setTxError(null);
     setTxHash(null);
@@ -865,6 +867,7 @@ export function NostrStorageModal({
       setTxStatus("error");
       setErrorMessage(errorMsg);
     } finally {
+      transactionPendingRef.current = false;
       setIsConfirming(false);
     }
   };
@@ -903,14 +906,43 @@ export function NostrStorageModal({
     }
   };
 
+  const isTransactionPending = isConfirming || txStatus === "submitting";
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[900px] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[90vh] overflow-y-auto">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (
+          !open &&
+          !transactionPendingRef.current &&
+          !isTransactionPending
+        ) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-[900px] lg:max-w-[1100px] xl:max-w-[1200px] max-h-[90vh] overflow-y-auto"
+        onEscapeKeyDown={(event) => {
+          if (transactionPendingRef.current || isTransactionPending) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (transactionPendingRef.current || isTransactionPending) {
+            event.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Cloud className="w-5 h-5" />
             Nostr Storage Verification
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Verify campaign content stored on Nostr before submitting the
+            blockchain transaction.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">

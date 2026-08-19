@@ -500,7 +500,7 @@ export default function CampaignAdminPage() {
           amount: amount.toString(),
         }));
 
-        saveCreateDraft({
+        const draft = {
           campaignData: campaignDataRef.current as unknown as Record<
             string,
             unknown
@@ -510,7 +510,8 @@ export default function CampaignAdminPage() {
           >,
           initialFunding: entries,
           ckbInitialFunding: ckbFundingRef.current.toString(),
-        });
+        };
+        if (!isDraftEmpty(draft)) saveCreateDraft(draft);
       } catch (e) {
         console.error("Autosave draft failed:", e);
       }
@@ -644,6 +645,33 @@ export default function CampaignAdminPage() {
       console.error("Failed to restore draft payload:", e);
       alert("Failed to restore draft");
     }
+  };
+
+  const handleClearDraft = () => {
+    const emptyCampaignData: CampaignFormData = {
+      title: "",
+      shortDescription: "",
+      longDescription: "",
+      categories: [],
+      startDate: "",
+      endDate: "",
+      difficulty: 0,
+      verificationLevel: "none",
+      rules: [""],
+    };
+    const emptyFunding = new Map<string, bigint>();
+    campaignDataRef.current = emptyCampaignData;
+    questsRef.current = [];
+    fundingRef.current = emptyFunding;
+    ckbFundingRef.current = 0n;
+    setCampaignData(emptyCampaignData);
+    setLocalQuests([]);
+    setInitialFunding(emptyFunding);
+    setCkbInitialFunding(0n);
+    setCoverImage({ dirty: false });
+    setLongDescriptionNeventId(null);
+    setLongDescriptionDirty(false);
+    setActiveTab("details");
   };
 
   // Quest form management
@@ -1823,6 +1851,7 @@ export default function CampaignAdminPage() {
                     data={buildCurrentDraftPayload()}
                     isEmpty={(d) => isDraftEmpty(d)}
                     onRestore={handleRestoreDraft}
+                    onClear={handleClearDraft}
                     getVersionLabel={(d, ts) =>
                       new Date(ts).toLocaleString()
                     }
