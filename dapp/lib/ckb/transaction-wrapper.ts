@@ -140,8 +140,10 @@ async function calculateFeeRate(
   try {
     const nodeRate = await signer.client.getFeeRate();
     // getFeeRate may return bigint or number depending on client version
-    recommended =
-      typeof nodeRate === "bigint" ? Number(nodeRate) : Number(nodeRate);
+    const parsedRate = Number(nodeRate);
+    if (Number.isFinite(parsedRate) && parsedRate > 0) {
+      recommended = parsedRate;
+    }
   } catch (_) {
     // ignore and use fallback
   }
@@ -186,6 +188,7 @@ export async function sendTransactionWithFeeRetry(
 ): Promise<ccc.Hex> {
   let attempts = 0;
   const maxAttempts = 3;
+  let feeRate = await calculateFeeRate(signer);
 
   while (attempts < maxAttempts) {
     attempts++;
@@ -213,7 +216,7 @@ export async function sendTransactionWithFeeRetry(
       await completeTransactionForSend(
         signer,
         tx,
-        undefined,
+        feeRate,
         options?.preserveOutputCapacityIndices
       );
 
@@ -248,7 +251,7 @@ export async function sendTransactionWithFeeRetry(
         log.info(`Required fee: ${requiredFee} shannons`);
 
         // Query fee rate from node and ensure it covers requiredFee
-        const feeRate = await calculateFeeRate(signer, tx, requiredFee);
+        feeRate = await calculateFeeRate(signer, tx, requiredFee);
         log.info(`Calculated fee rate: ${feeRate} shannons/KW`);
 
         // Clear existing fee outputs and rebuild with new fee rate
