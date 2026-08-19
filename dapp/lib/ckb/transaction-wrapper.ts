@@ -102,6 +102,16 @@ async function completeTransactionForSend(
   preserveOutputCapacityIndices?: ReadonlySet<number>
 ): Promise<void> {
   await tx.completeInputsByCapacity(signer);
+
+  // Wallet signers can add required cell deps and placeholder witnesses while
+  // preparing a transaction. CCC core versions before 1.18.2 ignored a newly
+  // returned prepared transaction during fee completion. Copy it back here so
+  // fees include wallet preparation even across different core instances.
+  const preparedTx = await signer.prepareTransaction(tx);
+  if (preparedTx !== tx) {
+    tx.copy(preparedTx);
+  }
+
   try {
     await tx.completeFeeBy(signer, feeRate);
   } catch (error) {
