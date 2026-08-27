@@ -625,6 +625,16 @@ export default function CampaignDetailPage() {
     checkSubmissionStatuses();
   }, [currentUserTypeId, campaign, campaignTypeId, hasUserSubmittedQuest]);
 
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const ckbRewardStats = useMemo(() => {
     let totalPerCompletion = 0n;
     let totalDistributed = 0n;
@@ -669,7 +679,7 @@ export default function CampaignDetailPage() {
   }, [campaign?.quests]);
 
   // Show loading state while waiting for campaign data or protocol context
-  if (isLoading || !protocolReady || (!client && !campaign)) {
+  if (isLoading || !protocolReady || (!client && !campaign) || !now) {
     return (
       <PageLoading
         title="Loading Campaign"
@@ -792,8 +802,19 @@ export default function CampaignDetailPage() {
     protocolDataExists: !!protocolData,
   });
 
+  const formatExactTime = (date: Date) => {
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZoneName: "short",
+    });
+  };
+
   // Calculate campaign status based on dates and approval
-  const now = new Date();
   const startDate = new Date(startTimestamp);
   const endDate = new Date(endTimestamp);
   const status = !isApproved
@@ -933,7 +954,7 @@ export default function CampaignDetailPage() {
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Event ended</AlertTitle>
               <AlertDescription>
-                Submissions closed on {formatDateConsistent(endDate)}. You can
+                Submissions closed on {formatExactTime(endDate)}. You can
                 still review the quests and past rewards below.
               </AlertDescription>
             </Alert>
@@ -1045,8 +1066,8 @@ export default function CampaignDetailPage() {
                     />
                   </div>
                   <div className="flex justify-between text-xs text-gray-600 dark:text-muted-foreground">
-                    <span>Started: {formatDateConsistent(startDate)}</span>
-                    <span>Ends: {formatDateConsistent(endDate)}</span>
+                    <span>Started: {formatExactTime(startDate)}</span>
+                    <span>Ends: {formatExactTime(endDate)}</span>
                   </div>
                 </div>
               ) : (
@@ -1873,7 +1894,7 @@ export default function CampaignDetailPage() {
                               <AlertDescription>
                                 This quest is part of an expired event.
                                 Submissions ended on{" "}
-                                {formatDateConsistent(endDate)}.
+                                {formatExactTime(endDate)}.
                               </AlertDescription>
                             </Alert>
                           )}
